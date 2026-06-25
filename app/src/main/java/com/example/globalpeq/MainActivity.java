@@ -4856,7 +4856,6 @@ public final class MainActivity extends Activity {
         }
         // 色阶：浅蓝青色调，无深蓝，无绿色感。
         // 所有颜色 B>=G，青色感来自 G、B 同时较高。
-        // 浅蓝青色调，无深蓝，无绿色感。
         // 极浅蓝青 → 浅青蓝 → 饱和青 → 白热核心 → 饱和青 → 浅青蓝 → 极浅蓝青
         int paleCyan  = Color.rgb(185, 235, 255);  // 极浅蓝青（B-G=20）
         int lightAqua = Color.rgb(130, 225, 250);  // 浅青蓝（B-G=25）
