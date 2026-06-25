@@ -584,34 +584,13 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        modeSpinner = new TextView(this) {
-            @Override
-            protected void onAttachedToWindow() {
-                super.onAttachedToWindow();
-                registerShimmerView(this);
-            }
-
-            @Override
-            protected void onDetachedFromWindow() {
-                unregisterShimmerView(this);
-                super.onDetachedFromWindow();
-            }
-
-            @Override
-            protected void onDraw(Canvas canvas) {
-                int save = canvas.save();
-                int overflow = dp(28);
-                canvas.clipRect(-overflow, 0, getWidth() + overflow, getHeight());
-                super.onDraw(canvas);
-                canvas.restoreToCount(save);
-            }
-        };
+        modeSpinner = new GlowTitleTextView(this);
         modeSpinner.setTextSize(16);
         modeSpinner.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         modeSpinner.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
         modeSpinner.setSingleLine(true);
         modeSpinner.setIncludeFontPadding(false);
-        modeSpinner.setPadding(dp(6), 0, dp(6), 0);
+        modeSpinner.setPadding(dp(8), 0, dp(8), 0);
         modeSpinner.setMinWidth(0);
         modeSpinner.setMinimumWidth(0);
         styleSettingsTitleText(modeSpinner);
