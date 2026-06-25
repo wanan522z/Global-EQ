@@ -216,15 +216,15 @@ public final class MainActivity extends Activity {
     // 流光色阶：浅蓝青色调，亮色为主，多一点蓝色感。positions 亮色区域占 40%。
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.15f, 0.3f, 0.5f, 0.7f, 0.85f, 1.0f};
 
-    // 亮色阶（tab/标题/Live 模式 statusText）：饱和亮浅蓝青，略偏蓝
+    // 亮色阶（tab/标题/Live 模式 statusText）：饱和亮浅蓝青，略偏蓝，更亮
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(210, 240, 255),  // 极亮浅蓝青（提亮）
-            Color.rgb(150, 215, 250),  // 亮浅蓝（偏蓝，B-G=35）
-            Color.rgb(95, 200, 245),   // 饱和亮青蓝（提亮，偏蓝，B-G=45）
+            Color.rgb(220, 245, 255),  // 极亮浅蓝青（更亮）
+            Color.rgb(165, 225, 255),  // 亮浅蓝（偏蓝，更亮）
+            Color.rgb(110, 210, 255),  // 饱和亮青蓝（更亮，偏蓝）
             Color.rgb(255, 255, 255),  // 纯白热核心（最亮）
-            Color.rgb(95, 200, 245),   // 饱和亮青蓝
-            Color.rgb(150, 215, 250),  // 亮浅蓝
-            Color.rgb(210, 240, 255)   // 极亮浅蓝青
+            Color.rgb(110, 210, 255),  // 饱和亮青蓝
+            Color.rgb(165, 225, 255),  // 亮浅蓝
+            Color.rgb(220, 245, 255)   // 极亮浅蓝青
     };
     // Live 模式 statusText：同亮色阶（青蓝色感，动感动感）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
