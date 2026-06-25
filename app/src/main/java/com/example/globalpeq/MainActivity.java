@@ -5088,6 +5088,247 @@ public final class MainActivity extends Activity {
         updateBottomNavSelection(nextIndex);
     }
 
+    private void updateBottomNavSelection(int activeIndex) {
+        if (eqTabButton == null || extraTabButton == null || settingsTabButton == null) return;
+
+        Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        for (int i = 0; i < tabs.length; i++) {
+            Button tab = tabs[i];
+            boolean active = (i == activeIndex);
+            tab.setBackgroundColor(Color.TRANSPARENT);
+            if (active) {
+                applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
+                        Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+                tab.setTextColor(Color.WHITE);
+                tab.setShadowLayer(dp(5), 0, 0, Color.argb(125, 0, 245, 212));
+                tab.invalidate();
+                registerShimmerView(tab);
+            } else {
+                unregisterShimmerView(tab);
+                styleInactiveTabText(tab);
+            }
+        }
+        updateBottomTabIndicator(activeIndex, true);
+    }
+
+    private void updateBottomTabIndicator(int activeIndex, boolean animate) {
+        if (bottomTabIndicator == null) {
+            return;
+        }
+        View parent = (View) bottomTabIndicator.getParent();
+        if (parent == null) {
+            return;
+        }
+        parent.post(() -> {
+            if (bottomTabIndicator == null) {
+                return;
+            }
+            int trackWidth = parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight();
+            if (trackWidth <= 0) {
+                return;
+            }
+            int tabWidth = trackWidth / 3;
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) bottomTabIndicator.getLayoutParams();
+            if (params.width != tabWidth || params.leftMargin != parent.getPaddingLeft()) {
+                params.width = tabWidth;
+                params.leftMargin = parent.getPaddingLeft();
+                bottomTabIndicator.setLayoutParams(params);
+            }
+            float targetX = activeIndex * tabWidth;
+            if (animate) {
+                bottomTabIndicator.animate()
+                        .translationX(targetX)
+                        .setDuration(180)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .start();
+            } else {
+                bottomTabIndicator.animate().cancel();
+                bottomTabIndicator.setTranslationX(targetX);
+            }
+        });
+    }
+
+    private View[] mainPages() {
+        return new View[]{eqPage, extraPage, settingsPage};
+    }
+
+    private View activeMainPageView() {
+        View[] pages = mainPages();
+        return pages[clamp(activeMainPageIndex, 0, pages.length - 1)];
+    }
+
+    private View findDeepestChildUnder(View view, float rawX, float rawY) {
+        if (view == null || view.getVisibility() != View.VISIBLE) {
+            return null;
+        }
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        if (rawX < location[0] || rawX > location[0] + view.getWidth()
+                || rawY < location[1] || rawY > location[1] + view.getHeight()) {
+            return null;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = group.getChildCount() - 1; i >= 0; i--) {
+                View hit = findDeepestChildUnder(group.getChildAt(i), rawX, rawY);
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
+        return view;
+    }
+
+    private final class MainPageHost extends FrameLayout {
+        private float downX;
+        private float downY;
+        private boolean trackSwipe;
+        private boolean handlingSwipe;
+
+        MainPageHost(Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    downX = event.getRawX();
+                    downY = event.getRawY();
+                    handlingSwipe = false;
+                    View hit = findDeepestChildUnder(activeMainPageView(), downX, downY);
+                    trackSwipe = hit == activeMainPageView();
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (trackSwipe) {
+                        float dx = event.getRawX() - downX;
+                        float dy = event.getRawY() - downY;
+                        if (Math.abs(dx) > dpf(18f) && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                            handlingSwipe = true;
+                            return true;
+                        }
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    trackSwipe = false;
+                    handlingSwipe = false;
+                    break;
+                default:
+                    break;
+            }
+            return super.onInterceptTouchEvent(event);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (!trackSwipe && !handlingSwipe) {
+                return super.onTouchEvent(event);
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_MOVE:
+                    handlingSwipe = true;
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (handlingSwipe) {
+                        float dx = event.getRawX() - downX;
+                        float dy = event.getRawY() - downY;
+                        if (Math.abs(dx) > dpf(56f) && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                            switchToMainPage(activeMainPageIndex + (dx < 0 ? 1 : -1), true);
+                        }
+                    }
+                    trackSwipe = false;
+                    handlingSwipe = false;
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    trackSwipe = false;
+                    handlingSwipe = false;
+                    return true;
+                default:
+                    return true;
+            }
+        }
+    }
+
+    private final class SlidingTabBar extends FrameLayout {
+        private boolean dragging;
+
+        SlidingTabBar(Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    dragging = false;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    dragging = true;
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    dragging = false;
+                    break;
+                default:
+                    break;
+            }
+            return super.onInterceptTouchEvent(event);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (bottomTabIndicator == null) {
+                return super.onTouchEvent(event);
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    dragging = true;
+                    updateIndicatorFromTouch(event.getX());
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (dragging) {
+                        settleTabFromTouch(event.getX());
+                        dragging = false;
+                        return true;
+                    }
+                    break;
+                case MotionEvent.ACTION_CANCEL:
+                    updateBottomTabIndicator(activeMainPageIndex, true);
+                    dragging = false;
+                    return true;
+                default:
+                    break;
+            }
+            return super.onTouchEvent(event);
+        }
+
+        private void updateIndicatorFromTouch(float x) {
+            int trackWidth = getWidth() - getPaddingLeft() - getPaddingRight();
+            if (trackWidth <= 0) {
+                return;
+            }
+            int tabWidth = trackWidth / 3;
+            float maxX = Math.max(0, trackWidth - tabWidth);
+            float targetX = Math.max(0f, Math.min(maxX, x - getPaddingLeft() - tabWidth / 2f));
+            bottomTabIndicator.animate().cancel();
+            bottomTabIndicator.setTranslationX(targetX);
+        }
+
+        private void settleTabFromTouch(float x) {
+            int trackWidth = getWidth() - getPaddingLeft() - getPaddingRight();
+            if (trackWidth <= 0) {
+                return;
+            }
+            float clampedX = Math.max(getPaddingLeft(), Math.min(getWidth() - getPaddingRight(), x));
+            float relative = clampedX - getPaddingLeft();
+            int nextIndex = clamp((int) (relative / (trackWidth / 3f)), 0, 2);
+            switchToMainPage(nextIndex, true);
+        }
+    }
+
     private void updateBottomNavSelectionLegacy(int activeIndex) {
         if (eqTabButton == null || extraTabButton == null || settingsTabButton == null) return;
         
