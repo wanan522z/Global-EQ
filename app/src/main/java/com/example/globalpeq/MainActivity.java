@@ -5559,8 +5559,7 @@ public final class MainActivity extends Activity {
                 tab.post(() -> {
                     int w = tabRef.getWidth();
                     if (w > 0) {
-                        applyTitleGradientShader(tabRef, w,
-                                Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+                        styleSettingsTitleText(tabRef);
                         shimmerLastWidth.remove(tabRef);
                         tabRef.invalidate();
                     }
