@@ -497,7 +497,19 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        modeSpinner = new TextView(this);
+        modeSpinner = new TextView(this) {
+            @Override
+            protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                registerShimmerView(this);
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                unregisterShimmerView(this);
+                super.onDetachedFromWindow();
+            }
+        };
         modeSpinner.setTextSize(16);
         modeSpinner.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         modeSpinner.setGravity(android.view.Gravity.CENTER);
