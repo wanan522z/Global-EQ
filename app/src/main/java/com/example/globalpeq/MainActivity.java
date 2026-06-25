@@ -3421,7 +3421,12 @@ public final class MainActivity extends Activity {
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         // 标题视觉中心上移，与右侧复选框/开关中心点对齐
         title.setTranslationY(-dp(1));
-        row.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        // 抵消 gradientTitleView 的左 padding(22dp)，让文字视觉左缘对齐 panel 内容区左边，
+        // 使标题距 panel 左外边(dp16) 与右侧复选框背景距 panel 右外边(dp16) 视觉对称。
+        // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，裁剪不影响文字与 shimmer。
+        titleParams.leftMargin = -dp(22);
+        row.addView(title, titleParams);
         return row;
     }
 
