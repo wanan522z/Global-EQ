@@ -3284,14 +3284,14 @@ public final class MainActivity extends Activity {
 
         LinearLayout reverbPanel = createExtraPanelShell();
         // Reverb 面板有 4 个旋钮均分宽度，单独减小 padding 让旋钮列更宽，弧形更大
-        reverbPanel.setPadding(dp(8), dp(8), dp(8), dp(8));
+        reverbPanel.setPadding(dp(8), dp(6), dp(8), dp(8));
         page.addView(reverbPanel, extraPanelParams(0));
         LinearLayout reverbHeader = createExtraHeaderRow("Reverb");
         reverbTitleView = (TextView) reverbHeader.getChildAt(0);
         reverbTypeButton = createExtraChoiceButton();
         reverbTypeButton.setOnClickListener(v -> showReverbTypeChoiceMenu());
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
-        reverbPanel.addView(reverbHeader, blockParams(4));
+        reverbPanel.addView(reverbHeader, blockParams(0));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
         // 减小 knob row 顶部边距，让旋钮列高度更大
         ((LinearLayout.LayoutParams) reverbKnobs.getLayoutParams()).topMargin = dp(2);
