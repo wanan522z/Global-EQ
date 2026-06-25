@@ -211,30 +211,34 @@ public final class MainActivity extends Activity {
         view.invalidate();
     }
 
-    // 流光色阶：浅蓝青色调，亮色为主，多一点蓝色感。positions 亮色区域占 40%。
-    private static final float[] SHIMMER_POSITIONS = {0.0f, 0.15f, 0.3f, 0.5f, 0.7f, 0.85f, 1.0f};
+    // 流光色阶：浅蓝青色调 + 白色色调，亮区更亮更白。positions 亮色区域占 50%。
+    private static final float[] SHIMMER_POSITIONS = {0.0f, 0.12f, 0.25f, 0.38f, 0.5f, 0.62f, 0.75f, 0.88f, 1.0f};
 
-    // 亮色阶（tab/标题/Live 模式 statusText）：饱和亮浅蓝青，略偏蓝，更亮
+    // 亮色阶（tab/标题/Live 模式 statusText）：饱和亮浅蓝青 + 纯白扩展，更亮
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(235, 250, 255),  // 极亮浅蓝青（再亮）
-            Color.rgb(190, 235, 255),  // 亮浅蓝（偏蓝，再亮）
-            Color.rgb(140, 220, 255),  // 饱和亮青蓝（再亮，偏蓝）
-            Color.rgb(255, 255, 255),  // 纯白热核心（最亮）
-            Color.rgb(140, 220, 255),  // 饱和亮青蓝
-            Color.rgb(190, 235, 255),  // 亮浅蓝
-            Color.rgb(235, 250, 255)   // 极亮浅蓝青
+            Color.rgb(240, 250, 255),  // 极亮浅蓝白
+            Color.rgb(255, 255, 255),  // 纯白
+            Color.rgb(200, 240, 255),  // 亮浅蓝白
+            Color.rgb(255, 255, 255),  // 纯白热核心
+            Color.rgb(255, 255, 255),  // 纯白核心扩展
+            Color.rgb(255, 255, 255),  // 纯白热核心
+            Color.rgb(200, 240, 255),  // 亮浅蓝白
+            Color.rgb(255, 255, 255),  // 纯白
+            Color.rgb(240, 250, 255)   // 极亮浅蓝白
     };
     // Live 模式 statusText：同亮色阶（青蓝色感，动感动感）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
     // Edit 模式 statusText：暗一档的低饱和浅蓝青（平稳高贵，区别于 Live）
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(200, 225, 245),  // 暗浅蓝（再亮）
-            Color.rgb(175, 210, 235),  // 暗浅青蓝（再亮）
-            Color.rgb(150, 205, 230),  // 暗饱和青（再亮）
-            Color.rgb(245, 250, 255),  // 暗白热核心（再亮）
-            Color.rgb(150, 205, 230),  // 暗饱和青
-            Color.rgb(175, 210, 235),  // 暗浅青蓝
-            Color.rgb(200, 225, 245)   // 暗浅蓝
+            Color.rgb(210, 230, 250),  // 暗浅蓝白
+            Color.rgb(255, 255, 255),  // 纯白
+            Color.rgb(185, 220, 245),  // 暗浅青蓝
+            Color.rgb(255, 255, 255),  // 纯白热核心
+            Color.rgb(255, 255, 255),  // 纯白核心扩展
+            Color.rgb(255, 255, 255),  // 纯白热核心
+            Color.rgb(185, 220, 245),  // 暗浅青蓝
+            Color.rgb(255, 255, 255),  // 纯白
+            Color.rgb(210, 230, 250)   // 暗浅蓝白
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
