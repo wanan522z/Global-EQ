@@ -11,6 +11,8 @@ import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Shader;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.view.View;
 
 final class EqCurveView extends View {
@@ -40,6 +42,8 @@ final class EqCurveView extends View {
     private final Paint glowPaint3 = new Paint(Paint.ANTI_ALIAS_FLAG); // Inner solid halo core
     private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint curveLayerPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Rect curveLayerSrc = new Rect();
+    private final RectF curveLayerDst = new RectF();
     private final Matrix sweepMatrix = new Matrix();
     private float sweepPhase = 0.0f;
     private long lastTime = 0;
@@ -333,7 +337,9 @@ final class EqCurveView extends View {
         curveLayerCanvas.drawPath(curvePath, curvePaint);
 
         curveLayerCanvas.restore();
-        canvas.drawBitmap(curveLayerBitmap, 0f, 0f, curveLayerPaint);
+        curveLayerSrc.set(0, 0, curveLayerBitmap.getWidth(), curveLayerBitmap.getHeight());
+        curveLayerDst.set(0f, 0f, width, height);
+        canvas.drawBitmap(curveLayerBitmap, curveLayerSrc, curveLayerDst, curveLayerPaint);
     }
 
     private void ensureCurveLayer(int width, int height) {
