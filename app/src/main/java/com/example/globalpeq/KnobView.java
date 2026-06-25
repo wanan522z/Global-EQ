@@ -30,6 +30,7 @@ final class KnobView extends View {
     private boolean maybeTap;
     private Listener listener;
     private TapListener tapListener;
+    private boolean forceSquare;
 
     KnobView(Context context) {
         super(context);
@@ -42,6 +43,21 @@ final class KnobView extends View {
         fillPaint.setStrokeCap(Paint.Cap.ROUND);
         textPaint.setTextAlign(Paint.Align.CENTER);
         setClickable(true);
+    }
+
+    /** 强制方形：高度=宽度，避免弧形在过高 view 中居中导致下方标题距离过远 */
+    void setForceSquare(boolean force) {
+        this.forceSquare = force;
+        requestLayout();
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        if (forceSquare) {
+            int side = Math.min(getMeasuredWidth(), getMeasuredHeight());
+            setMeasuredDimension(side, side);
+        }
     }
 
     void configure(int min, int max, int value, String suffix, Listener listener) {
