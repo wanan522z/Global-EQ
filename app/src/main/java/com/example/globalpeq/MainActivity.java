@@ -5221,7 +5221,7 @@ public final class MainActivity extends Activity {
         } else {
             unregisterShimmerView(view);
             view.setTextColor(Color.rgb(150, 165, 185));
-            view.getPaint().clearShadowLayer();
+            clearGlowFromTextView(view);
             view.invalidate();
         }
     }
@@ -5245,11 +5245,27 @@ public final class MainActivity extends Activity {
         shimmerTargetViews.remove(view);
         shimmerLastWidth.remove(view);
         view.getPaint().setShader(null);
-        view.getPaint().clearShadowLayer();
+        clearGlowFromTextView(view);
         view.invalidate();
         if (shimmerTargetViews.isEmpty()) {
             uiHandler.removeCallbacks(shimmerAnimationRunnable);
         }
+    }
+
+    private void applyGlowToTextView(TextView view, int glowColor, float glowRadiusDp) {
+        if (view instanceof GlowTitleTextView) {
+            ((GlowTitleTextView) view).setGlowState(true, glowColor, dpf(glowRadiusDp));
+            view.getPaint().clearShadowLayer();
+            return;
+        }
+        view.getPaint().setShadowLayer(dpf(glowRadiusDp), 0, 0, glowColor);
+    }
+
+    private void clearGlowFromTextView(TextView view) {
+        if (view instanceof GlowTitleTextView) {
+            ((GlowTitleTextView) view).clearGlowState();
+        }
+        view.getPaint().clearShadowLayer();
     }
 
     private void styleSettingsTitleText(TextView view) {
