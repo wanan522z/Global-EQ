@@ -5462,8 +5462,8 @@ public final class MainActivity extends Activity {
         View current = view;
         while (current != null) {
             if (current instanceof HorizontalScrollView
-                    || current instanceof EqCurveView
-                    || current instanceof KnobView) {
+                    || current instanceof KnobView
+                    || current instanceof HorizontalBassSlider) {
                 return true;
             }
             ViewParent parent = current.getParent();
