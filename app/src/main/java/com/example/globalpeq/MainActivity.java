@@ -290,6 +290,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         shimmerTargetViews.clear();
+        shimmerLastWidth.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         removeKeyboardVisibilityListener();
         super.onDestroy();
