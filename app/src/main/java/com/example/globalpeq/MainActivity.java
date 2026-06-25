@@ -3954,6 +3954,9 @@ public final class MainActivity extends Activity {
 
     private View wrapCircularButton(View button, float weight, int sizeDp, int leftDp, int rightDp, int translationXDp) {
         FrameLayout container = new FrameLayout(this);
+        // 关键修复：关闭该容器的子视图裁剪，否则内部圆形按钮画出的高阶模糊霓虹光晕阴影会在 22dp 或 24dp 边框外边缘直接切平，看起来十分不美观。
+        container.setClipChildren(false);
+        container.setClipToPadding(false);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
         lp.gravity = android.view.Gravity.CENTER;
         button.setTranslationX(dp(translationXDp));
