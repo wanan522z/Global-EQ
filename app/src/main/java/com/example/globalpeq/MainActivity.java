@@ -978,11 +978,8 @@ public final class MainActivity extends Activity {
         if (pregainInput != null) {
             pregainInput.setText(formatDecimal(editingPreset.pregainMb / 100f));
         }
-        if (systemBassBoostKnob != null) {
-            systemBassBoostKnob.setValue(editingPreset.systemBassBoostPercent, false);
-        }
-        if (systemBassBoostInput != null) {
-            systemBassBoostInput.setText(String.valueOf(editingPreset.systemBassBoostPercent));
+        if (bassBoostSlider != null) {
+            bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
         }
         if (cutoffKnob != null) {
             cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
