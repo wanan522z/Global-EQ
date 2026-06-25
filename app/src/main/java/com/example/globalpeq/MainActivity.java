@@ -2937,12 +2937,8 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        if (systemBassBoostKnob != null) {
-            systemBassBoostKnob.setValue(editingPreset.systemBassBoostPercent, false);
-        }
-        if (systemBassBoostInput != null) {
-            systemBassBoostInput.setText(String.valueOf(editingPreset.systemBassBoostPercent));
-            styleExtraKnobInput(systemBassBoostInput, editingPreset.systemBassBoostPercent, supported);
+        if (bassBoostSlider != null) {
+            bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
         }
         if (cutoffKnob != null) {
             cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
