@@ -3485,10 +3485,11 @@ public final class MainActivity extends Activity {
         KnobView knob = new KnobView(this);
         knob.configure(min, max, value, suffix, listener::onChanged);
         knob.setTapListener(this::showStyledKnobInputDialog);
-        // 旋钮放大：上下零边距，让弧形在列高度内最大化
+        // 强制方形：弧形填满 view，标题紧贴弧形下方
+        knob.setForceSquare(true);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = 0;
-        knobParams.bottomMargin = 0;
+        knobParams.topMargin = dp(6);
+        knobParams.bottomMargin = dp(6);
         column.addView(knob, knobParams);
 
         if ("Decay".equals(label)) {
