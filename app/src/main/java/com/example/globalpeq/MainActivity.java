@@ -5267,7 +5267,7 @@ public final class MainActivity extends Activity {
         }
         int viewWidth = Math.max(1, view.getWidth());
         CharSequence text = view.getText();
-        if (!(view instanceof Button) && text != null && text.length() > 0) {
+        if (text != null && text.length() > 0) {
             int textWidth = (int) Math.ceil(view.getPaint().measureText(text.toString()))
                     + view.getPaddingLeft() + view.getPaddingRight();
             return Math.max(1, Math.min(viewWidth, textWidth));
