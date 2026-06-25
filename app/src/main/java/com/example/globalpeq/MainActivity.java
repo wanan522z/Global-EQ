@@ -5680,6 +5680,7 @@ public final class MainActivity extends Activity {
     private final class SlidingTabBar extends FrameLayout {
         private float downX;
         private float downY;
+        private float dragStartPagePosition;
         private boolean dragging;
 
         SlidingTabBar(Context context) {
@@ -5692,6 +5693,7 @@ public final class MainActivity extends Activity {
                 case MotionEvent.ACTION_DOWN:
                     downX = event.getX();
                     downY = event.getY();
+                    dragStartPagePosition = activeMainPageIndex;
                     dragging = false;
                     break;
                 case MotionEvent.ACTION_MOVE:
@@ -5719,6 +5721,9 @@ public final class MainActivity extends Activity {
             }
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
+                    downX = event.getX();
+                    downY = event.getY();
+                    dragStartPagePosition = activeMainPageIndex;
                     return true;
                 case MotionEvent.ACTION_MOVE:
                     dragging = true;
@@ -5753,9 +5758,12 @@ public final class MainActivity extends Activity {
             if (trackWidth <= 0) {
                 return;
             }
-            float clampedX = Math.max(getPaddingLeft(), Math.min(getWidth() - getPaddingRight(), x));
-            float relative = clampedX - getPaddingLeft();
-            float desiredPosition = Math.max(0f, Math.min(2f, relative / (trackWidth / 3f)));
+            float tabWidth = trackWidth / 3f;
+            if (tabWidth <= 0f) {
+                return;
+            }
+            float deltaPages = (x - downX) / tabWidth;
+            float desiredPosition = Math.max(0f, Math.min(2f, dragStartPagePosition + deltaPages));
             mainPageHost.updatePagePositionFromTab(desiredPosition);
         }
 
@@ -5767,9 +5775,12 @@ public final class MainActivity extends Activity {
             if (trackWidth <= 0) {
                 return;
             }
-            float clampedX = Math.max(getPaddingLeft(), Math.min(getWidth() - getPaddingRight(), x));
-            float relative = clampedX - getPaddingLeft();
-            float desiredPosition = Math.max(0f, Math.min(2f, relative / (trackWidth / 3f)));
+            float tabWidth = trackWidth / 3f;
+            if (tabWidth <= 0f) {
+                return;
+            }
+            float deltaPages = (x - downX) / tabWidth;
+            float desiredPosition = Math.max(0f, Math.min(2f, dragStartPagePosition + deltaPages));
             mainPageHost.settleToTabPosition(desiredPosition);
         }
     }
