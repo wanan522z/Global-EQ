@@ -5104,6 +5104,7 @@ public final class MainActivity extends Activity {
         shimmerTargetViews.remove(view);
         shimmerLastWidth.remove(view);
         view.getPaint().setShader(null);
+        view.getPaint().clearShadowLayer();
         view.invalidate();
         if (shimmerTargetViews.isEmpty()) {
             uiHandler.removeCallbacks(shimmerAnimationRunnable);
