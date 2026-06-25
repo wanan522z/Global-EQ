@@ -606,7 +606,7 @@ public final class MainActivity extends Activity {
         modeSpinner.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
         modeSpinner.setSingleLine(true);
         modeSpinner.setIncludeFontPadding(false);
-        modeSpinner.setPadding(dp(18), 0, dp(18), 0);
+        modeSpinner.setPadding(dp(6), 0, dp(6), 0);
         modeSpinner.setMinWidth(0);
         modeSpinner.setMinimumWidth(0);
         styleSettingsTitleText(modeSpinner);
@@ -653,6 +653,7 @@ public final class MainActivity extends Activity {
         statusText.setTextSize(12);
         statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         statusText.setGravity(android.view.Gravity.CENTER);
+        statusText.setPadding(dp(8), dp(4), dp(8), dp(4));
         styleStatusText(false);
         int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
