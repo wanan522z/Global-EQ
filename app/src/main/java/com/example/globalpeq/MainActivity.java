@@ -136,9 +136,6 @@ public final class MainActivity extends Activity {
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
-    // ===== 诊断日志（定位 tab/modeSpinner 不动问题，验证后删除）=====
-    private static final String SHIMMER_TAG = "ShimmerDBG";
-    private int shimmerFrameCounter = 0;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
@@ -152,18 +149,9 @@ public final class MainActivity extends Activity {
             }
             lastShimmerTime = now;
 
-            // 每 30 帧打印一次诊断快照，定位"不动"问题
-            boolean dbg = (shimmerFrameCounter++ % 30) == 0;
-            if (dbg) {
-                Log.d(SHIMMER_TAG, "run: size=" + shimmerTargetViews.size()
-                        + " phase=" + shimmerAnimPhase
-                        + " lastTime=" + lastShimmerTime);
-            }
-
             for (int i = shimmerTargetViews.size() - 1; i >= 0; i--) {
                 TextView view = shimmerTargetViews.get(i);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
-                    if (dbg) Log.d(SHIMMER_TAG, "  [" + i + "] SKIP not attached: " + view);
                     continue;
                 }
                 int width = view.getWidth();
@@ -175,23 +163,12 @@ public final class MainActivity extends Activity {
                     }
                 }
 
-                recreateShaderForView(view, width);
-                Shader shader = view.getPaint().getShader();
-
-                if (shader != null) {
-                    shimmerShaderMatrix.reset();
-                    shimmerShaderMatrix.postTranslate(shimmerAnimPhase * width, 0);
-                    shader.setLocalMatrix(shimmerShaderMatrix);
-                    view.invalidate();
-                }
-                if (dbg) {
-                    Log.d(SHIMMER_TAG, "  [" + i + "] " + view.getClass().getSimpleName()
-                            + "@" + Integer.toHexString(System.identityHashCode(view))
-                            + " w=" + view.getWidth()
-                            + " shaderW=" + width
-                            + " shader=" + (shader != null ? "OK" : "NULL")
-                            + " layer=" + view.getLayerType());
-                }
+                // 关键修复：每帧把 phase 偏移直接 baked 进 LinearGradient 的坐标参数，
+                // 而非用 setLocalMatrix。硬件加速下 TextView 文字走 glyph atlas 渲染，
+                // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化，
+                // 导致 matrix 更新了但 glyph 不重绘（视觉不动）。
+                // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘。
+                applyShimmerFrame(view, width, shimmerAnimPhase);
             }
             if (!shimmerTargetViews.isEmpty()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
@@ -201,10 +178,41 @@ public final class MainActivity extends Activity {
                 }
             } else {
                 lastShimmerTime = 0L;
-                Log.d(SHIMMER_TAG, "run: list empty, loop STOPPED");
             }
         }
     };
+
+    // 每帧调用：根据 view 类型选色阶，把 phase 偏移 baked 进渐变坐标
+    private void applyShimmerFrame(TextView view, int width, float phase) {
+        if (view == null || width <= 0) return;
+        // 判断是否需要跳过（statusText 在 clip/不支持时不渲染流光）
+        if (view == statusText) {
+            boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
+            if (!supported || hasClip) {
+                return;
+            }
+        }
+        // 偏移：phase 0→1 对应渐变左移 0→width，REPEAT 保证无缝循环
+        float offset = phase * width;
+        view.getPaint().setShader(new LinearGradient(
+                -offset, 0, width - offset, 0,
+                SHIMMER_COLORS,
+                SHIMMER_POSITIONS,
+                Shader.TileMode.REPEAT));
+        view.invalidate();
+    }
+
+    // 流光统一色阶：浅蓝青色调，亮色为主，无深蓝无绿色感
+    private static final int[] SHIMMER_COLORS = {
+            Color.rgb(205, 243, 255),  // 极亮浅蓝青
+            Color.rgb(155, 232, 252),  // 亮浅青蓝
+            Color.rgb(105, 228, 248),  // 饱和亮青
+            Color.rgb(250, 252, 255),  // 白热核心
+            Color.rgb(105, 228, 248),  // 饱和亮青
+            Color.rgb(155, 232, 252),  // 亮浅青蓝
+            Color.rgb(205, 243, 255)   // 极亮浅蓝青
+    };
+    private static final float[] SHIMMER_POSITIONS = {0.0f, 0.15f, 0.3f, 0.5f, 0.7f, 0.85f, 1.0f};
 
     private void recreateShaderForView(TextView view, int width) {
         if (view == null || width <= 0) return;
