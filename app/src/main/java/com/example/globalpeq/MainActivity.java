@@ -3190,7 +3190,7 @@ public final class MainActivity extends Activity {
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
         // UI 占位选择框，system/dsp 切换功能后续接入
-        bassHeader.addView(bassModeSpinner, new LinearLayout.LayoutParams(dp(126), dp(32)));
+        bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(126), dp(32)));
         bassPanel.addView(bassHeader, blockParams(4));
         bassBoostSlider = new HorizontalBassSlider(this);
         bassBoostSlider.configure(0, 100, editingPreset.systemBassBoostPercent, "%", "Boost",
