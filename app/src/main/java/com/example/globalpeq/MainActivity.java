@@ -97,12 +97,6 @@ public final class MainActivity extends Activity {
     private KnobView reverbPredelayKnob;
     private KnobView reverbSizeKnob;
     private KnobView reverbMixKnob;
-    private EditText cutoffInput;
-    private EditText amountInput;
-    private EditText reverbDecayInput;
-    private EditText reverbPredelayInput;
-    private EditText reverbSizeInput;
-    private EditText reverbMixInput;
     private TextView reverbTypeButton;
     private TextView bassModeButton;
     private TextView reverbTitleView;
@@ -1086,12 +1080,6 @@ public final class MainActivity extends Activity {
         }
         if (amountKnob != null) {
             amountKnob.setValue(editingPreset.virtualBassAmountPercent, false);
-        }
-        if (cutoffInput != null) {
-            cutoffInput.setText(String.valueOf(editingPreset.virtualBassCutoffHz));
-        }
-        if (amountInput != null) {
-            amountInput.setText(String.valueOf(editingPreset.virtualBassAmountPercent));
         }
         renderSavedPresetSpinner();
         renderCurveButtons();
