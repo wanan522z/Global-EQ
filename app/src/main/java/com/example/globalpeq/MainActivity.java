@@ -3020,29 +3020,44 @@ public final class MainActivity extends Activity {
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
         }
-        if (cutoffKnob != null) {
-            cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
+        boolean virtualBassEnabled = supported && editingPreset.virtualBassAmountPercent > 0;
+        if (editingPreset.virtualBassAmountPercent > 0) {
+            lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
         }
-        if (amountKnob != null) {
-            amountKnob.setValue(editingPreset.virtualBassAmountPercent, false);
+        if (virtualBassSwitch != null) {
+            updatingUi = true;
+            virtualBassSwitch.setChecked(virtualBassEnabled);
+            virtualBassSwitch.setEnabled(supported);
+            updatingUi = false;
         }
-        if (cutoffInput != null) {
-            cutoffInput.setText(String.valueOf(editingPreset.virtualBassCutoffHz));
-            styleExtraKnobInput(cutoffInput, editingPreset.virtualBassCutoffHz, supported);
-        }
-        if (amountInput != null) {
-            amountInput.setText(String.valueOf(editingPreset.virtualBassAmountPercent));
-            styleExtraKnobInput(amountInput, editingPreset.virtualBassAmountPercent, supported);
-        }
+        updateVirtualBassControl(cutoffKnob, cutoffInput, editingPreset.virtualBassCutoffHz, virtualBassEnabled);
+        updateVirtualBassControl(amountKnob, amountInput, editingPreset.virtualBassAmountPercent, virtualBassEnabled);
         boolean reverbEnabled = supported && !"Default".equals(editingPreset.reverbType);
-        if (reverbTypeSpinner != null) {
-            reverbTypeSpinner.setSelection(reverbTypeIndex(editingPreset.reverbType));
-            reverbTypeSpinner.setEnabled(supported);
+        if (reverbTypeButton != null) {
+            reverbTypeButton.setText(editingPreset.reverbType);
+            reverbTypeButton.setEnabled(supported);
+            reverbTypeButton.setAlpha(supported ? 1f : 0.5f);
+        }
+        if (bassModeButton != null) {
+            bassModeButton.setText(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]);
+            bassModeButton.setAlpha(1f);
         }
         updateReverbControl(reverbDecayKnob, reverbDecayInput, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelayKnob, reverbPredelayInput, editingPreset.reverbPredelayMs, reverbEnabled);
         updateReverbControl(reverbSizeKnob, reverbSizeInput, editingPreset.reverbSizePercent, reverbEnabled);
         updateReverbControl(reverbMixKnob, reverbMixInput, editingPreset.reverbMixPercent, reverbEnabled);
+    }
+
+    private void updateVirtualBassControl(KnobView knob, EditText input, int value, boolean enabled) {
+        if (knob != null) {
+            knob.setEnabled(enabled);
+            knob.setValue(value, false);
+        }
+        if (input != null) {
+            input.setEnabled(enabled);
+            input.setText(String.valueOf(value));
+            styleExtraKnobInput(input, value, enabled);
+        }
     }
 
     private void updateReverbControl(KnobView knob, EditText input, int value, boolean enabled) {
