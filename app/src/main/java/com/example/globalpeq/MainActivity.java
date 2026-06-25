@@ -3228,13 +3228,6 @@ public final class MainActivity extends Activity {
         knobParams.bottomMargin = dp(8);
         column.addView(placeholder, knobParams);
 
-        systemBassBoostInput = createNumberInput(String.valueOf(editingPreset.systemBassBoostPercent), "%", value -> {
-            int percent = Math.round(value);
-            setEditingPreset(editingPreset.withSystemBassBoostPercent(clamp(percent, 0, 100)), true);
-        });
-        systemBassBoostInput.setGravity(android.view.Gravity.CENTER);
-        styleExtraKnobInput(systemBassBoostInput, editingPreset.systemBassBoostPercent, supported);
-        column.addView(systemBassBoostInput, new LinearLayout.LayoutParams(dp(84), dp(36)));
         return column;
     }
 
