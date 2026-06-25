@@ -3485,6 +3485,37 @@ public final class MainActivity extends Activity {
         return column;
     }
 
+    // 旋钮数字点击：弹出数值输入对话框，确认后写入 knob（触发 listener 链路）
+    private void showKnobInputDialog(KnobView knob) {
+        if (knob == null) return;
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(String.valueOf(knob.getValue()));
+        input.setHint(knob.getMin() + " ~ " + knob.getMax() + knob.getSuffix());
+        input.setSelectAllOnFocus(true);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setGravity(android.view.Gravity.CENTER);
+        androidx.appcompat.app.AlertDialog dlg = new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("数值输入")
+                .setView(input)
+                .setPositiveButton("确定", (d, w) -> {
+                    try {
+                        int v = Math.round(Float.parseFloat(input.getText().toString()));
+                        knob.setValue(clamp(v, knob.getMin(), knob.getMax()), true);
+                    } catch (NumberFormatException ignored) {
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .create();
+        dlg.setOnShowListener(d -> {
+            input.requestFocus();
+            dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        });
+        dlg.show();
+    }
+
     private void styleExtraKnobInput(EditText input, int value, boolean enabled) {
         boolean active = enabled && value != 0;
         // 输入框缩小、样式对齐 EQ 页面：createFieldBackground 风格 + 小字号
