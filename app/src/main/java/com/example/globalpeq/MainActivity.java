@@ -3485,6 +3485,16 @@ public final class MainActivity extends Activity {
         } else {
             reverbMixKnob = knob;
         }
+
+        // 标签移到旋钮下方，视觉重心在旋钮弧形
+        TextView title = new TextView(this);
+        title.setText(label);
+        title.setTextSize(12);
+        title.setTextColor(Color.rgb(180, 195, 215));
+        title.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        titleParams.topMargin = dp(2);
+        column.addView(title, titleParams);
         return column;
     }
 
