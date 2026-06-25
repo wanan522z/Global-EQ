@@ -3430,8 +3430,8 @@ public final class MainActivity extends Activity {
         // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = dp(4);
-        knobParams.bottomMargin = dp(4);
+        knobParams.topMargin = dp(6);
+        knobParams.bottomMargin = dp(6);
         column.addView(knob, knobParams);
         return column;
     }
@@ -3443,17 +3443,19 @@ public final class MainActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText(label);
-        title.setTextSize(12);
+        title.setTextSize(13);
         title.setTextColor(Color.rgb(200, 210, 230));
         title.setGravity(android.view.Gravity.CENTER);
-        column.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        titleParams.bottomMargin = dp(2);
+        column.addView(title, titleParams);
 
         KnobView knob = new KnobView(this);
         knob.configure(min, max, value, suffix, listener::onChanged);
         knob.setTapListener(this::showKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = dp(4);
-        knobParams.bottomMargin = dp(4);
+        knobParams.topMargin = dp(6);
+        knobParams.bottomMargin = dp(6);
         column.addView(knob, knobParams);
 
         if ("Decay".equals(label)) {
