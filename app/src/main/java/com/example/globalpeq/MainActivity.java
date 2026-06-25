@@ -742,19 +742,15 @@ public final class MainActivity extends Activity {
         presetRow.addView(presetSelectButton, presetButtonParams(0, 1.4f, 0, 12));
 
         undoButton = new Button(this);
-        undoButton.setText("\u21BA");
-        undoButton.setTextSize(22);
-        undoButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        undoButton.setGravity(android.view.Gravity.CENTER);
+        undoButton.setForeground(makeCurvedArrowDrawable(false));
+        undoButton.setForegroundGravity(android.view.Gravity.CENTER);
         undoButton.setIncludeFontPadding(false);
         undoButton.setOnClickListener(v -> undoEdit());
         presetRow.addView(undoButton, presetButtonParams(dp(48), 0f, 0, 8));
 
         redoButton = new Button(this);
-        redoButton.setText("\u21BB");
-        redoButton.setTextSize(22);
-        redoButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        redoButton.setGravity(android.view.Gravity.CENTER);
+        redoButton.setForeground(makeCurvedArrowDrawable(true));
+        redoButton.setForegroundGravity(android.view.Gravity.CENTER);
         redoButton.setIncludeFontPadding(false);
         redoButton.setOnClickListener(v -> redoEdit());
         presetRow.addView(redoButton, presetButtonParams(dp(48), 0f, 0, 8));
