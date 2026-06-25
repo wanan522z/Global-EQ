@@ -604,6 +604,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 dp(34)
         );
+        modeParams.leftMargin = dp(6);
         modeParams.rightMargin = dp(12);
         top.addView(modeSpinner, modeParams);
 
@@ -633,20 +634,20 @@ public final class MainActivity extends Activity {
         styleStatusText(false);
         int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
-                dp(54),
-                dp(32)
+                dp(60),
+                dp(30)
         );
         autoSwitchParams.rightMargin = dp(12);
         top.addView(autoSwitchOutputSwitch, autoSwitchParams);
 
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
-                dp(42),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         statusParams.rightMargin = dp(12);
         top.addView(statusText, statusParams);
 
-        top.addView(enabledSwitch, new LinearLayout.LayoutParams(dp(54), dp(32)));
+        top.addView(enabledSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
 
         LinearLayout deviceRow = new LinearLayout(this);
         deviceRow.setOrientation(LinearLayout.HORIZONTAL);
