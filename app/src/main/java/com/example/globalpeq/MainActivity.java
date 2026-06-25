@@ -3369,6 +3369,8 @@ public final class MainActivity extends Activity {
         title.setText(titleText);
         title.setTextSize(16);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        // 标题视觉中心上移，与右侧复选框/开关中心点对齐
+        title.setTranslationY(-dp(2));
         row.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         return row;
     }
