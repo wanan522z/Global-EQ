@@ -228,48 +228,36 @@ public final class MainActivity extends Activity {
         view.invalidate();
     }
 
-    // 流光色阶：保留蓝色饱和感 + 窄白热核心提亮。亮区用高亮青蓝，核心点纯白。
-    private static final float[] SHIMMER_POSITIONS = {0.0f, 0.15f, 0.3f, 0.42f, 0.5f, 0.58f, 0.7f, 0.85f, 1.0f};
+    // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
+    private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
 
-    // 亮色阶：璀璨级高饱极亮青蓝为主 + 宽幅白炽核心，保留青蓝色感的同时整体流光亮度拉满
+    // 亮色阶：极其璀璨亮眼的荧光绿到电光青蓝，核心部分辅以白热光效，蓝绿交相辉映，亮度大幅度飙升且大幅节约GPU开销
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(155, 230, 255),  // 极亮青蓝
-            Color.rgb(215, 248, 255),  // 极亮浅冰蓝
-            Color.rgb(155, 230, 255),  // 极亮青蓝
-            Color.rgb(240, 253, 255),  // 炫白青
-            Color.rgb(255, 255, 255),  // 纯白热核心
-            Color.rgb(240, 253, 255),  // 炫白青
-            Color.rgb(155, 230, 255),  // 极亮青蓝
-            Color.rgb(215, 248, 255),  // 极亮浅冰蓝
-            Color.rgb(155, 230, 255)   // 极亮青蓝
+            Color.rgb(0, 245, 200),    // 极亮翡翠青绿（Neon Emerald）
+            Color.rgb(0, 225, 255),    // 极亮电光青蓝（Electric Cyan）
+            Color.rgb(255, 255, 255),  // 极亮纯白热核心
+            Color.rgb(0, 225, 255),    // 极亮电光青蓝（Electric Cyan）
+            Color.rgb(0, 245, 200)     // 极亮翡翠青绿（Neon Emerald）
     };
-    // Live 模式 statusText：同亮色阶（青蓝色感，动感动感）
+    // Live 模式 statusText：同亮色阶（蓝绿交错，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
-    // Edit 模式 statusText：高对比优雅中蓝青（平稳高贵，相比之前大幅提亮，展现流光质感）
+    // Edit 模式 statusText：高雅、高亮通透的薄荷绿到浅冰蓝
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(110, 190, 240),  // 优雅中蓝青
-            Color.rgb(175, 225, 255),  // 高亮浅青
-            Color.rgb(110, 190, 240),  // 优雅中蓝青
-            Color.rgb(220, 245, 255),  // 极亮浅青白
-            Color.rgb(255, 255, 255),  // 纯白热核心
-            Color.rgb(220, 245, 255),  // 极亮浅青白
-            Color.rgb(110, 190, 240),  // 优雅中蓝青
-            Color.rgb(175, 225, 255),  // 高亮浅青
-            Color.rgb(110, 190, 240)   // 优雅中蓝青
+            Color.rgb(60, 210, 175),   // 优雅薄荷绿
+            Color.rgb(75, 200, 240),   // 优雅浅冰蓝
+            Color.rgb(250, 255, 255),  // 炫白核心
+            Color.rgb(75, 200, 240),   // 优雅浅冰蓝
+            Color.rgb(60, 210, 175)    // 优雅薄荷绿
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
-    // modeSpinner disabled：暗调浅蓝青（有流光动感但不刺眼，微幅提亮细节）
+    // modeSpinner disabled：暗调优雅灰蓝绿（微亮流光，平缓静谧）
     private static final int[] SHIMMER_MODE_OFF_COLORS = {
-            Color.rgb(100, 140, 165),  // 优雅灰青蓝
-            Color.rgb(90, 130, 155),   // 优雅灰青
-            Color.rgb(80, 120, 145),   // 优雅灰
-            Color.rgb(108, 145, 170),  // 过渡提亮
-            Color.rgb(135, 165, 190),  // 浅灰白核心
-            Color.rgb(108, 145, 170),  // 过渡提亮
-            Color.rgb(80, 120, 145),   // 优雅灰
-            Color.rgb(90, 130, 155),   // 优雅灰青
-            Color.rgb(100, 140, 165)   // 优雅灰青蓝
+            Color.rgb(80, 120, 110),   // 暗灰绿
+            Color.rgb(75, 115, 130),   // 暗灰蓝
+            Color.rgb(150, 175, 185),  // 优雅灰白核心
+            Color.rgb(75, 115, 130),   // 暗灰蓝
+            Color.rgb(80, 120, 110)    // 暗灰绿
     };
 
     private void recreateShaderForView(TextView view, int width) {
