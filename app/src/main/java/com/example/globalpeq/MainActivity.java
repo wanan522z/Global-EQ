@@ -1106,8 +1106,11 @@ public final class MainActivity extends Activity {
         if (editingPreset == null) {
             return Preset.flat(false);
         }
-        boolean enabled = runningPreset != null && runningPreset.enabled && supported;
-        return editingPreset.withEnabled(enabled);
+        return editingPreset.withEnabled(isMainEffectivelyEnabled());
+    }
+
+    private boolean isMainEffectivelyEnabled() {
+        return supported && runningPreset != null && runningPreset.enabled;
     }
 
     private void refreshCurveView() {
@@ -3098,7 +3101,7 @@ public final class MainActivity extends Activity {
     }
 
     private String statusLabel(boolean hasClip) {
-        if (!supported) {
+        if (!supported || !isMainEffectivelyEnabled()) {
             return "OFF";
         }
         if (hasClip) {
@@ -5375,7 +5378,7 @@ public final class MainActivity extends Activity {
         if (statusText == null) {
             return;
         }
-        if (!supported) {
+        if (!supported || !isMainEffectivelyEnabled()) {
             unregisterShimmerView(statusText);
             statusText.setTextColor(Color.rgb(150, 158, 172));
             statusText.getPaint().clearShadowLayer();
@@ -5399,9 +5402,14 @@ public final class MainActivity extends Activity {
         if (modeSpinner == null) {
             return;
         }
-        styleSettingsTitleText(modeSpinner);
-        shimmerLastWidth.remove(modeSpinner);
-        registerShimmerView(modeSpinner);
+        if (isMainEffectivelyEnabled()) {
+            styleSettingsTitleText(modeSpinner);
+            shimmerLastWidth.remove(modeSpinner);
+            registerShimmerView(modeSpinner);
+        } else {
+            unregisterShimmerView(modeSpinner);
+            styleDimPlainText(modeSpinner);
+        }
     }
 
     private void styleCyanGlowText(TextView view) {
