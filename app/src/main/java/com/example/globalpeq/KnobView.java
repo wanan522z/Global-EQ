@@ -18,6 +18,7 @@ final class KnobView extends View {
     private int min;
     private int max;
     private int value;
+    private int neutralValue;
     private String suffix = "";
     private float downY;
     private int downValue;
@@ -25,13 +26,14 @@ final class KnobView extends View {
 
     KnobView(Context context) {
         super(context);
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         basePaint.setStyle(Paint.Style.STROKE);
         basePaint.setStrokeWidth(10f);
         basePaint.setColor(Color.argb(35, 255, 255, 255));
         fillPaint.setStyle(Paint.Style.STROKE);
         fillPaint.setStrokeWidth(10f);
         fillPaint.setStrokeCap(Paint.Cap.ROUND);
-        fillPaint.setColor(Color.rgb(0, 255, 255));
+        fillPaint.setColor(Color.rgb(0, 245, 212));
         textPaint.setColor(Color.WHITE);
         textPaint.setTextAlign(Paint.Align.CENTER);
         textPaint.setTextSize(32f);
@@ -40,6 +42,7 @@ final class KnobView extends View {
     void configure(int min, int max, int value, String suffix, Listener listener) {
         this.min = min;
         this.max = max;
+        this.neutralValue = min;
         this.suffix = suffix == null ? "" : suffix;
         this.listener = listener;
         setValue(value, false);
@@ -69,23 +72,42 @@ final class KnobView extends View {
         canvas.drawArc(left, top, left + size, top + size, 135, 270, false, basePaint);
         
         float sweep = 270f * (value - min) / Math.max(1f, max - min);
+        boolean enabled = isEnabled();
+        boolean active = enabled && value != neutralValue;
         
         // Draw neon glow under-arc
-        fillPaint.setStrokeWidth(18f);
-        fillPaint.setColor(Color.argb(60, 0, 255, 255));
-        canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
+        if (active) {
+            fillPaint.setStrokeWidth(18f);
+            fillPaint.setColor(Color.argb(78, 0, 245, 212));
+            fillPaint.setShadowLayer(12f, 0, 0, Color.argb(170, 0, 245, 212));
+            canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
+            fillPaint.clearShadowLayer();
+        }
         
         // Draw active arc core
         fillPaint.setStrokeWidth(10f);
-        fillPaint.setColor(Color.rgb(0, 255, 255));
+        fillPaint.setColor(enabled ? Color.rgb(0, 245, 212) : Color.argb(95, 170, 178, 190));
+        if (active) {
+            fillPaint.setShadowLayer(5f, 0, 0, Color.argb(200, 0, 245, 212));
+        }
         canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
+        fillPaint.clearShadowLayer();
         
-        textPaint.setColor(Color.WHITE);
+        textPaint.setColor(active ? Color.rgb(0, 245, 212) : enabled ? Color.argb(185, 255, 255, 255) : Color.argb(120, 190, 198, 210));
+        if (active) {
+            textPaint.setShadowLayer(5f, 0, 0, Color.argb(160, 0, 245, 212));
+        } else {
+            textPaint.clearShadowLayer();
+        }
         canvas.drawText(value + suffix, getWidth() / 2f, getHeight() / 2f + 11f, textPaint);
+        textPaint.clearShadowLayer();
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (!isEnabled()) {
+            return false;
+        }
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 downY = event.getY();

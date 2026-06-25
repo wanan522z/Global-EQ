@@ -1,11 +1,11 @@
 package com.example.globalpeq;
 
 enum FilterType {
-    PEAK("Peak"),
-    LOW_SHELF("LShelf"),
-    HIGH_SHELF("HShelf"),
-    LOW_PASS("LPass"),
-    HIGH_PASS("HPass");
+    PEAK("PEAK"),
+    LOW_SHELF("LSHELF"),
+    HIGH_SHELF("HSHELF"),
+    LOW_PASS("LPASS"),
+    HIGH_PASS("HPASS");
 
     final String label;
 

@@ -16,7 +16,6 @@ import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.LinearGradient;
 import android.graphics.RadialGradient;
-import android.graphics.RenderEffect;
 import android.graphics.Rect;
 import android.graphics.Shader;
 import android.graphics.drawable.ColorDrawable;
@@ -68,8 +67,11 @@ public final class MainActivity extends Activity {
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
     private static final int GEQ_COMMIT_DELAY_MS = 160;
+    private static final long EQ_EDIT_FADE_IN_MS = 180L;
+    private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
+    private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
 
     private PresetRepository repository;
     private GlobalEqualizerEngine engine;
@@ -88,13 +90,22 @@ public final class MainActivity extends Activity {
     private KnobView cutoffKnob;
     private KnobView amountKnob;
     private KnobView systemBassBoostKnob;
+    private KnobView reverbDecayKnob;
+    private KnobView reverbPredelayKnob;
+    private KnobView reverbSizeKnob;
+    private KnobView reverbMixKnob;
     private EditText cutoffInput;
     private EditText amountInput;
     private EditText systemBassBoostInput;
+    private EditText reverbDecayInput;
+    private EditText reverbPredelayInput;
+    private EditText reverbSizeInput;
+    private EditText reverbMixInput;
+    private Spinner reverbTypeSpinner;
     private TextView statusText;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
-    private Spinner modeSpinner;
+    private TextView modeSpinner;
     private Button presetSelectButton;
     private Button undoButton;
     private Button redoButton;
@@ -108,6 +119,48 @@ public final class MainActivity extends Activity {
     private Preset runningPreset;
     private Preset editingPreset;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private static final int SHIMMER_FPS_DELAY = 30;
+    private final android.graphics.Matrix shimmerShaderMatrix = new android.graphics.Matrix();
+    private float shimmerAnimPhase = 0f;
+    private final List<TextView> shimmerTargetViews = new ArrayList<>();
+    private final Runnable shimmerAnimationRunnable = new Runnable() {
+        @Override
+        public void run() {
+            shimmerAnimPhase += 0.012f; // 更优雅温和的动画刷新步长
+            if (shimmerAnimPhase > 1.0f) {
+                shimmerAnimPhase -= 1.0f;
+            }
+            for (int i = shimmerTargetViews.size() - 1; i >= 0; i--) {
+                TextView view = shimmerTargetViews.get(i);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
+                    shimmerTargetViews.remove(i);
+                    continue;
+                }
+                int width = view.getWidth();
+                if (width > 0) {
+                    Shader shader = view.getPaint().getShader();
+                    if (shader != null) {
+                        // 【高性能优化核心】
+                        // 不再每帧重新分配(new) LinearGradient、颜色数组和位置数组。
+                        // 通过更新已附加在 View 的 Paint 上的已存在 Shader 的 LocalMatrix 矩阵实现流光移动。
+                        // 极大降低内存压力，CPU 消耗降为几乎为零，避免由于垃圾回收(GC)导致的帧率抖动。
+                        float offset = shimmerAnimPhase * width * 3.0f - width * 1.0f;
+                        shimmerShaderMatrix.setTranslate(offset, 0);
+                        shader.setLocalMatrix(shimmerShaderMatrix);
+                        view.invalidate();
+                    }
+                }
+            }
+            if (!shimmerTargetViews.isEmpty()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                    // 与硬件刷新率对齐
+                    getWindow().getDecorView().postOnAnimation(this);
+                } else {
+                    uiHandler.postDelayed(this, SHIMMER_FPS_DELAY);
+                }
+            }
+        }
+    };
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
     private Preset pendingGeqHistorySnapshot;
@@ -164,6 +217,7 @@ public final class MainActivity extends Activity {
         runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
+        applyPresetCurveSettings(editingPreset);
 
         requestRuntimePermissions();
         setContentView(buildContent());
@@ -189,6 +243,8 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        shimmerTargetViews.clear();
+        uiHandler.removeCallbacks(shimmerAnimationRunnable);
         removeKeyboardVisibilityListener();
         super.onDestroy();
     }
@@ -247,20 +303,15 @@ public final class MainActivity extends Activity {
                 selectedDeviceCurveName = curve.name;
                 deviceCurveGainOffsetDb = 0f;
                 deviceCurveSmoothing = "Default";
-                repository.saveDeviceCurveGainOffsetDb(deviceCurveGainOffsetDb);
-                repository.saveDeviceCurveSmoothing(deviceCurveSmoothing);
-                repository.saveSelectedDeviceCurveName(curve.name);
                 refreshDeviceCurveCache();
             } else {
                 repository.saveTargetCurve(curve);
                 selectedTargetCurveName = curve.name;
                 targetCurveGainOffsetDb = 0f;
                 targetCurveSmoothing = "Default";
-                repository.saveTargetCurveGainOffsetDb(targetCurveGainOffsetDb);
-                repository.saveTargetCurveSmoothing(targetCurveSmoothing);
-                repository.saveSelectedTargetCurveName(curve.name);
                 refreshTargetCurveCache();
             }
+            syncCurrentCurveSettingsToEditingPreset(true);
             renderAll();
         } catch (IOException ex) {
             Toast.makeText(this, "Curve import failed", Toast.LENGTH_SHORT).show();
@@ -288,6 +339,7 @@ public final class MainActivity extends Activity {
         runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
+        applyPresetCurveSettings(editingPreset);
         renderAll();
         applyRunningPreset();
     }
@@ -374,7 +426,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout controlCard = new LinearLayout(this);
         controlCard.setOrientation(LinearLayout.VERTICAL);
-        controlCard.setPadding(dp(14), dp(14), dp(14), dp(14));
+        controlCard.setPadding(dp(12), dp(12), dp(12), dp(12));
         controlCard.setBackground(createGlassCard(35));
         eqPage.addView(controlCard, blockParams(0));
 
@@ -386,33 +438,28 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        modeSpinner = new Spinner(this);
-        normalizeSpinnerSurface(modeSpinner);
-        ArrayAdapter<String> modeAdapter = new SmallSpinnerAdapter(EqMode.labels());
-        modeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        modeSpinner.setAdapter(modeAdapter);
-        modeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        modeSpinner.setBackground(solidColorDrawable(Color.TRANSPARENT));
-        modeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (updatingUi || editingPreset == null) {
-                    return;
-                }
+        modeSpinner = new TextView(this);
+        modeSpinner.setTextSize(16);
+        modeSpinner.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        modeSpinner.setGravity(android.view.Gravity.CENTER);
+        modeSpinner.setSingleLine(true);
+        modeSpinner.setIncludeFontPadding(false);
+        styleSettingsTitleText(modeSpinner);
+        modeSpinner.setOnClickListener(v -> {
+            if (editingPreset == null) {
+                return;
+            }
+            showLimitedChoiceMenu(modeSpinner, EqMode.labels(), editingPreset.mode.ordinal(), position -> {
                 EqMode nextMode = EqMode.values()[Math.max(0, Math.min(EqMode.values().length - 1, position))];
                 if (editingPreset.mode != nextMode) {
                     setEditingPreset(editingPreset.withMode(nextMode), true);
                     renderAll();
                 }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
+            });
         });
         top.addView(modeSpinner, new LinearLayout.LayoutParams(
-                dp(122),
-                dp(36)
+                dp(110),
+                dp(34)
         ));
 
         View switchSpacer = new View(this);
@@ -430,42 +477,27 @@ public final class MainActivity extends Activity {
         autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         autoSwitchOutputSwitch.setOnCheckedChangeListener(this::onAutoSwitchOutputChanged);
         styleTopSwitch(autoSwitchOutputSwitch, true);
-        statusText = new TextView(this) {
-            @Override
-            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-                super.onSizeChanged(w, h, oldw, oldh);
-                if (w > 0 && h > 0) {
-                    boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
-                    if (hasClip || !supported) {
-                        getPaint().setShader(new LinearGradient(
-                                0, 0, w, 0,
-                                new int[]{Color.rgb(255, 100, 100), Color.rgb(255, 160, 160)},
-                                null, Shader.TileMode.CLAMP));
-                    } else {
-                        getPaint().setShader(new LinearGradient(
-                                0, 0, w, 0,
-                                new int[]{Color.rgb(0, 255, 255), Color.rgb(120, 200, 255)},
-                                null, Shader.TileMode.CLAMP));
-                    }
-                }
-            }
-        };
+        statusText = gradientTitleView("");
         statusText.setTextSize(12);
+        statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            statusText.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
         statusText.setGravity(android.view.Gravity.CENTER);
-        statusText.setTextColor(supported ? Color.rgb(0, 255, 255) : Color.rgb(255, 100, 100));
+        styleStatusText(false);
         int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
                 dp(54),
                 dp(32)
         );
-        autoSwitchParams.rightMargin = dp(controlGap);
+        autoSwitchParams.rightMargin = dp(12);
         top.addView(autoSwitchOutputSwitch, autoSwitchParams);
 
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 dp(42),
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        statusParams.rightMargin = dp(controlGap);
+        statusParams.rightMargin = dp(12);
         top.addView(statusText, statusParams);
 
         top.addView(enabledSwitch, new LinearLayout.LayoutParams(dp(54), dp(32)));
@@ -473,7 +505,7 @@ public final class MainActivity extends Activity {
         LinearLayout deviceRow = new LinearLayout(this);
         deviceRow.setOrientation(LinearLayout.HORIZONTAL);
         deviceRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        controlCard.addView(deviceRow, blockParams(6));
+        controlCard.addView(deviceRow, blockParams(12));
 
         deviceSpinner = new Spinner(this);
         normalizeSpinnerSurface(deviceSpinner);
@@ -499,13 +531,8 @@ public final class MainActivity extends Activity {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
-        GradientDrawable deviceBg = new GradientDrawable();
-        deviceBg.setShape(GradientDrawable.RECTANGLE);
-        deviceBg.setColor(Color.argb(40, 255, 255, 255));
-        deviceBg.setStroke(dp(1), Color.argb(80, 255, 255, 255));
-        deviceBg.setCornerRadius(dp(8));
-        deviceSpinner.setBackground(deviceBg);
-        LinearLayout.LayoutParams deviceParams = new LinearLayout.LayoutParams(0, dp(38), 1.8f);
+        deviceSpinner.setBackground(createEqControlBackground());
+        LinearLayout.LayoutParams deviceParams = new LinearLayout.LayoutParams(0, dp(34), 1.6f);
         deviceParams.leftMargin = 0;
         deviceParams.rightMargin = 0;
         deviceRow.addView(deviceSpinner, deviceParams);
@@ -534,21 +561,16 @@ public final class MainActivity extends Activity {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
-        GradientDrawable spinnerBg = new GradientDrawable();
-        spinnerBg.setShape(GradientDrawable.RECTANGLE);
-        spinnerBg.setColor(Color.argb(40, 255, 255, 255));
-        spinnerBg.setStroke(dp(1), Color.argb(80, 255, 255, 255));
-        spinnerBg.setCornerRadius(dp(8));
-        savedPresetSpinner.setBackground(spinnerBg);
-        LinearLayout.LayoutParams savedPresetParams = new LinearLayout.LayoutParams(0, dp(38), 1.2f);
-        savedPresetParams.leftMargin = dp(controlGap);
+        savedPresetSpinner.setBackground(createEqControlBackground());
+        LinearLayout.LayoutParams savedPresetParams = new LinearLayout.LayoutParams(0, dp(34), 1.4f);
+        savedPresetParams.leftMargin = dp(12);
         savedPresetParams.rightMargin = 0;
         deviceRow.addView(savedPresetSpinner, savedPresetParams);
 
         LinearLayout presetRow = new LinearLayout(this);
         presetRow.setOrientation(LinearLayout.HORIZONTAL);
         presetRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        controlCard.addView(presetRow, blockParams(6));
+        controlCard.addView(presetRow, blockParams(12));
 
         presetSelectButton = new MarqueeButton(this);
         presetSelectButton.setTextSize(13);
@@ -557,19 +579,25 @@ public final class MainActivity extends Activity {
         configureCenteredMarquee(presetSelectButton);
         
         presetSelectButton.setOnClickListener(v -> showPresetMenu());
-        presetRow.addView(presetSelectButton, presetButtonParams(0, 1.3f, 0, controlGap));
+        presetRow.addView(presetSelectButton, presetButtonParams(0, 1.4f, 0, 12));
 
         undoButton = new Button(this);
-        undoButton.setText("\u2039");
-        undoButton.setTextSize(24);
+        undoButton.setText("\u21BA");
+        undoButton.setTextSize(22);
+        undoButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        undoButton.setGravity(android.view.Gravity.CENTER);
+        undoButton.setIncludeFontPadding(false);
         undoButton.setOnClickListener(v -> undoEdit());
-        presetRow.addView(undoButton, presetButtonParams(dp(48), 0f, 0, controlGap));
+        presetRow.addView(undoButton, presetButtonParams(dp(48), 0f, 0, 8));
 
         redoButton = new Button(this);
-        redoButton.setText("\u203A");
-        redoButton.setTextSize(24);
+        redoButton.setText("\u21BB");
+        redoButton.setTextSize(22);
+        redoButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        redoButton.setGravity(android.view.Gravity.CENTER);
+        redoButton.setIncludeFontPadding(false);
         redoButton.setOnClickListener(v -> redoEdit());
-        presetRow.addView(redoButton, presetButtonParams(dp(48), 0f, 0, controlGap));
+        presetRow.addView(redoButton, presetButtonParams(dp(48), 0f, 0, 8));
 
         savePresetButton = new Button(this);
         savePresetButton.setText("Save");
@@ -580,7 +608,13 @@ public final class MainActivity extends Activity {
         FrameLayout curveFrame = new FrameLayout(this);
         curveFrameView = curveFrame;
         curveFrame.setPadding(dp(2), dp(2), dp(2), dp(2));
-        curveFrame.setBackground(createGlassCard(20));
+        curveFrame.setBackground(strokeGlowRoundRectDrawable(
+                Color.argb((int)(20 * 2.55f), 18, 22, 34),
+                Color.argb(120, 0, 245, 212),
+                dp(14),
+                dp(3),
+                Color.argb(80, 0, 245, 212)
+        ));
         
         curveView = new EqCurveView(this);
         curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
@@ -592,15 +626,18 @@ public final class MainActivity extends Activity {
 
         curveRangeSpinner = new Spinner(this);
         normalizeSpinnerSurface(curveRangeSpinner);
-        ArrayAdapter<String> rangeAdapter = new CompactSpinnerAdapter(CURVE_RANGE_LABELS);
+        CompactSpinnerAdapter rangeAdapter = new CompactSpinnerAdapter(CURVE_RANGE_LABELS, true);
         rangeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         curveRangeSpinner.setAdapter(rangeAdapter);
-        curveRangeSpinner.setSelection(curveRangeIndex(curveGraphMaxDb));
+        int rangeIndex = curveRangeIndex(curveGraphMaxDb);
+        rangeAdapter.setSelectedPosition(rangeIndex);
+        curveRangeSpinner.setSelection(rangeIndex);
         curveRangeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
         curveRangeSpinner.setBackground(curveControlBackground());
         curveRangeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                rangeAdapter.setSelectedPosition(position);
                 setCurveGraphRange(position == 0 ? 6 : position == 1 ? 12 : 18);
             }
 
@@ -723,17 +760,14 @@ public final class MainActivity extends Activity {
             protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
                 if (w > 0 && h > 0) {
-                    getPaint().setShader(new LinearGradient(
-                            0, 0, w, 0,
-                            new int[]{Color.rgb(0, 255, 255), Color.rgb(180, 100, 255)},
-                            null, Shader.TileMode.CLAMP));
+                    applySettingsPageTitleShader(this, w);
                 }
             }
         };
         title.setText("Engine Status");
         title.setTextSize(18);
-        title.setTextColor(Color.WHITE);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleGradientTitle(title);
         panel.addView(title, blockParams(0));
 
         TextView detail = new TextView(this);
@@ -794,17 +828,14 @@ public final class MainActivity extends Activity {
             protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
                 if (w > 0 && h > 0) {
-                    getPaint().setShader(new LinearGradient(
-                            0, 0, w, 0,
-                            new int[]{Color.rgb(0, 255, 255), Color.rgb(180, 100, 255)},
-                            null, Shader.TileMode.CLAMP));
+                    applySettingsPageTitleShader(this, w);
                 }
             }
         };
         aboutTitle.setText("About Global PEQ");
         aboutTitle.setTextSize(18);
-        aboutTitle.setTextColor(Color.WHITE);
         aboutTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleGradientTitle(aboutTitle);
         aboutPanel.addView(aboutTitle, blockParams(0));
 
         TextView aboutText = new TextView(this);
@@ -829,8 +860,8 @@ public final class MainActivity extends Activity {
 
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
         LinearLayout.LayoutParams params = width > 0 
-                ? new LinearLayout.LayoutParams(width, dp(38))
-                : new LinearLayout.LayoutParams(0, dp(38), weight);
+                ? new LinearLayout.LayoutParams(width, dp(34))
+                : new LinearLayout.LayoutParams(0, dp(34), weight);
         params.leftMargin = dp(leftDp);
         params.rightMargin = dp(rightDp);
         return params;
@@ -841,12 +872,15 @@ public final class MainActivity extends Activity {
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
         if (statusText != null) {
             statusText.setText(statusLabel(hasClip));
-            statusText.setTextColor(hasClip ? Color.rgb(255, 100, 100) : Color.rgb(0, 255, 255));
+            styleStatusText(hasClip);
+            statusText.post(() -> styleStatusText(hasClip));
             statusText.postInvalidate();
         }
         renderDeviceSpinner();
         if (modeSpinner != null) {
-            modeSpinner.setSelection(editingPreset.mode.ordinal());
+            modeSpinner.setText(editingPreset.mode.label);
+            styleModeText();
+            modeSpinner.post(() -> styleModeText());
         }
         if (autoSwitchOutputSwitch != null) {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
@@ -857,9 +891,10 @@ public final class MainActivity extends Activity {
         if (enabledSwitch != null) {
             enabledSwitch.setChecked(runningPreset.enabled);
         }
+        styleModeText();
 
         if (presetSelectButton != null) {
-            styleSubtlePrimaryButton(presetSelectButton, supported);
+            styleAccentButton(presetSelectButton, supported);
         }
         if (undoButton != null) {
             styleButton(undoButton, false, !undoStack.isEmpty() && supported);
@@ -965,8 +1000,9 @@ public final class MainActivity extends Activity {
             }
         }
 
-        ArrayAdapter<String> adapter = new SmallSpinnerAdapter(labels);
+        SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        adapter.setSelectedPosition(selected);
         deviceSpinner.setAdapter(adapter);
         deviceSpinner.setSelection(selected);
     }
@@ -1018,7 +1054,7 @@ public final class MainActivity extends Activity {
         }
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(8), dp(12), dp(8), dp(8));
+        shell.setPadding(0, 0, 0, 0);
         GradientDrawable shellBg = new GradientDrawable();
         shellBg.setShape(GradientDrawable.RECTANGLE);
         shellBg.setColor(Color.rgb(18, 22, 34));
@@ -1047,7 +1083,11 @@ public final class MainActivity extends Activity {
                 view.setTextSize(14);
                 view.setSingleLine(true);
                 view.setGravity(android.view.Gravity.CENTER);
-                view.setTextColor(position == selected ? Color.rgb(0, 245, 212) : Color.WHITE);
+                if (position == selected) {
+                    styleCyanGlowText(view);
+                } else {
+                    styleDropdownInactiveText(view);
+                }
                 view.setPadding(dp(12), 0, dp(12), 0);
                 view.setBackgroundColor(Color.TRANSPARENT);
                 view.setLayoutParams(new ListView.LayoutParams(
@@ -1059,12 +1099,12 @@ public final class MainActivity extends Activity {
         });
 
         int width = Math.max(anchor.getWidth(), dp(180));
-        int listHeight = Math.min(dp(260), dp(46) * labels.length);
+        int listHeight = Math.min(dp(264), dp(44) * labels.length);
         shell.addView(list, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 listHeight
         ));
-        PopupWindow popup = new PopupWindow(shell, width, listHeight + dp(20), true);
+        PopupWindow popup = new PopupWindow(shell, width, listHeight, true);
         popup.setOutsideTouchable(true);
         popup.setBackgroundDrawable(solidColorDrawable(Color.TRANSPARENT));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1074,7 +1114,6 @@ public final class MainActivity extends Activity {
             popup.dismiss();
             callback.onChoice(position);
         });
-        list.post(() -> list.setSelection(Math.max(0, Math.min(selected, labels.length - 1))));
         popup.showAsDropDown(anchor, 0, dp(4));
     }
 
@@ -1170,7 +1209,7 @@ public final class MainActivity extends Activity {
         Button add = new Button(this);
         add.setText("+ Add EQ Band");
         add.setTextSize(13);
-        styleSubtlePrimaryButton(add, supported);
+        styleAccentButton(add, supported);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(36)
@@ -1205,38 +1244,38 @@ public final class MainActivity extends Activity {
             updateBand(index, editingPreset.bands[index].withEnabled(!editingPreset.bands[index].enabled));
             renderRows();
         });
-        row.addView(wrapCircularButton(enable, 0.35f, 22, 0, 4, -1));
+        row.addView(wrapCircularButton(enable, 0.35f, 22, 0, 3, -1));
 
-        Spinner type = new Spinner(this);
-        normalizeSpinnerSurface(type);
-        ArrayAdapter<String> adapter = new CompactSpinnerAdapter(FilterType.labels());
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        type.setAdapter(adapter);
-        type.setSelection(band.type.ordinal());
+        TextView type = new TextView(this);
+        type.setText(band.type.label);
+        type.setTextSize(11);
+        styleEqBandText(type, band.enabled);
+        type.setGravity(android.view.Gravity.CENTER);
+        type.setSingleLine(true);
+        type.setIncludeFontPadding(false);
         type.setEnabled(supported);
-        type.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (updatingUi) {
+        type.setBackground(typeCellBackground(band.type, band.enabled));
+        type.setOnClickListener(v -> {
+            if (!supported) {
+                return;
+            }
+            showLimitedChoiceMenu(type, FilterType.labels(), editingPreset.bands[index].type.ordinal(), position -> {
+                if (position < 0 || position >= FilterType.values().length) {
                     return;
                 }
                 FilterType selectedType = FilterType.values()[position];
-                type.setBackground(typeCellBackground(selectedType));
+                type.setText(selectedType.label);
+                type.setBackground(typeCellBackground(selectedType, editingPreset.bands[index].enabled));
                 updateBand(index, editingPreset.bands[index].withType(selectedType));
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
+            });
         });
-        type.setBackground(typeCellBackground(band.type));
         row.addView(type, cellParams(1f, 36));
 
         EditText frequencyInput = createNumberInput(String.valueOf(band.frequencyHz), "Hz", value -> {
             updateBand(index, editingPreset.bands[index].withFrequencyHz(clamp(Math.round(value), 20, 20000)));
         });
-        attachNumberWatermark(frequencyInput);
+        styleEqBandText(frequencyInput, band.enabled);
+        attachNumberWatermark(frequencyInput, band.enabled);
         attachEqEditFocus(frequencyInput, index, EQ_EDIT_FIELD_FREQ);
         row.addView(frequencyInput, cellParams(1f, 36));
 
@@ -1244,7 +1283,8 @@ public final class MainActivity extends Activity {
             int gainMb = Math.round(value * 100f);
             updateBand(index, editingPreset.bands[index].withGainMb(clamp(gainMb, -1800, 1800)));
         });
-        attachNumberWatermark(gainInput);
+        styleEqBandText(gainInput, band.enabled);
+        attachNumberWatermark(gainInput, band.enabled);
         attachEqEditFocus(gainInput, index, EQ_EDIT_FIELD_GAIN);
         row.addView(gainInput, cellParams(1f, 36));
 
@@ -1252,7 +1292,8 @@ public final class MainActivity extends Activity {
             int qHundred = Math.round(value * 100f);
             updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 20, 1000)));
         });
-        attachNumberWatermark(qInput);
+        styleEqBandText(qInput, band.enabled);
+        attachNumberWatermark(qInput, band.enabled);
         attachEqEditFocus(qInput, index, EQ_EDIT_FIELD_Q);
         row.addView(qInput, cellParams(1f, 36));
 
@@ -1260,7 +1301,7 @@ public final class MainActivity extends Activity {
         delete.setEnabled(supported && editingPreset.bands.length > 1);
         delete.setBackground(deleteSymbolDrawable(delete.isEnabled()));
         delete.setOnClickListener(v -> confirmDeleteBand(index));
-        row.addView(wrapCircularButton(delete, 0.35f, 22, 4, 0, 1));
+        row.addView(wrapCircularButton(delete, 0.35f, 22, 3, 0, 1));
 
         return row;
     }
@@ -1310,9 +1351,9 @@ public final class MainActivity extends Activity {
 
         GradientDrawable inputBg = new GradientDrawable();
         inputBg.setShape(GradientDrawable.RECTANGLE);
-        inputBg.setColor(Color.argb(30, 255, 255, 255));
-        inputBg.setStroke(dp(1), Color.argb(60, 255, 255, 255));
-        inputBg.setCornerRadius(dp(6));
+        inputBg.setColor(Color.argb(24, 255, 255, 255));
+        inputBg.setStroke(dp(1), Color.argb(52, 255, 255, 255));
+        inputBg.setCornerRadius(dp(8));
         input.setBackground(inputBg);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(100, 255, 255, 255));
@@ -1393,7 +1434,7 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        removeEqEditOverlayView();
+        removeEqEditOverlayView(false);
         ParametricBand band = editingPreset.bands[bandIndex];
         LinearLayout overlay = new LinearLayout(this);
         overlay.setOrientation(LinearLayout.HORIZONTAL);
@@ -1402,7 +1443,17 @@ public final class MainActivity extends Activity {
         overlay.setBackground(createGlassCard(88));
         overlay.setElevation(dp(12));
 
-        addEqOverlayCell(overlay, String.valueOf(bandIndex + 1), 0.38f, Color.rgb(0, 255, 255));
+        View enableSwitch = new View(this);
+        enableSwitch.setFocusable(true);
+        enableSwitch.setClickable(true);
+        enableSwitch.setBackground(stateIndicatorDrawable(band.enabled));
+        enableSwitch.setOnClickListener(v -> {
+            ParametricBand current = editingPreset.bands[bandIndex];
+            boolean nextEnabled = !current.enabled;
+            setBandFromEqOverlay(bandIndex, current.withEnabled(nextEnabled));
+            v.setBackground(stateIndicatorDrawable(nextEnabled));
+        });
+        overlay.addView(wrapEqOverlaySwitch(enableSwitch, 0.38f));
         addEqOverlayCell(overlay, band.type.label, 1.2f, Color.WHITE);
         EditText frequencyInput = createEqOverlayInput(String.valueOf(band.frequencyHz), "Hz", 1f, value -> {
             int frequencyHz = clamp(Math.round(value), 20, 20000);
@@ -1443,7 +1494,7 @@ public final class MainActivity extends Activity {
             int top = Math.max(dp(8), curveLocation[1] - rootLocation[1] + curveFrameView.getHeight() + dp(6));
             int width = Math.max(dp(240), rootWidth - dp(36));
 
-            removeEqEditDim();
+            removeEqEditDim(false);
             addEqEditDimView(root, 0, 0, rootWidth, curveTop, dimColor);
             addEqEditDimView(root, 0, curveBottom, rootWidth, rootHeight - curveBottom, dimColor);
             addEqEditDimView(root, 0, curveTop, curveLeft, curveBottom - curveTop, dimColor);
@@ -1458,7 +1509,8 @@ public final class MainActivity extends Activity {
             overlay.animate()
                     .alpha(1f)
                     .translationY(0f)
-                    .setDuration(120)
+                    .setDuration(EQ_EDIT_FADE_IN_MS)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
                     .start();
             if (focusField) {
                 focusTarget.requestFocus();
@@ -1481,6 +1533,15 @@ public final class MainActivity extends Activity {
         row.addView(view, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight));
     }
 
+    private View wrapEqOverlaySwitch(View button, float weight) {
+        FrameLayout container = new FrameLayout(this);
+        FrameLayout.LayoutParams switchParams = new FrameLayout.LayoutParams(dp(22), dp(22));
+        switchParams.gravity = android.view.Gravity.CENTER;
+        container.addView(button, switchParams);
+        container.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight));
+        return container;
+    }
+
     private EditText createEqOverlayInput(String value, String hint, float weight, FloatChanged listener) {
         EditText input = new EditText(this);
         input.setSingleLine(true);
@@ -1494,7 +1555,7 @@ public final class MainActivity extends Activity {
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(145, 220, 230, 245));
         input.setPadding(dp(4), 0, dp(4), 0);
-        input.setBackground(createFieldBackground(150, 95, 7));
+        input.setBackground(createOverlayInputBackground());
         input.setOnEditorActionListener((view, actionId, event) -> {
             boolean enterUp = event != null
                     && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
@@ -1542,22 +1603,38 @@ public final class MainActivity extends Activity {
     private void hideEqEditOverlay() {
         boolean hadOverlay = activeEqEditOverlay != null || !eqEditDimViews.isEmpty();
         activeEqEditBandIndex = -1;
-        removeEqEditOverlayView();
-        removeEqEditDim();
+        removeEqEditOverlayView(true);
+        removeEqEditDim(true);
         if (hadOverlay && rows != null && editingPreset != null && editingPreset.mode == EqMode.PEQ) {
-            renderRows();
+            rows.postDelayed(this::renderRows, EQ_EDIT_FADE_OUT_MS + 40L);
         }
     }
 
-    private void removeEqEditOverlayView() {
+    private void removeEqEditOverlayView(boolean animated) {
         if (activeEqEditOverlay == null) {
             return;
         }
-        ViewGroup parent = (ViewGroup) activeEqEditOverlay.getParent();
-        if (parent != null) {
-            parent.removeView(activeEqEditOverlay);
-        }
+        View overlay = activeEqEditOverlay;
         activeEqEditOverlay = null;
+        ViewGroup parent = (ViewGroup) overlay.getParent();
+        if (parent != null) {
+            if (animated) {
+                overlay.animate()
+                        .alpha(0f)
+                        .translationY(dp(5))
+                        .setDuration(EQ_EDIT_FADE_OUT_MS)
+                        .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator())
+                        .withEndAction(() -> {
+                            ViewGroup currentParent = (ViewGroup) overlay.getParent();
+                            if (currentParent != null) {
+                                currentParent.removeView(overlay);
+                            }
+                        })
+                        .start();
+            } else {
+                parent.removeView(overlay);
+            }
+        }
     }
 
     private void confirmDeleteBand(int index) {
@@ -1589,10 +1666,8 @@ public final class MainActivity extends Activity {
             selectedDeviceCurveName = item;
             deviceCurveGainOffsetDb = 0f;
             deviceCurveSmoothing = "Default";
-            repository.saveDeviceCurveGainOffsetDb(deviceCurveGainOffsetDb);
-            repository.saveDeviceCurveSmoothing(deviceCurveSmoothing);
-            repository.saveSelectedDeviceCurveName(item);
             refreshDeviceCurveCache();
+            syncCurrentCurveSettingsToEditingPreset(true);
             renderAll();
         }, item -> imported.contains(item), item -> {
             repository.deleteDeviceCurve(item);
@@ -1600,10 +1675,8 @@ public final class MainActivity extends Activity {
                 selectedDeviceCurveName = "Default";
                 deviceCurveGainOffsetDb = 0f;
                 deviceCurveSmoothing = "Default";
-                repository.saveSelectedDeviceCurveName(selectedDeviceCurveName);
-                repository.saveDeviceCurveGainOffsetDb(deviceCurveGainOffsetDb);
-                repository.saveDeviceCurveSmoothing(deviceCurveSmoothing);
                 refreshDeviceCurveCache();
+                syncCurrentCurveSettingsToEditingPreset(true);
                 renderAll();
             }
         });
@@ -1626,10 +1699,8 @@ public final class MainActivity extends Activity {
             selectedTargetCurveName = item;
             targetCurveGainOffsetDb = 0f;
             targetCurveSmoothing = "Default";
-            repository.saveTargetCurveGainOffsetDb(targetCurveGainOffsetDb);
-            repository.saveTargetCurveSmoothing(targetCurveSmoothing);
-            repository.saveSelectedTargetCurveName(item);
             refreshTargetCurveCache();
+            syncCurrentCurveSettingsToEditingPreset(true);
             renderAll();
         }, item -> imported.contains(item), item -> {
             repository.deleteTargetCurve(item);
@@ -1637,10 +1708,8 @@ public final class MainActivity extends Activity {
                 selectedTargetCurveName = "Default";
                 targetCurveGainOffsetDb = 0f;
                 targetCurveSmoothing = "Default";
-                repository.saveSelectedTargetCurveName(selectedTargetCurveName);
-                repository.saveTargetCurveGainOffsetDb(targetCurveGainOffsetDb);
-                repository.saveTargetCurveSmoothing(targetCurveSmoothing);
                 refreshTargetCurveCache();
+                syncCurrentCurveSettingsToEditingPreset(true);
                 renderAll();
             }
         });
@@ -1661,6 +1730,57 @@ public final class MainActivity extends Activity {
     private void refreshTargetCurveCache() {
         selectedTargetCurveBase = applyCurveSmoothing(repository.loadTargetCurve(selectedTargetCurveName), targetCurveSmoothing);
         selectedTargetCurve = applyCurveGainOffset(selectedTargetCurveBase, targetCurveGainOffsetDb);
+    }
+
+    private void applyPresetCurveSettings(Preset preset) {
+        if (preset == null) {
+            return;
+        }
+        selectedDeviceCurveName = preset.deviceCurveName;
+        selectedTargetCurveName = preset.targetCurveName;
+        deviceCurveGainOffsetDb = preset.deviceCurveGainOffsetDb;
+        targetCurveGainOffsetDb = preset.targetCurveGainOffsetDb;
+        deviceCurveSmoothing = preset.deviceCurveSmoothing;
+        targetCurveSmoothing = preset.targetCurveSmoothing;
+        persistCurrentCurveSettings();
+        refreshDeviceCurveCache();
+        refreshTargetCurveCache();
+    }
+
+    private Preset withCurrentCurveSettings(Preset preset) {
+        if (preset == null) {
+            return null;
+        }
+        return preset.withCurveSettings(
+                selectedDeviceCurveName,
+                selectedTargetCurveName,
+                deviceCurveGainOffsetDb,
+                targetCurveGainOffsetDb,
+                deviceCurveSmoothing,
+                targetCurveSmoothing
+        );
+    }
+
+    private void syncCurrentCurveSettingsToEditingPreset(boolean recordHistory) {
+        if (editingPreset == null) {
+            return;
+        }
+        Preset next = withCurrentCurveSettings(editingPreset);
+        if (next == null || next.toJson().equals(editingPreset.toJson())) {
+            persistCurrentCurveSettings();
+            return;
+        }
+        setEditingPreset(next, recordHistory);
+        persistCurrentCurveSettings();
+    }
+
+    private void persistCurrentCurveSettings() {
+        repository.saveSelectedDeviceCurveName(selectedDeviceCurveName);
+        repository.saveSelectedTargetCurveName(selectedTargetCurveName);
+        repository.saveDeviceCurveGainOffsetDb(deviceCurveGainOffsetDb);
+        repository.saveTargetCurveGainOffsetDb(targetCurveGainOffsetDb);
+        repository.saveDeviceCurveSmoothing(deviceCurveSmoothing);
+        repository.saveTargetCurveSmoothing(targetCurveSmoothing);
     }
 
     private void refreshCurvePreviewOnly() {
@@ -1732,16 +1852,15 @@ public final class MainActivity extends Activity {
                 return;
             }
             targetCurveSmoothing = smoothing;
-            repository.saveTargetCurveSmoothing(targetCurveSmoothing);
             refreshTargetCurveCache();
         } else {
             if (smoothing.equals(deviceCurveSmoothing)) {
                 return;
             }
             deviceCurveSmoothing = smoothing;
-            repository.saveDeviceCurveSmoothing(deviceCurveSmoothing);
             refreshDeviceCurveCache();
         }
+        syncCurrentCurveSettingsToEditingPreset(false);
         refreshCurvePreviewOnly();
     }
 
@@ -1779,15 +1898,18 @@ public final class MainActivity extends Activity {
         topRow.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
         Spinner smoothingSpinner = new Spinner(this);
-        ArrayAdapter<String> smoothingAdapter = new CompactSpinnerAdapter(CURVE_SMOOTHING_LABELS);
+        CompactSpinnerAdapter smoothingAdapter = new CompactSpinnerAdapter(CURVE_SMOOTHING_LABELS, true);
         smoothingAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         smoothingSpinner.setAdapter(smoothingAdapter);
-        smoothingSpinner.setSelection(curveSmoothingIndex(targetCurve ? targetCurveSmoothing : deviceCurveSmoothing));
+        int smoothingIndex = curveSmoothingIndex(targetCurve ? targetCurveSmoothing : deviceCurveSmoothing);
+        smoothingAdapter.setSelectedPosition(smoothingIndex);
+        smoothingSpinner.setSelection(smoothingIndex);
         smoothingSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        smoothingSpinner.setBackground(createFieldBackground(18, 38, 7));
+        smoothingSpinner.setBackground(curveControlBackground());
         smoothingSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                smoothingAdapter.setSelectedPosition(position);
                 setCurveSmoothing(targetCurve, CURVE_SMOOTHING_LABELS[Math.max(0, Math.min(CURVE_SMOOTHING_LABELS.length - 1, position))]);
             }
 
@@ -1940,16 +2062,15 @@ public final class MainActivity extends Activity {
                 return;
             }
             targetCurveGainOffsetDb = offsetDb;
-            repository.saveTargetCurveGainOffsetDb(offsetDb);
             selectedTargetCurve = applyCurveGainOffset(selectedTargetCurveBase, targetCurveGainOffsetDb);
         } else {
             if (Math.abs(deviceCurveGainOffsetDb - offsetDb) < 0.001f) {
                 return;
             }
             deviceCurveGainOffsetDb = offsetDb;
-            repository.saveDeviceCurveGainOffsetDb(offsetDb);
             selectedDeviceCurve = applyCurveGainOffset(selectedDeviceCurveBase, deviceCurveGainOffsetDb);
         }
+        syncCurrentCurveSettingsToEditingPreset(false);
         refreshCurvePreviewOnly();
     }
 
@@ -2011,7 +2132,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showEqEditDimExceptCurve() {
-        removeEqEditDim();
+        removeEqEditDim(false);
         if (curveFrameView == null) {
             return;
         }
@@ -2051,26 +2172,43 @@ public final class MainActivity extends Activity {
         View dim = new View(this);
         dim.setBackgroundColor(color);
         dim.setOnClickListener(v -> closeKeyboard(v));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            dim.setRenderEffect(RenderEffect.createBlurEffect(dpf(8f), dpf(8f), Shader.TileMode.CLAMP));
-        }
         dim.setAlpha(0f);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
         params.leftMargin = left;
         params.topMargin = top;
         root.addView(dim, params);
-        dim.animate().alpha(1f).setDuration(100).start();
         eqEditDimViews.add(dim);
+        dim.animate()
+                .alpha(1f)
+                .setDuration(EQ_EDIT_FADE_IN_MS)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .start();
     }
 
-    private void removeEqEditDim() {
-        for (View view : eqEditDimViews) {
+    private void removeEqEditDim(boolean animated) {
+        List<View> removing = new ArrayList<>(eqEditDimViews);
+        eqEditDimViews.clear();
+        for (View view : removing) {
             ViewGroup parent = (ViewGroup) view.getParent();
             if (parent != null) {
-                parent.removeView(view);
+                if (animated) {
+                    view.animate().cancel();
+                    view.animate()
+                            .alpha(0f)
+                            .setDuration(EQ_EDIT_FADE_OUT_MS)
+                            .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator())
+                            .withEndAction(() -> {
+                                ViewGroup currentParent = (ViewGroup) view.getParent();
+                                if (currentParent != null) {
+                                    currentParent.removeView(view);
+                                }
+                            })
+                            .start();
+                } else {
+                    parent.removeView(view);
+                }
             }
         }
-        eqEditDimViews.clear();
     }
 
     private void showCurveMenu(String title, List<String> items, CurveMenuSelected selected,
@@ -2083,7 +2221,25 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < items.size(); i++) {
             String item = items.get(i);
             int index = i;
-            list.addView(createCurveMenuRow(item, canDelete.canDelete(item), dialogHolder, () -> {
+            if (item.startsWith("+")) {
+                Button add = new Button(this);
+                add.setText(item);
+                add.setTextSize(14);
+                add.setAllCaps(false);
+                styleAccentButton(add, true);
+                add.setOnClickListener(v -> {
+                    if (dialogHolder[0] != null) {
+                        dialogHolder[0].dismiss();
+                    }
+                    selected.onSelected(index);
+                });
+                list.addView(add, curveMenuRowParams(i == 0 ? 0 : 6));
+                continue;
+            }
+            boolean active = item.equals(title.toLowerCase(Locale.US).contains("target")
+                    ? selectedTargetCurveName
+                    : selectedDeviceCurveName);
+            list.addView(createCurveMenuRow(item, active, canDelete.canDelete(item), dialogHolder, () -> {
                 if (dialogHolder[0] != null) {
                     dialogHolder[0].dismiss();
                 }
@@ -2108,22 +2264,24 @@ public final class MainActivity extends Activity {
         styleDialog(dialog);
     }
 
-    private View createCurveMenuRow(String name, boolean canDelete, AlertDialog[] dialogHolder, Runnable selected, Runnable deleted) {
+    private View createCurveMenuRow(String name, boolean active, boolean canDelete, AlertDialog[] dialogHolder, Runnable selected, Runnable deleted) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(dp(8), dp(5), dp(8), dp(5));
-        GradientDrawable background = new GradientDrawable();
-        background.setShape(GradientDrawable.RECTANGLE);
-        background.setColor(Color.argb(24, 255, 255, 255));
-        background.setStroke(dp(1), Color.argb(34, 255, 255, 255));
-        background.setCornerRadius(dp(8));
-        row.setBackground(background);
+        row.setBackground(active
+                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
+                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
 
         TextView title = new TextView(this);
         title.setText(name);
         title.setTextSize(14);
-        title.setTextColor(Color.WHITE);
+        if (active) {
+            title.getPaint().setShader(null);
+            styleCyanGlowText(title);
+        } else {
+            stylePlainWhiteText(title);
+        }
         title.setSingleLine(true);
         title.setGravity(android.view.Gravity.CENTER_VERTICAL);
         title.setPadding(dp(8), 0, dp(8), 0);
@@ -2226,13 +2384,17 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        Spinner targetSpinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new SmallSpinnerAdapter(targets.toArray(new String[0]));
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        targetSpinner.setAdapter(adapter);
-        targetSpinner.setBackground(createFieldBackground(30, 60, 8));
-        targetSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        layout.addView(targetSpinner, new LinearLayout.LayoutParams(
+        String[] targetLabels = targets.toArray(new String[0]);
+        int[] selectedTargetIndex = {Math.max(0, names.contains(editingPreset.name) ? targets.indexOf(editingPreset.name) : 0)};
+        TextView targetChoice = new TextView(this);
+        targetChoice.setText(targetLabels[selectedTargetIndex[0]]);
+        targetChoice.setTextSize(13);
+        styleCyanGlowText(targetChoice);
+        targetChoice.setSingleLine(true);
+        targetChoice.setGravity(android.view.Gravity.CENTER);
+        targetChoice.setIncludeFontPadding(false);
+        targetChoice.setBackground(createFieldBackground(30, 60, 8));
+        layout.addView(targetChoice, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(40)
         ));
@@ -2266,27 +2428,25 @@ public final class MainActivity extends Activity {
         );
         layout.addView(input, inputParams);
 
-        int selectedIndex = names.contains(editingPreset.name) ? targets.indexOf(editingPreset.name) : 0;
-        targetSpinner.setSelection(Math.max(0, selectedIndex));
-        targetSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String target = String.valueOf(parent.getItemAtPosition(position));
-                input.setText(position == 0 ? nextPresetName() : target);
-                input.selectAll();
+        input.setText(selectedTargetIndex[0] == 0 ? nextPresetName() : targetLabels[selectedTargetIndex[0]]);
+        input.selectAll();
+        targetChoice.setOnClickListener(v -> showLimitedChoiceMenu(targetChoice, targetLabels, selectedTargetIndex[0], position -> {
+            if (position < 0 || position >= targetLabels.length) {
+                return;
             }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
+            selectedTargetIndex[0] = position;
+            String target = targetLabels[position];
+            targetChoice.setText(target);
+            input.setText(position == 0 ? nextPresetName() : target);
+            input.selectAll();
+        }));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView("Save preset"))
                 .setView(layout)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", (d, which) -> {
-                    int selected = targetSpinner.getSelectedItemPosition();
+                    int selected = selectedTargetIndex[0];
                     String oldTargetName = selected <= 0 ? null : targets.get(selected);
                     saveDraftToPreset(oldTargetName, input.getText().toString());
                 })
@@ -2306,7 +2466,7 @@ public final class MainActivity extends Activity {
         add.setText("+ Add new preset");
         add.setTextSize(14);
         add.setAllCaps(false);
-        styleSubtlePrimaryButton(add, true);
+        styleAccentButton(add, true);
         add.setOnClickListener(v -> {
             if (dialogHolder[0] != null) {
                 dialogHolder[0].dismiss();
@@ -2332,36 +2492,26 @@ public final class MainActivity extends Activity {
     }
 
     private View createPresetMenuRow(String name, AlertDialog[] dialogHolder) {
+        boolean active = name.equals(editingPreset.name);
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(dp(8), dp(6), dp(8), dp(6));
 
-        GradientDrawable background = new GradientDrawable();
-        background.setShape(GradientDrawable.RECTANGLE);
-        background.setColor(Color.argb(name.equals(editingPreset.name) ? 42 : 24, 255, 255, 255));
-        background.setStroke(dp(1), name.equals(editingPreset.name)
-                 ? Color.argb(120, 0, 200, 200)
-                : Color.argb(38, 255, 255, 255));
-        background.setCornerRadius(dp(10));
-        row.setBackground(background);
+        row.setBackground(active
+                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
+                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
 
-        TextView title = new TextView(this) {
-            @Override
-            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-                super.onSizeChanged(w, h, oldw, oldh);
-                if (w > 0 && h > 0 && name.equals(editingPreset.name)) {
-                    getPaint().setShader(new LinearGradient(
-                            0, 0, w, 0,
-                            new int[]{Color.rgb(20, 200, 200), Color.rgb(100, 100, 200)},
-                            null, Shader.TileMode.CLAMP));
-                }
-            }
-        };
+        TextView title = new TextView(this);
         title.setText(name);
         title.setTextSize(14);
         title.setSingleLine(true);
-        title.setTextColor(Color.WHITE);
+        if (active) {
+            title.getPaint().setShader(null);
+            styleCyanGlowText(title);
+        } else {
+            stylePlainWhiteText(title);
+        }
         title.setGravity(android.view.Gravity.CENTER_VERTICAL);
         title.setPadding(dp(8), 0, dp(8), 0);
         title.setOnClickListener(v -> {
@@ -2428,6 +2578,7 @@ public final class MainActivity extends Activity {
                 : repository.loadNamedPreset(names.get(0));
         fallback = limitPresetForHeadroom(fallback);
         editingPreset = fallback;
+        applyPresetCurveSettings(editingPreset);
         if (deletedRunning) {
             runningPreset = editingPreset.withEnabled(runningPreset != null && runningPreset.enabled && supported);
             applyRunningPreset();
@@ -2447,7 +2598,7 @@ public final class MainActivity extends Activity {
         boolean updatesRunningPreset = runningPreset != null
                 && (runningPreset.name.equals(finalName)
                 || (oldTargetName != null && runningPreset.name.equals(oldTargetName)));
-        Preset savedPreset = editingPreset.withName(finalName);
+        Preset savedPreset = withCurrentCurveSettings(editingPreset).withName(finalName);
 
         if (oldTargetName != null && !oldTargetName.equals(finalName)) {
             repository.renameNamedPreset(oldTargetName, savedPreset);
@@ -2472,6 +2623,7 @@ public final class MainActivity extends Activity {
         selected = limitPresetForHeadroom(selected);
         runningPreset = selected.withEnabled(supported);
         editingPreset = runningPreset;
+        applyPresetCurveSettings(editingPreset);
         repository.saveDraftPreset(editingPreset);
         undoStack.clear();
         redoStack.clear();
@@ -2512,7 +2664,7 @@ public final class MainActivity extends Activity {
                         Toast.makeText(this, "Preset name required", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    editingPreset = Preset.flat(runningPreset != null && runningPreset.enabled).withName(name);
+                    editingPreset = withCurrentCurveSettings(Preset.flat(runningPreset != null && runningPreset.enabled)).withName(name);
                     repository.saveNamedPreset(editingPreset);
                     undoStack.clear();
                     redoStack.clear();
@@ -2528,6 +2680,7 @@ public final class MainActivity extends Activity {
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
         editingPreset = selected;
+        applyPresetCurveSettings(editingPreset);
         undoStack.clear();
         redoStack.clear();
         renderAll();
@@ -2557,6 +2710,8 @@ public final class MainActivity extends Activity {
         }
         applyRunningPreset();
         curveView.setPreset(editingPreset);
+        updateEditStateLabels();
+        styleModeText();
     }
 
     private void onAutoSwitchOutputChanged(CompoundButton buttonView, boolean isChecked) {
@@ -2593,6 +2748,7 @@ public final class MainActivity extends Activity {
         loadedPreset = limitPresetForHeadroom(loadedPreset);
         runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
         editingPreset = runningPreset;
+        applyPresetCurveSettings(editingPreset);
         undoStack.clear();
         redoStack.clear();
         renderAll();
@@ -2605,10 +2761,11 @@ public final class MainActivity extends Activity {
             names = new ArrayList<>(names);
             names.add(0, runningPreset.name);
         }
-        ArrayAdapter<String> adapter = new SmallSpinnerAdapter(names.toArray(new String[0]));
+        SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(names.toArray(new String[0]));
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        savedPresetSpinner.setAdapter(adapter);
         int selected = Math.max(0, names.indexOf(runningPreset.name));
+        adapter.setSelectedPosition(selected);
+        savedPresetSpinner.setAdapter(adapter);
         savedPresetSpinner.setSelection(selected);
     }
 
@@ -2694,7 +2851,12 @@ public final class MainActivity extends Activity {
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
         if (statusText != null) {
             statusText.setText(statusLabel(hasClip));
-            statusText.setTextColor(hasClip ? Color.rgb(190, 0, 0) : Color.rgb(0, 121, 107));
+            styleStatusText(hasClip);
+            statusText.post(() -> styleStatusText(hasClip));
+        }
+        styleModeText();
+        if (modeSpinner != null) {
+            modeSpinner.post(() -> styleModeText());
         }
     }
 
@@ -2709,16 +2871,48 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        if (cutoffKnob == null || amountKnob == null || cutoffInput == null || amountInput == null
-                || systemBassBoostKnob == null || systemBassBoostInput == null) {
-            return;
+        if (systemBassBoostKnob != null) {
+            systemBassBoostKnob.setValue(editingPreset.systemBassBoostPercent, false);
         }
-        systemBassBoostKnob.setValue(editingPreset.systemBassBoostPercent, false);
-        systemBassBoostInput.setText(String.valueOf(editingPreset.systemBassBoostPercent));
-        cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
-        amountKnob.setValue(editingPreset.virtualBassAmountPercent, false);
-        cutoffInput.setText(String.valueOf(editingPreset.virtualBassCutoffHz));
-        amountInput.setText(String.valueOf(editingPreset.virtualBassAmountPercent));
+        if (systemBassBoostInput != null) {
+            systemBassBoostInput.setText(String.valueOf(editingPreset.systemBassBoostPercent));
+            styleExtraKnobInput(systemBassBoostInput, editingPreset.systemBassBoostPercent, supported);
+        }
+        if (cutoffKnob != null) {
+            cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
+        }
+        if (amountKnob != null) {
+            amountKnob.setValue(editingPreset.virtualBassAmountPercent, false);
+        }
+        if (cutoffInput != null) {
+            cutoffInput.setText(String.valueOf(editingPreset.virtualBassCutoffHz));
+            styleExtraKnobInput(cutoffInput, editingPreset.virtualBassCutoffHz, supported);
+        }
+        if (amountInput != null) {
+            amountInput.setText(String.valueOf(editingPreset.virtualBassAmountPercent));
+            styleExtraKnobInput(amountInput, editingPreset.virtualBassAmountPercent, supported);
+        }
+        boolean reverbEnabled = supported && !"Default".equals(editingPreset.reverbType);
+        if (reverbTypeSpinner != null) {
+            reverbTypeSpinner.setSelection(reverbTypeIndex(editingPreset.reverbType));
+            reverbTypeSpinner.setEnabled(supported);
+        }
+        updateReverbControl(reverbDecayKnob, reverbDecayInput, editingPreset.reverbDecayPercent, reverbEnabled);
+        updateReverbControl(reverbPredelayKnob, reverbPredelayInput, editingPreset.reverbPredelayMs, reverbEnabled);
+        updateReverbControl(reverbSizeKnob, reverbSizeInput, editingPreset.reverbSizePercent, reverbEnabled);
+        updateReverbControl(reverbMixKnob, reverbMixInput, editingPreset.reverbMixPercent, reverbEnabled);
+    }
+
+    private void updateReverbControl(KnobView knob, EditText input, int value, boolean enabled) {
+        if (knob != null) {
+            knob.setEnabled(enabled);
+            knob.setValue(value, false);
+        }
+        if (input != null) {
+            input.setEnabled(enabled);
+            input.setText(String.valueOf(value));
+            styleExtraKnobInput(input, value, enabled);
+        }
     }
 
     private void pushHistory(List<Preset> stack, Preset snapshot) {
@@ -2828,8 +3022,48 @@ public final class MainActivity extends Activity {
     private void buildExtraPage(LinearLayout page) {
         page.setPadding(dp(12), dp(16), dp(12), dp(12));
 
+        LinearLayout reverbPanel = createExtraPanel("Reverb", "Room tone controls.");
+        page.addView(reverbPanel, extraPanelParams(0));
+        LinearLayout reverbHeader = new LinearLayout(this);
+        reverbHeader.setOrientation(LinearLayout.HORIZONTAL);
+        reverbHeader.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL);
+        reverbTypeSpinner = new Spinner(this);
+        normalizeSpinnerSurface(reverbTypeSpinner);
+        ArrayAdapter<String> reverbAdapter = new SmallSpinnerAdapter(REVERB_TYPE_LABELS);
+        reverbAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        reverbTypeSpinner.setAdapter(reverbAdapter);
+        reverbTypeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
+        reverbTypeSpinner.setBackground(createFieldBackground(24, 70, 8));
+        reverbTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (updatingUi || editingPreset == null) {
+                    return;
+                }
+                String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
+                if (!nextType.equals(editingPreset.reverbType)) {
+                    setEditingPreset(editingPreset.withReverbType(nextType), true);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+        reverbHeader.addView(reverbTypeSpinner, new LinearLayout.LayoutParams(dp(126), dp(34)));
+        reverbPanel.addView(reverbHeader, blockParams(6));
+        LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
+        reverbKnobs.addView(createReverbControl("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
+                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        reverbKnobs.addView(createReverbControl("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        reverbKnobs.addView(createReverbControl("Size", 0, 100, editingPreset.reverbSizePercent, "%", value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        reverbKnobs.addView(createReverbControl("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+
         LinearLayout systemPanel = createExtraPanel("System BassBoost", "Uses Android's built-in bass boost effect.");
-        page.addView(systemPanel, extraPanelParams(0));
+        page.addView(systemPanel, extraPanelParams(12));
         LinearLayout systemKnobs = createExtraKnobRow(systemPanel);
         systemKnobs.addView(createSystemBassBoostControl(), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
@@ -2846,21 +3080,9 @@ public final class MainActivity extends Activity {
         panel.setPadding(dp(16), dp(16), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
 
-        TextView title = new TextView(this) {
-            @Override
-            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-                super.onSizeChanged(w, h, oldw, oldh);
-                if (w > 0 && h > 0) {
-                    getPaint().setShader(new LinearGradient(
-                            0, 0, w, 0,
-                            new int[]{Color.rgb(0, 255, 255), Color.rgb(180, 100, 255)},
-                            null, Shader.TileMode.CLAMP));
-                }
-            }
-        };
+        TextView title = gradientTitleView(titleText);
         title.setText(titleText);
         title.setTextSize(16);
-        title.setTextColor(Color.WHITE);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         panel.addView(title, blockParams(0));
 
@@ -2920,6 +3142,7 @@ public final class MainActivity extends Activity {
             setEditingPreset(editingPreset.withSystemBassBoostPercent(clamp(percent, 0, 100)), true);
         });
         systemBassBoostInput.setGravity(android.view.Gravity.CENTER);
+        styleExtraKnobInput(systemBassBoostInput, editingPreset.systemBassBoostPercent, supported);
         column.addView(systemBassBoostInput, new LinearLayout.LayoutParams(dp(84), dp(36)));
         return column;
     }
@@ -2960,8 +3183,80 @@ public final class MainActivity extends Activity {
         column.addView(knob, knobParams);
 
         input.setGravity(android.view.Gravity.CENTER);
+        styleExtraKnobInput(input, cutoff ? editingPreset.virtualBassCutoffHz : editingPreset.virtualBassAmountPercent, supported);
         column.addView(input, new LinearLayout.LayoutParams(dp(84), dp(36)));
         return column;
+    }
+
+    private LinearLayout createReverbControl(String label, int min, int max, int value, String suffix, IntChanged listener) {
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setGravity(android.view.Gravity.CENTER);
+
+        TextView title = new TextView(this);
+        title.setText(label);
+        title.setTextSize(12);
+        title.setTextColor(Color.rgb(200, 210, 230));
+        title.setGravity(android.view.Gravity.CENTER);
+        column.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        KnobView knob = new KnobView(this);
+        knob.configure(min, max, value, suffix, listener::onChanged);
+        LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        knobParams.topMargin = dp(6);
+        knobParams.bottomMargin = dp(6);
+        column.addView(knob, knobParams);
+
+        EditText input = createNumberInput(String.valueOf(value), suffix, nextValue ->
+                listener.onChanged(clamp(Math.round(nextValue), min, max)));
+        input.setGravity(android.view.Gravity.CENTER);
+        styleExtraKnobInput(input, value, supported && !"Default".equals(editingPreset.reverbType));
+        column.addView(input, new LinearLayout.LayoutParams(dp(68), dp(34)));
+
+        if ("Decay".equals(label)) {
+            reverbDecayKnob = knob;
+            reverbDecayInput = input;
+        } else if ("Predelay".equals(label)) {
+            reverbPredelayKnob = knob;
+            reverbPredelayInput = input;
+        } else if ("Size".equals(label)) {
+            reverbSizeKnob = knob;
+            reverbSizeInput = input;
+        } else {
+            reverbMixKnob = knob;
+            reverbMixInput = input;
+        }
+        return column;
+    }
+
+    private void styleExtraKnobInput(EditText input, int value, boolean enabled) {
+        boolean active = enabled && value != 0;
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
+        bg.setColor(enabled ? Color.argb(46, 255, 255, 255) : Color.argb(20, 255, 255, 255));
+        bg.setStroke(dp(1), active ? Color.argb(135, 0, 245, 212) : Color.argb(enabled ? 72 : 28, 255, 255, 255));
+        bg.setCornerRadius(dp(8));
+        input.setBackground(bg);
+        input.setTextSize(20);
+        input.setIncludeFontPadding(false);
+        input.setPadding(0, 0, 0, 0);
+        input.setGravity(android.view.Gravity.CENTER);
+        input.setTextColor(active ? Color.rgb(0, 245, 212) : enabled ? Color.argb(230, 245, 247, 255) : Color.argb(120, 190, 198, 210));
+        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        if (active) {
+            input.setShadowLayer(dpf(5f), 0, 0, Color.argb(150, 0, 245, 212));
+        } else {
+            input.setShadowLayer(0, 0, 0, Color.TRANSPARENT);
+        }
+    }
+
+    private int reverbTypeIndex(String type) {
+        for (int i = 0; i < REVERB_TYPE_LABELS.length; i++) {
+            if (REVERB_TYPE_LABELS[i].equals(type)) {
+                return i;
+            }
+        }
+        return 0;
     }
 
     private void requestRuntimePermissions() {
@@ -3033,17 +3328,15 @@ public final class MainActivity extends Activity {
         button.setTextColor(Color.rgb(232, 248, 246));
     }
 
-    private GradientDrawable curveControlBackground() {
-        GradientDrawable background = new GradientDrawable();
-        background.setShape(GradientDrawable.RECTANGLE);
-        background.setCornerRadius(dp(7));
-        background.setOrientation(GradientDrawable.Orientation.TOP_BOTTOM);
-        background.setColors(new int[]{
+    private Drawable curveControlBackground() {
+        return verticalGradientStrokeGlowDrawable(
                 Color.argb(232, 21, 34, 43),
-                Color.argb(232, 12, 18, 28)
-        });
-        background.setStroke(dp(1), Color.argb(150, 76, 220, 205));
-        return background;
+                Color.argb(232, 12, 18, 28),
+                Color.argb(150, 76, 220, 205),
+                dp(7),
+                dp(2),
+                Color.argb(70, 0, 245, 212)
+        );
     }
 
     private String shortCurveLabel(String name, float offsetDb) {
@@ -3115,17 +3408,41 @@ public final class MainActivity extends Activity {
                 float strokeWidth = dpf(1.2f);
                 float radius = Math.min(b.width(), b.height()) / 2f - strokeWidth - dpf(0.8f);
 
+                if (active) {
+                    dotPaint.setStyle(Paint.Style.FILL);
+                    dotPaint.setShader(new RadialGradient(
+                            cx, cy, radius * 1.35f,
+                            new int[]{
+                                    Color.argb(86, 0, 245, 212),
+                                    Color.argb(34, 0, 180, 255),
+                                    Color.TRANSPARENT
+                            },
+                            new float[]{0f, 0.58f, 1f},
+                            Shader.TileMode.CLAMP
+                    ));
+                    dotPaint.clearShadowLayer();
+                    canvas.drawCircle(cx, cy, radius * 1.35f, dotPaint);
+                    dotPaint.setShader(null);
+                }
+
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
-                ringPaint.setColor(active ? Color.argb(200, 0, 255, 255) : Color.argb(110, 160, 170, 190));
+                if (active) {
+                    ringPaint.setShadowLayer(dpf(2.2f), 0, 0, Color.argb(120, 0, 245, 212));
+                } else {
+                    ringPaint.clearShadowLayer();
+                }
+                ringPaint.setColor(active ? Color.argb(220, 0, 245, 212) : Color.argb(72, 255, 255, 255));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
+                ringPaint.clearShadowLayer();
 
                 dotPaint.setStyle(Paint.Style.FILL);
+                dotPaint.setShader(null);
                 if (active) {
-                    dotPaint.setColor(Color.rgb(0, 255, 255));
+                    dotPaint.setColor(Color.rgb(0, 245, 212));
                     canvas.drawCircle(cx, cy, radius * 0.45f, dotPaint);
                 } else {
-                    dotPaint.setColor(Color.argb(70, 160, 170, 190));
+                    dotPaint.setColor(Color.argb(72, 255, 255, 255));
                     canvas.drawCircle(cx, cy, radius * 0.30f, dotPaint);
                 }
             }
@@ -3208,8 +3525,8 @@ public final class MainActivity extends Activity {
 
     private LinearLayout.LayoutParams cellParams(float weight, int heightDp) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(heightDp), weight);
-        params.leftMargin = dp(2);
-        params.rightMargin = dp(2);
+        params.leftMargin = dp(3);
+        params.rightMargin = dp(3);
         params.gravity = android.view.Gravity.CENTER_VERTICAL;
         return params;
     }
@@ -3335,6 +3652,7 @@ public final class MainActivity extends Activity {
             float centerBottom = trackBottom - dpf(29f);
             float zeroY = (centerTop + centerBottom) / 2f;
             float step = (centerBottom - centerTop) / 6f; // +18, +12, +6, 0, -6, -12, -18 dB
+            boolean hasActiveGain = hasActiveGain();
 
             for (int j = 0; j <= 6; j++) {
                 float tickY = centerTop + j * step;
@@ -3363,7 +3681,7 @@ public final class MainActivity extends Activity {
             canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
 
             // 3. Draw active neon glowing track from 0 dB Y to current thumb center Y
-            if (Math.abs(gainMb) > 10) {
+            if (hasActiveGain) {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(4f));
                 paint.setStrokeCap(Paint.Cap.ROUND);
@@ -3390,9 +3708,9 @@ public final class MainActivity extends Activity {
 
             // Fader outline stroke (glows cyan when touched)
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(adjustingGain ? dpf(1.6f) : dpf(1.0f));
-            paint.setColor(adjustingGain ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
-            if (adjustingGain) {
+            paint.setStrokeWidth(adjustingGain || hasActiveGain ? dpf(1.6f) : dpf(1.0f));
+            paint.setColor(adjustingGain || hasActiveGain ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
+            if (adjustingGain || hasActiveGain) {
                 paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
             }
             canvas.drawRoundRect(thumbRect, dpf(6f), dpf(6f), paint);
@@ -3409,7 +3727,9 @@ public final class MainActivity extends Activity {
             );
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(Color.rgb(0, 245, 212));
-            paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(220, 0, 245, 212));
+            if (hasActiveGain) {
+                paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(220, 0, 245, 212));
+            }
             canvas.drawRoundRect(indRect, dpf(1.5f), dpf(1.5f), paint);
             paint.clearShadowLayer();
 
@@ -3423,14 +3743,20 @@ public final class MainActivity extends Activity {
 
             paint.setFakeBoldText(false);
             paint.setTextSize(dpf(11f));
-            if (gainMb != 0) {
+            if (hasActiveGain) {
                 paint.setColor(Color.rgb(0, 245, 212));
                 paint.setFakeBoldText(true);
+                paint.setShadowLayer(dpf(5f), 0, 0, Color.argb(150, 0, 245, 212));
             } else {
                 paint.setColor(Color.argb(130, 255, 255, 255));
             }
             canvas.drawText(formatDecimal(gainMb / 100f), centerX, height - dpf(6f), paint);
+            paint.clearShadowLayer();
             paint.setFakeBoldText(false);
+        }
+
+        private boolean hasActiveGain() {
+            return gainMb != 0;
         }
 
         private long lastTapTime = 0;
@@ -3592,8 +3918,21 @@ public final class MainActivity extends Activity {
     }
 
     private class SmallSpinnerAdapter extends ArrayAdapter<String> {
+        private final boolean cyanGlowText;
+        private int selectedPosition = AdapterView.INVALID_POSITION;
+
         SmallSpinnerAdapter(String[] labels) {
+            this(labels, true);
+        }
+
+        SmallSpinnerAdapter(String[] labels, boolean cyanGlowText) {
             super(MainActivity.this, android.R.layout.simple_spinner_item, labels);
+            this.cyanGlowText = cyanGlowText;
+        }
+
+        void setSelectedPosition(int selectedPosition) {
+            this.selectedPosition = selectedPosition;
+            notifyDataSetChanged();
         }
 
         @Override
@@ -3602,7 +3941,11 @@ public final class MainActivity extends Activity {
             view.setText(getItem(position));
             view.setTextSize(11);
             view.setPadding(dp(6), 0, dp(6), 0);
-            view.setTextColor(Color.WHITE);
+            if (cyanGlowText && position == selectedPosition) {
+                styleCyanGlowText(view);
+            } else {
+                styleDropdownInactiveText(view);
+            }
             view.setLayoutParams(new AdapterView.LayoutParams(
                     AdapterView.LayoutParams.MATCH_PARENT,
                     AdapterView.LayoutParams.MATCH_PARENT
@@ -3620,7 +3963,11 @@ public final class MainActivity extends Activity {
             }
             view.setText(getItem(position));
             view.setTextSize(13);
-            view.setTextColor(Color.WHITE);
+            if (cyanGlowText && position == selectedPosition) {
+                styleCyanGlowText(view);
+            } else {
+                stylePlainWhiteText(view);
+            }
             view.setGravity(android.view.Gravity.CENTER);
             view.setSingleLine(true);
             view.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -3635,7 +3982,7 @@ public final class MainActivity extends Activity {
         private TextView spinnerTextView(View convertView) {
             TextView view = convertView instanceof MarqueeTextView ? (TextView) convertView : new MarqueeTextView(MainActivity.this);
             view.setIncludeFontPadding(false);
-            view.setTextColor(Color.WHITE);
+            stylePlainWhiteText(view);
             configureCenteredMarquee(view);
             
             return view;
@@ -3645,6 +3992,10 @@ public final class MainActivity extends Activity {
     private final class CompactSpinnerAdapter extends SmallSpinnerAdapter {
         CompactSpinnerAdapter(String[] labels) {
             super(labels);
+        }
+
+        CompactSpinnerAdapter(String[] labels, boolean cyanGlowText) {
+            super(labels, cyanGlowText);
         }
 
         @Override
@@ -3702,6 +4053,25 @@ public final class MainActivity extends Activity {
         return bg;
     }
 
+    private GradientDrawable createEqControlBackground() {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
+        bg.setColor(Color.argb(24, 255, 255, 255));
+        bg.setStroke(dp(1), Color.argb(52, 255, 255, 255));
+        bg.setCornerRadius(dp(10));
+        return bg;
+    }
+
+    private Drawable createOverlayInputBackground() {
+        return strokeGlowRoundRectDrawable(
+                Color.argb(235, 23, 37, 42),
+                Color.argb(170, 0, 245, 212),
+                dp(8),
+                dp(2),
+                Color.argb(70, 0, 245, 212)
+        );
+    }
+
     private void styleTopSwitch(Switch switchView, boolean autoSwitch) {
         switchView.setShowText(false);
         switchView.setText("");
@@ -3729,6 +4099,7 @@ public final class MainActivity extends Activity {
     private Drawable labeledSwitchTrackDrawable(String uncheckedLabel, String checkedLabel, int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Path clipPath = new Path();
             private final android.graphics.RectF rect = new android.graphics.RectF();
             private android.animation.ValueAnimator labelAnimator;
             private float labelProgress;
@@ -3759,13 +4130,19 @@ public final class MainActivity extends Activity {
                 paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                 paint.setTextSize(dpf(8.5f));
                 paint.setTextAlign(Paint.Align.CENTER);
-                paint.setColor(checked ? Color.argb(92, 4, 32, 34) : Color.argb(88, 255, 255, 255));
+                paint.setColor(checked ? Color.rgb(0, 255, 255) : Color.argb(88, 255, 255, 255));
+                if (checked) {
+                    paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(180, 0, 255, 255));
+                } else {
+                    paint.clearShadowLayer();
+                }
                 Paint.FontMetrics metrics = paint.getFontMetrics();
                 float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
                 float leftTextX = rect.left + rect.width() * 0.32f;
                 float rightTextX = rect.left + rect.width() * 0.68f;
                 float textX = rightTextX + (leftTextX - rightTextX) * labelProgress;
                 canvas.drawText(checked ? checkedLabel : uncheckedLabel, textX, textY, paint);
+                paint.clearShadowLayer();
                 paint.setTypeface(android.graphics.Typeface.DEFAULT);
             }
 
@@ -3896,7 +4273,11 @@ public final class MainActivity extends Activity {
     }
 
     private void attachNumberWatermark(EditText input) {
-        updateNumberWatermark(input);
+        attachNumberWatermark(input, false);
+    }
+
+    private void attachNumberWatermark(EditText input, boolean active) {
+        updateNumberWatermark(input, active);
         input.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -3904,7 +4285,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                updateNumberWatermark(input);
+                updateNumberWatermark(input, active);
             }
 
             @Override
@@ -3914,7 +4295,11 @@ public final class MainActivity extends Activity {
     }
 
     private void updateNumberWatermark(EditText input) {
-        input.setBackground(numberCellBackground(integerWatermark(input.getText().toString())));
+        updateNumberWatermark(input, false);
+    }
+
+    private void updateNumberWatermark(EditText input, boolean active) {
+        input.setBackground(numberCellBackground(integerWatermark(input.getText().toString()), active));
     }
 
     private String integerWatermark(String value) {
@@ -3929,40 +4314,41 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable numberCellBackground(String watermark) {
+        return numberCellBackground(watermark, false);
+    }
+
+    private Drawable numberCellBackground(String watermark, boolean active) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Path clipPath = new Path();
             private final android.graphics.RectF rect = new android.graphics.RectF();
 
             @Override
             public void draw(Canvas canvas) {
                 Rect b = getBounds();
-                rect.set(b.left, b.top, b.right, b.bottom);
-                float radius = dpf(6f);
+                float inset = dpf(0.75f);
+                rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
+                float radius = dpf(10f);
 
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.argb(32, 255, 255, 255));
+                paint.setStrokeWidth(0f);
+                paint.setColor(active ? Color.argb(13, 255, 255, 255) : Color.argb(11, 255, 255, 255));
+                paint.clearShadowLayer();
                 canvas.drawRoundRect(rect, radius, radius, paint);
-
-                if (watermark != null && !watermark.isEmpty()) {
-                    canvas.save();
-                    canvas.clipRect(b.left, b.top, b.right, b.bottom);
-                    paint.setShader(null);
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setTextAlign(Paint.Align.RIGHT);
-                    paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                    paint.setTextSize(dpf(watermark.length() > 3 ? 24f : 28f));
-                    paint.setColor(Color.argb(30, 0, 245, 212));
-                    canvas.drawText(watermark, b.right + dpf(4f), b.bottom - dpf(1f), paint);
-                    paint.setTypeface(android.graphics.Typeface.DEFAULT);
-                    canvas.restore();
-                }
+                paint.clearShadowLayer();
 
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(Color.argb(66, 255, 255, 255));
+                paint.setColor(active ? Color.argb(150, 0, 245, 212) : Color.argb(72, 255, 255, 255));
+                if (active) {
+                    paint.setShadowLayer(dpf(2.5f), 0, 0, Color.argb(105, 0, 245, 212));
+                } else {
+                    paint.clearShadowLayer();
+                }
                 canvas.drawRoundRect(rect, radius, radius, paint);
+                paint.clearShadowLayer();
             }
 
             @Override
@@ -3983,48 +4369,42 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable typeCellBackground(FilterType filterType) {
+        return typeCellBackground(filterType, false);
+    }
+
+    private Drawable typeCellBackground(FilterType filterType, boolean active) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Path path = new Path();
+            private final Path clipPath = new Path();
             private final android.graphics.RectF rect = new android.graphics.RectF();
 
             @Override
             public void draw(Canvas canvas) {
                 Rect b = getBounds();
-                rect.set(b.left, b.top, b.right, b.bottom);
-                float radius = dpf(6f);
+                float inset = dpf(0.75f);
+                rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
+                float radius = dpf(10f);
 
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.argb(32, 255, 255, 255));
+                paint.setStrokeWidth(0f);
+                paint.setColor(active ? Color.argb(13, 255, 255, 255) : Color.argb(11, 255, 255, 255));
+                paint.clearShadowLayer();
                 canvas.drawRoundRect(rect, radius, radius, paint);
-
-                canvas.save();
-                canvas.clipRect(b.left, b.top, b.right, b.bottom);
-                paint.setShader(null);
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeCap(Paint.Cap.ROUND);
-                paint.setStrokeJoin(Paint.Join.ROUND);
-                paint.setStrokeWidth(dpf(1.85f));
-                paint.setColor(Color.argb(86, 0, 245, 212));
-                buildFilterTypePath(path, b, filterType);
-                canvas.drawPath(path, paint);
-
-                paint.setShader(null);
-                paint.setStyle(Paint.Style.FILL);
-                paint.setTextAlign(Paint.Align.RIGHT);
-                paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                paint.setTextSize(dpf(filterType.label.length() > 5 ? 19f : 22f));
-                paint.setColor(Color.argb(24, 0, 245, 212));
-                canvas.drawText(filterType.label, b.right + dpf(4f), b.bottom - dpf(1f), paint);
-                paint.setTypeface(android.graphics.Typeface.DEFAULT);
-                canvas.restore();
+                paint.clearShadowLayer();
 
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(Color.argb(66, 255, 255, 255));
+                paint.setColor(active ? Color.argb(150, 0, 245, 212) : Color.argb(72, 255, 255, 255));
+                if (active) {
+                    paint.setShadowLayer(dpf(2.5f), 0, 0, Color.argb(105, 0, 245, 212));
+                } else {
+                    paint.clearShadowLayer();
+                }
                 canvas.drawRoundRect(rect, radius, radius, paint);
+                paint.clearShadowLayer();
             }
 
             @Override
@@ -4044,79 +4424,156 @@ public final class MainActivity extends Activity {
         };
     }
 
-    private void buildFilterTypePath(Path path, Rect b, FilterType filterType) {
-        path.reset();
-        float left = b.left + dpf(8f);
-        float top = b.top + dpf(7f);
-        float width = Math.min(dpf(42f), b.width() - dpf(16f));
-        float height = b.height() - dpf(14f);
-        switch (filterType) {
-            case LOW_SHELF:
-                traceTypeIcon(path, left, top, width, height, new float[][]{
-                        {0.06f, 0.70f}, {0.34f, 0.70f},
-                        {0.48f, 0.70f}, {0.42f, 0.34f}, {0.60f, 0.34f},
-                        {0.82f, 0.34f}
-                });
-                break;
-            case HIGH_SHELF:
-                traceTypeIcon(path, left, top, width, height, new float[][]{
-                        {0.06f, 0.34f}, {0.34f, 0.34f},
-                        {0.48f, 0.34f}, {0.42f, 0.70f}, {0.60f, 0.70f},
-                        {0.82f, 0.70f}
-                });
-                break;
-            case LOW_PASS:
-                traceTypeIcon(path, left, top, width, height, new float[][]{
-                        {0.06f, 0.28f}, {0.42f, 0.28f},
-                        {0.58f, 0.28f}, {0.62f, 0.44f}, {0.82f, 0.70f}
-                });
-                break;
-            case HIGH_PASS:
-                traceTypeIcon(path, left, top, width, height, new float[][]{
-                        {0.06f, 0.72f},
-                        {0.26f, 0.70f}, {0.38f, 0.34f}, {0.58f, 0.30f},
-                        {0.82f, 0.30f}
-                });
-                break;
-            case PEAK:
-            default:
-                traceTypeIcon(path, left, top, width, height, new float[][]{
-                        {0.06f, 0.68f}, {0.32f, 0.68f},
-                        {0.42f, 0.68f}, {0.40f, 0.34f}, {0.50f, 0.34f},
-                        {0.60f, 0.34f}, {0.58f, 0.68f}, {0.70f, 0.68f},
-                        {0.82f, 0.68f}
-                });
-                break;
+    private TextView gradientTitleView(String text) {
+        TextView title = new TextView(this) {
+            @Override
+            protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                registerShimmerView(this);
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                unregisterShimmerView(this);
+                super.onDetachedFromWindow();
+            }
+        };
+        title.setText(text);
+        styleGradientTitle(title);
+        return title;
+    }
+
+    private void styleGradientTitle(TextView view) {
+        styleSettingsTitleText(view);
+    }
+
+    private void registerShimmerView(TextView view) {
+        if (view == null || shimmerTargetViews.contains(view)) {
+            return;
+        }
+        shimmerTargetViews.add(view);
+        if (shimmerTargetViews.size() == 1) {
+            uiHandler.postDelayed(shimmerAnimationRunnable, SHIMMER_FPS_DELAY);
         }
     }
 
-    private void traceTypeIcon(Path path, float left, float top, float width, float height, float[][] points) {
-        if (points == null || points.length == 0) {
+    private void unregisterShimmerView(TextView view) {
+        if (view == null) {
             return;
         }
-        path.moveTo(left + width * points[0][0], top + height * points[0][1]);
-        int i = 1;
-        while (i < points.length) {
-            if (i + 2 < points.length) {
-                path.cubicTo(
-                        left + width * points[i][0], top + height * points[i][1],
-                        left + width * points[i + 1][0], top + height * points[i + 1][1],
-                        left + width * points[i + 2][0], top + height * points[i + 2][1]
-                );
-                i += 3;
-            } else {
-                path.lineTo(left + width * points[i][0], top + height * points[i][1]);
-                i++;
-            }
+        shimmerTargetViews.remove(view);
+        view.getPaint().setShader(null);
+        view.invalidate();
+        if (shimmerTargetViews.isEmpty()) {
+            uiHandler.removeCallbacks(shimmerAnimationRunnable);
         }
+    }
+
+    private void styleSettingsTitleText(TextView view) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+        applyTitleGradientShader(view, settingsTitleGradientWidth(view), 
+                Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
+        view.setTextColor(Color.WHITE);
+        view.setShadowLayer(dp(5), 0, 0, Color.argb(120, 0, 245, 212));
+        view.invalidate();
+        view.post(() -> {
+            applyTitleGradientShader(view, settingsTitleGradientWidth(view), 
+                    Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
+            view.setTextColor(Color.WHITE);
+            view.setShadowLayer(dp(5), 0, 0, Color.argb(120, 0, 245, 212));
+            view.invalidate();
+        });
+    }
+
+    private void styleStatusTextShimmer(TextView view, int baseColorStart, int baseColorEnd) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+        applyStatusShimmerShader(view, settingsTitleGradientWidth(view), baseColorStart, baseColorEnd);
+        view.setTextColor(Color.WHITE);
+        view.setShadowLayer(dp(5), 0, 0, Color.argb(120, Color.red(baseColorStart), Color.green(baseColorStart), Color.blue(baseColorStart)));
+        view.invalidate();
+    }
+
+    private void applyTitleGradientShader(TextView view, int width, int startColor, int midColor, int endColor) {
+        if (width <= 0) {
+            return;
+        }
+        String text = view.getText() == null ? "" : view.getText().toString();
+        float textWidth = Math.max(1f, view.getPaint().measureText(text));
+        float available = Math.max(1f, width - view.getPaddingLeft() - view.getPaddingRight());
+        int gravity = view.getGravity() & android.view.Gravity.HORIZONTAL_GRAVITY_MASK;
+        float textLeft;
+        if (gravity == android.view.Gravity.CENTER_HORIZONTAL) {
+            textLeft = view.getPaddingLeft() + (available - textWidth) / 2f;
+        } else if (gravity == android.view.Gravity.RIGHT || gravity == android.view.Gravity.END) {
+            textLeft = width - view.getPaddingRight() - textWidth;
+        } else {
+            textLeft = view.getPaddingLeft();
+        }
+        textLeft = Math.max(0f, textLeft);
+
+        // 高性能流光渐变（双重融合）：
+        // 11 点对称渐变，首尾使用饱和度极高的文字主题原色，中心局部插入极高亮冰白流光。
+        // 当流光 Matrix 平移时，外部不被扫过的区域永远是好看的、饱满的渐变艺术字，完全不存在看不清或缺失问题。
+        int shadowCyan = Color.rgb(0, 245, 212);
+        view.getPaint().setShader(new LinearGradient(
+                textLeft - textWidth * 1.5f, 0, textLeft + textWidth * 1.5f, 0,
+                new int[]{
+                        startColor, startColor, midColor, 
+                        Color.rgb(255, 255, 255), Color.rgb(255, 255, 255), 
+                        endColor, endColor
+                },
+                new float[]{0.0f, 0.35f, 0.44f, 0.5f, 0.56f, 0.65f, 1.0f},
+                Shader.TileMode.CLAMP));
+    }
+
+    private void applyStatusShimmerShader(TextView view, int width, int startColor, int endColor) {
+        if (width <= 0) {
+            return;
+        }
+        String text = view.getText() == null ? "" : view.getText().toString();
+        float textWidth = Math.max(1f, view.getPaint().measureText(text));
+        float available = Math.max(1f, width - view.getPaddingLeft() - view.getPaddingRight());
+        int gravity = view.getGravity() & android.view.Gravity.HORIZONTAL_GRAVITY_MASK;
+        float textLeft;
+        if (gravity == android.view.Gravity.CENTER_HORIZONTAL) {
+            textLeft = view.getPaddingLeft() + (available - textWidth) / 2f;
+        } else if (gravity == android.view.Gravity.RIGHT || gravity == android.view.Gravity.END) {
+            textLeft = width - view.getPaddingRight() - textWidth;
+        } else {
+            textLeft = view.getPaddingLeft();
+        }
+        textLeft = Math.max(0f, textLeft);
+
+        view.getPaint().setShader(new LinearGradient(
+                textLeft - textWidth * 1.5f, 0, textLeft + textWidth * 1.5f, 0,
+                new int[]{
+                        startColor, startColor, 
+                        Color.rgb(255, 255, 255), Color.rgb(255, 255, 255), 
+                        endColor, endColor
+                },
+                new float[]{0.0f, 0.38f, 0.48f, 0.52f, 0.62f, 1.0f},
+                Shader.TileMode.CLAMP));
+    }
+
+    private void applySettingsPageTitleShader(TextView view, int width) {
+        applyTitleGradientShader(view, width, 
+                Color.rgb(0, 245, 212), Color.rgb(80, 220, 255), Color.rgb(180, 100, 255));
+    }
+
+    private int settingsTitleGradientWidth(TextView view) {
+        return Math.max(1, view.getWidth());
     }
 
     private TextView dialogTitleView(String text) {
-        TextView title = new TextView(this);
+        TextView title = gradientTitleView(text);
         title.setText(text);
         title.setTextSize(18);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        title.setTextColor(Color.WHITE);
+        styleGradientTitle(title);
         title.setPadding(dp(20), dp(16), dp(20), dp(6));
         return title;
     }
@@ -4145,7 +4602,7 @@ public final class MainActivity extends Activity {
         }
         TextView title = (TextView) dialog.findViewById(android.R.id.title);
         if (title != null) {
-            title.setTextColor(Color.WHITE);
+            styleGradientTitle(title);
         }
         TextView message = (TextView) dialog.findViewById(android.R.id.message);
         if (message != null) {
@@ -4159,7 +4616,7 @@ public final class MainActivity extends Activity {
         }
         Button pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (pos != null) {
-            pos.setTextColor(Color.rgb(0, 245, 212));
+            styleCyanGlowText(pos);
             pos.setAllCaps(false);
         }
         Button neu = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
@@ -4172,6 +4629,243 @@ public final class MainActivity extends Activity {
         return new ColorDrawable(color);
     }
 
+    private void stylePlainWhiteText(TextView view) {
+        view.getPaint().setShader(null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
+        view.setTextColor(Color.WHITE);
+        view.getPaint().clearShadowLayer();
+        view.invalidate();
+    }
+
+    private void styleInactiveTabText(TextView view) {
+        view.getPaint().setShader(null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
+        view.setTextColor(Color.argb(140, 255, 255, 255));
+        view.getPaint().clearShadowLayer();
+        view.invalidate();
+    }
+
+    private void styleDimPlainText(TextView view) {
+        view.getPaint().setShader(null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
+        view.setTextColor(Color.rgb(180, 190, 205));
+        view.getPaint().clearShadowLayer();
+        view.invalidate();
+    }
+
+    private void styleDropdownInactiveText(TextView view) {
+        view.getPaint().setShader(null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
+        view.setTextColor(Color.rgb(158, 168, 184));
+        view.getPaint().clearShadowLayer();
+        view.invalidate();
+    }
+
+    private void styleEqBandText(TextView view, boolean active) {
+        if (active) {
+            styleCyanGlowText(view);
+        } else {
+            stylePlainWhiteText(view);
+        }
+    }
+
+    private void styleStatusText(boolean hasClip) {
+        if (statusText == null) {
+            return;
+        }
+        if (!supported) {
+            unregisterShimmerView(statusText);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                statusText.setLayerType(View.LAYER_TYPE_NONE, null);
+            }
+            statusText.setTextColor(Color.rgb(150, 158, 172));
+            statusText.getPaint().clearShadowLayer();
+        } else if (hasClip) {
+            unregisterShimmerView(statusText);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                statusText.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            }
+            statusText.setTextColor(Color.rgb(255, 100, 100));
+            statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
+        } else if (isEditingPresetActive()) {
+            styleSettingsTitleText(statusText);
+            registerShimmerView(statusText);
+        } else {
+            unregisterShimmerView(statusText);
+            styleDimPlainText(statusText);
+        }
+        statusText.invalidate();
+    }
+
+    private void styleModeText() {
+        if (modeSpinner == null) {
+            return;
+        }
+        if (runningPreset != null && runningPreset.enabled && supported) {
+            styleSettingsTitleText(modeSpinner);
+            registerShimmerView(modeSpinner);
+        } else {
+            unregisterShimmerView(modeSpinner);
+            styleDimPlainText(modeSpinner);
+        }
+    }
+
+    private void styleCyanGlowText(TextView view) {
+        view.getPaint().setShader(null);
+        view.setTextColor(Color.rgb(220, 255, 250));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+        view.setShadowLayer(dp(5), 0, 0, Color.argb(135, 0, 245, 212));
+    }
+
+    private Drawable plainRoundRectDrawable(int fillColor, int strokeColor, int radiusPx) {
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setColor(fillColor);
+        background.setStroke(dp(1), strokeColor);
+        background.setCornerRadius(radiusPx);
+        return background;
+    }
+
+    private Drawable strokeGlowRoundRectDrawable(int fillColor, int strokeColor, int radiusPx, int glowRadiusPx, int glowColor) {
+        return new Drawable() {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final android.graphics.RectF rect = new android.graphics.RectF();
+
+            @Override
+            public void draw(Canvas canvas) {
+                Rect b = getBounds();
+                float inset = dpf(0.75f);
+                rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
+                float radius = Math.max(1f, radiusPx - inset * 0.35f);
+
+                paint.setShader(null);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(fillColor);
+                paint.clearShadowLayer();
+                canvas.drawRoundRect(rect, radius, radius, paint);
+
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dpf(1.15f));
+                paint.setColor(strokeColor);
+                paint.setShadowLayer(glowRadiusPx, 0, 0, glowColor);
+                canvas.drawRoundRect(rect, radius, radius, paint);
+                paint.clearShadowLayer();
+            }
+
+            @Override
+            public void setAlpha(int alpha) {
+                paint.setAlpha(alpha);
+            }
+
+            @Override
+            public void setColorFilter(ColorFilter colorFilter) {
+                paint.setColorFilter(colorFilter);
+            }
+
+            @Override
+            public int getOpacity() {
+                return PixelFormat.TRANSLUCENT;
+            }
+        };
+    }
+
+    private Drawable verticalGradientStrokeGlowDrawable(int topColor, int bottomColor, int strokeColor,
+                                                       int radiusPx, int glowRadiusPx, int glowColor) {
+        return new Drawable() {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final android.graphics.RectF rect = new android.graphics.RectF();
+
+            @Override
+            public void draw(Canvas canvas) {
+                Rect b = getBounds();
+                float inset = dpf(0.75f);
+                rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
+                float radius = Math.max(1f, radiusPx - inset * 0.35f);
+
+                paint.setStyle(Paint.Style.FILL);
+                paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                        topColor, bottomColor, Shader.TileMode.CLAMP));
+                paint.clearShadowLayer();
+                canvas.drawRoundRect(rect, radius, radius, paint);
+
+                paint.setShader(null);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dpf(1f));
+                paint.setColor(strokeColor);
+                paint.setShadowLayer(glowRadiusPx, 0, 0, glowColor);
+                canvas.drawRoundRect(rect, radius, radius, paint);
+                paint.clearShadowLayer();
+            }
+
+            @Override
+            public void setAlpha(int alpha) {
+                paint.setAlpha(alpha);
+            }
+
+            @Override
+            public void setColorFilter(ColorFilter colorFilter) {
+                paint.setColorFilter(colorFilter);
+            }
+
+            @Override
+            public int getOpacity() {
+                return PixelFormat.TRANSLUCENT;
+            }
+        };
+    }
+
+    private Drawable glowRoundRectDrawable(int fillColor, int strokeColor, int radiusPx, int glowRadiusPx, int glowColor) {
+        return new Drawable() {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final android.graphics.RectF rect = new android.graphics.RectF();
+
+            @Override
+            public void draw(Canvas canvas) {
+                Rect b = getBounds();
+                float inset = Math.max(dpf(1f), glowRadiusPx * 0.45f);
+                rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
+                float radius = Math.max(1f, radiusPx - inset * 0.35f);
+
+                paint.setShader(null);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(fillColor);
+                paint.setShadowLayer(glowRadiusPx, 0, 0, glowColor);
+                canvas.drawRoundRect(rect, radius, radius, paint);
+                paint.clearShadowLayer();
+
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dpf(1.15f));
+                paint.setColor(strokeColor);
+                canvas.drawRoundRect(rect, radius, radius, paint);
+            }
+
+            @Override
+            public void setAlpha(int alpha) {
+                paint.setAlpha(alpha);
+            }
+
+            @Override
+            public void setColorFilter(ColorFilter colorFilter) {
+                paint.setColorFilter(colorFilter);
+            }
+
+            @Override
+            public int getOpacity() {
+                return PixelFormat.TRANSLUCENT;
+            }
+        };
+    }
+
     private void styleButton(Button button, boolean isPrimary, boolean isEnabled) {
         button.setEnabled(isEnabled);
         GradientDrawable gd = new GradientDrawable();
@@ -4181,25 +4875,33 @@ public final class MainActivity extends Activity {
             if (isEnabled) {
                 gd.setColors(new int[]{Color.rgb(0, 160, 255), Color.rgb(0, 229, 255)});
                 gd.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-                button.setTextColor(Color.WHITE);
+                styleCyanGlowText(button);
             } else {
                 gd.setColor(Color.argb(40, 80, 90, 100));
                 button.setTextColor(Color.argb(100, 255, 255, 255));
+                button.getPaint().clearShadowLayer();
             }
         } else {
             if (isEnabled) {
-                gd.setColor(Color.argb(30, 255, 255, 255));
-                gd.setStroke(dp(1), Color.argb(60, 255, 255, 255));
-                button.setTextColor(Color.WHITE);
+                gd.setColor(Color.argb(24, 255, 255, 255));
+                gd.setStroke(dp(1), Color.argb(52, 255, 255, 255));
+                styleCyanGlowText(button);
             } else {
                 gd.setColor(Color.argb(10, 255, 255, 255));
                 gd.setStroke(dp(1), Color.argb(20, 255, 255, 255));
                 button.setTextColor(Color.argb(80, 255, 255, 255));
+                button.getPaint().clearShadowLayer();
             }
         }
         button.setBackground(gd);
         button.setAllCaps(false);
-        button.setPadding(dp(8), 0, dp(8), 0);
+        if (button == undoButton || button == redoButton) {
+            button.setPadding(0, 0, 0, dp(1));
+            button.setGravity(android.view.Gravity.CENTER);
+            button.setIncludeFontPadding(false);
+        } else {
+            button.setPadding(dp(8), 0, dp(8), 0);
+        }
         
         button.setOnTouchListener((view, event) -> {
             if (!isEnabled) return false;
@@ -4216,22 +4918,31 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void styleSubtlePrimaryButton(Button button, boolean isEnabled) {
+    private void styleAccentButton(Button button, boolean isEnabled) {
         button.setEnabled(isEnabled);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            button.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
         GradientDrawable gd = new GradientDrawable();
         gd.setShape(GradientDrawable.RECTANGLE);
         gd.setCornerRadius(dp(10));
         if (isEnabled) {
-            gd.setColors(new int[]{Color.argb(140, 20, 100, 140), Color.argb(140, 30, 120, 150)});
-            gd.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-            gd.setStroke(dp(1), Color.argb(100, 0, 200, 200));
-            button.setTextColor(Color.WHITE);
+            button.setBackground(strokeGlowRoundRectDrawable(
+                    Color.argb(24, 255, 255, 255),
+                    Color.argb(160, 0, 245, 212),
+                    dp(10),
+                    dp(3),
+                    Color.argb(85, 0, 245, 212)
+            ));
+            button.setTextColor(Color.argb(255, 220, 255, 250));
+            button.setShadowLayer(dp(5), 0, 0, Color.argb(130, 0, 245, 212));
         } else {
-            gd.setColor(Color.argb(35, 80, 90, 100));
-            gd.setStroke(dp(1), Color.argb(25, 255, 255, 255));
-            button.setTextColor(Color.argb(100, 255, 255, 255));
+            gd.setColor(Color.argb(15, 0, 245, 212));
+            gd.setStroke(dp(1), Color.argb(40, 0, 245, 212));
+            button.setTextColor(Color.argb(120, 220, 255, 250));
+            button.getPaint().clearShadowLayer();
+            button.setBackground(gd);
         }
-        button.setBackground(gd);
         button.setAllCaps(false);
         button.setPadding(dp(8), 0, dp(8), 0);
         button.setOnTouchListener((view, event) -> {
@@ -4269,19 +4980,27 @@ public final class MainActivity extends Activity {
         
         Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         for (int i = 0; i < tabs.length; i++) {
+            Button tab = tabs[i];
             boolean active = (i == activeIndex);
-            GradientDrawable gd = new GradientDrawable();
-            gd.setShape(GradientDrawable.RECTANGLE);
-            gd.setCornerRadius(dp(12));
             if (active) {
-                gd.setColor(Color.argb(35, 0, 245, 212));
-                gd.setStroke(dp(1), Color.argb(70, 0, 245, 212));
-                tabs[i].setTextColor(Color.rgb(0, 245, 212));
+                tab.setBackground(strokeGlowRoundRectDrawable(
+                        Color.argb(24, 255, 255, 255),
+                        Color.argb(160, 0, 245, 212),
+                        dp(12),
+                        dp(3),
+                        Color.argb(85, 0, 245, 212)
+                ));
+                styleSettingsTitleText(tab);
+                registerShimmerView(tab);
             } else {
+                GradientDrawable gd = new GradientDrawable();
+                gd.setShape(GradientDrawable.RECTANGLE);
+                gd.setCornerRadius(dp(12));
                 gd.setColor(Color.TRANSPARENT);
-                tabs[i].setTextColor(Color.argb(140, 255, 255, 255));
+                tab.setBackground(gd);
+                unregisterShimmerView(tab);
+                styleInactiveTabText(tab);
             }
-            tabs[i].setBackground(gd);
         }
     }
 
