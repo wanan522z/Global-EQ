@@ -5094,7 +5094,7 @@ public final class MainActivity extends Activity {
         updateBottomNavSelection(nextIndex);
     }
 
-    private void updateBottomNavSelection(int activeIndex) {
+    private void updateBottomNavSelectionLegacy(int activeIndex) {
         if (eqTabButton == null || extraTabButton == null || settingsTabButton == null) return;
         
         Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
