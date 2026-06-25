@@ -3427,6 +3427,14 @@ public final class MainActivity extends Activity {
         return p;
     }
 
+    // Reverb 旋钮列专用：4 个旋钮均分宽度，用更小间距让每个旋钮列更宽，弧形更大
+    private LinearLayout.LayoutParams reverbKnobColumnParams() {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+        p.leftMargin = dp(2);
+        p.rightMargin = dp(2);
+        return p;
+    }
+
     private LinearLayout createSystemBassBoostControl() {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
