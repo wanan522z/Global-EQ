@@ -293,6 +293,7 @@ public final class MainActivity extends Activity {
     private int activeEqEditField = EQ_EDIT_FIELD_FREQ;
     private boolean keyboardVisible;
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener;
+    private boolean virtualBassEnabledState;
     private int activeMainPageIndex;
     private int selectedBassModeIndex;
     private int lastVirtualBassAmountPercent = 25;
