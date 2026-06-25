@@ -200,13 +200,16 @@ public final class MainActivity extends Activity {
             colors = SHIMMER_BRIGHT_COLORS;
         }
 
-        // 偏移：phase 0→1 对应渐变左移 0→width，REPEAT 保证无缝循环
+        // 偏移：phase 0→1 对应渐变右移 0→width（从左往右流），REPEAT 保证无缝循环
         float offset = phase * width;
         view.getPaint().setShader(new LinearGradient(
-                -offset, 0, width - offset, 0,
+                offset, 0, width + offset, 0,
                 colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
+        // 光晕：shadowLayer 让文字带青蓝色发光，shader 颜色作为文字色，
+        // 重建 shader 每帧 + invalidate 确保光晕随流光同步刷新
+        view.getPaint().setShadowLayer(dpf(3f), 0, 0, Color.argb(120, 120, 220, 255));
         view.invalidate();
     }
 
