@@ -5200,24 +5200,21 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 色阶：浅蓝青色调，亮色为主，多一点蓝色感（与 SHIMMER_BRIGHT_COLORS 一致）
-        int paleCyan  = Color.rgb(220, 245, 255);  // 极亮浅蓝青
-        int lightAqua = Color.rgb(165, 225, 255);  // 亮浅蓝（偏蓝）
-        int aqua      = Color.rgb(110, 210, 255);  // 饱和亮青蓝（偏蓝）
-        int hotCore   = Color.rgb(255, 255, 255);  // 纯白热核心
+        // 色阶重构：精简为丝滑的5阶蓝绿极高亮色阶（与 SHIMMER_BRIGHT_COLORS 统一设计）
+        int neonGreen = Color.rgb(0, 245, 200);   // 翡翠青绿
+        int electricBlue = Color.rgb(0, 225, 255); // 电光青蓝
+        int hotCore = Color.rgb(255, 255, 255);    // 纯白核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
-                        paleCyan,
-                        lightAqua,
-                        aqua,
+                        neonGreen,
+                        electricBlue,
                         hotCore,
-                        aqua,
-                        lightAqua,
-                        paleCyan
+                        electricBlue,
+                        neonGreen
                 },
-                new float[]{0.0f, 0.15f, 0.3f, 0.5f, 0.7f, 0.85f, 1.0f},
+                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
@@ -5225,24 +5222,21 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 状态文字与标题统一蓝色主导色阶
-        int lightBlue  = Color.rgb(130, 200, 255);
-        int brightBlue = Color.rgb(70, 145, 255);
-        int aqua       = Color.rgb(100, 200, 255);
-        int hotCore    = Color.rgb(245, 250, 255);
+        // 状态文字统一精简5色标高亮蓝绿色阶
+        int neonGreen = Color.rgb(0, 245, 200);   // 翡翠青绿
+        int electricBlue = Color.rgb(0, 225, 255); // 电光青蓝
+        int hotCore = Color.rgb(255, 255, 255);    // 纯白核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
-                        lightBlue,
-                        brightBlue,
-                        aqua,
+                        neonGreen,
+                        electricBlue,
                         hotCore,
-                        aqua,
-                        brightBlue,
-                        lightBlue
+                        electricBlue,
+                        neonGreen
                 },
-                new float[]{0.0f, 0.25f, 0.42f, 0.5f, 0.58f, 0.75f, 1.0f},
+                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
