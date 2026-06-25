@@ -17,6 +17,10 @@ final class PeqMath {
     }
 
     static int visualGainAtHzMb(int frequencyHz, Preset preset) {
+        return visualGainAtFrequencyMb(frequencyHz, preset);
+    }
+
+    static int visualGainAtFrequencyMb(double frequencyHz, Preset preset) {
         if (frequencyHz <= 0 || preset == null) {
             return 0;
         }
@@ -89,6 +93,10 @@ final class PeqMath {
     }
 
     static int bandGainAtHzMb(int frequencyHz, ParametricBand band) {
+        return bandGainAtHzMb((double) frequencyHz, band);
+    }
+
+    static int bandGainAtHzMb(double frequencyHz, ParametricBand band) {
         if (frequencyHz <= 0 || band == null || !band.enabled || band.gainMb == 0) {
             return 0;
         }
@@ -98,7 +106,7 @@ final class PeqMath {
         return (int) Math.round(band.gainMb * responseWeight(frequencyHz, band));
     }
 
-    private static double responseWeight(int frequencyHz, ParametricBand band) {
+    private static double responseWeight(double frequencyHz, ParametricBand band) {
         double octaves = Math.log(frequencyHz / (double) band.frequencyHz) / Math.log(2.0);
         double q = band.qHundred / 100.0;
         double width = Math.max(0.18, 1.0 / q);
@@ -130,6 +138,10 @@ final class PeqMath {
     }
 
     private static int rawGeqGainAtHzMb(int frequencyHz, Preset preset) {
+        return rawGeqGainAtFrequencyMb(frequencyHz, preset);
+    }
+
+    private static int rawGeqGainAtFrequencyMb(double frequencyHz, Preset preset) {
         if (preset == null || preset.geqGainsMb.length == 0) {
             return 0;
         }
