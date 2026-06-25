@@ -73,7 +73,7 @@ public final class MainActivity extends Activity {
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
-    private static final String[] BASS_MODE_LABELS = {"system", "dsp"};
+    private static final String[] BASS_MODE_LABELS = {"Default", "system", "dsp"};
 
     private PresetRepository repository;
     private GlobalEqualizerEngine engine;
@@ -105,6 +105,9 @@ public final class MainActivity extends Activity {
     private EditText reverbMixInput;
     private TextView reverbTypeButton;
     private TextView bassModeButton;
+    private TextView reverbTitleView;
+    private TextView bassBoostTitleView;
+    private TextView virtualBassTitleView;
     private TextView statusText;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
