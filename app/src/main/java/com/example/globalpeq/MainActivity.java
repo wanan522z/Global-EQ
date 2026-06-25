@@ -205,9 +205,14 @@ public final class MainActivity extends Activity {
                 colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
-        // 统一光晕：浅蓝青色光晕，与流光色系一致
-        // 当前 baked-offset 架构每帧新建 shader 对象，shadowLayer 不再阻塞流光
-        view.getPaint().setShadowLayer(dpf(4.5f), 0, 0, Color.argb(130, 120, 220, 255));
+        // 光晕：shadowLayer 半径加大、alpha 降低，让 blur 边缘更柔和减少锯齿
+        if (view == statusText) {
+            // GLOBAL EQ 状态标识：额外荧光光晕，更强更炫酷，区别于其他标题
+            view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(170, 0, 245, 212));
+        } else {
+            // 其他标题：统一浅蓝青色光晕
+            view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(115, 120, 220, 255));
+        }
         view.invalidate();
     }
 
