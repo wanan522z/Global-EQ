@@ -560,7 +560,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.RIGHT);
+        top.setGravity(android.view.Gravity.CENTER_VERTICAL);
         controlCard.addView(top, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -581,9 +581,12 @@ public final class MainActivity extends Activity {
         };
         modeSpinner.setTextSize(16);
         modeSpinner.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        modeSpinner.setGravity(android.view.Gravity.CENTER);
+        modeSpinner.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
         modeSpinner.setSingleLine(true);
         modeSpinner.setIncludeFontPadding(false);
+        modeSpinner.setPadding(0, 0, 0, 0);
+        modeSpinner.setMinWidth(0);
+        modeSpinner.setMinimumWidth(0);
         styleSettingsTitleText(modeSpinner);
         modeSpinner.setOnClickListener(v -> {
             if (editingPreset == null) {
@@ -598,15 +601,18 @@ public final class MainActivity extends Activity {
             });
         });
         LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
-                0,
-                dp(34),
-                1f
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(34)
         );
-        modeParams.rightMargin = dp(8);
+        modeParams.rightMargin = dp(12);
         top.addView(modeSpinner, modeParams);
 
         View switchSpacer = new View(this);
-        top.addView(switchSpacer, new LinearLayout.LayoutParams(dp(4), 1));
+        top.addView(switchSpacer, new LinearLayout.LayoutParams(
+                0,
+                1,
+                1f
+        ));
 
         enabledSwitch = new Switch(this);
         enabledSwitch.setText("");
@@ -5208,7 +5214,17 @@ public final class MainActivity extends Activity {
     }
 
     private int settingsTitleGradientWidth(TextView view) {
-        return Math.max(1, view.getWidth());
+        if (view == null) {
+            return 1;
+        }
+        int viewWidth = Math.max(1, view.getWidth());
+        CharSequence text = view.getText();
+        if (!(view instanceof Button) && text != null && text.length() > 0) {
+            int textWidth = (int) Math.ceil(view.getPaint().measureText(text.toString()))
+                    + view.getPaddingLeft() + view.getPaddingRight();
+            return Math.max(1, Math.min(viewWidth, textWidth));
+        }
+        return viewWidth;
     }
 
     private TextView dialogTitleView(String text) {
