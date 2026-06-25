@@ -2975,16 +2975,22 @@ public final class MainActivity extends Activity {
     }
 
     private void applyRunningPreset() {
-        repository.saveSelectedDevice(currentDevice);
-        repository.savePreset(currentDevice, runningPreset);
-        repository.saveGlobalPreset(runningPreset);
-        engine.apply(runningPreset);
-        Intent service = new Intent(this, GlobalEqForegroundService.class);
-        service.setAction(GlobalEqForegroundService.ACTION_APPLY);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(service);
-        } else {
-            startService(service);
+        if (currentDevice == null || runningPreset == null) {
+            return;
+        }
+        try {
+            repository.saveSelectedDevice(currentDevice);
+            repository.savePreset(currentDevice, runningPreset);
+            repository.saveGlobalPreset(runningPreset);
+            engine.apply(runningPreset);
+            Intent service = new Intent(this, GlobalEqForegroundService.class);
+            service.setAction(GlobalEqForegroundService.ACTION_APPLY);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(service);
+            } else {
+                startService(service);
+            }
+        } catch (Throwable ignored) {
         }
     }
 
