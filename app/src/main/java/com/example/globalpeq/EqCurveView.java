@@ -15,6 +15,8 @@ import android.view.View;
 final class EqCurveView extends View {
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
+    private static final float CURVE_SAMPLE_STEP_PX = 0.5f;
+    private static final float REF_SAMPLE_STEP_PX = 1.5f;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -62,9 +64,13 @@ final class EqCurveView extends View {
         curvePaint.setStyle(Paint.Style.STROKE);
         curvePaint.setStrokeCap(Paint.Cap.ROUND);
         curvePaint.setStrokeJoin(Paint.Join.ROUND);
+        curvePaint.setAntiAlias(true);
+        curvePaint.setFilterBitmap(true);
         curvePaint.setDither(true);
         referencePaint.setStyle(Paint.Style.STROKE);
         referencePaint.setStrokeWidth(3f);
+        referencePaint.setAntiAlias(true);
+        referencePaint.setFilterBitmap(true);
         referencePaint.setDither(true);
         dashPathEffect = new DashPathEffect(new float[]{12f, 10f}, 0f);
         textPaint.setColor(Color.argb(160, 255, 255, 255));
@@ -80,6 +86,8 @@ final class EqCurveView extends View {
         glowPaint1.setStrokeJoin(Paint.Join.ROUND);
         glowPaint1.setStrokeWidth(36f); // Increased from 24f to expand the outer edge
         glowPaint1.setColor(Color.argb(12, 0, 220, 255)); // Reduced alpha from 40 to 12 for soft gradient fade
+        glowPaint1.setAntiAlias(true);
+        glowPaint1.setFilterBitmap(true);
         glowPaint1.setDither(true);
         glowPaint1.setMaskFilter(new BlurMaskFilter(15f, BlurMaskFilter.Blur.NORMAL));
 
@@ -89,6 +97,8 @@ final class EqCurveView extends View {
         glowPaint2.setStrokeJoin(Paint.Join.ROUND);
         glowPaint2.setStrokeWidth(16f); // Increased from 12f for broader middle band
         glowPaint2.setColor(Color.argb(22, 130, 65, 255)); // Reduced from 70 to 22 for smoother fade
+        glowPaint2.setAntiAlias(true);
+        glowPaint2.setFilterBitmap(true);
         glowPaint2.setDither(true);
         glowPaint2.setMaskFilter(new BlurMaskFilter(8f, BlurMaskFilter.Blur.NORMAL));
 
@@ -98,6 +108,8 @@ final class EqCurveView extends View {
         glowPaint3.setStrokeJoin(Paint.Join.ROUND);
         glowPaint3.setStrokeWidth(6f); // Tight, small overall glow width
         glowPaint3.setColor(Color.argb(45, 0, 255, 255)); // Higher alpha but very thin, preventing pixelation/aliasing
+        glowPaint3.setAntiAlias(true);
+        glowPaint3.setFilterBitmap(true);
         glowPaint3.setDither(true);
         glowPaint3.setMaskFilter(new BlurMaskFilter(3f, BlurMaskFilter.Blur.NORMAL));
 
@@ -105,6 +117,8 @@ final class EqCurveView extends View {
         sweepPaint.setStrokeCap(Paint.Cap.ROUND);
         sweepPaint.setStrokeJoin(Paint.Join.ROUND);
         sweepPaint.setStrokeWidth(5.0f); // Sleeker sweep line to reduce aliasing and make it look sharper
+        sweepPaint.setAntiAlias(true);
+        sweepPaint.setFilterBitmap(true);
         sweepPaint.setDither(true);
     }
 
@@ -178,28 +192,7 @@ final class EqCurveView extends View {
 
         // Cache-based Path reconstruction to prevent log/exp math and path allocation overhead inside onDraw
         if (pathDirty || width != lastWidth || height != lastHeight) {
-            curvePath.reset();
-            // Since path calculations are fully cached, we can keep the curve ultra smooth at step = 2 with zero frame drop
-            int step = 1;
-            boolean first = true;
-            for (int x = (int) left; x <= (int) right; x += step) {
-                int hz = xToFreq(x, left, right);
-                float db = deviceCurve.gainAtHz(hz) + PeqMath.visualGainAtHzMb(hz, preset) / 100f;
-                float y = gainToY(db, top, bottom);
-                if (first) {
-                    curvePath.moveTo(x, y);
-                    first = false;
-                } else {
-                    curvePath.lineTo(x, y);
-                }
-            }
-            int lastX = (int) right;
-            if ((lastX - (int) left) % step != 0) {
-                int hz = xToFreq(lastX, left, right);
-                float db = deviceCurve.gainAtHz(hz) + PeqMath.visualGainAtHzMb(hz, preset) / 100f;
-                float y = gainToY(db, top, bottom);
-                curvePath.lineTo(lastX, y);
-            }
+            buildCurvePath(curvePath, left, right, top, bottom);
 
             if (!targetCurve.isDefault()) {
                 referencePath(targetCurve, left, right, top, bottom);
@@ -315,25 +308,47 @@ final class EqCurveView extends View {
 
     private Path referencePath(FrequencyCurve curve, float left, float right, float top, float bottom) {
         refCurvePath.reset();
-        int step = 3; // Optimize step size for reference path too to save overhead
-        boolean first = true;
-        for (int x = (int) left; x <= (int) right; x += step) {
-            int hz = xToFreq(x, left, right);
-            float y = gainToY(curve.gainAtHz(hz), top, bottom);
-            if (first) {
-                refCurvePath.moveTo(x, y);
-                first = false;
-            } else {
-                refCurvePath.lineTo(x, y);
-            }
-        }
-        int lastX = (int) right;
-        if ((lastX - (int) left) % step != 0) {
-            int hz = xToFreq(lastX, left, right);
-            float y = gainToY(curve.gainAtHz(hz), top, bottom);
-            refCurvePath.lineTo(lastX, y);
-        }
+        appendSmoothedPath(refCurvePath, left, right, REF_SAMPLE_STEP_PX,
+                x -> gainToY(curve.gainAtHz(xToFreq(x, left, right)), top, bottom));
         return refCurvePath;
+    }
+
+    private void buildCurvePath(Path path, float left, float right, float top, float bottom) {
+        path.reset();
+        appendSmoothedPath(path, left, right, CURVE_SAMPLE_STEP_PX, x -> {
+            int hz = xToFreq(x, left, right);
+            float db = deviceCurve.gainAtHz(hz) + PeqMath.visualGainAtHzMb(hz, preset) / 100f;
+            return gainToY(db, top, bottom);
+        });
+    }
+
+    private void appendSmoothedPath(Path path, float left, float right, float stepPx, CurveSampler sampler) {
+        float clampedStep = Math.max(0.25f, stepPx);
+        float x = left;
+        float y = sampler.sample(x);
+        path.moveTo(x, y);
+
+        float prevX = x;
+        float prevY = y;
+        boolean hasSegment = false;
+        for (x = left + clampedStep; x < right; x += clampedStep) {
+            float nextY = sampler.sample(x);
+            float midX = (prevX + x) * 0.5f;
+            float midY = (prevY + nextY) * 0.5f;
+            if (!hasSegment) {
+                path.lineTo(midX, midY);
+                hasSegment = true;
+            } else {
+                path.quadTo(prevX, prevY, midX, midY);
+            }
+            prevX = x;
+            prevY = nextY;
+        }
+        path.quadTo(prevX, prevY, right, sampler.sample(right));
+    }
+
+    private interface CurveSampler {
+        float sample(float x);
     }
 
 }
