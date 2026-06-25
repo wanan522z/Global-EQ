@@ -4568,34 +4568,24 @@ public final class MainActivity extends Activity {
         }
         String text = view.getText() == null ? "" : view.getText().toString();
         float textWidth = Math.max(1f, view.getPaint().measureText(text));
-        float available = Math.max(1f, width - view.getPaddingLeft() - view.getPaddingRight());
-        int gravity = view.getGravity() & android.view.Gravity.HORIZONTAL_GRAVITY_MASK;
-        float textLeft;
-        if (gravity == android.view.Gravity.CENTER_HORIZONTAL) {
-            textLeft = view.getPaddingLeft() + (available - textWidth) / 2f;
-        } else if (gravity == android.view.Gravity.RIGHT || gravity == android.view.Gravity.END) {
-            textLeft = width - view.getPaddingRight() - textWidth;
-        } else {
-            textLeft = view.getPaddingLeft();
-        }
-        textLeft = Math.max(0f, textLeft);
 
-        // 完美复刻 EqCurveView 的超凡视觉特征：
-        // 1. 无缝重复流动 (Shader.TileMode.REPEAT)：首尾颜色在逻辑与视觉上完全咬合。
-        // 2. 多重渐变溢彩色轮 (极宽色域和高饱含度)：Cyan 青 -> White 冰白核心 -> Pink/Purple 霓虹紫 -> Amber 琥珀金 -> Cyan 青。
-        // 3. 长周期连贯滑动：提供极其平稳、不刺眼、具有持续性的高级玻璃折射感。
+        // 【色调优化】：剔除一切杂色（粉、紫、金、白），只留纯净高奢的蓝绿色调加深蓝
+        // 【连续性机制】：首尾颜色完全咬合（都使用相同的深蓝绿）。
+        // 5 点无缝平铺渐变，当通过 Matrix 1:1 位移时，呈现绝对流畅无缝的蓝绿微光折射
+        int darkBlue = Color.rgb(10, 30, 80);    // 深蓝色调，提供坚实沉稳的暗部底色
+        int cyan = Color.rgb(0, 245, 190);      // 蓝绿 / 极光青色
+        int pureBlue = Color.rgb(0, 160, 255);  // 宝石湛蓝
+
         view.getPaint().setShader(new LinearGradient(
-                0, 0, textWidth * 1.5f, 0,
+                0, 0, textWidth, 0,
                 new int[]{
-                        Color.argb(0, 0, 255, 255),
-                        Color.argb(120, 0, 255, 255),      // 动感青色
-                        Color.argb(255, 255, 255, 255),    // 极高亮雪白核心
-                        Color.argb(140, 255, 60, 180),     // 霓虹粉桃红
-                        Color.argb(120, 130, 65, 255),     // 高贵深紫
-                        Color.argb(90, 255, 180, 0),       // 琥珀微金
-                        Color.argb(0, 0, 255, 255)
+                        darkBlue, 
+                        cyan, 
+                        pureBlue, 
+                        cyan, 
+                        darkBlue
                 },
-                new float[]{0.0f, 0.2f, 0.5f, 0.65f, 0.8f, 0.9f, 1.0f},
+                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
@@ -4605,30 +4595,22 @@ public final class MainActivity extends Activity {
         }
         String text = view.getText() == null ? "" : view.getText().toString();
         float textWidth = Math.max(1f, view.getPaint().measureText(text));
-        float available = Math.max(1f, width - view.getPaddingLeft() - view.getPaddingRight());
-        int gravity = view.getGravity() & android.view.Gravity.HORIZONTAL_GRAVITY_MASK;
-        float textLeft;
-        if (gravity == android.view.Gravity.CENTER_HORIZONTAL) {
-            textLeft = view.getPaddingLeft() + (available - textWidth) / 2f;
-        } else if (gravity == android.view.Gravity.RIGHT || gravity == android.view.Gravity.END) {
-            textLeft = width - view.getPaddingRight() - textWidth;
-        } else {
-            textLeft = view.getPaddingLeft();
-        }
-        textLeft = Math.max(0f, textLeft);
 
-        // 针对状态组件（Live / Edit）和模式（Mode）进行精致流光复刻：
-        // 同样采用 REPEAT 模式保障持续流动的连贯性，主色调根据状态动态偏向。
+        // 状态文字同样采用完全连续的 蓝、绿、深蓝 主题色平铺
+        int darkBlue = Color.rgb(10, 30, 80);
+        int cyan = Color.rgb(0, 235, 175);
+        int softBlue = Color.rgb(0, 140, 245);
+
         view.getPaint().setShader(new LinearGradient(
-                0, 0, textWidth * 1.5f, 0,
+                0, 0, textWidth, 0,
                 new int[]{
-                        Color.argb(0, Color.red(startColor), Color.green(startColor), Color.blue(startColor)),
-                        Color.argb(140, Color.red(startColor), Color.green(startColor), Color.blue(startColor)),
-                        Color.argb(255, 255, 255, 255),    // 耀眼白芯
-                        Color.argb(140, Color.red(endColor), Color.green(endColor), Color.blue(endColor)),
-                        Color.argb(0, Color.red(endColor), Color.green(endColor), Color.blue(endColor))
+                        darkBlue,
+                        cyan,
+                        softBlue,
+                        cyan,
+                        darkBlue
                 },
-                new float[]{0.0f, 0.25f, 0.5f, 0.75f, 1.0f},
+                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
