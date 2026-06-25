@@ -5661,10 +5661,12 @@ public final class MainActivity extends Activity {
         if (tab == null || bottomTabStrip == null) {
             return 0f;
         }
-        float stripLeftInNav = bottomTabStrip.getLeft();
+        // indicator 与 strip 同为 nav(FrameLayout)子 view，leftMargin 相对 nav 内容区(已含 padding)。
+        // tab.getLeft() 已是相对 strip 的位置，直接用即可，不能再加 strip.getLeft()，
+        // 否则会多偏移一个 nav 的 padding，导致 indicator 框整体右移与 tab 不对齐。
         float buttonLeftInStrip = tab.getLeft();
         float indicatorWidth = tabIndicatorWidthForTab(tab);
-        return stripLeftInNav + buttonLeftInStrip + (tab.getWidth() - indicatorWidth) / 2f;
+        return buttonLeftInStrip + (tab.getWidth() - indicatorWidth) / 2f;
     }
 
     private float tabIndicatorWidthForTab(Button tab) {
