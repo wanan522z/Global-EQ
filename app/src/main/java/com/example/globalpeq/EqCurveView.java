@@ -2,7 +2,6 @@ package com.example.globalpeq;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.BlurMaskFilter;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -17,6 +16,7 @@ final class EqCurveView extends View {
     private static final int MAX_HZ = 20000;
     private static final float CURVE_SAMPLE_STEP_PX = 0.35f;
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
+    private static final long ANIMATION_FRAME_DELAY_MS = 33L;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -41,6 +41,7 @@ final class EqCurveView extends View {
     private final Matrix sweepMatrix = new Matrix();
     private float sweepPhase = 0.0f;
     private long lastTime = 0;
+    private long lastInvalidateAt = 0L;
 
     // Performance cache indicators
     private boolean pathDirty = true;
@@ -55,7 +56,6 @@ final class EqCurveView extends View {
     EqCurveView(Context context) {
         super(context);
         setBackgroundColor(Color.TRANSPARENT);
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         gridPaint.setColor(Color.argb(20, 255, 255, 255));
         gridPaint.setStrokeWidth(1.5f);
         minorGridPaint.setColor(Color.argb(11, 255, 255, 255));
@@ -85,34 +85,31 @@ final class EqCurveView extends View {
         glowPaint1.setStyle(Paint.Style.STROKE);
         glowPaint1.setStrokeCap(Paint.Cap.ROUND);
         glowPaint1.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint1.setStrokeWidth(36f); // Increased from 24f to expand the outer edge
-        glowPaint1.setColor(Color.argb(12, 0, 220, 255)); // Reduced alpha from 40 to 12 for soft gradient fade
+        glowPaint1.setStrokeWidth(12f);
+        glowPaint1.setColor(Color.argb(20, 0, 220, 255));
         glowPaint1.setAntiAlias(true);
         glowPaint1.setFilterBitmap(true);
         glowPaint1.setDither(true);
-        glowPaint1.setMaskFilter(new BlurMaskFilter(15f, BlurMaskFilter.Blur.NORMAL));
 
         // 2. Middle ring: intermediate spread, smooth alpha
         glowPaint2.setStyle(Paint.Style.STROKE);
         glowPaint2.setStrokeCap(Paint.Cap.ROUND);
         glowPaint2.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint2.setStrokeWidth(16f); // Increased from 12f for broader middle band
-        glowPaint2.setColor(Color.argb(22, 130, 65, 255)); // Reduced from 70 to 22 for smoother fade
+        glowPaint2.setStrokeWidth(8f);
+        glowPaint2.setColor(Color.argb(34, 130, 65, 255));
         glowPaint2.setAntiAlias(true);
         glowPaint2.setFilterBitmap(true);
         glowPaint2.setDither(true);
-        glowPaint2.setMaskFilter(new BlurMaskFilter(8f, BlurMaskFilter.Blur.NORMAL));
 
         // 3. Inner solid halo core: small glow close to the actual curve to enhance overall look
         glowPaint3.setStyle(Paint.Style.STROKE);
         glowPaint3.setStrokeCap(Paint.Cap.ROUND);
         glowPaint3.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint3.setStrokeWidth(6f); // Tight, small overall glow width
-        glowPaint3.setColor(Color.argb(45, 0, 255, 255)); // Higher alpha but very thin, preventing pixelation/aliasing
+        glowPaint3.setStrokeWidth(5f);
+        glowPaint3.setColor(Color.argb(56, 0, 255, 255));
         glowPaint3.setAntiAlias(true);
         glowPaint3.setFilterBitmap(true);
         glowPaint3.setDither(true);
-        glowPaint3.setMaskFilter(new BlurMaskFilter(3f, BlurMaskFilter.Blur.NORMAL));
 
         sweepPaint.setStyle(Paint.Style.STROKE);
         sweepPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -128,7 +125,6 @@ final class EqCurveView extends View {
         edgePaint.setStrokeWidth(4.2f);
         edgePaint.setAntiAlias(true);
         edgePaint.setDither(true);
-        edgePaint.setMaskFilter(new BlurMaskFilter(1.1f, BlurMaskFilter.Blur.NORMAL));
     }
 
     void setPreset(Preset preset) {
@@ -212,7 +208,13 @@ final class EqCurveView extends View {
 
         // Keep running the animation loop smoothly if enabled
         if (preset.enabled) {
-            postInvalidateOnAnimation();
+            long now = System.currentTimeMillis();
+            if (now - lastInvalidateAt >= ANIMATION_FRAME_DELAY_MS) {
+                lastInvalidateAt = now;
+                postInvalidateOnAnimation();
+            } else {
+                postInvalidateDelayed(ANIMATION_FRAME_DELAY_MS - (now - lastInvalidateAt));
+            }
         }
     }
 
@@ -323,6 +325,7 @@ final class EqCurveView extends View {
             canvas.drawPath(curvePath, sweepPaint);
         } else {
             lastTime = 0;
+            lastInvalidateAt = 0L;
         }
 
         curvePaint.setStrokeWidth(3.2f);
