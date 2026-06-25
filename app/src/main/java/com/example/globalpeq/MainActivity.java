@@ -3026,6 +3026,7 @@ public final class MainActivity extends Activity {
         }
         pushHistory(redoStack, editingPreset);
         editingPreset = undoStack.remove(undoStack.size() - 1);
+        syncVirtualBassEnabledFromPreset();
         syncRunningIfEditingPresetIsActive();
         renderAll();
     }
@@ -3037,6 +3038,7 @@ public final class MainActivity extends Activity {
         }
         pushHistory(undoStack, editingPreset);
         editingPreset = redoStack.remove(redoStack.size() - 1);
+        syncVirtualBassEnabledFromPreset();
         syncRunningIfEditingPresetIsActive();
         renderAll();
     }
