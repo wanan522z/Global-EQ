@@ -5273,6 +5273,8 @@ public final class MainActivity extends Activity {
     }
 
     private final class SlidingTabBar extends FrameLayout {
+        private float downX;
+        private float downY;
         private boolean dragging;
 
         SlidingTabBar(Context context) {
@@ -5283,11 +5285,18 @@ public final class MainActivity extends Activity {
         public boolean onInterceptTouchEvent(MotionEvent event) {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
+                    downX = event.getX();
+                    downY = event.getY();
                     dragging = false;
                     break;
                 case MotionEvent.ACTION_MOVE:
-                    dragging = true;
-                    return true;
+                    float dx = event.getX() - downX;
+                    float dy = event.getY() - downY;
+                    if (Math.abs(dx) > dpf(10f) && Math.abs(dx) > Math.abs(dy)) {
+                        dragging = true;
+                        return true;
+                    }
+                    break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     dragging = false;
