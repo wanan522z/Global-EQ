@@ -343,7 +343,7 @@ final class EqCurveView extends View {
         float prevX = x;
         float prevY = y;
         boolean hasSegment = false;
-        for (x = left + clampedStep; x < right; x += clampedStep) {
+        for (x = left + adaptiveStepPx(left, right, left, clampedStep); x < right; ) {
             float nextY = sampler.sample(x);
             float midX = (prevX + x) * 0.5f;
             float midY = (prevY + nextY) * 0.5f;
@@ -355,8 +355,23 @@ final class EqCurveView extends View {
             }
             prevX = x;
             prevY = nextY;
+            x += adaptiveStepPx(left, right, x, clampedStep);
         }
         path.quadTo(prevX, prevY, right, sampler.sample(right));
+    }
+
+    private float adaptiveStepPx(float left, float right, float x, float baseStepPx) {
+        double hz = xToFrequency(x, left, right);
+        if (hz < 120d) {
+            return Math.max(0.14f, baseStepPx * 0.35f);
+        }
+        if (hz < 200d) {
+            return Math.max(0.18f, baseStepPx * 0.45f);
+        }
+        if (hz < 420d) {
+            return Math.max(0.22f, baseStepPx * 0.6f);
+        }
+        return baseStepPx;
     }
 
     private interface CurveSampler {
