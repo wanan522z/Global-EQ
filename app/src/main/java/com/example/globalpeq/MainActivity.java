@@ -231,33 +231,33 @@ public final class MainActivity extends Activity {
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
 
-    // 亮色阶：极其璀璨亮眼的荧光绿到电光青蓝，核心部分辅以白热光效，蓝绿交相辉映，亮度大幅度飙升且大幅节约GPU开销
+    // 亮色阶：极其高亮炽白的极地冰蓝与电光青蓝，大幅减少偏绿的翡翠青，提升高透白青与极白核心，将整体流光的发光亮度直接拉满！
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(0, 245, 200),    // 极亮翡翠青绿（Neon Emerald）
-            Color.rgb(0, 225, 255),    // 极亮电光青蓝（Electric Cyan）
-            Color.rgb(255, 255, 255),  // 极亮纯白热核心
-            Color.rgb(0, 225, 255),    // 极亮电光青蓝（Electric Cyan）
-            Color.rgb(0, 245, 200)     // 极亮翡翠青绿（Neon Emerald）
+            Color.rgb(100, 255, 240),  // 极亮高发光白青 (High-glow Cyan-white)
+            Color.rgb(0, 235, 255),    // 极其饱满的璀璨冰青蓝 (Vibrant Ice Cyan)
+            Color.rgb(255, 255, 255),  // 纯白热超亮核心 (Super HotCore White)
+            Color.rgb(0, 235, 255),    // 极其饱满的璀璨冰青蓝 (Vibrant Ice Cyan)
+            Color.rgb(100, 255, 240)   // 极亮高发光白青 (High-glow Cyan-white)
     };
-    // Live 模式 statusText：同亮色阶（蓝绿交错，动感璀璨）
+    // Live 模式 statusText：同亮色阶（极亮冰蓝与炽白光晕，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
-    // Edit 模式 statusText：高雅、高亮通透的薄荷绿到浅冰蓝
+    // Edit 模式 statusText：高雅通透、极其明亮的马卡龙浅冰蓝
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(60, 210, 175),   // 优雅薄荷绿
-            Color.rgb(75, 200, 240),   // 优雅浅冰蓝
-            Color.rgb(250, 255, 255),  // 炫白核心
-            Color.rgb(75, 200, 240),   // 优雅浅冰蓝
-            Color.rgb(60, 210, 175)    // 优雅薄荷绿
+            Color.rgb(150, 250, 245),  // 高亮极淡冰绿
+            Color.rgb(130, 230, 255),  // 极高亮冰青蓝
+            Color.rgb(255, 255, 255),  // 纯白核心
+            Color.rgb(130, 230, 255),  // 极高亮冰青蓝
+            Color.rgb(150, 250, 245)   // 高亮极淡冰绿
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
-    // modeSpinner disabled：暗调优雅灰蓝绿（微亮流光，平缓静谧）
+    // modeSpinner disabled：暗调优雅灰青蓝（微亮流光，平缓静谧）
     private static final int[] SHIMMER_MODE_OFF_COLORS = {
-            Color.rgb(80, 120, 110),   // 暗灰绿
-            Color.rgb(75, 115, 130),   // 暗灰蓝
-            Color.rgb(150, 175, 185),  // 优雅灰白核心
-            Color.rgb(75, 115, 130),   // 暗灰蓝
-            Color.rgb(80, 120, 110)    // 暗灰绿
+            Color.rgb(115, 145, 140),  // 暗灰青
+            Color.rgb(105, 140, 155),  // 暗灰蓝
+            Color.rgb(195, 215, 225),  // 优雅灰白核心
+            Color.rgb(105, 140, 155),  // 暗灰蓝
+            Color.rgb(115, 145, 140)   // 暗灰青
     };
 
     private void recreateShaderForView(TextView view, int width) {
