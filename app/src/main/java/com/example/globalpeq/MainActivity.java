@@ -3794,17 +3794,21 @@ public final class MainActivity extends Activity {
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
                 ringPaint.clearShadowLayer();
-                // 先画一层柔光底：RadialGradient 从 ring 半径向外平滑过渡，消除 shadowLayer 锯齿
-                float glowR = radius + dpf(4f);
+                // 柔光底：加大外圈半径 + 多档 alpha 过渡，让边缘平滑消散，消除锯齿
+                float glowR = radius + dpf(6f);
+                float ringStop = radius / glowR;
+                float midStop = (radius + dpf(1.5f)) / glowR;
+                float farStop = (radius + dpf(3.5f)) / glowR;
                 if (active) {
                     dotPaint.setStyle(Paint.Style.FILL);
                     dotPaint.setShader(new RadialGradient(
                             cx, cy, glowR,
                             new int[]{Color.TRANSPARENT,
-                                    Color.argb(90, 0, 245, 212),
-                                    Color.argb(40, 0, 200, 230),
+                                    Color.argb(110, 0, 245, 212),
+                                    Color.argb(70, 0, 220, 240),
+                                    Color.argb(30, 0, 200, 230),
                                     Color.TRANSPARENT},
-                            new float[]{0f, (radius / glowR), ((radius + dpf(1f)) / glowR), 1f},
+                            new float[]{0f, ringStop, midStop, farStop, 1f},
                             Shader.TileMode.CLAMP));
                     canvas.drawCircle(cx, cy, glowR, dotPaint);
                     dotPaint.setShader(null);
@@ -3813,9 +3817,10 @@ public final class MainActivity extends Activity {
                     dotPaint.setShader(new RadialGradient(
                             cx, cy, glowR,
                             new int[]{Color.TRANSPARENT,
-                                    Color.argb(35, 120, 180, 220),
+                                    Color.argb(45, 120, 180, 220),
+                                    Color.argb(20, 120, 180, 220),
                                     Color.TRANSPARENT},
-                            new float[]{0f, (radius / glowR), 1f},
+                            new float[]{0f, ringStop, midStop, 1f},
                             Shader.TileMode.CLAMP));
                     canvas.drawCircle(cx, cy, glowR, dotPaint);
                     dotPaint.setShader(null);
