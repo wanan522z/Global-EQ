@@ -4528,11 +4528,18 @@ public final class MainActivity extends Activity {
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(checked ? checkedColor : uncheckedColor);
+                if (checked) {
+                    // 开启时 thumb 带柔光，与流光同色系
+                    paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(140, 120, 240, 220));
+                } else {
+                    paint.clearShadowLayer();
+                }
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
+                paint.clearShadowLayer();
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(110, 255, 255, 255) : Color.argb(70, 255, 255, 255));
+                paint.setColor(checked ? Color.argb(120, 255, 255, 255) : Color.argb(70, 255, 255, 255));
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
             }
 
