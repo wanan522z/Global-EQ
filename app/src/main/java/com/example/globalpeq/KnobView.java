@@ -77,11 +77,12 @@ final class KnobView extends View {
         boolean enabled = isEnabled();
         boolean active = enabled && value != neutralValue;
 
-        // Draw neon glow under-arc (改细改小：strokWidth 18→11, shadow 12→5)
+        // Draw neon glow under-arc
+        // 硬件加速下用较大 shadowRadius 产生柔和扩散，避免硬边锯齿
         if (active) {
-            fillPaint.setStrokeWidth(11f);
-            fillPaint.setColor(Color.argb(60, 0, 245, 212));
-            fillPaint.setShadowLayer(5f, 0, 0, Color.argb(150, 0, 245, 212));
+            fillPaint.setStrokeWidth(10f);
+            fillPaint.setColor(Color.argb(55, 0, 245, 212));
+            fillPaint.setShadowLayer(8f, 0, 0, Color.argb(140, 0, 245, 212));
             canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
             fillPaint.clearShadowLayer();
         }
@@ -90,7 +91,7 @@ final class KnobView extends View {
         fillPaint.setStrokeWidth(7f);
         fillPaint.setColor(enabled ? Color.rgb(0, 245, 212) : Color.argb(95, 170, 178, 190));
         if (active) {
-            fillPaint.setShadowLayer(2f, 0, 0, Color.argb(180, 0, 245, 212));
+            fillPaint.setShadowLayer(3f, 0, 0, Color.argb(170, 0, 245, 212));
         }
         canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
         fillPaint.clearShadowLayer();
