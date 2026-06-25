@@ -7,6 +7,10 @@ final class PeqMath {
     }
 
     static int gainAtHzMb(int frequencyHz, Preset preset) {
+        return gainAtFrequencyMb(frequencyHz, preset);
+    }
+
+    static int gainAtFrequencyMb(double frequencyHz, Preset preset) {
         if (frequencyHz <= 0 || preset == null) {
             return 0;
         }
@@ -35,13 +39,13 @@ final class PeqMath {
         return preset.geqGainsMb[bandIndex];
     }
 
-    private static int rawEqGainAtHzMb(int frequencyHz, Preset preset) {
+    private static int rawEqGainAtHzMb(double frequencyHz, Preset preset) {
         return preset.mode == EqMode.GEQ
-                ? rawGeqGainAtHzMb(frequencyHz, preset)
+                ? rawGeqGainAtFrequencyMb(frequencyHz, preset)
                 : rawPeqGainAtHzMb(frequencyHz, preset);
     }
 
-    private static int rawPeqGainAtHzMb(int frequencyHz, Preset preset) {
+    private static int rawPeqGainAtHzMb(double frequencyHz, Preset preset) {
         double sum = 0;
         for (ParametricBand band : preset.bands) {
             if (!band.enabled || band.gainMb == 0) {
@@ -126,7 +130,7 @@ final class PeqMath {
         }
     }
 
-    private static int virtualBassGainAtHzMb(int frequencyHz, Preset preset) {
+    private static int virtualBassGainAtHzMb(double frequencyHz, Preset preset) {
         if (frequencyHz <= 0 || preset == null || preset.virtualBassAmountPercent <= 0) {
             return 0;
         }
