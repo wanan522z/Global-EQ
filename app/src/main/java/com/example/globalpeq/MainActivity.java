@@ -4811,17 +4811,20 @@ public final class MainActivity extends Activity {
     }
 
     private void styleSettingsTitleText(TextView view) {
-        // 使用默认硬件加速层；software layer 在高清屏会产生 bitmap 缩放伪影
+        // 使用默认硬件加速层；software layer 在高清屏会产生 bitmap 缩放伪影。
+        // 不设置 setShadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software path
+        // 渲染文字，导致 paint shader 不生效（流光不动）；同时 GPU blur 近似会产生锯齿。
+        // shader 渐变的 hotCore 白热核心已自带视觉焦点，无需额外光晕。
         applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
-        view.setShadowLayer(dp(5), 0, 0, Color.argb(120, 0, 245, 212));
+        view.getPaint().clearShadowLayer();
         view.invalidate();
         view.post(() -> {
             applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                     Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
             view.setTextColor(Color.WHITE);
-            view.setShadowLayer(dp(5), 0, 0, Color.argb(120, 0, 245, 212));
+            view.getPaint().clearShadowLayer();
             view.invalidate();
         });
     }
@@ -4829,7 +4832,7 @@ public final class MainActivity extends Activity {
     private void styleStatusTextShimmer(TextView view, int baseColorStart, int baseColorEnd) {
         applyStatusShimmerShader(view, settingsTitleGradientWidth(view), baseColorStart, baseColorEnd);
         view.setTextColor(Color.WHITE);
-        view.setShadowLayer(dp(5), 0, 0, Color.argb(120, Color.red(baseColorStart), Color.green(baseColorStart), Color.blue(baseColorStart)));
+        view.getPaint().clearShadowLayer();
         view.invalidate();
     }
 
