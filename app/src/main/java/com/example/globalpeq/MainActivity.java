@@ -180,28 +180,44 @@ public final class MainActivity extends Activity {
         }
     };
 
-    // 每帧调用：根据 view 类型选色阶，把 phase 偏移 baked 进渐变坐标
+    // 每帧调用：根据 view 类型 + 状态选色阶，把 phase 偏移 baked 进渐变坐标。
+    // 恢复原始状态判定（isEditingPresetActive / runningPreset.enabled），
+    // 不同状态用不同色阶，但都用 baked offset 方式（不用 setLocalMatrix）。
     private void applyShimmerFrame(TextView view, int width, float phase) {
         if (view == null || width <= 0) return;
-        // 判断是否需要跳过（statusText 在 clip/不支持时不渲染流光）
+
+        int[] colors;
         if (view == statusText) {
+            // statusText 状态判定：不支持/clip 不渲染流光；Live 亮色，Edit 暗色
             boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
             if (!supported || hasClip) {
                 return;
             }
+            colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
+        } else if (view == modeSpinner) {
+            // modeSpinner 状态判定：enabled 亮色，disabled 暗色
+            boolean enabled = (runningPreset != null && runningPreset.enabled && supported);
+            colors = enabled ? SHIMMER_MODE_ON_COLORS : SHIMMER_MODE_OFF_COLORS;
+        } else {
+            // tab / 标题：统一亮色
+            colors = SHIMMER_BRIGHT_COLORS;
         }
+
         // 偏移：phase 0→1 对应渐变左移 0→width，REPEAT 保证无缝循环
         float offset = phase * width;
         view.getPaint().setShader(new LinearGradient(
                 -offset, 0, width - offset, 0,
-                SHIMMER_COLORS,
+                colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
         view.invalidate();
     }
 
-    // 流光统一色阶：浅蓝青色调，亮色为主，无深蓝无绿色感
-    private static final int[] SHIMMER_COLORS = {
+    // 流光色阶：浅蓝青色调，无深蓝无绿色感。positions 亮色区域占 40%。
+    private static final float[] SHIMMER_POSITIONS = {0.0f, 0.15f, 0.3f, 0.5f, 0.7f, 0.85f, 1.0f};
+
+    // 亮色阶（tab/标题/Live 模式 statusText）：饱和亮浅蓝青
+    private static final int[] SHIMMER_BRIGHT_COLORS = {
             Color.rgb(205, 243, 255),  // 极亮浅蓝青
             Color.rgb(155, 232, 252),  // 亮浅青蓝
             Color.rgb(105, 228, 248),  // 饱和亮青
@@ -210,7 +226,30 @@ public final class MainActivity extends Activity {
             Color.rgb(155, 232, 252),  // 亮浅青蓝
             Color.rgb(205, 243, 255)   // 极亮浅蓝青
     };
-    private static final float[] SHIMMER_POSITIONS = {0.0f, 0.15f, 0.3f, 0.5f, 0.7f, 0.85f, 1.0f};
+    // Live 模式 statusText：同亮色阶（青绿色感，动感动感）
+    private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
+    // Edit 模式 statusText：暗一档的低饱和浅蓝青（平稳高贵，区别于 Live）
+    private static final int[] SHIMMER_EDIT_COLORS = {
+            Color.rgb(180, 215, 240),  // 暗浅蓝
+            Color.rgb(155, 200, 230),  // 暗浅青蓝
+            Color.rgb(130, 195, 225),  // 暗饱和青
+            Color.rgb(220, 235, 250),  // 暗白热核心
+            Color.rgb(130, 195, 225),  // 暗饱和青
+            Color.rgb(155, 200, 230),  // 暗浅青蓝
+            Color.rgb(180, 215, 240)   // 暗浅蓝
+    };
+    // modeSpinner enabled：亮色阶（与 Live 同）
+    private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
+    // modeSpinner disabled：暗调浅蓝青（有流光动感但不刺眼）
+    private static final int[] SHIMMER_MODE_OFF_COLORS = {
+            Color.rgb(90, 130, 150),   // 暗灰蓝
+            Color.rgb(80, 120, 140),   // 暗灰青蓝
+            Color.rgb(70, 110, 130),   // 暗灰青
+            Color.rgb(120, 150, 170),  // 暗白核心
+            Color.rgb(70, 110, 130),   // 暗灰青
+            Color.rgb(80, 120, 140),   // 暗灰青蓝
+            Color.rgb(90, 130, 150)    // 暗灰蓝
+    };
 
     private void recreateShaderForView(TextView view, int width) {
         if (view == null || width <= 0) return;
