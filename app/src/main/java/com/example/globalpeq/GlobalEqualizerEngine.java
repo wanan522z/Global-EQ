@@ -14,6 +14,8 @@ final class GlobalEqualizerEngine {
     private static final long ARM_DELAY_MS = 120;
     private static final long CONTROL_REARM_DELAY_MS = 180;
     private static final long CONTROL_REARM_GUARD_MS = 1000;
+    private static final long ROUTE_REAPPLY_DELAY_MS = 220;
+    private static final long ROUTE_REAPPLY_GUARD_MS = 350;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Equalizer equalizer;
@@ -25,6 +27,7 @@ final class GlobalEqualizerEngine {
     private boolean armedWithZeroBands;
     private int applyGeneration;
     private long lastControlRearmElapsedMs;
+    private long lastRouteReapplyElapsedMs;
 
     boolean start() {
         if (equalizer != null) {
@@ -99,6 +102,28 @@ final class GlobalEqualizerEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Failed to staged reapply global preset", ex);
         }
+    }
+
+    void reapplyForRouteChange(Preset preset) {
+        if (preset == null || !preset.enabled) {
+            return;
+        }
+
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastRouteReapplyElapsedMs < ROUTE_REAPPLY_GUARD_MS) {
+            pendingPreset = preset;
+            return;
+        }
+        lastRouteReapplyElapsedMs = now;
+
+        int generation = ++applyGeneration;
+        pendingPreset = preset;
+        handler.removeCallbacksAndMessages(null);
+        handler.postDelayed(() -> {
+            if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
+                reapplyStaged(pendingPreset);
+            }
+        }, ROUTE_REAPPLY_DELAY_MS);
     }
 
     private void onControlStatusChanged(AudioEffect effect, boolean controlGranted) {
@@ -328,5 +353,6 @@ final class GlobalEqualizerEngine {
         releaseBassBoost();
         armedWithZeroBands = false;
         lastControlRearmElapsedMs = 0;
+        lastRouteReapplyElapsedMs = 0;
     }
 }
