@@ -4437,16 +4437,16 @@ public final class MainActivity extends Activity {
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(95, 0, 255, 255) : Color.argb(42, 255, 255, 255));
+                paint.setColor(checked ? Color.argb(90, 120, 240, 220) : Color.argb(42, 255, 255, 255));
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 paint.setStyle(Paint.Style.FILL);
                 paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                 paint.setTextSize(dpf(8.5f));
                 paint.setTextAlign(Paint.Align.CENTER);
-                paint.setColor(checked ? Color.rgb(0, 255, 255) : Color.argb(88, 255, 255, 255));
+                paint.setColor(checked ? Color.rgb(140, 250, 230) : Color.argb(88, 255, 255, 255));
                 if (checked) {
-                    paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(180, 0, 255, 255));
+                    paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 120, 240, 220));
                 } else {
                     paint.clearShadowLayer();
                 }
