@@ -186,17 +186,17 @@ public final class MainActivity extends Activity {
         }
 
         int[] colors;
-        boolean useGlowShadow;
         if (view == statusText) {
             boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
             if (!supported || hasClip) {
                 return;
             }
             colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
-            useGlowShadow = true;
+        } else if (view == modeSpinner) {
+            boolean enabled = (runningPreset != null && runningPreset.enabled && supported);
+            colors = enabled ? SHIMMER_MODE_ON_COLORS : SHIMMER_MODE_OFF_COLORS;
         } else {
             colors = SHIMMER_BRIGHT_COLORS;
-            useGlowShadow = false;
         }
 
         float offset = phase * width;
@@ -205,14 +205,9 @@ public final class MainActivity extends Activity {
                 colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
-        if (useGlowShadow) {
-            view.getPaint().setShadowLayer(dpf(3f), 0, 0, Color.argb(120, 120, 220, 255));
-        } else {
-            view.getPaint().clearShadowLayer();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                view.setLayerType(View.LAYER_TYPE_NONE, null);
-            }
-        }
+        // 统一光晕：浅蓝青色光晕，与流光色系一致
+        // 当前 baked-offset 架构每帧新建 shader 对象，shadowLayer 不再阻塞流光
+        view.getPaint().setShadowLayer(dpf(3f), 0, 0, Color.argb(110, 120, 220, 255));
         view.invalidate();
     }
 
