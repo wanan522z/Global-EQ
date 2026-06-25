@@ -5026,19 +5026,72 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void animatePageTransition(View show, View... hide) {
-        for (View h : hide) {
-            h.setVisibility(View.GONE);
+    private void switchToMainPage(int targetIndex, boolean animate) {
+        View[] pages = mainPages();
+        if (pages[0] == null || pages[1] == null || pages[2] == null) {
+            activeMainPageIndex = clamp(targetIndex, 0, 2);
+            return;
         }
-        show.setVisibility(View.VISIBLE);
-        show.setAlpha(0f);
-        show.setTranslationY(dp(15));
-        show.animate()
-            .alpha(1f)
-            .translationY(0)
-            .setDuration(220)
-            .setInterpolator(new android.view.animation.DecelerateInterpolator())
-            .start();
+
+        int previousIndex = clamp(activeMainPageIndex, 0, pages.length - 1);
+        int nextIndex = clamp(targetIndex, 0, pages.length - 1);
+        View current = pages[previousIndex];
+        View target = pages[nextIndex];
+        activeMainPageIndex = nextIndex;
+
+        if (!animate || current == target) {
+            for (int i = 0; i < pages.length; i++) {
+                View page = pages[i];
+                boolean visible = i == nextIndex;
+                page.animate().cancel();
+                page.setVisibility(visible ? View.VISIBLE : View.GONE);
+                page.setAlpha(1f);
+                page.setTranslationX(0f);
+                page.setTranslationY(0f);
+            }
+            updateBottomNavSelection(nextIndex);
+            return;
+        }
+
+        float travel = dp(32);
+        int direction = nextIndex > previousIndex ? 1 : -1;
+        for (View page : pages) {
+            if (page != current && page != target) {
+                page.animate().cancel();
+                page.setVisibility(View.GONE);
+                page.setAlpha(1f);
+                page.setTranslationX(0f);
+                page.setTranslationY(0f);
+            }
+        }
+
+        current.animate().cancel();
+        target.animate().cancel();
+        target.setVisibility(View.VISIBLE);
+        target.setAlpha(0.55f);
+        target.setTranslationY(0f);
+        target.setTranslationX(direction * travel);
+        current.setVisibility(View.VISIBLE);
+        current.setTranslationY(0f);
+
+        current.animate()
+                .alpha(0f)
+                .translationX(-direction * travel)
+                .setDuration(220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .withEndAction(() -> {
+                    current.setVisibility(View.GONE);
+                    current.setAlpha(1f);
+                    current.setTranslationX(0f);
+                })
+                .start();
+        target.animate()
+                .alpha(1f)
+                .translationX(0f)
+                .setDuration(220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .start();
+        updateBottomNavSelection(nextIndex);
     }
 
     private void updateBottomNavSelection(int activeIndex) {
