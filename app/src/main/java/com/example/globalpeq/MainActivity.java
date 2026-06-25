@@ -3526,6 +3526,63 @@ public final class MainActivity extends Activity {
         dlg.show();
     }
 
+    private void showStyledKnobInputDialog(KnobView knob) {
+        if (knob == null) return;
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(14), dp(20), dp(8));
+
+        TextView hint = new TextView(this);
+        hint.setText("Range: " + knob.getMin() + " - " + knob.getMax() + knob.getSuffix());
+        hint.setTextSize(13);
+        hint.setTextColor(Color.rgb(150, 165, 185));
+        hint.setGravity(android.view.Gravity.CENTER);
+        hint.setPadding(0, 0, 0, dp(10));
+        content.addView(hint, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(String.valueOf(knob.getValue()));
+        input.setHint(knob.getMin() + " ~ " + knob.getMax() + knob.getSuffix());
+        input.setSelectAllOnFocus(true);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setGravity(android.view.Gravity.CENTER);
+        input.setTextSize(18);
+        input.setTextColor(Color.rgb(235, 245, 255));
+        input.setHintTextColor(Color.rgb(120, 135, 155));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        input.setBackground(createFieldBackground(26, 90, 10));
+        content.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView("Value Input"))
+                .setView(content)
+                .setPositiveButton("Apply", (d, w) -> {
+                    try {
+                        int v = Math.round(Float.parseFloat(input.getText().toString()));
+                        knob.setValue(clamp(v, knob.getMin(), knob.getMax()), true);
+                    } catch (NumberFormatException ignored) {
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
+        dlg.setOnShowListener(d -> {
+            styleDialog(dlg);
+            input.requestFocus();
+            dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        });
+        dlg.show();
+    }
+
     private int reverbTypeIndex(String type) {
         for (int i = 0; i < REVERB_TYPE_LABELS.length; i++) {
             if (REVERB_TYPE_LABELS[i].equals(type)) {
