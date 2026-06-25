@@ -5446,6 +5446,8 @@ public final class MainActivity extends Activity {
         private float downY;
         private boolean trackSwipe;
         private boolean handlingSwipe;
+        private float dragOffset;
+        private int dragTargetIndex = -1;
 
         MainPageHost(Context context) {
             super(context);
@@ -5458,14 +5460,16 @@ public final class MainActivity extends Activity {
                     downX = event.getRawX();
                     downY = event.getRawY();
                     handlingSwipe = false;
+                    dragOffset = 0f;
+                    dragTargetIndex = -1;
                     View hit = findDeepestChildUnder(activeMainPageView(), downX, downY);
-                    trackSwipe = hit == activeMainPageView();
+                    trackSwipe = hit == null || !shouldBlockPageSwipe(hit);
                     break;
                 case MotionEvent.ACTION_MOVE:
                     if (trackSwipe) {
                         float dx = event.getRawX() - downX;
                         float dy = event.getRawY() - downY;
-                        if (Math.abs(dx) > dpf(18f) && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                        if (Math.abs(dx) > dpf(8f) && Math.abs(dx) > Math.abs(dy) * 0.85f) {
                             handlingSwipe = true;
                             return true;
                         }
@@ -5490,25 +5494,155 @@ public final class MainActivity extends Activity {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_MOVE:
                     handlingSwipe = true;
+                    updatePageDrag(event.getRawX() - downX);
                     return true;
                 case MotionEvent.ACTION_UP:
+                    float dx = event.getRawX() - downX;
                     if (handlingSwipe) {
-                        float dx = event.getRawX() - downX;
-                        float dy = event.getRawY() - downY;
-                        if (Math.abs(dx) > dpf(56f) && Math.abs(dx) > Math.abs(dy) * 1.2f) {
-                            switchToMainPage(activeMainPageIndex + (dx < 0 ? 1 : -1), true);
-                        }
+                        finishPageDrag(dx);
                     }
                     trackSwipe = false;
                     handlingSwipe = false;
+                    dragOffset = 0f;
+                    dragTargetIndex = -1;
                     return true;
                 case MotionEvent.ACTION_CANCEL:
+                    cancelPageDrag();
                     trackSwipe = false;
                     handlingSwipe = false;
+                    dragOffset = 0f;
+                    dragTargetIndex = -1;
                     return true;
                 default:
                     return true;
             }
+        }
+
+        private void updatePageDrag(float rawOffset) {
+            View[] pages = mainPages();
+            int width = getWidth();
+            if (width <= 0) {
+                return;
+            }
+
+            int proposedTarget = activeMainPageIndex + (rawOffset < 0 ? 1 : -1);
+            if (Math.abs(rawOffset) < 1f) {
+                proposedTarget = -1;
+            }
+            if (proposedTarget < 0 || proposedTarget >= pages.length) {
+                proposedTarget = -1;
+            }
+
+            dragTargetIndex = proposedTarget;
+            float appliedOffset = rawOffset;
+            if (dragTargetIndex == -1) {
+                appliedOffset *= 0.22f;
+            }
+            dragOffset = appliedOffset;
+
+            View current = pages[activeMainPageIndex];
+            current.animate().cancel();
+            current.setVisibility(View.VISIBLE);
+            current.setAlpha(1f);
+            current.setTranslationX(appliedOffset);
+
+            for (int i = 0; i < pages.length; i++) {
+                if (i == activeMainPageIndex) {
+                    continue;
+                }
+                View page = pages[i];
+                page.animate().cancel();
+                page.setAlpha(1f);
+                if (i == dragTargetIndex) {
+                    page.setVisibility(View.VISIBLE);
+                    page.setTranslationX(appliedOffset > 0 ? appliedOffset - width : appliedOffset + width);
+                } else {
+                    page.setVisibility(View.GONE);
+                    page.setTranslationX(0f);
+                }
+            }
+
+            float pagePosition = activeMainPageIndex;
+            if (dragTargetIndex != -1) {
+                pagePosition += -appliedOffset / width;
+            }
+            updateBottomTabIndicatorProgress(pagePosition);
+        }
+
+        private void finishPageDrag(float rawOffset) {
+            View[] pages = mainPages();
+            int width = getWidth();
+            if (width <= 0 || dragTargetIndex == -1) {
+                cancelPageDrag();
+                return;
+            }
+
+            float progress = Math.abs(dragOffset) / width;
+            boolean shouldAdvance = progress > 0.16f || Math.abs(rawOffset) > dpf(42f);
+            View current = pages[activeMainPageIndex];
+            View target = pages[dragTargetIndex];
+            int nextIndex = dragTargetIndex;
+
+            current.animate().cancel();
+            target.animate().cancel();
+            current.setVisibility(View.VISIBLE);
+            target.setVisibility(View.VISIBLE);
+
+            if (shouldAdvance) {
+                float endCurrent = dragOffset < 0 ? -width : width;
+                current.animate()
+                        .translationX(endCurrent)
+                        .setDuration(180)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .withEndAction(() -> {
+                            current.setVisibility(View.GONE);
+                            current.setTranslationX(0f);
+                        })
+                        .start();
+                target.animate()
+                        .translationX(0f)
+                        .setDuration(180)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .start();
+                activeMainPageIndex = nextIndex;
+                updateBottomNavSelection(nextIndex);
+            } else {
+                cancelPageDrag();
+            }
+        }
+
+        private void cancelPageDrag() {
+            View[] pages = mainPages();
+            View current = pages[activeMainPageIndex];
+            current.animate().cancel();
+            current.setVisibility(View.VISIBLE);
+            current.animate()
+                    .translationX(0f)
+                    .setDuration(180)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                    .start();
+
+            for (int i = 0; i < pages.length; i++) {
+                if (i == activeMainPageIndex) {
+                    continue;
+                }
+                View page = pages[i];
+                if (page.getVisibility() == View.VISIBLE) {
+                    page.animate().cancel();
+                    page.animate()
+                            .translationX(i < activeMainPageIndex ? -getWidth() : getWidth())
+                            .setDuration(180)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                            .withEndAction(() -> {
+                                page.setVisibility(View.GONE);
+                                page.setTranslationX(0f);
+                            })
+                            .start();
+                } else {
+                    page.setTranslationX(0f);
+                }
+            }
+            updateBottomNavSelection(activeMainPageIndex);
         }
     }
 
