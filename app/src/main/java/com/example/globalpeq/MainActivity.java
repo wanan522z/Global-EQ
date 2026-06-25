@@ -181,31 +181,38 @@ public final class MainActivity extends Activity {
     // 恢复原始状态判定（isEditingPresetActive / runningPreset.enabled），
     // 不同状态用不同色阶，但都用 baked offset 方式（不用 setLocalMatrix）。
     private void applyShimmerFrame(TextView view, int width, float phase) {
-        if (view == null || width <= 0) return;
+        if (view == null || width <= 0) {
+            return;
+        }
 
         int[] colors;
+        boolean useGlowShadow;
         if (view == statusText) {
-            // statusText 状态判定：不支持/clip 不渲染流光；Live 亮色，Edit 暗色
             boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
             if (!supported || hasClip) {
                 return;
             }
             colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
+            useGlowShadow = true;
         } else {
-            // tab / 标题：统一亮色
             colors = SHIMMER_BRIGHT_COLORS;
+            useGlowShadow = false;
         }
 
-        // 偏移：phase 0→1 对应渐变右移 0→width（从左往右流），REPEAT 保证无缝循环
         float offset = phase * width;
         view.getPaint().setShader(new LinearGradient(
                 offset, 0, width + offset, 0,
                 colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
-        // 光晕：shadowLayer 让文字带青蓝色发光，shader 颜色作为文字色，
-        // 重建 shader 每帧 + invalidate 确保光晕随流光同步刷新
-        view.getPaint().setShadowLayer(dpf(3f), 0, 0, Color.argb(120, 120, 220, 255));
+        if (useGlowShadow) {
+            view.getPaint().setShadowLayer(dpf(3f), 0, 0, Color.argb(120, 120, 220, 255));
+        } else {
+            view.getPaint().clearShadowLayer();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                view.setLayerType(View.LAYER_TYPE_NONE, null);
+            }
+        }
         view.invalidate();
     }
 
