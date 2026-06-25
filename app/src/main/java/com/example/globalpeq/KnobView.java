@@ -78,8 +78,8 @@ final class KnobView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        // 弧形直径留白 dp(16)，让旋钮在有限空间内更大，与数字比例协调
-        float size = Math.min(getWidth(), getHeight()) - dp(16);
+        // 弧形直径留白 dp(12)，让旋钮弧形占据更多空间，框大旋钮也大
+        float size = Math.min(getWidth(), getHeight()) - dp(12);
         float left = (getWidth() - size) / 2f;
         float top = (getHeight() - size) / 2f;
 
