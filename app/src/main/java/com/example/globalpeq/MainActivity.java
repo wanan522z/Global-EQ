@@ -3081,8 +3081,8 @@ public final class MainActivity extends Activity {
             virtualBassSwitch.setEnabled(supported);
             updatingUi = false;
         }
-        updateVirtualBassControl(cutoffKnob, cutoffInput, editingPreset.virtualBassCutoffHz, virtualBassEnabled);
-        updateVirtualBassControl(amountKnob, amountInput, editingPreset.virtualBassAmountPercent, virtualBassEnabled);
+        updateVirtualBassControl(cutoffKnob, editingPreset.virtualBassCutoffHz, virtualBassEnabled);
+        updateVirtualBassControl(amountKnob, editingPreset.virtualBassAmountPercent, virtualBassEnabled);
         boolean reverbEnabled = supported && !"Default".equals(editingPreset.reverbType);
         if (reverbTypeButton != null) {
             reverbTypeButton.setText(editingPreset.reverbType);
@@ -3096,34 +3096,25 @@ public final class MainActivity extends Activity {
         styleExtraSectionTitle(reverbTitleView, reverbEnabled);
         styleExtraSectionTitle(bassBoostTitleView, bassBoostEnabled);
         styleExtraSectionTitle(virtualBassTitleView, virtualBassEnabled);
-        updateReverbControl(reverbDecayKnob, reverbDecayInput, editingPreset.reverbDecayPercent, reverbEnabled);
-        updateReverbControl(reverbPredelayKnob, reverbPredelayInput, editingPreset.reverbPredelayMs, reverbEnabled);
-        updateReverbControl(reverbSizeKnob, reverbSizeInput, editingPreset.reverbSizePercent, reverbEnabled);
-        updateReverbControl(reverbMixKnob, reverbMixInput, editingPreset.reverbMixPercent, reverbEnabled);
+        updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
+        updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
+        updateReverbControl(reverbSizeKnob, editingPreset.reverbSizePercent, reverbEnabled);
+        updateReverbControl(reverbMixKnob, editingPreset.reverbMixPercent, reverbEnabled);
     }
 
-    private void updateVirtualBassControl(KnobView knob, EditText input, int value, boolean enabled) {
+    private void updateVirtualBassControl(KnobView knob, int value, boolean enabled) {
         if (knob != null) {
             knob.setEnabled(enabled);
             knob.setValue(value, false);
         }
-        if (input != null) {
-            input.setEnabled(enabled);
-            input.setText(String.valueOf(value));
-            styleExtraKnobInput(input, value, enabled);
-        }
     }
 
-    private void updateReverbControl(KnobView knob, EditText input, int value, boolean enabled) {
+    private void updateReverbControl(KnobView knob, int value, boolean enabled) {
         if (knob != null) {
             knob.setEnabled(enabled);
             knob.setValue(value, false);
         }
-        if (input != null) {
-            input.setEnabled(enabled);
-            input.setText(String.valueOf(value));
-            styleExtraKnobInput(input, value, enabled);
-        }
+    }
     }
 
     private void pushHistory(List<Preset> stack, Preset snapshot) {
