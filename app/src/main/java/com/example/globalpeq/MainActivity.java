@@ -3873,34 +3873,20 @@ public final class MainActivity extends Activity {
                 ringPaint.setColor(Color.argb(enabled ? 35 : 12, 255, 100, 100));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
 
-                // 柔光底：加大外圈半径 + 多档 alpha 过渡，让边缘平滑消散，消除锯齿
-                float glowR = radius + dpf(5.5f);
-                float ringStop = radius / glowR;
-                float midStop = (radius + dpf(1.5f)) / glowR;
-                float farStop = (radius + dpf(3f)) / glowR;
-                crossPaint.setStyle(Paint.Style.FILL);
-                if (enabled) {
-                    crossPaint.setShader(new RadialGradient(
-                            cx, cy, glowR,
-                            new int[]{Color.TRANSPARENT,
-                                    Color.argb(100, 255, 90, 90),
-                                    Color.argb(60, 255, 70, 70),
-                                    Color.argb(25, 255, 60, 60),
-                                    Color.TRANSPARENT},
-                            new float[]{0f, ringStop, midStop, farStop, 1f},
-                            Shader.TileMode.CLAMP));
-                } else {
-                    crossPaint.setShader(new RadialGradient(
-                            cx, cy, glowR,
-                            new int[]{Color.TRANSPARENT,
-                                    Color.argb(35, 255, 90, 90),
-                                    Color.argb(15, 255, 80, 80),
-                                    Color.TRANSPARENT},
-                            new float[]{0f, ringStop, midStop, 1f},
-                            Shader.TileMode.CLAMP));
-                }
-                canvas.drawCircle(cx, cy, glowR, crossPaint);
+                // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
+                float glowRadius = radius + dpf(2f);
+                crossPaint.setStyle(Paint.Style.STROKE);
+                crossPaint.setStrokeWidth(dpf(3f));
                 crossPaint.setShader(null);
+                if (enabled) {
+                    crossPaint.setColor(Color.argb(170, 255, 90, 90));
+                    crossPaint.setMaskFilter(new BlurMaskFilter(dpf(4f), BlurMaskFilter.Blur.NORMAL));
+                } else {
+                    crossPaint.setColor(Color.argb(50, 255, 90, 90));
+                    crossPaint.setMaskFilter(new BlurMaskFilter(dpf(2.5f), BlurMaskFilter.Blur.NORMAL));
+                }
+                canvas.drawCircle(cx, cy, glowRadius, crossPaint);
+                crossPaint.setMaskFilter(null);
 
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
