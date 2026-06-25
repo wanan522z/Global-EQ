@@ -469,6 +469,9 @@ public final class MainActivity extends Activity {
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             renderDeviceSpinner();
+            if (runningPreset != null && runningPreset.enabled) {
+                engine.reapplyForRouteChange(runningPreset);
+            }
             return;
         }
 
