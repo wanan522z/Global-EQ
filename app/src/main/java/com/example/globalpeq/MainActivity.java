@@ -3077,8 +3077,11 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
+        boolean bassBoostEnabled = supported && selectedBassModeIndex > 0;
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
+            bassBoostSlider.setEnabled(bassBoostEnabled);
+            bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
         }
         boolean virtualBassEnabled = supported && editingPreset.virtualBassAmountPercent > 0;
         if (editingPreset.virtualBassAmountPercent > 0) {
@@ -3102,6 +3105,9 @@ public final class MainActivity extends Activity {
             bassModeButton.setText(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]);
             bassModeButton.setAlpha(1f);
         }
+        styleExtraSectionTitle(reverbTitleView, reverbEnabled);
+        styleExtraSectionTitle(bassBoostTitleView, bassBoostEnabled);
+        styleExtraSectionTitle(virtualBassTitleView, virtualBassEnabled);
         updateReverbControl(reverbDecayKnob, reverbDecayInput, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelayKnob, reverbPredelayInput, editingPreset.reverbPredelayMs, reverbEnabled);
         updateReverbControl(reverbSizeKnob, reverbSizeInput, editingPreset.reverbSizePercent, reverbEnabled);
