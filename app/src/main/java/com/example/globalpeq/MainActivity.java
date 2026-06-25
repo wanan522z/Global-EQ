@@ -3115,7 +3115,6 @@ public final class MainActivity extends Activity {
             knob.setValue(value, false);
         }
     }
-    }
 
     private void pushHistory(List<Preset> stack, Preset snapshot) {
         if (snapshot == null) {
