@@ -4503,8 +4503,10 @@ public final class MainActivity extends Activity {
                     labelAnimator.cancel();
                 }
                 labelAnimator = android.animation.ValueAnimator.ofFloat(labelProgress, target);
-                labelAnimator.setDuration(150);
-                labelAnimator.setInterpolator(new android.view.animation.DecelerateInterpolator());
+                // 300ms + AccelerateDecelerateInterpolator：与系统 thumb 滑动节奏接近，
+                // 让 OFF→ON 文字过渡丝滑（auto 开关文字相同，不受影响）
+                labelAnimator.setDuration(300);
+                labelAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
                 labelAnimator.addUpdateListener(animation -> {
                     labelProgress = (float) animation.getAnimatedValue();
                     invalidateSelf();
