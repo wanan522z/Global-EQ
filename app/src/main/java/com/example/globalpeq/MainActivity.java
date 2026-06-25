@@ -5256,8 +5256,9 @@ public final class MainActivity extends Activity {
         int viewWidth = Math.max(1, view.getWidth());
         CharSequence text = view.getText();
         if (text != null && text.length() > 0) {
-            int textWidth = (int) Math.ceil(view.getPaint().measureText(text.toString()))
-                    + view.getPaddingLeft() + view.getPaddingRight();
+            // 关键修复：计算渐变宽度时，应减去我们为了预留光晕空间所增加的 padding，
+            // 否则渐变计算会以增加了 Padding 后的总宽度为准，导致流光渐变视觉中心发生偏移。
+            int textWidth = (int) Math.ceil(view.getPaint().measureText(text.toString()));
             return Math.max(1, Math.min(viewWidth, textWidth));
         }
         return viewWidth;
