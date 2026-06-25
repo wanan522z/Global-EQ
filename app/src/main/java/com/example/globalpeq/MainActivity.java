@@ -3501,6 +3501,8 @@ public final class MainActivity extends Activity {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
+        column.setClipChildren(false);
+        column.setClipToPadding(false);
 
         KnobView knob = new KnobView(this);
         if (cutoff) {
@@ -3533,6 +3535,8 @@ public final class MainActivity extends Activity {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
+        column.setClipChildren(false);
+        column.setClipToPadding(false);
 
         KnobView knob = new KnobView(this);
         knob.configure(min, max, value, suffix, listener::onChanged);
