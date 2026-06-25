@@ -4529,6 +4529,7 @@ public final class MainActivity extends Activity {
             return;
         }
         shimmerTargetViews.remove(view);
+        shimmerLastWidth.remove(view);
         view.getPaint().setShader(null);
         view.invalidate();
         if (shimmerTargetViews.isEmpty()) {
