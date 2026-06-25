@@ -3184,18 +3184,11 @@ public final class MainActivity extends Activity {
         reverbKnobs.addView(createReverbControl("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        LinearLayout bassPanel = createExtraPanel("BassBoost");
+        LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
-        LinearLayout bassHeader = new LinearLayout(this);
-        bassHeader.setOrientation(LinearLayout.HORIZONTAL);
-        bassHeader.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL);
-        bassModeSpinner = new Spinner(this);
-        normalizeSpinnerSurface(bassModeSpinner);
-        ArrayAdapter<String> bassAdapter = new SmallSpinnerAdapter(BASS_MODE_LABELS);
-        bassAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        bassModeSpinner.setAdapter(bassAdapter);
-        bassModeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        bassModeSpinner.setBackground(createFieldBackground(24, 70, 8));
+        LinearLayout bassHeader = createExtraHeaderRow("BassBoost");
+        bassModeButton = createExtraChoiceButton();
+        bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
         // UI 占位选择框，system/dsp 切换功能后续接入
         bassHeader.addView(bassModeSpinner, new LinearLayout.LayoutParams(dp(126), dp(32)));
         bassPanel.addView(bassHeader, blockParams(4));
