@@ -3475,7 +3475,7 @@ public final class MainActivity extends Activity {
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setGravity(android.view.Gravity.CENTER);
-        androidx.appcompat.app.AlertDialog dlg = new androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog dlg = new AlertDialog.Builder(this)
                 .setTitle("数值输入")
                 .setView(input)
                 .setPositiveButton("确定", (d, w) -> {
