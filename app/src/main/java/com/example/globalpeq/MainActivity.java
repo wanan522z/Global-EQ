@@ -3467,29 +3467,20 @@ public final class MainActivity extends Activity {
 
         KnobView knob = new KnobView(this);
         knob.configure(min, max, value, suffix, listener::onChanged);
+        knob.setTapListener(this::showKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(4);
         knobParams.bottomMargin = dp(4);
         column.addView(knob, knobParams);
 
-        EditText input = createNumberInput(String.valueOf(value), suffix, nextValue ->
-                listener.onChanged(clamp(Math.round(nextValue), min, max)));
-        input.setGravity(android.view.Gravity.CENTER);
-        styleExtraKnobInput(input, value, supported && !"Default".equals(editingPreset.reverbType));
-        column.addView(input, new LinearLayout.LayoutParams(dp(56), dp(26)));
-
         if ("Decay".equals(label)) {
             reverbDecayKnob = knob;
-            reverbDecayInput = input;
         } else if ("Predelay".equals(label)) {
             reverbPredelayKnob = knob;
-            reverbPredelayInput = input;
         } else if ("Size".equals(label)) {
             reverbSizeKnob = knob;
-            reverbSizeInput = input;
         } else {
             reverbMixKnob = knob;
-            reverbMixInput = input;
         }
         return column;
     }
