@@ -3226,7 +3226,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(8);
         knobParams.bottomMargin = dp(8);
-        column.addView(systemBassBoostKnob, knobParams);
+        column.addView(placeholder, knobParams);
 
         systemBassBoostInput = createNumberInput(String.valueOf(editingPreset.systemBassBoostPercent), "%", value -> {
             int percent = Math.round(value);
