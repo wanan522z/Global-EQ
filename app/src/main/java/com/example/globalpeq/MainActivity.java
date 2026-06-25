@@ -5369,6 +5369,30 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void updateBottomTabIndicatorProgress(float pagePosition) {
+        if (bottomTabIndicator == null) {
+            return;
+        }
+        View parent = (View) bottomTabIndicator.getParent();
+        if (parent == null) {
+            return;
+        }
+        int trackWidth = parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight();
+        if (trackWidth <= 0) {
+            return;
+        }
+        int tabWidth = trackWidth / 3;
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) bottomTabIndicator.getLayoutParams();
+        if (params.width != tabWidth || params.leftMargin != parent.getPaddingLeft()) {
+            params.width = tabWidth;
+            params.leftMargin = parent.getPaddingLeft();
+            bottomTabIndicator.setLayoutParams(params);
+        }
+        float clamped = Math.max(0f, Math.min(2f, pagePosition));
+        bottomTabIndicator.animate().cancel();
+        bottomTabIndicator.setTranslationX(clamped * tabWidth);
+    }
+
     private View[] mainPages() {
         return new View[]{eqPage, extraPage, settingsPage};
     }
@@ -5376,6 +5400,22 @@ public final class MainActivity extends Activity {
     private View activeMainPageView() {
         View[] pages = mainPages();
         return pages[clamp(activeMainPageIndex, 0, pages.length - 1)];
+    }
+
+    private boolean shouldBlockPageSwipe(View view) {
+        View current = view;
+        while (current != null) {
+            if (current instanceof HorizontalScrollView
+                    || current instanceof ScrollView
+                    || current instanceof ListView
+                    || current instanceof EqCurveView
+                    || current instanceof KnobView) {
+                return true;
+            }
+            ViewParent parent = current.getParent();
+            current = parent instanceof View ? (View) parent : null;
+        }
+        return false;
     }
 
     private View findDeepestChildUnder(View view, float rawX, float rawY) {
