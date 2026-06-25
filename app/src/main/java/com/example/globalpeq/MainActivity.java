@@ -3156,10 +3156,10 @@ public final class MainActivity extends Activity {
         virtualKnobs.addView(createVirtualBassControl("Boost", false), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
     }
 
-    private LinearLayout createExtraPanel(String titleText, String detailText) {
+    private LinearLayout createExtraPanel(String titleText) {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(16), dp(16), dp(16), dp(16));
+        panel.setPadding(dp(16), dp(14), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
 
         TextView title = gradientTitleView(titleText);
@@ -3167,12 +3167,6 @@ public final class MainActivity extends Activity {
         title.setTextSize(16);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         panel.addView(title, blockParams(0));
-
-        TextView detail = new TextView(this);
-        detail.setText(detailText);
-        detail.setTextSize(11);
-        detail.setTextColor(Color.rgb(160, 170, 190));
-        panel.addView(detail, blockParams(2));
         return panel;
     }
 
