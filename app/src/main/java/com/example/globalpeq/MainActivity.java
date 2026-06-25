@@ -1099,6 +1099,7 @@ public final class MainActivity extends Activity {
         }
         renderHeader();
         renderRows();
+        updateExtraControls();
         updatingUi = false;
     }
 
