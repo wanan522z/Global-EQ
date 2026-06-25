@@ -1,7 +1,6 @@
 package com.example.globalpeq;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Color;
@@ -11,16 +10,13 @@ import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Shader;
-import android.graphics.Rect;
-import android.graphics.RectF;
 import android.view.View;
 
 final class EqCurveView extends View {
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
-    private static final float CURVE_SAMPLE_STEP_PX = 0.25f;
+    private static final float CURVE_SAMPLE_STEP_PX = 0.35f;
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
-    private static final int CURVE_SUPERSAMPLE_SCALE = 3;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -41,9 +37,7 @@ final class EqCurveView extends View {
     private final Paint glowPaint2 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint3 = new Paint(Paint.ANTI_ALIAS_FLAG); // Inner solid halo core
     private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint curveLayerPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    private final Rect curveLayerSrc = new Rect();
-    private final RectF curveLayerDst = new RectF();
+    private final Paint edgePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Matrix sweepMatrix = new Matrix();
     private float sweepPhase = 0.0f;
     private long lastTime = 0;
@@ -52,10 +46,6 @@ final class EqCurveView extends View {
     private boolean pathDirty = true;
     private int lastWidth = 0;
     private int lastHeight = 0;
-    private Bitmap curveLayerBitmap;
-    private Canvas curveLayerCanvas;
-    private int curveLayerWidth = 0;
-    private int curveLayerHeight = 0;
 
     private Preset preset = Preset.flat(false);
     private FrequencyCurve deviceCurve = FrequencyCurve.DEFAULT;
@@ -132,8 +122,13 @@ final class EqCurveView extends View {
         sweepPaint.setFilterBitmap(true);
         sweepPaint.setDither(true);
 
-        curveLayerPaint.setDither(true);
-        curveLayerPaint.setFilterBitmap(true);
+        edgePaint.setStyle(Paint.Style.STROKE);
+        edgePaint.setStrokeCap(Paint.Cap.ROUND);
+        edgePaint.setStrokeJoin(Paint.Join.ROUND);
+        edgePaint.setStrokeWidth(4.2f);
+        edgePaint.setAntiAlias(true);
+        edgePaint.setDither(true);
+        edgePaint.setMaskFilter(new BlurMaskFilter(1.1f, BlurMaskFilter.Blur.NORMAL));
     }
 
     void setPreset(Preset preset) {
@@ -209,7 +204,7 @@ final class EqCurveView extends View {
             lastHeight = height;
         }
 
-        drawCurveLayer(canvas, width, height, left, right);
+        drawCurveLayer(canvas, left, right);
 
         canvas.drawText("+" + maxDb, left, top + 24f, textPaint);
         canvas.drawText("0 dB", left, mid - 6f, textPaint);
@@ -260,20 +255,11 @@ final class EqCurveView extends View {
         });
     }
 
-    private void drawCurveLayer(Canvas canvas, int width, int height, float left, float right) {
-        ensureCurveLayer(width, height);
-        if (curveLayerCanvas == null || curveLayerBitmap == null) {
-            return;
-        }
-
-        curveLayerBitmap.eraseColor(Color.TRANSPARENT);
-        curveLayerCanvas.save();
-        curveLayerCanvas.scale(CURVE_SUPERSAMPLE_SCALE, CURVE_SUPERSAMPLE_SCALE);
-
+    private void drawCurveLayer(Canvas canvas, float left, float right) {
         if (!targetCurve.isDefault()) {
             referencePaint.setColor(Color.argb(180, 190, 128, 255));
             referencePaint.setPathEffect(dashPathEffect);
-            curveLayerCanvas.drawPath(refCurvePath, referencePaint);
+            canvas.drawPath(refCurvePath, referencePaint);
             referencePaint.setPathEffect(null);
         }
 
@@ -284,7 +270,14 @@ final class EqCurveView extends View {
         } else {
             curvePaint.setColor(Color.argb(18, 130, 140, 150));
         }
-        curveLayerCanvas.drawPath(curvePath, curvePaint);
+        canvas.drawPath(curvePath, curvePaint);
+
+        if (preset.enabled) {
+            edgePaint.setColor(Color.argb(105, 130, 245, 255));
+        } else {
+            edgePaint.setColor(Color.argb(58, 150, 160, 172));
+        }
+        canvas.drawPath(curvePath, edgePaint);
 
         if (preset.enabled) {
             long now = System.currentTimeMillis();
@@ -297,9 +290,9 @@ final class EqCurveView extends View {
             }
             lastTime = now;
 
-            curveLayerCanvas.drawPath(curvePath, glowPaint1);
-            curveLayerCanvas.drawPath(curvePath, glowPaint2);
-            curveLayerCanvas.drawPath(curvePath, glowPaint3);
+            canvas.drawPath(curvePath, glowPaint1);
+            canvas.drawPath(curvePath, glowPaint2);
+            canvas.drawPath(curvePath, glowPaint3);
 
             if (sweepGradient == null) {
                 sweepGradient = new LinearGradient(
@@ -323,7 +316,7 @@ final class EqCurveView extends View {
             float totalWidth = right - left;
             sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
             sweepGradient.setLocalMatrix(sweepMatrix);
-            curveLayerCanvas.drawPath(curvePath, sweepPaint);
+            canvas.drawPath(curvePath, sweepPaint);
         } else {
             lastTime = 0;
         }
@@ -334,27 +327,7 @@ final class EqCurveView extends View {
         } else {
             curvePaint.setColor(Color.rgb(130, 140, 150));
         }
-        curveLayerCanvas.drawPath(curvePath, curvePaint);
-
-        curveLayerCanvas.restore();
-        curveLayerSrc.set(0, 0, curveLayerBitmap.getWidth(), curveLayerBitmap.getHeight());
-        curveLayerDst.set(0f, 0f, width, height);
-        canvas.drawBitmap(curveLayerBitmap, curveLayerSrc, curveLayerDst, curveLayerPaint);
-    }
-
-    private void ensureCurveLayer(int width, int height) {
-        int targetWidth = Math.max(1, width * CURVE_SUPERSAMPLE_SCALE);
-        int targetHeight = Math.max(1, height * CURVE_SUPERSAMPLE_SCALE);
-        if (curveLayerBitmap != null && curveLayerWidth == targetWidth && curveLayerHeight == targetHeight) {
-            return;
-        }
-        if (curveLayerBitmap != null) {
-            curveLayerBitmap.recycle();
-        }
-        curveLayerBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888);
-        curveLayerCanvas = new Canvas(curveLayerBitmap);
-        curveLayerWidth = targetWidth;
-        curveLayerHeight = targetHeight;
+        canvas.drawPath(curvePath, curvePaint);
     }
 
     private void appendSmoothedPath(Path path, float left, float right, float stepPx, CurveSampler sampler) {
