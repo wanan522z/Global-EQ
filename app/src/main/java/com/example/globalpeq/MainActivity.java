@@ -3091,7 +3091,7 @@ public final class MainActivity extends Activity {
             bassBoostSlider.setEnabled(bassBoostEnabled);
             bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
         }
-        boolean virtualBassEnabled = supported && editingPreset.virtualBassAmountPercent > 0;
+        boolean virtualBassEnabled = supported && virtualBassEnabledState;
         if (editingPreset.virtualBassAmountPercent > 0) {
             lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
         }
