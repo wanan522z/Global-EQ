@@ -1751,6 +1751,9 @@ public final class MainActivity extends Activity {
 
     private View wrapEqOverlaySwitch(View button, float weight) {
         FrameLayout container = new FrameLayout(this);
+        // 关键修复：关闭裁剪，允许内部具有高斯模糊（MaskFilter、shadowLayer）的开关按钮的扩散边缘自由绘制不被截断！
+        container.setClipChildren(false);
+        container.setClipToPadding(false);
         FrameLayout.LayoutParams switchParams = new FrameLayout.LayoutParams(dp(22), dp(22));
         switchParams.gravity = android.view.Gravity.CENTER;
         container.addView(button, switchParams);
