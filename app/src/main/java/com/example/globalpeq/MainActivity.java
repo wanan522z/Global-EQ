@@ -4388,15 +4388,22 @@ public final class MainActivity extends Activity {
         switchView.setMinHeight(dp(32));
         switchView.setMinimumHeight(dp(32));
         switchView.setSwitchMinWidth(dp(54));
+        // 去掉开关外围的圈圈动画：清除默认 background 和 stateListAnimator
+        switchView.setBackground(null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            switchView.setStateListAnimator(null);
+        }
+        // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光）
         switchView.setThumbDrawable(switchThumbDrawable(
-                autoSwitch ? Color.rgb(150, 155, 175) : Color.rgb(180, 185, 200),
-                Color.rgb(0, 255, 255)
+                autoSwitch ? Color.rgb(170, 180, 200) : Color.rgb(190, 200, 215),
+                Color.rgb(120, 240, 220)
         ));
+        // track 颜色：关闭时半透明白，开启时半透明青蓝（与标题流光同色系）
         switchView.setTrackDrawable(labeledSwitchTrackDrawable(
                 autoSwitch ? "AUTO" : "OFF",
                 autoSwitch ? "AUTO" : "ON",
-                autoSwitch ? Color.argb(40, 255, 255, 255) : Color.argb(50, 255, 255, 255),
-                autoSwitch ? Color.argb(100, 0, 255, 255) : Color.argb(120, 0, 255, 255)
+                autoSwitch ? Color.argb(38, 255, 255, 255) : Color.argb(45, 255, 255, 255),
+                autoSwitch ? Color.argb(85, 120, 240, 220) : Color.argb(105, 120, 240, 220)
         ));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             switchView.setSplitTrack(false);
