@@ -1445,6 +1445,9 @@ public final class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dp(2), dp(6), dp(2), dp(6));
+        // 关键修复：关闭 EQ 条目行的子视图裁剪，确保条目左侧开关和右侧删除按钮的光晕能够完好展示，绝不被裁切！
+        row.setClipChildren(false);
+        row.setClipToPadding(false);
         if (PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB)) {
             GradientDrawable warningBg = new GradientDrawable();
             warningBg.setShape(GradientDrawable.RECTANGLE);
