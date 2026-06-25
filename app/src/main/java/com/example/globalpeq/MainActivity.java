@@ -130,8 +130,8 @@ public final class MainActivity extends Activity {
             long now = System.currentTimeMillis();
             if (lastShimmerTime > 0) {
                 float elapsed = (now - lastShimmerTime) / 1000f;
-                // 按类似 EqCurveView 极其丝滑的长周期连续滑动（0.15f 即每秒滑动 15% 宽度，极大减慢速度且保障持续性）
-                shimmerAnimPhase += elapsed * 0.15f;
+                // 按类似 EqCurveView 极其丝滑的长周期连续滑动（0.25f 即每秒滑动 25% 宽度，极大减慢速度且保障持续性）
+                shimmerAnimPhase += elapsed * 0.25f;
                 if (shimmerAnimPhase > 1.0f) {
                     shimmerAnimPhase -= 1.0f;
                 }
@@ -145,22 +145,29 @@ public final class MainActivity extends Activity {
                     continue;
                 }
                 int width = view.getWidth();
-                if (width > 0) {
-                    Shader shader = view.getPaint().getShader();
-                    // 实时刷新核心：由于部分组件在外部刷新页面或触发重绘（renderAll 等）时，
-                    // 可能会由于重新 style 被清空 Shader。我们在此处动态检测，发现 Shader 为空就立即原地自动重建！
-                    if (shader == null) {
-                        recreateShaderForView(view, width);
-                        shader = view.getPaint().getShader();
+                if (width <= 0) {
+                    // 如果宽度未测量出来，尝试使用已分配的 LayoutParams 的宽度或猜测一个预估宽，避免不刷新
+                    width = Math.max(view.getMeasuredWidth(), view.getLayoutParams() != null ? view.getLayoutParams().width : 0);
+                    if (width <= 0) {
+                        width = dp(120); // 兜底猜测宽度，防止无法应用 Shader
                     }
-                    if (shader != null) {
-                        float totalWidth = width * 1.5f;
-                        shimmerShaderMatrix.reset();
-                        // 运用连续流动：让流光矩阵平移连续起来
-                        shimmerShaderMatrix.postTranslate(shimmerAnimPhase * totalWidth, 0);
-                        shader.setLocalMatrix(shimmerShaderMatrix);
-                        view.invalidate();
-                    }
+                }
+                
+                // 实时重构着色器：不依赖外部初始化设置
+                // 只要文字在运行，每帧都动态检测并确保 Paint.getShader() 被应用
+                Shader shader = view.getPaint().getShader();
+                if (shader == null) {
+                    recreateShaderForView(view, width);
+                    shader = view.getPaint().getShader();
+                }
+                
+                if (shader != null) {
+                    float totalWidth = width * 1.5f;
+                    shimmerShaderMatrix.reset();
+                    // 连贯无限平移
+                    shimmerShaderMatrix.postTranslate(shimmerAnimPhase * totalWidth, 0);
+                    shader.setLocalMatrix(shimmerShaderMatrix);
+                    view.invalidate();
                 }
             }
             if (!shimmerTargetViews.isEmpty()) {
