@@ -5547,9 +5547,7 @@ public final class MainActivity extends Activity {
             tab.setBackgroundColor(Color.TRANSPARENT);
             if (active) {
                 // 先用当前宽度（可能为0）设置初始 shader
-                applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
-                        Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
-                tab.setTextColor(Color.WHITE);
+                styleSettingsTitleText(tab);
                 // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
                 // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
                 // hotCore 白热核心已作视觉焦点。
