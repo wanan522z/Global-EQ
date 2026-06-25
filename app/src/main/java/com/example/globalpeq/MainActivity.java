@@ -590,13 +590,16 @@ public final class MainActivity extends Activity {
                 }
             });
         });
-        top.addView(modeSpinner, new LinearLayout.LayoutParams(
-                dp(110),
-                dp(34)
-        ));
+        LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
+                0,
+                dp(34),
+                1f
+        );
+        modeParams.rightMargin = dp(8);
+        top.addView(modeSpinner, modeParams);
 
         View switchSpacer = new View(this);
-        top.addView(switchSpacer, new LinearLayout.LayoutParams(0, 1, 1f));
+        top.addView(switchSpacer, new LinearLayout.LayoutParams(dp(4), 1));
 
         enabledSwitch = new Switch(this);
         enabledSwitch.setText("");
