@@ -606,7 +606,7 @@ public final class MainActivity extends Activity {
         modeSpinner.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
         modeSpinner.setSingleLine(true);
         modeSpinner.setIncludeFontPadding(false);
-        modeSpinner.setPadding(0, 0, 0, 0);
+        modeSpinner.setPadding(dp(18), 0, dp(18), 0);
         modeSpinner.setMinWidth(0);
         modeSpinner.setMinimumWidth(0);
         styleSettingsTitleText(modeSpinner);
@@ -3299,19 +3299,11 @@ public final class MainActivity extends Activity {
                 unregisterShimmerView(this);
                 super.onDetachedFromWindow();
             }
-
-            @Override
-            protected void onDraw(Canvas canvas) {
-                int save = canvas.save();
-                int overflow = dp(28);
-                canvas.clipRect(-overflow, 0, getWidth() + overflow, getHeight());
-                super.onDraw(canvas);
-                canvas.restoreToCount(save);
-            }
         };
         button.setText(text);
         button.setTextSize(13);
         button.setAllCaps(false);
+        button.setPadding(dp(18), 0, dp(18), 0);
         return button;
     }
 
@@ -3322,7 +3314,6 @@ public final class MainActivity extends Activity {
         button.setMinimumHeight(0);
         button.setSingleLine(true);
         button.setGravity(android.view.Gravity.CENTER);
-        button.setPadding(0, 0, 0, 0);
         button.setIncludeFontPadding(false);
         button.setBackgroundColor(Color.TRANSPARENT);
     }
@@ -5152,15 +5143,6 @@ public final class MainActivity extends Activity {
             protected void onDetachedFromWindow() {
                 unregisterShimmerView(this);
                 super.onDetachedFromWindow();
-            }
-
-            @Override
-            protected void onDraw(Canvas canvas) {
-                int save = canvas.save();
-                int overflow = dp(28);
-                canvas.clipRect(-overflow, 0, getWidth() + overflow, getHeight());
-                super.onDraw(canvas);
-                canvas.restoreToCount(save);
             }
         };
         title.setText(text);
