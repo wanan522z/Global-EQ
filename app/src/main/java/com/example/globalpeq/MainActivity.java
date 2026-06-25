@@ -28,6 +28,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.Layout;
+import android.text.TextPaint;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
