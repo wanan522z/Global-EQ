@@ -330,6 +330,7 @@ public final class MainActivity extends Activity {
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
         applyPresetCurveSettings(editingPreset);
+        syncVirtualBassEnabledFromPreset();
 
         requestRuntimePermissions();
         setContentView(buildContent());
@@ -5028,9 +5029,9 @@ public final class MainActivity extends Activity {
             return;
         }
         // 色阶：浅蓝青色调，亮色为主，多一点蓝色感（与 SHIMMER_BRIGHT_COLORS 一致）
-        int paleCyan  = Color.rgb(210, 240, 255);  // 极亮浅蓝青
-        int lightAqua = Color.rgb(150, 215, 250);  // 亮浅蓝（偏蓝）
-        int aqua      = Color.rgb(95, 200, 245);   // 饱和亮青蓝（偏蓝）
+        int paleCyan  = Color.rgb(220, 245, 255);  // 极亮浅蓝青
+        int lightAqua = Color.rgb(165, 225, 255);  // 亮浅蓝（偏蓝）
+        int aqua      = Color.rgb(110, 210, 255);  // 饱和亮青蓝（偏蓝）
         int hotCore   = Color.rgb(255, 255, 255);  // 纯白热核心
 
         view.getPaint().setShader(new LinearGradient(
