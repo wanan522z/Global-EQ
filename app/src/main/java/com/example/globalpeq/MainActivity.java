@@ -88,7 +88,7 @@ public final class MainActivity extends Activity {
     private LinearLayout eqPage;
     private LinearLayout extraPage;
     private LinearLayout settingsPage;
-    private FrameLayout mainPageHost;
+    private MainPageHost mainPageHost;
     private LinearLayout rows;
     private KnobView cutoffKnob;
     private KnobView amountKnob;
