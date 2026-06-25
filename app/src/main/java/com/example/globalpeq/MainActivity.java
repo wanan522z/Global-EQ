@@ -90,19 +90,19 @@ public final class MainActivity extends Activity {
     private LinearLayout rows;
     private KnobView cutoffKnob;
     private KnobView amountKnob;
-    private KnobView systemBassBoostKnob;
+    private HorizontalBassSlider bassBoostSlider;
     private KnobView reverbDecayKnob;
     private KnobView reverbPredelayKnob;
     private KnobView reverbSizeKnob;
     private KnobView reverbMixKnob;
     private EditText cutoffInput;
     private EditText amountInput;
-    private EditText systemBassBoostInput;
     private EditText reverbDecayInput;
     private EditText reverbPredelayInput;
     private EditText reverbSizeInput;
     private EditText reverbMixInput;
     private Spinner reverbTypeSpinner;
+    private Spinner bassModeSpinner;
     private TextView statusText;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
@@ -3144,12 +3144,33 @@ public final class MainActivity extends Activity {
         reverbKnobs.addView(createReverbControl("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        LinearLayout systemPanel = createExtraPanel("System BassBoost", "Uses Android's built-in bass boost effect.");
-        page.addView(systemPanel, extraPanelParams(12));
-        LinearLayout systemKnobs = createExtraKnobRow(systemPanel);
-        systemKnobs.addView(createSystemBassBoostControl(), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        LinearLayout bassPanel = createExtraPanel("BassBoost");
+        page.addView(bassPanel, extraPanelParams(12));
+        LinearLayout bassHeader = new LinearLayout(this);
+        bassHeader.setOrientation(LinearLayout.HORIZONTAL);
+        bassHeader.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL);
+        bassModeSpinner = new Spinner(this);
+        normalizeSpinnerSurface(bassModeSpinner);
+        ArrayAdapter<String> bassAdapter = new SmallSpinnerAdapter(BASS_MODE_LABELS);
+        bassAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        bassModeSpinner.setAdapter(bassAdapter);
+        bassModeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
+        bassModeSpinner.setBackground(createFieldBackground(24, 70, 8));
+        // UI 占位选择框，system/dsp 切换功能后续接入
+        bassHeader.addView(bassModeSpinner, new LinearLayout.LayoutParams(dp(126), dp(32)));
+        bassPanel.addView(bassHeader, blockParams(4));
+        bassBoostSlider = new HorizontalBassSlider(this);
+        bassBoostSlider.configure(0, 100, editingPreset.systemBassBoostPercent, "%", "Boost",
+                value -> setEditingPreset(editingPreset.withSystemBassBoostPercent(value), true));
+        LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        );
+        sliderParams.topMargin = dp(8);
+        bassPanel.addView(bassBoostSlider, sliderParams);
 
-        LinearLayout virtualPanel = createExtraPanel("Virtual Bass", "Shelf boost below the cutoff frequency.");
+        LinearLayout virtualPanel = createExtraPanel("Virtual Bass");
         page.addView(virtualPanel, extraPanelParams(12));
         LinearLayout virtualKnobs = createExtraKnobRow(virtualPanel);
         virtualKnobs.addView(createVirtualBassControl("Cutoff", true), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
