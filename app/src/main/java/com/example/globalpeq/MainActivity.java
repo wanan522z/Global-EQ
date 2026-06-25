@@ -122,18 +122,21 @@ public final class MainActivity extends Activity {
     private static final int SHIMMER_FPS_DELAY = 30;
     private final android.graphics.Matrix shimmerShaderMatrix = new android.graphics.Matrix();
     private float shimmerAnimPhase = 0f;
-    private long lastShimmerTime = 0L; // 采用类似 EqCurveView 的基于真实时间的平滑相位更新
+    private long lastShimmerTime = 0L;
+    // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
+    private final java.util.Map<TextView, Integer> shimmerLastWidth = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
+    // 流光速度：每秒平移 0.15 个视图宽度（约 6.7 秒一个周期）。
+    // 比曲线流光(0.25)略慢，符合"缓慢滚动"诉求，但仍有可见动感。
+    private static final float SHIMMER_FLOW_RATE = 0.15f;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
             long now = System.currentTimeMillis();
             if (lastShimmerTime > 0) {
                 float elapsed = (now - lastShimmerTime) / 1000f;
-                // 【极大减慢速度】
-                // 从之前的 0.25f 降到 0.08f（每秒仅滑动 8% 宽度），达到极致平缓、高雅平稳的视觉流动速度
-                shimmerAnimPhase += elapsed * 0.08f;
-                if (shimmerAnimPhase > 1.0f) {
+                shimmerAnimPhase += elapsed * SHIMMER_FLOW_RATE;
+                if (shimmerAnimPhase >= 1.0f) {
                     shimmerAnimPhase -= 1.0f;
                 }
             }
@@ -143,29 +146,30 @@ public final class MainActivity extends Activity {
                 TextView view = shimmerTargetViews.get(i);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
                     shimmerTargetViews.remove(i);
+                    shimmerLastWidth.remove(view);
                     continue;
                 }
                 int width = view.getWidth();
                 if (width <= 0) {
-                    // 如果宽度未测量出来，尝试使用已分配的 LayoutParams 的宽度或猜测一个预估宽，避免不刷新
-                    width = Math.max(view.getMeasuredWidth(), view.getLayoutParams() != null ? view.getLayoutParams().width : 0);
+                    width = Math.max(view.getMeasuredWidth(),
+                            view.getLayoutParams() != null ? view.getLayoutParams().width : 0);
                     if (width <= 0) {
-                        width = dp(120); // 兜底猜测宽度，防止无法应用 Shader
+                        width = dp(120);
                     }
                 }
-                
-                // 实时重构着色器：不依赖外部初始化设置
-                // 只要文字在运行，每帧都动态检测并确保 Paint.getShader() 被应用
+
+                // 仅在 shader 缺失或宽度变化时重建；其余帧只更新 Matrix，零分配
                 Shader shader = view.getPaint().getShader();
-                if (shader == null) {
+                Integer lastW = shimmerLastWidth.get(view);
+                if (shader == null || lastW == null || lastW != width) {
                     recreateShaderForView(view, width);
+                    shimmerLastWidth.put(view, width);
                     shader = view.getPaint().getShader();
                 }
-                
+
                 if (shader != null) {
-                    // 【连续性保障】
-                    // LinearGradient 的渐变宽度与此处的平移边界 width 保持严格的 1:1 物理咬合，
-                    // 彻底消除由于宽度倍数不一致（之前使用了 1.5 倍）导致 REPEAT 模式产生跳变和不连续的闪烁问题。
+                    // 渐变周期宽度 == 平移单位 width，严格 1:1 咬合，
+                    // 配合 REPEAT 模式实现绝对连续、无跳变的无缝循环
                     shimmerShaderMatrix.reset();
                     shimmerShaderMatrix.postTranslate(shimmerAnimPhase * width, 0);
                     shader.setLocalMatrix(shimmerShaderMatrix);
@@ -173,6 +177,7 @@ public final class MainActivity extends Activity {
                 }
             }
             if (!shimmerTargetViews.isEmpty()) {
+                // 跟随 Choreographer 帧节奏，与 EqCurveView 一致，消除抖动
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                     getWindow().getDecorView().postOnAnimation(this);
                 } else {
@@ -521,9 +526,6 @@ public final class MainActivity extends Activity {
         statusText = gradientTitleView("");
         statusText.setTextSize(12);
         statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            statusText.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        }
         statusText.setGravity(android.view.Gravity.CENTER);
         styleStatusText(false);
         int controlGap = 12;
@@ -4535,16 +4537,14 @@ public final class MainActivity extends Activity {
     }
 
     private void styleSettingsTitleText(TextView view) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        }
-        applyTitleGradientShader(view, settingsTitleGradientWidth(view), 
+        // 使用默认硬件加速层；software layer 在高清屏会产生 bitmap 缩放伪影
+        applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
         view.setShadowLayer(dp(5), 0, 0, Color.argb(120, 0, 245, 212));
         view.invalidate();
         view.post(() -> {
-            applyTitleGradientShader(view, settingsTitleGradientWidth(view), 
+            applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                     Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
             view.setTextColor(Color.WHITE);
             view.setShadowLayer(dp(5), 0, 0, Color.argb(120, 0, 245, 212));
@@ -4553,9 +4553,6 @@ public final class MainActivity extends Activity {
     }
 
     private void styleStatusTextShimmer(TextView view, int baseColorStart, int baseColorEnd) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        }
         applyStatusShimmerShader(view, settingsTitleGradientWidth(view), baseColorStart, baseColorEnd);
         view.setTextColor(Color.WHITE);
         view.setShadowLayer(dp(5), 0, 0, Color.argb(120, Color.red(baseColorStart), Color.green(baseColorStart), Color.blue(baseColorStart)));
@@ -4566,26 +4563,28 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        String text = view.getText() == null ? "" : view.getText().toString();
-        float textWidth = Math.max(1f, view.getPaint().measureText(text));
-
-        // 【色调优化】：剔除一切杂色（粉、紫、金、白），只留纯净高奢的蓝绿色调加深蓝
-        // 【连续性机制】：首尾颜色完全咬合（都使用相同的深蓝绿）。
-        // 5 点无缝平铺渐变，当通过 Matrix 1:1 位移时，呈现绝对流畅无缝的蓝绿微光折射
-        int darkBlue = Color.rgb(10, 30, 80);    // 深蓝色调，提供坚实沉稳的暗部底色
-        int cyan = Color.rgb(0, 245, 190);      // 蓝绿 / 极光青色
-        int pureBlue = Color.rgb(0, 160, 255);  // 宝石湛蓝
+        // 渐变周期宽度 = 视图宽度，与 shimmer runnable 中 postTranslate(phase*width,0) 严格 1:1，
+        // 配合 REPEAT 模式实现无缝循环（首尾颜色完全一致）。
+        // 色阶设计：蓝绿亮色为主（~80%），深蓝仅在两端各占 ~10% 作为沉稳过渡，
+        // 中心 0.5 处为白热核心，模拟曲线流光的扫光高亮。
+        // 所有位置 alpha=255，避免文字像素被 shader 透明化导致闪烁。
+        int deepBlue = Color.rgb(20, 60, 130);     // 深蓝：仅占两端 ~10%
+        int cyan = Color.rgb(0, 240, 200);         // 蓝绿 / 极光青
+        int brightBlue = Color.rgb(40, 170, 255);  // 宝石湛蓝
+        int hotCore = Color.rgb(220, 255, 250);    // 白热核心
 
         view.getPaint().setShader(new LinearGradient(
-                0, 0, textWidth, 0,
+                0, 0, width, 0,
                 new int[]{
-                        darkBlue, 
-                        cyan, 
-                        pureBlue, 
-                        cyan, 
-                        darkBlue
+                        deepBlue,
+                        cyan,
+                        brightBlue,
+                        hotCore,
+                        brightBlue,
+                        cyan,
+                        deepBlue
                 },
-                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
+                new float[]{0.0f, 0.12f, 0.32f, 0.5f, 0.68f, 0.88f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
@@ -4593,24 +4592,24 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        String text = view.getText() == null ? "" : view.getText().toString();
-        float textWidth = Math.max(1f, view.getPaint().measureText(text));
-
-        // 状态文字同样采用完全连续的 蓝、绿、深蓝 主题色平铺
-        int darkBlue = Color.rgb(10, 30, 80);
-        int cyan = Color.rgb(0, 235, 175);
-        int softBlue = Color.rgb(0, 140, 245);
+        // 状态文字同样使用蓝绿亮色 + 深蓝点缀 + 白热核心的统一主题
+        int deepBlue = Color.rgb(20, 60, 130);
+        int cyan = Color.rgb(0, 235, 195);
+        int brightBlue = Color.rgb(40, 170, 255);
+        int hotCore = Color.rgb(215, 255, 250);
 
         view.getPaint().setShader(new LinearGradient(
-                0, 0, textWidth, 0,
+                0, 0, width, 0,
                 new int[]{
-                        darkBlue,
+                        deepBlue,
                         cyan,
-                        softBlue,
+                        brightBlue,
+                        hotCore,
+                        brightBlue,
                         cyan,
-                        darkBlue
+                        deepBlue
                 },
-                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
+                new float[]{0.0f, 0.12f, 0.32f, 0.5f, 0.68f, 0.88f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
@@ -4738,16 +4737,10 @@ public final class MainActivity extends Activity {
         }
         if (!supported) {
             unregisterShimmerView(statusText);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                statusText.setLayerType(View.LAYER_TYPE_NONE, null);
-            }
             statusText.setTextColor(Color.rgb(150, 158, 172));
             statusText.getPaint().clearShadowLayer();
         } else if (hasClip) {
             unregisterShimmerView(statusText);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                statusText.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-            }
             statusText.setTextColor(Color.rgb(255, 100, 100));
             statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
         } else if (isEditingPresetActive()) {
