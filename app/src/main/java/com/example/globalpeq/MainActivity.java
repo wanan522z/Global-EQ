@@ -3305,6 +3305,7 @@ public final class MainActivity extends Activity {
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), reverbKnobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
+        bassPanel.setPadding(dp(16), dp(6), dp(16), dp(16));
         page.addView(bassPanel, extraPanelParams(12));
         LinearLayout bassHeader = createExtraHeaderRow("BassBoost");
         bassBoostTitleView = (TextView) bassHeader.getChildAt(0);
@@ -3312,7 +3313,7 @@ public final class MainActivity extends Activity {
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
         // UI 占位选择框，system/dsp 切换功能后续接入
         bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
-        bassPanel.addView(bassHeader, blockParams(4));
+        bassPanel.addView(bassHeader, blockParams(0));
         bassBoostSlider = new HorizontalBassSlider(this);
         bassBoostSlider.configure(0, 100, editingPreset.systemBassBoostPercent, "%", "Boost",
                 value -> setEditingPreset(editingPreset.withSystemBassBoostPercent(value), true));
