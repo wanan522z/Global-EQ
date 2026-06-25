@@ -3997,6 +3997,208 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /**
+     * BassBoost 横向推子：水平轨道 + 左右滑动的 thumb。
+     * 视觉风格与 GeqSliderView 一致（neon 发光、胶囊 thumb、LED 指示），
+     * 但方向为水平，用于节省垂直空间。
+     */
+    private final class HorizontalBassSlider extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF thumbRect = new android.graphics.RectF();
+        private int min;
+        private int max;
+        private int value;
+        private String suffix = "";
+        private String label = "";
+        private KnobView.Listener listener;
+        private float touchStartX;
+        private float touchStartY;
+        private boolean adjusting;
+
+        HorizontalBassSlider(Context context) {
+            super(context);
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        void configure(int min, int max, int value, String suffix, String label, KnobView.Listener listener) {
+            this.min = min;
+            this.max = max;
+            this.suffix = suffix == null ? "" : suffix;
+            this.label = label == null ? "" : label;
+            this.listener = listener;
+            setValue(value, false);
+        }
+
+        void setValue(int nextValue, boolean notify) {
+            int clamped = Math.max(min, Math.min(max, nextValue));
+            if (clamped == value) {
+                invalidate();
+                return;
+            }
+            value = clamped;
+            invalidate();
+            if (notify && listener != null) {
+                listener.onValueChanged(value);
+            }
+        }
+
+        private boolean isActive() {
+            return value != min;
+        }
+
+        private float trackLeft() {
+            return dpf(24f);
+        }
+
+        private float trackRight() {
+            return getWidth() - dpf(24f);
+        }
+
+        private float trackCenterY() {
+            return (getHeight() - dpf(30f)) / 2f;
+        }
+
+        private float valueToX() {
+            float t = (value - min) / Math.max(1f, max - min);
+            return trackLeft() + (trackRight() - trackLeft()) * t;
+        }
+
+        private int xToValue(float x) {
+            float t = (clampFloat(x, trackLeft(), trackRight()) - trackLeft())
+                    / Math.max(1f, trackRight() - trackLeft());
+            return Math.round(min + (max - min) * t);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int width = getWidth();
+            int height = getHeight();
+            float left = trackLeft();
+            float right = trackRight();
+            float cy = trackCenterY();
+            float thumbX = valueToX();
+            boolean active = isActive();
+
+            // 1. 轨道背景胶囊
+            android.graphics.RectF trackRect = new android.graphics.RectF(
+                    left, cy - dpf(2f), right, cy + dpf(2f));
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(25, 255, 255, 255));
+            canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
+
+            // 2. 活动段发光（从 trackLeft 到 thumb）
+            if (active) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dpf(4f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor(Color.rgb(0, 245, 212));
+                paint.setShadowLayer(dpf(6f), 0, 0, Color.argb(180, 0, 245, 212));
+                canvas.drawLine(left, cy, thumbX, cy, paint);
+                paint.clearShadowLayer();
+            }
+
+            // 3. thumb 胶囊
+            float thumbW = dpf(18f);
+            float thumbH = dpf(28f);
+            thumbRect.set(thumbX - thumbW / 2f, cy - thumbH / 2f,
+                    thumbX + thumbW / 2f, cy + thumbH / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(240, 22, 26, 38));
+            canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(adjusting || active ? dpf(1.6f) : dpf(1.0f));
+            paint.setColor(adjusting || active ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
+            if (adjusting || active) {
+                paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
+            }
+            canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
+            paint.clearShadowLayer();
+
+            // 4. thumb 中心 LED 指示
+            float indW = dpf(3f);
+            float indH = dpf(10f);
+            android.graphics.RectF indRect = new android.graphics.RectF(
+                    thumbX - indW / 2f, cy - indH / 2f,
+                    thumbX + indW / 2f, cy + indH / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.rgb(0, 245, 212));
+            if (active) {
+                paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(220, 0, 245, 212));
+            }
+            canvas.drawRoundRect(indRect, dpf(1.5f), dpf(1.5f), paint);
+            paint.clearShadowLayer();
+
+            // 5. 标签与数值
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextAlign(Paint.Align.LEFT);
+            paint.setFakeBoldText(true);
+            paint.setTextSize(dpf(13f));
+            paint.setColor(Color.WHITE);
+            canvas.drawText(label, dpf(4f), height - dpf(8f), paint);
+
+            paint.setTextAlign(Paint.Align.RIGHT);
+            paint.setFakeBoldText(false);
+            paint.setTextSize(dpf(13f));
+            if (active) {
+                paint.setColor(Color.rgb(0, 245, 212));
+                paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(150, 0, 245, 212));
+            } else {
+                paint.setColor(Color.argb(150, 255, 255, 255));
+            }
+            canvas.drawText(value + suffix, width - dpf(4f), height - dpf(8f), paint);
+            paint.clearShadowLayer();
+            paint.setFakeBoldText(false);
+        }
+
+        @Override
+        public boolean onTouchEvent(android.view.MotionEvent event) {
+            if (!isEnabled()) {
+                return false;
+            }
+            switch (event.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    touchStartX = event.getX();
+                    touchStartY = event.getY();
+                    adjusting = false;
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                    return true;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    float dx = Math.abs(event.getX() - touchStartX);
+                    float dy = Math.abs(event.getY() - touchStartY);
+                    if (!adjusting && dx > dpf(10f) && dx > dy) {
+                        adjusting = true;
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    if (adjusting) {
+                        setValue(xToValue(event.getX()), true);
+                    }
+                    return true;
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                    if (adjusting) {
+                        setValue(xToValue(event.getX()), true);
+                    } else {
+                        // tap thumb 区域直接跳转
+                        float thumbX = valueToX();
+                        if (Math.abs(event.getX() - thumbX) < dpf(20f)) {
+                            setValue(xToValue(event.getX()), true);
+                        }
+                    }
+                    adjusting = false;
+                    return true;
+                default:
+                    return super.onTouchEvent(event);
+            }
+        }
+
+        private float clampFloat(float v, float lo, float hi) {
+            return Math.max(lo, Math.min(hi, v));
+        }
+    }
+
     private class SmallSpinnerAdapter extends ArrayAdapter<String> {
         private final boolean cyanGlowText;
         private int selectedPosition = AdapterView.INVALID_POSITION;
