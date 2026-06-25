@@ -68,27 +68,27 @@ final class KnobView extends View {
         float left = (getWidth() - size) / 2f;
         float top = (getHeight() - size) / 2f;
         
-        basePaint.setStrokeWidth(10f);
+        basePaint.setStrokeWidth(7f);
         canvas.drawArc(left, top, left + size, top + size, 135, 270, false, basePaint);
-        
+
         float sweep = 270f * (value - min) / Math.max(1f, max - min);
         boolean enabled = isEnabled();
         boolean active = enabled && value != neutralValue;
-        
-        // Draw neon glow under-arc
+
+        // Draw neon glow under-arc (改细改小：strokWidth 18→11, shadow 12→5)
         if (active) {
-            fillPaint.setStrokeWidth(18f);
-            fillPaint.setColor(Color.argb(78, 0, 245, 212));
-            fillPaint.setShadowLayer(12f, 0, 0, Color.argb(170, 0, 245, 212));
+            fillPaint.setStrokeWidth(11f);
+            fillPaint.setColor(Color.argb(60, 0, 245, 212));
+            fillPaint.setShadowLayer(5f, 0, 0, Color.argb(150, 0, 245, 212));
             canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
             fillPaint.clearShadowLayer();
         }
-        
+
         // Draw active arc core
-        fillPaint.setStrokeWidth(10f);
+        fillPaint.setStrokeWidth(7f);
         fillPaint.setColor(enabled ? Color.rgb(0, 245, 212) : Color.argb(95, 170, 178, 190));
         if (active) {
-            fillPaint.setShadowLayer(5f, 0, 0, Color.argb(200, 0, 245, 212));
+            fillPaint.setShadowLayer(2f, 0, 0, Color.argb(180, 0, 245, 212));
         }
         canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
         fillPaint.clearShadowLayer();
