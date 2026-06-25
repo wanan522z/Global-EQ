@@ -5303,12 +5303,24 @@ public final class MainActivity extends Activity {
             boolean active = (i == activeIndex);
             tab.setBackgroundColor(Color.TRANSPARENT);
             if (active) {
+                // 先用当前宽度（可能为0）设置初始 shader
                 applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
                         Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
                 tab.setTextColor(Color.WHITE);
                 tab.setShadowLayer(dp(5), 0, 0, Color.argb(125, 0, 245, 212));
                 tab.invalidate();
                 registerShimmerView(tab);
+                // 布局完成后重新应用正确宽度的 shader（解决 weight 布局下 getWidth()==0 的问题）
+                final Button tabRef = tab;
+                tab.post(() -> {
+                    int w = tabRef.getWidth();
+                    if (w > 0) {
+                        applyTitleGradientShader(tabRef, w,
+                                Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+                        shimmerLastWidth.remove(tabRef);
+                        tabRef.invalidate();
+                    }
+                });
             } else {
                 unregisterShimmerView(tab);
                 styleInactiveTabText(tab);
