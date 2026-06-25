@@ -5729,7 +5729,14 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < tabs.length; i++) {
             Button tab = tabs[i];
             boolean active = (i == activeIndex);
-            tab.setBackgroundColor(Color.TRANSPARENT);
+            tab.setBackground(active
+                    ? strokeGlowRoundRectDrawable(
+                    Color.argb(24, 255, 255, 255),
+                    Color.argb(160, 0, 245, 212),
+                    dp(12),
+                    dp(3),
+                    Color.argb(85, 0, 245, 212))
+                    : plainRoundRectDrawable(Color.TRANSPARENT, Color.TRANSPARENT, dp(12)));
             if (active) {
                 // 先用当前宽度（可能为0）设置初始 shader
                 styleSettingsTitleText(tab);
