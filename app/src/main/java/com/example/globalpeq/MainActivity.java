@@ -3875,16 +3875,34 @@ public final class MainActivity extends Activity {
                 ringPaint.setColor(Color.argb(enabled ? 35 : 12, 255, 100, 100));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
 
+                // 柔光底：RadialGradient 平滑过渡，消除 shadowLayer 锯齿
+                float glowR = radius + dpf(3.5f);
+                crossPaint.setStyle(Paint.Style.FILL);
+                if (enabled) {
+                    crossPaint.setShader(new RadialGradient(
+                            cx, cy, glowR,
+                            new int[]{Color.TRANSPARENT,
+                                    Color.argb(85, 255, 90, 90),
+                                    Color.argb(35, 255, 70, 70),
+                                    Color.TRANSPARENT},
+                            new float[]{0f, (radius / glowR), ((radius + dpf(1f)) / glowR), 1f},
+                            Shader.TileMode.CLAMP));
+                } else {
+                    crossPaint.setShader(new RadialGradient(
+                            cx, cy, glowR,
+                            new int[]{Color.TRANSPARENT,
+                                    Color.argb(28, 255, 90, 90),
+                                    Color.TRANSPARENT},
+                            new float[]{0f, (radius / glowR), 1f},
+                            Shader.TileMode.CLAMP));
+                }
+                canvas.drawCircle(cx, cy, glowR, crossPaint);
+                crossPaint.setShader(null);
+
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
-                if (enabled) {
-                    ringPaint.setShadowLayer(dpf(3.5f), 0, 0, Color.argb(150, 255, 90, 90));
-                } else {
-                    ringPaint.setShadowLayer(dpf(1.8f), 0, 0, Color.argb(40, 255, 90, 90));
-                }
                 ringPaint.setColor(Color.argb(enabled ? 160 : 50, 255, 100, 100));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
-                ringPaint.clearShadowLayer();
 
                 crossPaint.setStyle(Paint.Style.STROKE);
                 crossPaint.setStrokeWidth(dpf(1.25f));
