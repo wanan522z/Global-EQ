@@ -150,9 +150,18 @@ public final class MainActivity extends Activity {
             }
             lastShimmerTime = now;
 
+            // 每 30 帧打印一次诊断快照，定位"不动"问题
+            boolean dbg = (shimmerFrameCounter++ % 30) == 0;
+            if (dbg) {
+                Log.d(SHIMMER_TAG, "run: size=" + shimmerTargetViews.size()
+                        + " phase=" + shimmerAnimPhase
+                        + " lastTime=" + lastShimmerTime);
+            }
+
             for (int i = shimmerTargetViews.size() - 1; i >= 0; i--) {
                 TextView view = shimmerTargetViews.get(i);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
+                    if (dbg) Log.d(SHIMMER_TAG, "  [" + i + "] SKIP not attached: " + view);
                     continue;
                 }
                 int width = view.getWidth();
@@ -164,8 +173,6 @@ public final class MainActivity extends Activity {
                     }
                 }
 
-                // 每帧都强制重建 shader 并设置 Matrix，确保 Button/TextView 的 paint shader
-                // 不会被系统重置（Button 在某些版本会因 TransformationMethod 清除 shader）
                 recreateShaderForView(view, width);
                 Shader shader = view.getPaint().getShader();
 
@@ -173,12 +180,18 @@ public final class MainActivity extends Activity {
                     shimmerShaderMatrix.reset();
                     shimmerShaderMatrix.postTranslate(shimmerAnimPhase * width, 0);
                     shader.setLocalMatrix(shimmerShaderMatrix);
-                    // 强制重绘文字：invalidate + setPaintFlags 确保触发 onDraw
                     view.invalidate();
+                }
+                if (dbg) {
+                    Log.d(SHIMMER_TAG, "  [" + i + "] " + view.getClass().getSimpleName()
+                            + "@" + Integer.toHexString(System.identityHashCode(view))
+                            + " w=" + view.getWidth()
+                            + " shaderW=" + width
+                            + " shader=" + (shader != null ? "OK" : "NULL")
+                            + " layer=" + view.getLayerType());
                 }
             }
             if (!shimmerTargetViews.isEmpty()) {
-                // 跟随 Choreographer 帧节奏，与 EqCurveView 一致，消除抖动
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                     getWindow().getDecorView().postOnAnimation(this);
                 } else {
@@ -186,6 +199,7 @@ public final class MainActivity extends Activity {
                 }
             } else {
                 lastShimmerTime = 0L;
+                Log.d(SHIMMER_TAG, "run: list empty, loop STOPPED");
             }
         }
     };
