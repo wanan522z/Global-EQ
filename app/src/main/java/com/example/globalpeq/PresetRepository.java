@@ -45,7 +45,7 @@ final class PresetRepository {
     }
 
     void saveGlobalPreset(Preset preset) {
-        prefs.edit().putString(GLOBAL_PRESET, preset.toJson()).commit();
+        prefs.edit().putString(GLOBAL_PRESET, preset.toJson()).apply();
     }
 
     Preset loadDraftPreset() {
