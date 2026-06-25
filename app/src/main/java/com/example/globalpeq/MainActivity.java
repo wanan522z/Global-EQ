@@ -104,8 +104,8 @@ public final class MainActivity extends Activity {
     private EditText reverbPredelayInput;
     private EditText reverbSizeInput;
     private EditText reverbMixInput;
-    private Spinner reverbTypeSpinner;
-    private Spinner bassModeSpinner;
+    private TextView reverbTypeButton;
+    private TextView bassModeButton;
     private TextView statusText;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
@@ -118,8 +118,10 @@ public final class MainActivity extends Activity {
     private Button extraTabButton;
     private Button settingsTabButton;
     private View bottomTabIndicator;
+    private LinearLayout bottomTabStrip;
     private Switch enabledSwitch;
     private Switch autoSwitchOutputSwitch;
+    private Switch virtualBassSwitch;
     private LinearLayout header;
     private Preset runningPreset;
     private Preset editingPreset;
@@ -250,6 +252,8 @@ public final class MainActivity extends Activity {
     private boolean keyboardVisible;
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener;
     private int activeMainPageIndex;
+    private int selectedBassModeIndex;
+    private int lastVirtualBassAmountPercent = 25;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
