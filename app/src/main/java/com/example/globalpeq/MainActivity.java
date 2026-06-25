@@ -5217,19 +5217,19 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 色阶重构：精简为丝滑的5阶蓝绿极高亮色阶（与 SHIMMER_BRIGHT_COLORS 统一设计）
-        int neonGreen = Color.rgb(0, 245, 200);   // 翡翠青绿
-        int electricBlue = Color.rgb(0, 225, 255); // 电光青蓝
-        int hotCore = Color.rgb(255, 255, 255);    // 纯白核心
+        // 色阶重构：精简为丝滑的5阶蓝绿极高亮色阶（与 SHIMMER_BRIGHT_COLORS 统一设计：增加发光白青和冰青蓝，减少翡翠绿，超炽白）
+        int highGlowCyan = Color.rgb(100, 255, 240);  // 高发光白青
+        int iceCyan = Color.rgb(0, 235, 255);         // 电光冰青蓝
+        int superHotCore = Color.rgb(255, 255, 255);   // 超亮炽白核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
-                        neonGreen,
-                        electricBlue,
-                        hotCore,
-                        electricBlue,
-                        neonGreen
+                        highGlowCyan,
+                        iceCyan,
+                        superHotCore,
+                        iceCyan,
+                        highGlowCyan
                 },
                 new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
@@ -5239,19 +5239,19 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 状态文字统一精简5色标高亮蓝绿色阶
-        int neonGreen = Color.rgb(0, 245, 200);   // 翡翠青绿
-        int electricBlue = Color.rgb(0, 225, 255); // 电光青蓝
-        int hotCore = Color.rgb(255, 255, 255);    // 纯白核心
+        // 状态文字统一精简5色标超炽白冰青色阶
+        int highGlowCyan = Color.rgb(100, 255, 240);  // 高发光白青
+        int iceCyan = Color.rgb(0, 235, 255);         // 电光冰青蓝
+        int superHotCore = Color.rgb(255, 255, 255);   // 超亮炽白核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
-                        neonGreen,
-                        electricBlue,
-                        hotCore,
-                        electricBlue,
-                        neonGreen
+                        highGlowCyan,
+                        iceCyan,
+                        superHotCore,
+                        iceCyan,
+                        highGlowCyan
                 },
                 new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
