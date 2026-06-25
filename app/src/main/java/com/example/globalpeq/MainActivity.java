@@ -5113,6 +5113,10 @@ public final class MainActivity extends Activity {
             }
         };
         title.setText(text);
+        // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
+        // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
+        // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
+        title.setPadding(dp(16), dp(4), dp(16), dp(4));
         styleGradientTitle(title);
         return title;
     }
