@@ -87,7 +87,7 @@ final class PresetRepository {
         prefs.edit()
                 .putString(LAST_DEVICE_KEY, device.key)
                 .putString(LAST_DEVICE_LABEL, device.label)
-                .commit();
+                .apply();
     }
 
     boolean loadAutoSwitchOutput() {
@@ -145,7 +145,7 @@ final class PresetRepository {
                 .putString(deviceKey(device), preset.toJson())
                 .putString(LAST_DEVICE_KEY, device.key)
                 .putString(LAST_DEVICE_LABEL, device.label)
-                .commit();
+                .apply();
     }
 
     void saveNamedPreset(Preset preset) {
