@@ -5122,25 +5122,87 @@ public final class MainActivity extends Activity {
         };
     }
 
-    private TextView gradientTitleView(String text) {
-        TextView title = new TextView(this) {
-            @Override
-            protected void onAttachedToWindow() {
-                super.onAttachedToWindow();
-                registerShimmerView(this);
-            }
+    private final class GlowTitleTextView extends TextView {
+        private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+        private boolean glowEnabled = true;
+        private int glowColor = Color.argb(132, 120, 220, 255);
+        private float glowRadiusPx = dpf(4.25f);
 
-            @Override
-            protected void onDetachedFromWindow() {
-                unregisterShimmerView(this);
-                super.onDetachedFromWindow();
+        GlowTitleTextView(Context context) {
+            super(context);
+            glowPaint.setDither(true);
+            glowPaint.setLinearText(true);
+            glowPaint.setSubpixelText(true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             }
-        };
+        }
+
+        void setGlowState(boolean enabled, int color, float radiusPx) {
+            glowEnabled = enabled;
+            glowColor = color;
+            glowRadiusPx = radiusPx;
+            invalidate();
+        }
+
+        void clearGlowState() {
+            glowEnabled = false;
+            invalidate();
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            registerShimmerView(this);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            unregisterShimmerView(this);
+            super.onDetachedFromWindow();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            drawTitleGlow(canvas);
+            super.onDraw(canvas);
+        }
+
+        private void drawTitleGlow(Canvas canvas) {
+            if (!glowEnabled || glowRadiusPx <= 0f || Color.alpha(glowColor) <= 0) {
+                return;
+            }
+            Layout layout = getLayout();
+            CharSequence text = getText();
+            if (layout == null || text == null || text.length() == 0) {
+                return;
+            }
+            glowPaint.set(getPaint());
+            glowPaint.setShader(null);
+            glowPaint.setColor(glowColor);
+            glowPaint.setStyle(Paint.Style.FILL);
+            glowPaint.setMaskFilter(new BlurMaskFilter(glowRadiusPx, BlurMaskFilter.Blur.NORMAL));
+
+            String content = text.toString();
+            int save = canvas.save();
+            canvas.translate(getCompoundPaddingLeft(), getExtendedPaddingTop());
+            for (int line = 0; line < layout.getLineCount(); line++) {
+                int start = layout.getLineStart(line);
+                int end = layout.getLineEnd(line);
+                canvas.drawText(content, start, end, layout.getLineLeft(line), layout.getLineBaseline(line), glowPaint);
+            }
+            canvas.restoreToCount(save);
+            glowPaint.setMaskFilter(null);
+        }
+    }
+
+    private TextView gradientTitleView(String text) {
+        TextView title = new GlowTitleTextView(this);
         title.setText(text);
         // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
         // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
         // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
-        title.setPadding(dp(22), dp(4), dp(22), dp(4));
+        title.setPadding(dp(16), dp(4), dp(16), dp(4));
         styleGradientTitle(title);
         return title;
     }
