@@ -3,6 +3,7 @@ package com.example.globalpeq;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -29,6 +30,7 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -42,6 +44,8 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -473,6 +477,12 @@ public final class MainActivity extends Activity {
 
         deviceSpinner = new Spinner(this);
         normalizeSpinnerSurface(deviceSpinner);
+        deviceSpinner.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                showDeviceChoiceMenu();
+            }
+            return true;
+        });
         deviceSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -502,6 +512,12 @@ public final class MainActivity extends Activity {
 
         savedPresetSpinner = new Spinner(this);
         normalizeSpinnerSurface(savedPresetSpinner);
+        savedPresetSpinner.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                showSavedPresetChoiceMenu();
+            }
+            return true;
+        });
         savedPresetSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -953,6 +969,113 @@ public final class MainActivity extends Activity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         deviceSpinner.setAdapter(adapter);
         deviceSpinner.setSelection(selected);
+    }
+
+    private void showDeviceChoiceMenu() {
+        if (deviceSpinner == null || deviceChoices == null || deviceChoices.isEmpty()) {
+            renderDeviceSpinner();
+        }
+        if (deviceChoices == null || deviceChoices.isEmpty()) {
+            return;
+        }
+        String[] labels = new String[deviceChoices.size()];
+        int selected = 0;
+        for (int i = 0; i < deviceChoices.size(); i++) {
+            AudioOutputDevice device = deviceChoices.get(i);
+            labels[i] = device.label;
+            if (currentDevice != null && device.key.equals(currentDevice.key)) {
+                selected = i;
+            }
+        }
+        showLimitedChoiceMenu(deviceSpinner, labels, selected, position -> {
+            if (position >= 0 && position < deviceChoices.size()) {
+                selectOutputDevice(deviceChoices.get(position));
+            }
+        });
+    }
+
+    private void showSavedPresetChoiceMenu() {
+        if (savedPresetSpinner == null || runningPreset == null) {
+            return;
+        }
+        List<String> names = repository.loadNamedPresetNames();
+        if (!names.contains(runningPreset.name)) {
+            names = new ArrayList<>(names);
+            names.add(0, runningPreset.name);
+        }
+        String[] labels = names.toArray(new String[0]);
+        int selected = Math.max(0, names.indexOf(runningPreset.name));
+        showLimitedChoiceMenu(savedPresetSpinner, labels, selected, position -> {
+            if (position >= 0 && position < labels.length && !labels[position].equals(runningPreset.name)) {
+                loadPresetLive(labels[position]);
+            }
+        });
+    }
+
+    private void showLimitedChoiceMenu(View anchor, String[] labels, int selected, ChoiceCallback callback) {
+        if (anchor == null || labels == null || labels.length == 0) {
+            return;
+        }
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(8), dp(12), dp(8), dp(8));
+        GradientDrawable shellBg = new GradientDrawable();
+        shellBg.setShape(GradientDrawable.RECTANGLE);
+        shellBg.setColor(Color.rgb(18, 22, 34));
+        shellBg.setStroke(dp(1), Color.argb(54, 255, 255, 255));
+        shellBg.setCornerRadius(dp(16));
+        shell.setBackground(shellBg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            shell.setClipToOutline(true);
+        }
+
+        ListView list = new ListView(this);
+        list.setDivider(solidColorDrawable(Color.argb(26, 255, 255, 255)));
+        list.setDividerHeight(dp(1));
+        list.setCacheColorHint(Color.TRANSPARENT);
+        list.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        list.setBackgroundColor(Color.TRANSPARENT);
+        list.setPadding(0, 0, 0, 0);
+        list.setSelector(solidColorDrawable(Color.TRANSPARENT));
+        list.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, labels) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView view = convertView instanceof TextView
+                        ? (TextView) convertView
+                        : new TextView(MainActivity.this);
+                view.setText(getItem(position));
+                view.setTextSize(14);
+                view.setSingleLine(true);
+                view.setGravity(android.view.Gravity.CENTER);
+                view.setTextColor(position == selected ? Color.rgb(0, 245, 212) : Color.WHITE);
+                view.setPadding(dp(12), 0, dp(12), 0);
+                view.setBackgroundColor(Color.TRANSPARENT);
+                view.setLayoutParams(new ListView.LayoutParams(
+                        ListView.LayoutParams.MATCH_PARENT,
+                        dp(44)
+                ));
+                return view;
+            }
+        });
+
+        int width = Math.max(anchor.getWidth(), dp(180));
+        int listHeight = Math.min(dp(260), dp(46) * labels.length);
+        shell.addView(list, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                listHeight
+        ));
+        PopupWindow popup = new PopupWindow(shell, width, listHeight + dp(20), true);
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(solidColorDrawable(Color.TRANSPARENT));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            popup.setElevation(dpf(8f));
+        }
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            popup.dismiss();
+            callback.onChoice(position);
+        });
+        list.post(() -> list.setSelection(Math.max(0, Math.min(selected, labels.length - 1))));
+        popup.showAsDropDown(anchor, 0, dp(4));
     }
 
     private void renderRows() {
@@ -2218,7 +2341,7 @@ public final class MainActivity extends Activity {
         background.setShape(GradientDrawable.RECTANGLE);
         background.setColor(Color.argb(name.equals(editingPreset.name) ? 42 : 24, 255, 255, 255));
         background.setStroke(dp(1), name.equals(editingPreset.name)
-                 ? Color.argb(130, 0, 255, 255)
+                 ? Color.argb(120, 0, 200, 200)
                 : Color.argb(38, 255, 255, 255));
         background.setCornerRadius(dp(10));
         row.setBackground(background);
@@ -2230,7 +2353,7 @@ public final class MainActivity extends Activity {
                 if (w > 0 && h > 0 && name.equals(editingPreset.name)) {
                     getPaint().setShader(new LinearGradient(
                             0, 0, w, 0,
-                            new int[]{Color.rgb(0, 255, 255), Color.rgb(180, 100, 255)},
+                            new int[]{Color.rgb(20, 200, 200), Color.rgb(100, 100, 200)},
                             null, Shader.TileMode.CLAMP));
                 }
             }
@@ -3151,6 +3274,10 @@ public final class MainActivity extends Activity {
         void onChanged(float value);
     }
 
+    private interface ChoiceCallback {
+        void onChoice(int position);
+    }
+
     private interface CurveMenuSelected {
         void onSelected(int which);
     }
@@ -3878,8 +4005,8 @@ public final class MainActivity extends Activity {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeCap(Paint.Cap.ROUND);
                 paint.setStrokeJoin(Paint.Join.ROUND);
-                paint.setStrokeWidth(dpf(1.5f));
-                paint.setColor(Color.argb(58, 0, 245, 212));
+                paint.setStrokeWidth(dpf(1.85f));
+                paint.setColor(Color.argb(86, 0, 245, 212));
                 buildFilterTypePath(path, b, filterType);
                 canvas.drawPath(path, paint);
 
@@ -3920,40 +4047,67 @@ public final class MainActivity extends Activity {
     private void buildFilterTypePath(Path path, Rect b, FilterType filterType) {
         path.reset();
         float left = b.left + dpf(8f);
-        float right = b.right - dpf(8f);
-        float center = b.centerY() + dpf(4f);
-        float high = b.top + dpf(11f);
-        float low = b.bottom - dpf(10f);
-        float midX = b.centerX();
+        float top = b.top + dpf(7f);
+        float width = Math.min(dpf(42f), b.width() - dpf(16f));
+        float height = b.height() - dpf(14f);
         switch (filterType) {
             case LOW_SHELF:
-                path.moveTo(left, low);
-                path.lineTo(left + (right - left) * 0.30f, low);
-                path.cubicTo(midX - dpf(12f), low, midX - dpf(8f), high, midX + dpf(10f), high);
-                path.lineTo(right, high);
+                traceTypeIcon(path, left, top, width, height, new float[][]{
+                        {0.06f, 0.70f}, {0.34f, 0.70f},
+                        {0.48f, 0.70f}, {0.42f, 0.34f}, {0.60f, 0.34f},
+                        {0.82f, 0.34f}
+                });
                 break;
             case HIGH_SHELF:
-                path.moveTo(left, high);
-                path.lineTo(left + (right - left) * 0.34f, high);
-                path.cubicTo(midX - dpf(6f), high, midX + dpf(8f), low, midX + dpf(12f), low);
-                path.lineTo(right, low);
+                traceTypeIcon(path, left, top, width, height, new float[][]{
+                        {0.06f, 0.34f}, {0.34f, 0.34f},
+                        {0.48f, 0.34f}, {0.42f, 0.70f}, {0.60f, 0.70f},
+                        {0.82f, 0.70f}
+                });
                 break;
             case LOW_PASS:
-                path.moveTo(left, high);
-                path.lineTo(left + (right - left) * 0.42f, high);
-                path.cubicTo(midX, high, midX + dpf(10f), low, right, low);
+                traceTypeIcon(path, left, top, width, height, new float[][]{
+                        {0.06f, 0.28f}, {0.42f, 0.28f},
+                        {0.58f, 0.28f}, {0.62f, 0.44f}, {0.82f, 0.70f}
+                });
                 break;
             case HIGH_PASS:
-                path.moveTo(left, low);
-                path.cubicTo(left + dpf(18f), low, midX - dpf(8f), high, midX, high);
-                path.lineTo(right, high);
+                traceTypeIcon(path, left, top, width, height, new float[][]{
+                        {0.06f, 0.72f},
+                        {0.26f, 0.70f}, {0.38f, 0.34f}, {0.58f, 0.30f},
+                        {0.82f, 0.30f}
+                });
                 break;
             case PEAK:
             default:
-                path.moveTo(left, center);
-                path.cubicTo(left + dpf(18f), center, midX - dpf(15f), high, midX, high);
-                path.cubicTo(midX + dpf(15f), high, right - dpf(18f), center, right, center);
+                traceTypeIcon(path, left, top, width, height, new float[][]{
+                        {0.06f, 0.68f}, {0.32f, 0.68f},
+                        {0.42f, 0.68f}, {0.40f, 0.34f}, {0.50f, 0.34f},
+                        {0.60f, 0.34f}, {0.58f, 0.68f}, {0.70f, 0.68f},
+                        {0.82f, 0.68f}
+                });
                 break;
+        }
+    }
+
+    private void traceTypeIcon(Path path, float left, float top, float width, float height, float[][] points) {
+        if (points == null || points.length == 0) {
+            return;
+        }
+        path.moveTo(left + width * points[0][0], top + height * points[0][1]);
+        int i = 1;
+        while (i < points.length) {
+            if (i + 2 < points.length) {
+                path.cubicTo(
+                        left + width * points[i][0], top + height * points[i][1],
+                        left + width * points[i + 1][0], top + height * points[i + 1][1],
+                        left + width * points[i + 2][0], top + height * points[i + 2][1]
+                );
+                i += 3;
+            } else {
+                path.lineTo(left + width * points[i][0], top + height * points[i][1]);
+                i++;
+            }
         }
     }
 
@@ -3979,6 +4133,15 @@ public final class MainActivity extends Activity {
             bg.setStroke(dp(1), Color.argb(50, 255, 255, 255));
             bg.setCornerRadius(dp(20));
             window.setBackgroundDrawable(bg);
+            window.setGravity(android.view.Gravity.CENTER);
+            android.view.WindowManager.LayoutParams params = new android.view.WindowManager.LayoutParams();
+            params.copyFrom(window.getAttributes());
+            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(48), dp(360));
+            params.height = android.view.WindowManager.LayoutParams.WRAP_CONTENT;
+            params.x = 0;
+            params.y = 0;
+            window.setAttributes(params);
+            window.setLayout(params.width, android.view.WindowManager.LayoutParams.WRAP_CONTENT);
         }
         TextView title = (TextView) dialog.findViewById(android.R.id.title);
         if (title != null) {
@@ -4059,9 +4222,9 @@ public final class MainActivity extends Activity {
         gd.setShape(GradientDrawable.RECTANGLE);
         gd.setCornerRadius(dp(10));
         if (isEnabled) {
-            gd.setColors(new int[]{Color.argb(180, 0, 180, 255), Color.argb(180, 140, 0, 255)});
+            gd.setColors(new int[]{Color.argb(140, 20, 100, 140), Color.argb(140, 30, 120, 150)});
             gd.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-            gd.setStroke(dp(1), Color.argb(150, 0, 255, 255));
+            gd.setStroke(dp(1), Color.argb(100, 0, 200, 200));
             button.setTextColor(Color.WHITE);
         } else {
             gd.setColor(Color.argb(35, 80, 90, 100));
