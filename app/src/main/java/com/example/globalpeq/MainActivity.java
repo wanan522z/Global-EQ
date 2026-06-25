@@ -5331,7 +5331,13 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        float travel = dp(32);
+        int width = mainPageHost != null ? mainPageHost.getWidth() : 0;
+        if (width <= 0) {
+            width = getWindow().getDecorView().getWidth();
+        }
+        if (width <= 0) {
+            width = dp(320);
+        }
         int direction = nextIndex > previousIndex ? 1 : -1;
         for (View page : pages) {
             if (page != current && page != target) {
@@ -5346,16 +5352,16 @@ public final class MainActivity extends Activity {
         current.animate().cancel();
         target.animate().cancel();
         target.setVisibility(View.VISIBLE);
-        target.setAlpha(0.55f);
+        target.setAlpha(1f);
         target.setTranslationY(0f);
-        target.setTranslationX(direction * travel);
+        target.setTranslationX(direction * width);
         current.setVisibility(View.VISIBLE);
         current.setTranslationY(0f);
+        current.setAlpha(1f);
 
         current.animate()
-                .alpha(0f)
-                .translationX(-direction * travel)
-                .setDuration(220)
+                .translationX(-direction * width)
+                .setDuration(180)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .withEndAction(() -> {
                     current.setVisibility(View.GONE);
@@ -5364,9 +5370,8 @@ public final class MainActivity extends Activity {
                 })
                 .start();
         target.animate()
-                .alpha(1f)
                 .translationX(0f)
-                .setDuration(220)
+                .setDuration(180)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .start();
         updateBottomNavSelection(nextIndex);
