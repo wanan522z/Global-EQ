@@ -5040,11 +5040,8 @@ public final class MainActivity extends Activity {
                         dp(3),
                         Color.argb(85, 0, 245, 212)
                 ));
-                // 底部 Tab 流光：使用饱满动人的青色到电光紫渐变
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                    tab.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-                }
-                applyTitleGradientShader(tab, settingsTitleGradientWidth(tab), 
+                // 底部 Tab 流光：与所有标题共享蓝绿亮色 + 深蓝点缀 + 白热核心的统一主题
+                applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
                         Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
                 tab.setTextColor(Color.WHITE);
                 tab.setShadowLayer(dp(5), 0, 0, Color.argb(125, 0, 245, 212));
