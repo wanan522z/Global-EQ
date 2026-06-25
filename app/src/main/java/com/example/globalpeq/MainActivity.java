@@ -3443,20 +3443,13 @@ public final class MainActivity extends Activity {
         } else {
             amountKnob = knob;
             knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
-            input = createNumberInput(String.valueOf(editingPreset.virtualBassAmountPercent), "%", value -> {
-                int percent = Math.round(value);
-                setEditingPreset(editingPreset.withVirtualBassAmountPercent(clamp(percent, 0, 100)), true);
-            });
-            amountInput = input;
         }
+        // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
+        knob.setTapListener(this::showKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(4);
         knobParams.bottomMargin = dp(4);
         column.addView(knob, knobParams);
-
-        input.setGravity(android.view.Gravity.CENTER);
-        styleExtraKnobInput(input, cutoff ? editingPreset.virtualBassCutoffHz : editingPreset.virtualBassAmountPercent, supported);
-        column.addView(input, new LinearLayout.LayoutParams(dp(56), dp(26)));
         return column;
     }
 
