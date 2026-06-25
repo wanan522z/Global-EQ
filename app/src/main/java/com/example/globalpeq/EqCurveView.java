@@ -228,10 +228,14 @@ final class EqCurveView extends View {
     }
 
     private int xToFreq(float x, float left, float right) {
+        return (int) Math.round(xToFrequency(x, left, right));
+    }
+
+    private double xToFrequency(float x, float left, float right) {
         double min = Math.log(MIN_HZ);
         double max = Math.log(MAX_HZ);
         double ratio = Math.max(0, Math.min(1, (x - left) / (right - left)));
-        return (int) Math.round(Math.exp(min + (max - min) * ratio));
+        return Math.exp(min + (max - min) * ratio);
     }
 
     private float gainToY(float db, float top, float bottom) {
@@ -242,15 +246,15 @@ final class EqCurveView extends View {
     private Path referencePath(FrequencyCurve curve, float left, float right, float top, float bottom) {
         refCurvePath.reset();
         appendSmoothedPath(refCurvePath, left, right, REF_SAMPLE_STEP_PX,
-                x -> gainToY(curve.gainAtHz(xToFreq(x, left, right)), top, bottom));
+                x -> gainToY(curve.gainAtFrequency(xToFrequency(x, left, right)), top, bottom));
         return refCurvePath;
     }
 
     private void buildCurvePath(Path path, float left, float right, float top, float bottom) {
         path.reset();
         appendSmoothedPath(path, left, right, CURVE_SAMPLE_STEP_PX, x -> {
-            int hz = xToFreq(x, left, right);
-            float db = deviceCurve.gainAtHz(hz) + PeqMath.visualGainAtHzMb(hz, preset) / 100f;
+            double hz = xToFrequency(x, left, right);
+            float db = deviceCurve.gainAtFrequency(hz) + PeqMath.visualGainAtFrequencyMb(hz, preset) / 100f;
             return gainToY(db, top, bottom);
         });
     }

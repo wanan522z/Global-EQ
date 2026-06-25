@@ -5394,6 +5394,9 @@ public final class MainActivity extends Activity {
             statusText.getPaint().clearShadowLayer();
         } else if (hasClip) {
             unregisterShimmerView(statusText);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                statusText.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            }
             statusText.setTextColor(Color.rgb(255, 100, 100));
             statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
         } else if (isEditingPresetActive()) {
