@@ -3063,10 +3063,10 @@ public final class MainActivity extends Activity {
         ));
         nav.addView(bottomTabIndicator, new FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        LinearLayout strip = new LinearLayout(this);
-        strip.setOrientation(LinearLayout.HORIZONTAL);
-        strip.setGravity(android.view.Gravity.CENTER);
-        nav.addView(strip, new FrameLayout.LayoutParams(
+        bottomTabStrip = new LinearLayout(this);
+        bottomTabStrip.setOrientation(LinearLayout.HORIZONTAL);
+        bottomTabStrip.setGravity(android.view.Gravity.CENTER);
+        nav.addView(bottomTabStrip, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
@@ -3074,17 +3074,17 @@ public final class MainActivity extends Activity {
         eqTabButton = createShimmerButton("EQ");
         normalizeBottomTab(eqTabButton);
         eqTabButton.setOnClickListener(v -> showEqPage());
-        strip.addView(eqTabButton, bottomTabParams());
+        bottomTabStrip.addView(eqTabButton, bottomTabParams());
 
         extraTabButton = createShimmerButton("EXTRA");
         normalizeBottomTab(extraTabButton);
         extraTabButton.setOnClickListener(v -> showExtraPage());
-        strip.addView(extraTabButton, bottomTabParams());
+        bottomTabStrip.addView(extraTabButton, bottomTabParams());
 
         settingsTabButton = createShimmerButton("Settings");
         normalizeBottomTab(settingsTabButton);
         settingsTabButton.setOnClickListener(v -> showSettingsPage());
-        strip.addView(settingsTabButton, bottomTabParams());
+        bottomTabStrip.addView(settingsTabButton, bottomTabParams());
 
         Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         for (Button tab : tabs) {
