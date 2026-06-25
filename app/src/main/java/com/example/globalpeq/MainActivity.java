@@ -3844,13 +3844,20 @@ public final class MainActivity extends Activity {
                 float radius = Math.min(b.width(), b.height()) / 2f - strokeWidth - dpf(0.8f);
 
                 ringPaint.setStyle(Paint.Style.FILL);
+                ringPaint.clearShadowLayer();
                 ringPaint.setColor(Color.argb(enabled ? 35 : 12, 255, 100, 100));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
 
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
+                if (enabled) {
+                    ringPaint.setShadowLayer(dpf(3.5f), 0, 0, Color.argb(150, 255, 90, 90));
+                } else {
+                    ringPaint.setShadowLayer(dpf(1.8f), 0, 0, Color.argb(40, 255, 90, 90));
+                }
                 ringPaint.setColor(Color.argb(enabled ? 160 : 50, 255, 100, 100));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
+                ringPaint.clearShadowLayer();
 
                 crossPaint.setStyle(Paint.Style.STROKE);
                 crossPaint.setStrokeWidth(dpf(1.25f));
