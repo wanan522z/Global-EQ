@@ -3401,6 +3401,14 @@ public final class MainActivity extends Activity {
         return knobs;
     }
 
+    // 旋钮列参数：等宽 weight=1，带水平间距让旋钮间有呼吸感
+    private LinearLayout.LayoutParams knobColumnParams() {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+        p.leftMargin = dp(4);
+        p.rightMargin = dp(4);
+        return p;
+    }
+
     private LinearLayout createSystemBassBoostControl() {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
