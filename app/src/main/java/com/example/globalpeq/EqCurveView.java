@@ -1,6 +1,7 @@
 package com.example.globalpeq;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Color;
@@ -17,6 +18,7 @@ final class EqCurveView extends View {
     private static final int MAX_HZ = 20000;
     private static final float CURVE_SAMPLE_STEP_PX = 0.5f;
     private static final float REF_SAMPLE_STEP_PX = 1.5f;
+    private static final int CURVE_SUPERSAMPLE_SCALE = 2;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -37,6 +39,7 @@ final class EqCurveView extends View {
     private final Paint glowPaint2 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint3 = new Paint(Paint.ANTI_ALIAS_FLAG); // Inner solid halo core
     private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint curveLayerPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Matrix sweepMatrix = new Matrix();
     private float sweepPhase = 0.0f;
     private long lastTime = 0;
@@ -45,6 +48,10 @@ final class EqCurveView extends View {
     private boolean pathDirty = true;
     private int lastWidth = 0;
     private int lastHeight = 0;
+    private Bitmap curveLayerBitmap;
+    private Canvas curveLayerCanvas;
+    private int curveLayerWidth = 0;
+    private int curveLayerHeight = 0;
 
     private Preset preset = Preset.flat(false);
     private FrequencyCurve deviceCurve = FrequencyCurve.DEFAULT;
@@ -120,6 +127,9 @@ final class EqCurveView extends View {
         sweepPaint.setAntiAlias(true);
         sweepPaint.setFilterBitmap(true);
         sweepPaint.setDither(true);
+
+        curveLayerPaint.setDither(true);
+        curveLayerPaint.setFilterBitmap(true);
     }
 
     void setPreset(Preset preset) {
@@ -182,14 +192,6 @@ final class EqCurveView extends View {
             canvas.drawText(frequencyLabel(label), x, height - 9f, frequencyTextPaint);
         }
 
-        if (!targetCurve.isDefault()) {
-            referencePaint.setColor(Color.argb(180, 190, 128, 255));
-            referencePaint.setPathEffect(dashPathEffect);
-            // Uses cached reference path via onDraw caching structure
-            canvas.drawPath(refCurvePath, referencePaint);
-            referencePaint.setPathEffect(null);
-        }
-
         // Cache-based Path reconstruction to prevent log/exp math and path allocation overhead inside onDraw
         if (pathDirty || width != lastWidth || height != lastHeight) {
             buildCurvePath(curvePath, left, right, top, bottom);
@@ -203,75 +205,7 @@ final class EqCurveView extends View {
             lastHeight = height;
         }
 
-        // Draw subtle glow under the active curve.
-        curvePaint.setStrokeWidth(5f); // Slightly smaller width for better performance and alignment
-        curvePaint.setDither(true);
-        if (preset.enabled) {
-            curvePaint.setColor(Color.argb(35, 0, 255, 255));
-        } else {
-            curvePaint.setColor(Color.argb(18, 130, 140, 150));
-        }
-        canvas.drawPath(curvePath, curvePaint);
-
-        // Draw advanced high-end dynamic halos when enabled
-        if (preset.enabled) {
-            // Animating phase for continuous flowing sweep
-            long now = System.currentTimeMillis();
-            if (lastTime > 0) {
-                float elapsed = (now - lastTime) / 1000f;
-                // Flowing continuously (e.g. 0.25 screens per second for smooth, continuous flow)
-                sweepPhase += elapsed * 0.25f;
-                if (sweepPhase > 1.0f) {
-                    sweepPhase -= 1.0f;
-                }
-            }
-            lastTime = now;
-
-            // Draw multi-layered soft glows with BlurMaskFilter for zero-aliasing neon pop
-            canvas.drawPath(curvePath, glowPaint1);
-            canvas.drawPath(curvePath, glowPaint2);
-            canvas.drawPath(curvePath, glowPaint3);
-
-            // Lazy initialize or update gradient on size change to avoid allocation in onDraw
-            if (sweepGradient == null) {
-                // Highly visible multi-color gradient sweeping light: 
-                // Cyan -> White (hotspot) -> Pink/Purple -> Deep Gold -> Cyan
-                sweepGradient = new LinearGradient(
-                        0, 0, right - left, 0,
-                        new int[]{
-                                Color.argb(0, 0, 255, 255),
-                                Color.argb(120, 0, 255, 255),      // Vibrant Cyan
-                                Color.argb(255, 255, 255, 255),    // Crisp White Core
-                                Color.argb(140, 255, 60, 180),     // Neon Pink
-                                Color.argb(120, 130, 65, 255),     // Purple Accent
-                                Color.argb(90, 255, 180, 0),       // Deep Gold / Amber hint
-                                Color.argb(0, 0, 255, 255)
-                        },
-                        new float[]{0.0f, 0.2f, 0.5f, 0.65f, 0.8f, 0.9f, 1.0f},
-                        Shader.TileMode.REPEAT // Repeat seamlessly to ensure continuous, infinite flow
-                );
-                sweepPaint.setShader(sweepGradient);
-            }
-            
-            sweepMatrix.reset();
-            // Continuous sliding offset matching the repeatable flow
-            float totalWidth = right - left;
-            sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
-            sweepGradient.setLocalMatrix(sweepMatrix);
-            
-            canvas.drawPath(curvePath, sweepPaint);
-        } else {
-            lastTime = 0;
-        }
-
-        // Draw sharp active curve core
-        curvePaint.setStrokeWidth(3.2f);
-        if (preset.enabled) {
-            curvePaint.setColor(Color.rgb(0, 255, 255));
-        } else {
-            curvePaint.setColor(Color.rgb(130, 140, 150));
-        }
-        canvas.drawPath(curvePath, curvePaint);
+        drawCurveLayer(canvas, width, height, left, right);
 
         canvas.drawText("+" + maxDb, left, top + 24f, textPaint);
         canvas.drawText("0 dB", left, mid - 6f, textPaint);
@@ -320,6 +254,101 @@ final class EqCurveView extends View {
             float db = deviceCurve.gainAtHz(hz) + PeqMath.visualGainAtHzMb(hz, preset) / 100f;
             return gainToY(db, top, bottom);
         });
+    }
+
+    private void drawCurveLayer(Canvas canvas, int width, int height, float left, float right) {
+        ensureCurveLayer(width, height);
+        if (curveLayerCanvas == null || curveLayerBitmap == null) {
+            return;
+        }
+
+        curveLayerBitmap.eraseColor(Color.TRANSPARENT);
+        curveLayerCanvas.save();
+        curveLayerCanvas.scale(CURVE_SUPERSAMPLE_SCALE, CURVE_SUPERSAMPLE_SCALE);
+
+        if (!targetCurve.isDefault()) {
+            referencePaint.setColor(Color.argb(180, 190, 128, 255));
+            referencePaint.setPathEffect(dashPathEffect);
+            curveLayerCanvas.drawPath(refCurvePath, referencePaint);
+            referencePaint.setPathEffect(null);
+        }
+
+        curvePaint.setStrokeWidth(5f);
+        curvePaint.setDither(true);
+        if (preset.enabled) {
+            curvePaint.setColor(Color.argb(35, 0, 255, 255));
+        } else {
+            curvePaint.setColor(Color.argb(18, 130, 140, 150));
+        }
+        curveLayerCanvas.drawPath(curvePath, curvePaint);
+
+        if (preset.enabled) {
+            long now = System.currentTimeMillis();
+            if (lastTime > 0) {
+                float elapsed = (now - lastTime) / 1000f;
+                sweepPhase += elapsed * 0.25f;
+                if (sweepPhase > 1.0f) {
+                    sweepPhase -= 1.0f;
+                }
+            }
+            lastTime = now;
+
+            curveLayerCanvas.drawPath(curvePath, glowPaint1);
+            curveLayerCanvas.drawPath(curvePath, glowPaint2);
+            curveLayerCanvas.drawPath(curvePath, glowPaint3);
+
+            if (sweepGradient == null) {
+                sweepGradient = new LinearGradient(
+                        0, 0, right - left, 0,
+                        new int[]{
+                                Color.argb(0, 0, 255, 255),
+                                Color.argb(120, 0, 255, 255),
+                                Color.argb(255, 255, 255, 255),
+                                Color.argb(140, 255, 60, 180),
+                                Color.argb(120, 130, 65, 255),
+                                Color.argb(90, 255, 180, 0),
+                                Color.argb(0, 0, 255, 255)
+                        },
+                        new float[]{0.0f, 0.2f, 0.5f, 0.65f, 0.8f, 0.9f, 1.0f},
+                        Shader.TileMode.REPEAT
+                );
+                sweepPaint.setShader(sweepGradient);
+            }
+
+            sweepMatrix.reset();
+            float totalWidth = right - left;
+            sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
+            sweepGradient.setLocalMatrix(sweepMatrix);
+            curveLayerCanvas.drawPath(curvePath, sweepPaint);
+        } else {
+            lastTime = 0;
+        }
+
+        curvePaint.setStrokeWidth(3.2f);
+        if (preset.enabled) {
+            curvePaint.setColor(Color.rgb(0, 255, 255));
+        } else {
+            curvePaint.setColor(Color.rgb(130, 140, 150));
+        }
+        curveLayerCanvas.drawPath(curvePath, curvePaint);
+
+        curveLayerCanvas.restore();
+        canvas.drawBitmap(curveLayerBitmap, 0f, 0f, curveLayerPaint);
+    }
+
+    private void ensureCurveLayer(int width, int height) {
+        int targetWidth = Math.max(1, width * CURVE_SUPERSAMPLE_SCALE);
+        int targetHeight = Math.max(1, height * CURVE_SUPERSAMPLE_SCALE);
+        if (curveLayerBitmap != null && curveLayerWidth == targetWidth && curveLayerHeight == targetHeight) {
+            return;
+        }
+        if (curveLayerBitmap != null) {
+            curveLayerBitmap.recycle();
+        }
+        curveLayerBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888);
+        curveLayerCanvas = new Canvas(curveLayerBitmap);
+        curveLayerWidth = targetWidth;
+        curveLayerHeight = targetHeight;
     }
 
     private void appendSmoothedPath(Path path, float left, float right, float stepPx, CurveSampler sampler) {
