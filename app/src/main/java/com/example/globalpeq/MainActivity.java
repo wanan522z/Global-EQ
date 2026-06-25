@@ -5176,23 +5176,22 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
+        // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
+        // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            view.setLayerType(View.LAYER_TYPE_NONE, null);
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
-        // 使用默认硬件加速层；software layer 在高清屏会产生 bitmap 缩放伪影。
-        // 不设置 setShadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software path
-        // 渲染文字，导致 paint shader 不生效（流光不动）；同时 GPU blur 近似会产生锯齿。
-        // shader 渐变的 hotCore 白热核心已自带视觉焦点，无需额外光晕。
         applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
-        view.getPaint().clearShadowLayer();
+        // 大半径高亮霓虹光晕
+        view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
         view.invalidate();
         view.post(() -> {
             applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                     Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
             view.setTextColor(Color.WHITE);
-            view.getPaint().clearShadowLayer();
+            view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
             view.invalidate();
         });
     }
@@ -5200,7 +5199,10 @@ public final class MainActivity extends Activity {
     private void styleStatusTextShimmer(TextView view, int baseColorStart, int baseColorEnd) {
         applyStatusShimmerShader(view, settingsTitleGradientWidth(view), baseColorStart, baseColorEnd);
         view.setTextColor(Color.WHITE);
-        view.getPaint().clearShadowLayer();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+        view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
         view.invalidate();
     }
 
