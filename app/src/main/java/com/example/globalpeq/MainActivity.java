@@ -1658,6 +1658,10 @@ public final class MainActivity extends Activity {
         overlay.setPadding(dp(8), dp(6), dp(8), dp(6));
         overlay.setBackground(createGlassCard(88));
         overlay.setElevation(dp(12));
+        // 关键修复：关闭输入参数弹窗 overlay 的子视图裁剪。
+        // 开关和右侧小×作为该容器的直接子代，其自身发出的高斯模糊边缘可以直接突破容器边界溢出，展现高亮完整光效！
+        overlay.setClipChildren(false);
+        overlay.setClipToPadding(false);
 
         View enableSwitch = new View(this);
         enableSwitch.setFocusable(true);
