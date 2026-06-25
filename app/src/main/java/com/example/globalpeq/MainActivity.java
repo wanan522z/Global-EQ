@@ -5114,6 +5114,12 @@ public final class MainActivity extends Activity {
     }
 
     private void styleSettingsTitleText(TextView view) {
+        if (view == null) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
         // 使用默认硬件加速层；software layer 在高清屏会产生 bitmap 缩放伪影。
         // 不设置 setShadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software path
         // 渲染文字，导致 paint shader 不生效（流光不动）；同时 GPU blur 近似会产生锯齿。
