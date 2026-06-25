@@ -191,10 +191,6 @@ public final class MainActivity extends Activity {
                 return;
             }
             colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
-        } else if (view == modeSpinner) {
-            // modeSpinner 状态判定：enabled 亮色，disabled 暗色
-            boolean enabled = (runningPreset != null && runningPreset.enabled && supported);
-            colors = enabled ? SHIMMER_MODE_ON_COLORS : SHIMMER_MODE_OFF_COLORS;
         } else {
             // tab / 标题：统一亮色
             colors = SHIMMER_BRIGHT_COLORS;
@@ -261,9 +257,7 @@ public final class MainActivity extends Activity {
             } else {
                 applyStatusShimmerShader(view, width, Color.rgb(240, 248, 255), Color.rgb(180, 210, 255));
             }
-        } else if (view == modeSpinner) {
-            applyStatusShimmerShader(view, width, Color.rgb(0, 255, 230), Color.rgb(180, 100, 255));
-        } else if (view == eqTabButton || view == extraTabButton || view == settingsTabButton) {
+        } else if (view == eqTabButton || view == extraTabButton || view == settingsTabButton || view == modeSpinner) {
             applyTitleGradientShader(view, width, Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
         } else {
             applyTitleGradientShader(view, width, Color.rgb(0, 245, 212), Color.rgb(80, 220, 255), Color.rgb(180, 100, 255));
@@ -3443,7 +3437,7 @@ public final class MainActivity extends Activity {
         title.setTextColor(Color.rgb(200, 210, 230));
         title.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.bottomMargin = dp(2);
+        titleParams.bottomMargin = dp(4);
         column.addView(title, titleParams);
 
         KnobView knob = new KnobView(this);
