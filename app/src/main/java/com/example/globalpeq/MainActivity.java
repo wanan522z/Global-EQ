@@ -206,13 +206,13 @@ public final class MainActivity extends Activity {
                 colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
-        // 光晕：shadowLayer 半径加大、alpha 降低，让 blur 边缘更柔和减少锯齿
+        // 光晕：大半径 shadowLayer 让 blur 圈大且柔，减少 GPU 近似锯齿
         if (view == statusText) {
-            // GLOBAL EQ 状态标识：额外荧光光晕，更强更炫酷，区别于其他标题
-            view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(170, 0, 245, 212));
+            // GLOBAL EQ 状态标识：强青色荧光光晕，区别于其他标题
+            view.getPaint().setShadowLayer(dpf(12f), 0, 0, Color.argb(140, 0, 245, 212));
         } else {
-            // 其他标题：统一浅蓝青色光晕
-            view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(115, 120, 220, 255));
+            // 其他标题：浅蓝青色光晕，大半径柔光
+            view.getPaint().setShadowLayer(dpf(9f), 0, 0, Color.argb(100, 120, 220, 255));
         }
         view.invalidate();
     }
