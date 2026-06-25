@@ -4821,25 +4821,25 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 色阶：浅蓝 → 青色 → 浅绿 → 白热核心 → 浅绿 → 青色 → 浅蓝
-        // 纯亮色调，无深蓝无深绿；首尾同色(浅蓝)保证 REPEAT 无缝
-        int lightBlue  = Color.rgb(120, 210, 255);  // 浅蓝：两端过渡
-        int cyan       = Color.rgb(0, 230, 210);     // 青色
-        int lightGreen = Color.rgb(130, 255, 180);   // 浅绿
-        int hotCore    = Color.rgb(245, 255, 250);   // 白热核心
+        // 色阶：蓝色为主，青色点缀，浅绿极少
+        // 浅蓝 → 亮蓝 → 青色 → 白热核心 → 青色 → 亮蓝 → 浅蓝
+        int lightBlue = Color.rgb(110, 195, 255);  // 浅蓝：两端过渡（占主导）
+        int brightBlue = Color.rgb(60, 150, 255);   // 亮蓝
+        int cyan = Color.rgb(40, 220, 230);          // 青色：点缀
+        int hotCore = Color.rgb(245, 250, 255);      // 白热核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
                         lightBlue,
+                        brightBlue,
                         cyan,
-                        lightGreen,
                         hotCore,
-                        lightGreen,
                         cyan,
+                        brightBlue,
                         lightBlue
                 },
-                new float[]{0.0f, 0.15f, 0.35f, 0.5f, 0.65f, 0.85f, 1.0f},
+                new float[]{0.0f, 0.18f, 0.38f, 0.5f, 0.62f, 0.82f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
@@ -4847,24 +4847,24 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 状态文字同样使用浅蓝/青色/浅绿 + 白热核心的统一主题
-        int lightBlue  = Color.rgb(120, 210, 255);
-        int cyan       = Color.rgb(0, 225, 205);
-        int lightGreen = Color.rgb(130, 250, 180);
-        int hotCore    = Color.rgb(240, 255, 250);
+        // 状态文字同样使用蓝色主导 + 青色点缀 + 白热核心
+        int lightBlue = Color.rgb(110, 195, 255);
+        int brightBlue = Color.rgb(60, 150, 255);
+        int cyan = Color.rgb(40, 215, 225);
+        int hotCore = Color.rgb(240, 250, 255);
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
                         lightBlue,
+                        brightBlue,
                         cyan,
-                        lightGreen,
                         hotCore,
-                        lightGreen,
                         cyan,
+                        brightBlue,
                         lightBlue
                 },
-                new float[]{0.0f, 0.15f, 0.35f, 0.5f, 0.65f, 0.85f, 1.0f},
+                new float[]{0.0f, 0.18f, 0.38f, 0.5f, 0.62f, 0.82f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
