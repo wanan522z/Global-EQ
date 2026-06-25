@@ -1172,6 +1172,28 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void showReverbTypeChoiceMenu() {
+        if (reverbTypeButton == null || editingPreset == null) {
+            return;
+        }
+        showLimitedChoiceMenu(reverbTypeButton, REVERB_TYPE_LABELS, reverbTypeIndex(editingPreset.reverbType), position -> {
+            String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
+            if (!nextType.equals(editingPreset.reverbType)) {
+                setEditingPreset(editingPreset.withReverbType(nextType), true);
+            }
+        });
+    }
+
+    private void showBassModeChoiceMenu() {
+        if (bassModeButton == null) {
+            return;
+        }
+        showLimitedChoiceMenu(bassModeButton, BASS_MODE_LABELS, selectedBassModeIndex, position -> {
+            selectedBassModeIndex = clamp(position, 0, BASS_MODE_LABELS.length - 1);
+            updateExtraControls();
+        });
+    }
+
     private void showLimitedChoiceMenu(View anchor, String[] labels, int selected, ChoiceCallback callback) {
         if (anchor == null || labels == null || labels.length == 0) {
             return;
