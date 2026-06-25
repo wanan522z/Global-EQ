@@ -28,15 +28,15 @@ final class KnobView extends View {
         super(context);
         setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         basePaint.setStyle(Paint.Style.STROKE);
-        basePaint.setStrokeWidth(10f);
+        basePaint.setStrokeWidth(7f);
         basePaint.setColor(Color.argb(35, 255, 255, 255));
         fillPaint.setStyle(Paint.Style.STROKE);
-        fillPaint.setStrokeWidth(10f);
+        fillPaint.setStrokeWidth(7f);
         fillPaint.setStrokeCap(Paint.Cap.ROUND);
         fillPaint.setColor(Color.rgb(0, 245, 212));
         textPaint.setColor(Color.WHITE);
         textPaint.setTextAlign(Paint.Align.CENTER);
-        textPaint.setTextSize(32f);
+        textPaint.setTextSize(30f);
     }
 
     void configure(int min, int max, int value, String suffix, Listener listener) {
