@@ -3167,35 +3167,12 @@ public final class MainActivity extends Activity {
     private void buildExtraPage(LinearLayout page) {
         page.setPadding(dp(12), dp(16), dp(12), dp(12));
 
-        LinearLayout reverbPanel = createExtraPanel("Reverb");
+        LinearLayout reverbPanel = createExtraPanelShell();
         page.addView(reverbPanel, extraPanelParams(0));
-        LinearLayout reverbHeader = new LinearLayout(this);
-        reverbHeader.setOrientation(LinearLayout.HORIZONTAL);
-        reverbHeader.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL);
-        reverbTypeSpinner = new Spinner(this);
-        normalizeSpinnerSurface(reverbTypeSpinner);
-        ArrayAdapter<String> reverbAdapter = new SmallSpinnerAdapter(REVERB_TYPE_LABELS);
-        reverbAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        reverbTypeSpinner.setAdapter(reverbAdapter);
-        reverbTypeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        reverbTypeSpinner.setBackground(createFieldBackground(24, 70, 8));
-        reverbTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (updatingUi || editingPreset == null) {
-                    return;
-                }
-                String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
-                if (!nextType.equals(editingPreset.reverbType)) {
-                    setEditingPreset(editingPreset.withReverbType(nextType), true);
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
-        reverbHeader.addView(reverbTypeSpinner, new LinearLayout.LayoutParams(dp(126), dp(32)));
+        LinearLayout reverbHeader = createExtraHeaderRow("Reverb");
+        reverbTypeButton = createExtraChoiceButton();
+        reverbTypeButton.setOnClickListener(v -> showReverbTypeChoiceMenu());
+        reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(126), dp(32)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
         reverbKnobs.addView(createReverbControl("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
