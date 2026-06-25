@@ -192,7 +192,7 @@ final class PeqMath {
         return Math.log(value) / Math.log(2.0);
     }
 
-    private static double lowShelfWeight(int frequencyHz, double cutoffHz) {
+    private static double lowShelfWeight(double frequencyHz, double cutoffHz) {
         double transition = Math.max(12.0, cutoffHz * 0.16);
         return 1.0 / (1.0 + Math.exp((frequencyHz - cutoffHz) / transition));
     }
