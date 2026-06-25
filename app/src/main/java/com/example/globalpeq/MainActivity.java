@@ -5628,14 +5628,15 @@ public final class MainActivity extends Activity {
                 }
                 View page = pages[i];
                 if (page.getVisibility() == View.VISIBLE) {
+                    View pageRef = page;
                     page.animate().cancel();
-                    page.animate()
+                    pageRef.animate()
                             .translationX(i < activeMainPageIndex ? -getWidth() : getWidth())
                             .setDuration(180)
                             .setInterpolator(new android.view.animation.DecelerateInterpolator())
                             .withEndAction(() -> {
-                                page.setVisibility(View.GONE);
-                                page.setTranslationX(0f);
+                                pageRef.setVisibility(View.GONE);
+                                pageRef.setTranslationX(0f);
                             })
                             .start();
                 } else {
