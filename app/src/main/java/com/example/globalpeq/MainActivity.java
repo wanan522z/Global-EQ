@@ -5691,17 +5691,21 @@ public final class MainActivity extends Activity {
                     return true;
                 case MotionEvent.ACTION_MOVE:
                     dragging = true;
-                    updateIndicatorFromTouch(event.getX());
+                    updateDragFromTouch(event.getX());
                     return true;
                 case MotionEvent.ACTION_UP:
                     if (dragging) {
-                        settleTabFromTouch(event.getX());
+                        settleDragFromTouch(event.getX());
                         dragging = false;
                         return true;
                     }
                     break;
                 case MotionEvent.ACTION_CANCEL:
-                    updateBottomTabIndicator(activeMainPageIndex, true);
+                    if (mainPageHost != null) {
+                        mainPageHost.cancelPageDrag();
+                    } else {
+                        updateBottomTabIndicator(activeMainPageIndex, true);
+                    }
                     dragging = false;
                     return true;
                 default:
@@ -5710,27 +5714,38 @@ public final class MainActivity extends Activity {
             return super.onTouchEvent(event);
         }
 
-        private void updateIndicatorFromTouch(float x) {
-            int trackWidth = getWidth() - getPaddingLeft() - getPaddingRight();
-            if (trackWidth <= 0) {
+        private void updateDragFromTouch(float x) {
+            if (mainPageHost == null) {
                 return;
             }
-            int tabWidth = trackWidth / 3;
-            float maxX = Math.max(0, trackWidth - tabWidth);
-            float targetX = Math.max(0f, Math.min(maxX, x - getPaddingLeft() - tabWidth / 2f));
-            bottomTabIndicator.animate().cancel();
-            bottomTabIndicator.setTranslationX(targetX);
-        }
-
-        private void settleTabFromTouch(float x) {
             int trackWidth = getWidth() - getPaddingLeft() - getPaddingRight();
-            if (trackWidth <= 0) {
+            int pageWidth = mainPageHost.getWidth();
+            if (trackWidth <= 0 || pageWidth <= 0) {
                 return;
             }
             float clampedX = Math.max(getPaddingLeft(), Math.min(getWidth() - getPaddingRight(), x));
             float relative = clampedX - getPaddingLeft();
-            int nextIndex = clamp((int) (relative / (trackWidth / 3f)), 0, 2);
-            switchToMainPage(nextIndex, true);
+            float desiredPosition = Math.max(0f, Math.min(2f, relative / (trackWidth / 3f)));
+            float deltaPages = Math.max(-1f, Math.min(1f, desiredPosition - activeMainPageIndex));
+            float rawOffset = -deltaPages * pageWidth;
+            mainPageHost.updatePageDrag(rawOffset);
+        }
+
+        private void settleDragFromTouch(float x) {
+            if (mainPageHost == null) {
+                return;
+            }
+            int trackWidth = getWidth() - getPaddingLeft() - getPaddingRight();
+            int pageWidth = mainPageHost.getWidth();
+            if (trackWidth <= 0 || pageWidth <= 0) {
+                return;
+            }
+            float clampedX = Math.max(getPaddingLeft(), Math.min(getWidth() - getPaddingRight(), x));
+            float relative = clampedX - getPaddingLeft();
+            float desiredPosition = Math.max(0f, Math.min(2f, relative / (trackWidth / 3f)));
+            float deltaPages = Math.max(-1f, Math.min(1f, desiredPosition - activeMainPageIndex));
+            float rawOffset = -deltaPages * pageWidth;
+            mainPageHost.finishPageDrag(rawOffset);
         }
     }
 
