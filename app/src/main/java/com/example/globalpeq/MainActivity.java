@@ -3437,7 +3437,6 @@ public final class MainActivity extends Activity {
         column.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         KnobView knob = new KnobView(this);
-        EditText input;
         if (cutoff) {
             cutoffKnob = knob;
             knob.configure(60, 250, editingPreset.virtualBassCutoffHz, "Hz", value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
