@@ -3262,13 +3262,13 @@ public final class MainActivity extends Activity {
             amountInput = input;
         }
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = dp(8);
-        knobParams.bottomMargin = dp(8);
+        knobParams.topMargin = dp(4);
+        knobParams.bottomMargin = dp(4);
         column.addView(knob, knobParams);
 
         input.setGravity(android.view.Gravity.CENTER);
         styleExtraKnobInput(input, cutoff ? editingPreset.virtualBassCutoffHz : editingPreset.virtualBassAmountPercent, supported);
-        column.addView(input, new LinearLayout.LayoutParams(dp(84), dp(36)));
+        column.addView(input, new LinearLayout.LayoutParams(dp(56), dp(26)));
         return column;
     }
 
