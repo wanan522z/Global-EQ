@@ -86,6 +86,7 @@ public final class MainActivity extends Activity {
     private LinearLayout eqPage;
     private LinearLayout extraPage;
     private LinearLayout settingsPage;
+    private FrameLayout mainPageHost;
     private LinearLayout rows;
     private KnobView cutoffKnob;
     private KnobView amountKnob;
@@ -113,6 +114,7 @@ public final class MainActivity extends Activity {
     private Button eqTabButton;
     private Button extraTabButton;
     private Button settingsTabButton;
+    private View bottomTabIndicator;
     private Switch enabledSwitch;
     private Switch autoSwitchOutputSwitch;
     private LinearLayout header;
@@ -234,6 +236,7 @@ public final class MainActivity extends Activity {
     private int activeEqEditField = EQ_EDIT_FIELD_FREQ;
     private boolean keyboardVisible;
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener;
+    private int activeMainPageIndex;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
