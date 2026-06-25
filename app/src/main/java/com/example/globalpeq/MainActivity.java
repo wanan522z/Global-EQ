@@ -3789,9 +3789,9 @@ public final class MainActivity extends Activity {
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
                 if (active) {
-                    ringPaint.setShadowLayer(dpf(2.2f), 0, 0, Color.argb(120, 0, 245, 212));
+                    ringPaint.setShadowLayer(dpf(4f), 0, 0, Color.argb(170, 0, 245, 212));
                 } else {
-                    ringPaint.clearShadowLayer();
+                    ringPaint.setShadowLayer(dpf(2f), 0, 0, Color.argb(50, 120, 180, 220));
                 }
                 ringPaint.setColor(active ? Color.argb(220, 0, 245, 212) : Color.argb(72, 255, 255, 255));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
