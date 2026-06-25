@@ -3219,17 +3219,58 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout createExtraPanel(String titleText) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(16), dp(14), dp(16), dp(16));
-        panel.setBackground(createGlassCard(35));
-
+        LinearLayout panel = createExtraPanelShell();
         TextView title = gradientTitleView(titleText);
         title.setText(titleText);
         title.setTextSize(16);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         panel.addView(title, blockParams(0));
         return panel;
+    }
+
+    private LinearLayout createExtraPanelShell() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(14), dp(16), dp(16));
+        panel.setBackground(createGlassCard(35));
+        return panel;
+    }
+
+    private LinearLayout createExtraHeaderRow(String titleText) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView title = gradientTitleView(titleText);
+        title.setText(titleText);
+        title.setTextSize(16);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        row.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        return row;
+    }
+
+    private TextView createExtraChoiceButton() {
+        TextView button = new TextView(this);
+        button.setTextSize(14);
+        button.setSingleLine(true);
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setTextColor(Color.argb(210, 240, 244, 255));
+        button.setPadding(dp(12), 0, dp(12), 0);
+        button.setBackground(createFieldBackground(24, 70, 8));
+        button.setOnTouchListener((view, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate().scaleX(0.98f).scaleY(0.98f).setDuration(70).start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        });
+        return button;
     }
 
     private LinearLayout.LayoutParams extraPanelParams(int topMarginDp) {
