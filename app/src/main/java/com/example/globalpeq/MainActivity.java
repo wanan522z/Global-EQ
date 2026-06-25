@@ -3879,25 +3879,30 @@ public final class MainActivity extends Activity {
                 ringPaint.setColor(Color.argb(enabled ? 35 : 12, 255, 100, 100));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
 
-                // 柔光底：RadialGradient 平滑过渡，消除 shadowLayer 锯齿
-                float glowR = radius + dpf(3.5f);
+                // 柔光底：加大外圈半径 + 多档 alpha 过渡，让边缘平滑消散，消除锯齿
+                float glowR = radius + dpf(5.5f);
+                float ringStop = radius / glowR;
+                float midStop = (radius + dpf(1.5f)) / glowR;
+                float farStop = (radius + dpf(3f)) / glowR;
                 crossPaint.setStyle(Paint.Style.FILL);
                 if (enabled) {
                     crossPaint.setShader(new RadialGradient(
                             cx, cy, glowR,
                             new int[]{Color.TRANSPARENT,
-                                    Color.argb(85, 255, 90, 90),
-                                    Color.argb(35, 255, 70, 70),
+                                    Color.argb(100, 255, 90, 90),
+                                    Color.argb(60, 255, 70, 70),
+                                    Color.argb(25, 255, 60, 60),
                                     Color.TRANSPARENT},
-                            new float[]{0f, (radius / glowR), ((radius + dpf(1f)) / glowR), 1f},
+                            new float[]{0f, ringStop, midStop, farStop, 1f},
                             Shader.TileMode.CLAMP));
                 } else {
                     crossPaint.setShader(new RadialGradient(
                             cx, cy, glowR,
                             new int[]{Color.TRANSPARENT,
-                                    Color.argb(28, 255, 90, 90),
+                                    Color.argb(35, 255, 90, 90),
+                                    Color.argb(15, 255, 80, 80),
                                     Color.TRANSPARENT},
-                            new float[]{0f, (radius / glowR), 1f},
+                            new float[]{0f, ringStop, midStop, 1f},
                             Shader.TileMode.CLAMP));
                 }
                 canvas.drawCircle(cx, cy, glowR, crossPaint);
