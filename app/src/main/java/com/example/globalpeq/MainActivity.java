@@ -2139,29 +2139,30 @@ public final class MainActivity extends Activity {
         name.setGravity(android.view.Gravity.CENTER_VERTICAL);
         topRow.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        Spinner smoothingSpinner = new Spinner(this);
-        CompactSpinnerAdapter smoothingAdapter = new CompactSpinnerAdapter(CURVE_SMOOTHING_LABELS, true);
-        smoothingAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        smoothingSpinner.setAdapter(smoothingAdapter);
         int smoothingIndex = curveSmoothingIndex(targetCurve ? targetCurveSmoothing : deviceCurveSmoothing);
-        smoothingAdapter.setSelectedPosition(smoothingIndex);
-        smoothingSpinner.setSelection(smoothingIndex);
-        smoothingSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        smoothingSpinner.setBackground(curveControlBackground());
-        smoothingSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                smoothingAdapter.setSelectedPosition(position);
-                setCurveSmoothing(targetCurve, CURVE_SMOOTHING_LABELS[Math.max(0, Math.min(CURVE_SMOOTHING_LABELS.length - 1, position))]);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
+        Button smoothingButton = new MarqueeButton(this);
+        smoothingButton.setAllCaps(false);
+        smoothingButton.setText(CURVE_SMOOTHING_LABELS[smoothingIndex]);
+        smoothingButton.setTextSize(10);
+        smoothingButton.setMinWidth(0);
+        smoothingButton.setMinHeight(0);
+        smoothingButton.setPadding(dp(6), 0, dp(6), 0);
+        configureCenteredMarquee(smoothingButton);
+        styleCurveButton(smoothingButton);
+        smoothingButton.setOnClickListener(v -> showLimitedChoiceMenu(
+                smoothingButton,
+                CURVE_SMOOTHING_LABELS,
+                curveSmoothingIndex(targetCurve ? targetCurveSmoothing : deviceCurveSmoothing),
+                position -> {
+                    int nextIndex = Math.max(0, Math.min(CURVE_SMOOTHING_LABELS.length - 1, position));
+                    String nextLabel = CURVE_SMOOTHING_LABELS[nextIndex];
+                    smoothingButton.setText(nextLabel);
+                    setCurveSmoothing(targetCurve, nextLabel);
+                }
+        ));
         LinearLayout.LayoutParams smoothingParams = new LinearLayout.LayoutParams(dp(84), dp(28));
         smoothingParams.leftMargin = dp(8);
-        topRow.addView(smoothingSpinner, smoothingParams);
+        topRow.addView(smoothingButton, smoothingParams);
 
         EditText input = new EditText(this);
         input.setSingleLine(true);
