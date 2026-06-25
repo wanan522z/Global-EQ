@@ -5673,13 +5673,12 @@ public final class MainActivity extends Activity {
     }
 
     private float tabIndicatorWidthForTab(Button tab) {
-        if (tab == null) {
+        if (tab == null || tab.getWidth() <= 0) {
             return 0f;
         }
-        float textWidth = tab.getPaint().measureText(String.valueOf(tab.getText()));
-        float desired = textWidth + dp(34);
-        float maxWidth = Math.max(dp(56), tab.getWidth() - dp(10));
-        return Math.max(dp(56), Math.min(maxWidth, desired));
+        // 统一为 tab 宽度的固定比例，保证三个 tab 的 indicator 框宽度完全一致，
+        // 视觉对齐整齐。不再依赖文字宽度（EQ/EXTRA/SETTINGS 长度不同会导致框宽不均）。
+        return tab.getWidth() * 0.72f;
     }
 
     private View[] mainPages() {
