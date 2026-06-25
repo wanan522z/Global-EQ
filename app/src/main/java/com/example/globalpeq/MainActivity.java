@@ -4852,14 +4852,31 @@ public final class MainActivity extends Activity {
 
     private void registerShimmerView(TextView view) {
         if (view == null || shimmerTargetViews.contains(view)) {
+            if (view != null) {
+                Log.d(SHIMMER_TAG, "register SKIP (already in or null): "
+                        + view.getClass().getSimpleName()
+                        + "@" + Integer.toHexString(System.identityHashCode(view))
+                        + " matches(modeSpinner=" + (view == modeSpinner)
+                        + ",eq=" + (view == eqTabButton)
+                        + ",extra=" + (view == extraTabButton)
+                        + ",set=" + (view == settingsTabButton) + ")");
+            }
             return;
         }
         shimmerTargetViews.add(view);
-        // 清除缓存的宽度，确保下次 runnable 会用真实宽度重建 shader
         shimmerLastWidth.remove(view);
+        Log.d(SHIMMER_TAG, "register ADD: "
+                + view.getClass().getSimpleName()
+                + "@" + Integer.toHexString(System.identityHashCode(view))
+                + " matches(modeSpinner=" + (view == modeSpinner)
+                + ",eq=" + (view == eqTabButton)
+                + ",extra=" + (view == extraTabButton)
+                + ",set=" + (view == settingsTabButton)
+                + ",status=" + (view == statusText) + ") -> size=" + shimmerTargetViews.size());
         if (shimmerTargetViews.size() == 1) {
             lastShimmerTime = 0L;
             uiHandler.postDelayed(shimmerAnimationRunnable, SHIMMER_FPS_DELAY);
+            Log.d(SHIMMER_TAG, "register: STARTED runnable");
         }
     }
 
@@ -4867,12 +4884,17 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
-        shimmerTargetViews.remove(view);
+        boolean removed = shimmerTargetViews.remove(view);
         shimmerLastWidth.remove(view);
         view.getPaint().setShader(null);
         view.invalidate();
+        Log.d(SHIMMER_TAG, "unregister: "
+                + view.getClass().getSimpleName()
+                + "@" + Integer.toHexString(System.identityHashCode(view))
+                + " removed=" + removed + " -> size=" + shimmerTargetViews.size());
         if (shimmerTargetViews.isEmpty()) {
             uiHandler.removeCallbacks(shimmerAnimationRunnable);
+            Log.d(SHIMMER_TAG, "unregister: list empty, REMOVED runnable callbacks");
         }
     }
 
