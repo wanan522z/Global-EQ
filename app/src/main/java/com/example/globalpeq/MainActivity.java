@@ -149,8 +149,6 @@ public final class MainActivity extends Activity {
             for (int i = shimmerTargetViews.size() - 1; i >= 0; i--) {
                 TextView view = shimmerTargetViews.get(i);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
-                    // 未 attached 时仅跳过本帧，保留在列表中；
-                    // 等 view attached 后自然参与动画（解决 buildContent 中提前注册的 tab 被误删的问题）
                     continue;
                 }
                 int width = view.getWidth();
@@ -162,21 +160,16 @@ public final class MainActivity extends Activity {
                     }
                 }
 
-                // 仅在 shader 缺失或宽度变化时重建；其余帧只更新 Matrix，零分配
+                // 每帧都强制重建 shader 并设置 Matrix，确保 Button/TextView 的 paint shader
+                // 不会被系统重置（Button 在某些版本会因 TransformationMethod 清除 shader）
+                recreateShaderForView(view, width);
                 Shader shader = view.getPaint().getShader();
-                Integer lastW = shimmerLastWidth.get(view);
-                if (shader == null || lastW == null || lastW != width) {
-                    recreateShaderForView(view, width);
-                    shimmerLastWidth.put(view, width);
-                    shader = view.getPaint().getShader();
-                }
 
                 if (shader != null) {
-                    // 渐变周期宽度 == 平移单位 width，严格 1:1 咬合，
-                    // 配合 REPEAT 模式实现绝对连续、无跳变的无缝循环
                     shimmerShaderMatrix.reset();
                     shimmerShaderMatrix.postTranslate(shimmerAnimPhase * width, 0);
                     shader.setLocalMatrix(shimmerShaderMatrix);
+                    // 强制重绘文字：invalidate + setPaintFlags 确保触发 onDraw
                     view.invalidate();
                 }
             }
