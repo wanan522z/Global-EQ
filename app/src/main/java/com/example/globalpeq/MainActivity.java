@@ -2873,6 +2873,23 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void onVirtualBassEnabledChanged(CompoundButton buttonView, boolean isChecked) {
+        if (updatingUi || editingPreset == null) {
+            return;
+        }
+        if (!isChecked) {
+            if (editingPreset.virtualBassAmountPercent > 0) {
+                lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
+            }
+            setEditingPreset(editingPreset.withVirtualBassAmountPercent(0), true);
+            return;
+        }
+        int restoreAmount = editingPreset.virtualBassAmountPercent > 0
+                ? editingPreset.virtualBassAmountPercent
+                : Math.max(1, lastVirtualBassAmountPercent);
+        setEditingPreset(editingPreset.withVirtualBassAmountPercent(restoreAmount), true);
+    }
+
     private void applyRunningPreset() {
         repository.saveSelectedDevice(currentDevice);
         repository.savePreset(currentDevice, runningPreset);
