@@ -123,7 +123,9 @@ public final class MainActivity extends Activity {
     private Preset runningPreset;
     private Preset editingPreset;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
-    private static final int SHIMMER_FPS_DELAY = 30;
+    // Slow-moving shimmer does not need 60fps; throttling it cuts a large amount of
+    // software text redraw cost while keeping the motion visually smooth.
+    private static final int SHIMMER_FPS_DELAY = 66;
     private float shimmerAnimPhase = 0f;
     private long lastShimmerTime = 0L;
     // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
@@ -167,11 +169,7 @@ public final class MainActivity extends Activity {
                 applyShimmerFrame(view, width, shimmerAnimPhase);
             }
             if (!shimmerTargetViews.isEmpty()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                    getWindow().getDecorView().postOnAnimation(this);
-                } else {
-                    uiHandler.postDelayed(this, SHIMMER_FPS_DELAY);
-                }
+                uiHandler.postDelayed(this, SHIMMER_FPS_DELAY);
             } else {
                 lastShimmerTime = 0L;
             }
