@@ -3453,7 +3453,7 @@ public final class MainActivity extends Activity {
             knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
         }
         // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
-        knob.setTapListener(this::showKnobInputDialog);
+        knob.setTapListener(this::showStyledKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(6);
         knobParams.bottomMargin = dp(6);
@@ -3477,7 +3477,7 @@ public final class MainActivity extends Activity {
 
         KnobView knob = new KnobView(this);
         knob.configure(min, max, value, suffix, listener::onChanged);
-        knob.setTapListener(this::showKnobInputDialog);
+        knob.setTapListener(this::showStyledKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(6);
         knobParams.bottomMargin = dp(6);
