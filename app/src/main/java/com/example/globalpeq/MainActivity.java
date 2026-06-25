@@ -370,7 +370,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout controlCard = new LinearLayout(this);
         controlCard.setOrientation(LinearLayout.VERTICAL);
-        controlCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+        controlCard.setPadding(dp(14), dp(14), dp(14), dp(14));
         controlCard.setBackground(createGlassCard(35));
         eqPage.addView(controlCard, blockParams(0));
 
@@ -426,7 +426,7 @@ public final class MainActivity extends Activity {
         autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         autoSwitchOutputSwitch.setOnCheckedChangeListener(this::onAutoSwitchOutputChanged);
         styleTopSwitch(autoSwitchOutputSwitch, true);
-        TextView statusText = new TextView(this) {
+        statusText = new TextView(this) {
             @Override
             protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
@@ -449,18 +449,19 @@ public final class MainActivity extends Activity {
         statusText.setTextSize(12);
         statusText.setGravity(android.view.Gravity.CENTER);
         statusText.setTextColor(supported ? Color.rgb(0, 255, 255) : Color.rgb(255, 100, 100));
+        int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
                 dp(54),
                 dp(32)
         );
-        autoSwitchParams.rightMargin = dp(4);
+        autoSwitchParams.rightMargin = dp(controlGap);
         top.addView(autoSwitchOutputSwitch, autoSwitchParams);
 
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 dp(42),
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        statusParams.rightMargin = dp(8);
+        statusParams.rightMargin = dp(controlGap);
         top.addView(statusText, statusParams);
 
         top.addView(enabledSwitch, new LinearLayout.LayoutParams(dp(54), dp(32)));
@@ -468,7 +469,7 @@ public final class MainActivity extends Activity {
         LinearLayout deviceRow = new LinearLayout(this);
         deviceRow.setOrientation(LinearLayout.HORIZONTAL);
         deviceRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        controlCard.addView(deviceRow, blockParams(8));
+        controlCard.addView(deviceRow, blockParams(6));
 
         deviceSpinner = new Spinner(this);
         normalizeSpinnerSurface(deviceSpinner);
@@ -496,7 +497,7 @@ public final class MainActivity extends Activity {
         deviceSpinner.setBackground(deviceBg);
         LinearLayout.LayoutParams deviceParams = new LinearLayout.LayoutParams(0, dp(38), 1.8f);
         deviceParams.leftMargin = 0;
-        deviceParams.rightMargin = dp(6);
+        deviceParams.rightMargin = 0;
         deviceRow.addView(deviceSpinner, deviceParams);
 
         savedPresetSpinner = new Spinner(this);
@@ -524,14 +525,14 @@ public final class MainActivity extends Activity {
         spinnerBg.setCornerRadius(dp(8));
         savedPresetSpinner.setBackground(spinnerBg);
         LinearLayout.LayoutParams savedPresetParams = new LinearLayout.LayoutParams(0, dp(38), 1.2f);
-        savedPresetParams.leftMargin = dp(6);
+        savedPresetParams.leftMargin = dp(controlGap);
         savedPresetParams.rightMargin = 0;
         deviceRow.addView(savedPresetSpinner, savedPresetParams);
 
         LinearLayout presetRow = new LinearLayout(this);
         presetRow.setOrientation(LinearLayout.HORIZONTAL);
         presetRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        controlCard.addView(presetRow, blockParams(8));
+        controlCard.addView(presetRow, blockParams(6));
 
         presetSelectButton = new MarqueeButton(this);
         presetSelectButton.setTextSize(13);
@@ -540,19 +541,19 @@ public final class MainActivity extends Activity {
         configureCenteredMarquee(presetSelectButton);
         
         presetSelectButton.setOnClickListener(v -> showPresetMenu());
-        presetRow.addView(presetSelectButton, presetButtonParams(0, 1.3f, 0, 12));
+        presetRow.addView(presetSelectButton, presetButtonParams(0, 1.3f, 0, controlGap));
 
         undoButton = new Button(this);
         undoButton.setText("\u2039");
         undoButton.setTextSize(24);
         undoButton.setOnClickListener(v -> undoEdit());
-        presetRow.addView(undoButton, presetButtonParams(dp(48), 0f, 0, 12));
+        presetRow.addView(undoButton, presetButtonParams(dp(48), 0f, 0, controlGap));
 
         redoButton = new Button(this);
         redoButton.setText("\u203A");
         redoButton.setTextSize(24);
         redoButton.setOnClickListener(v -> redoEdit());
-        presetRow.addView(redoButton, presetButtonParams(dp(48), 0f, 0, 12));
+        presetRow.addView(redoButton, presetButtonParams(dp(48), 0f, 0, controlGap));
 
         savePresetButton = new Button(this);
         savePresetButton.setText("Save");
@@ -580,7 +581,7 @@ public final class MainActivity extends Activity {
         curveRangeSpinner.setAdapter(rangeAdapter);
         curveRangeSpinner.setSelection(curveRangeIndex(curveGraphMaxDb));
         curveRangeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
-        curveRangeSpinner.setBackground(createFieldBackground(72, 95, 7));
+        curveRangeSpinner.setBackground(curveControlBackground());
         curveRangeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -591,10 +592,10 @@ public final class MainActivity extends Activity {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
-        FrameLayout.LayoutParams rangeParams = new FrameLayout.LayoutParams(dp(64), dp(26));
+        FrameLayout.LayoutParams rangeParams = new FrameLayout.LayoutParams(dp(42), dp(22));
         rangeParams.gravity = android.view.Gravity.TOP | android.view.Gravity.RIGHT;
-        rangeParams.topMargin = dp(8);
-        rangeParams.rightMargin = dp(8);
+        rangeParams.topMargin = dp(7);
+        rangeParams.rightMargin = dp(7);
         curveFrame.addView(curveRangeSpinner, rangeParams);
 
         deviceCurveButton = createCurveButton("Device");
@@ -822,9 +823,11 @@ public final class MainActivity extends Activity {
     private void renderAll() {
         updatingUi = true;
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
-        statusText.setText(statusLabel(hasClip));
-        statusText.setTextColor(hasClip ? Color.rgb(255, 100, 100) : Color.rgb(0, 255, 255));
-        statusText.postInvalidate();
+        if (statusText != null) {
+            statusText.setText(statusLabel(hasClip));
+            statusText.setTextColor(hasClip ? Color.rgb(255, 100, 100) : Color.rgb(0, 255, 255));
+            statusText.postInvalidate();
+        }
         renderDeviceSpinner();
         if (modeSpinner != null) {
             modeSpinner.setSelection(editingPreset.mode.ordinal());
@@ -832,26 +835,54 @@ public final class MainActivity extends Activity {
         if (autoSwitchOutputSwitch != null) {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         }
-        presetSelectButton.setText(editingPreset.name);
-        enabledSwitch.setChecked(runningPreset.enabled);
+        if (presetSelectButton != null) {
+            presetSelectButton.setText(editingPreset.name);
+        }
+        if (enabledSwitch != null) {
+            enabledSwitch.setChecked(runningPreset.enabled);
+        }
 
-        styleSubtlePrimaryButton(presetSelectButton, supported);
-        styleButton(undoButton, false, !undoStack.isEmpty() && supported);
-        styleButton(redoButton, false, !redoStack.isEmpty() && supported);
-        styleButton(savePresetButton, false, supported);
+        if (presetSelectButton != null) {
+            styleSubtlePrimaryButton(presetSelectButton, supported);
+        }
+        if (undoButton != null) {
+            styleButton(undoButton, false, !undoStack.isEmpty() && supported);
+        }
+        if (redoButton != null) {
+            styleButton(redoButton, false, !redoStack.isEmpty() && supported);
+        }
+        if (savePresetButton != null) {
+            styleButton(savePresetButton, false, supported);
+        }
 
-        pregainInput.setText(formatDecimal(editingPreset.pregainMb / 100f));
-        systemBassBoostKnob.setValue(editingPreset.systemBassBoostPercent, false);
-        systemBassBoostInput.setText(String.valueOf(editingPreset.systemBassBoostPercent));
-        cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
-        amountKnob.setValue(editingPreset.virtualBassAmountPercent, false);
-        cutoffInput.setText(String.valueOf(editingPreset.virtualBassCutoffHz));
-        amountInput.setText(String.valueOf(editingPreset.virtualBassAmountPercent));
+        if (pregainInput != null) {
+            pregainInput.setText(formatDecimal(editingPreset.pregainMb / 100f));
+        }
+        if (systemBassBoostKnob != null) {
+            systemBassBoostKnob.setValue(editingPreset.systemBassBoostPercent, false);
+        }
+        if (systemBassBoostInput != null) {
+            systemBassBoostInput.setText(String.valueOf(editingPreset.systemBassBoostPercent));
+        }
+        if (cutoffKnob != null) {
+            cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
+        }
+        if (amountKnob != null) {
+            amountKnob.setValue(editingPreset.virtualBassAmountPercent, false);
+        }
+        if (cutoffInput != null) {
+            cutoffInput.setText(String.valueOf(editingPreset.virtualBassCutoffHz));
+        }
+        if (amountInput != null) {
+            amountInput.setText(String.valueOf(editingPreset.virtualBassAmountPercent));
+        }
         renderSavedPresetSpinner();
         renderCurveButtons();
-        curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
-        curveView.setMaxDb(curveGraphMaxDb);
-        curveView.setPreset(editingPreset);
+        if (curveView != null) {
+            curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
+            curveView.setMaxDb(curveGraphMaxDb);
+            curveView.setPreset(editingPreset);
+        }
         renderHeader();
         renderRows();
         updatingUi = false;
@@ -2073,7 +2104,6 @@ public final class MainActivity extends Activity {
         ));
 
         Spinner targetSpinner = new Spinner(this);
-        normalizeSpinnerSurface(targetSpinner);
         ArrayAdapter<String> adapter = new SmallSpinnerAdapter(targets.toArray(new String[0]));
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         targetSpinner.setAdapter(adapter);
@@ -2153,7 +2183,7 @@ public final class MainActivity extends Activity {
         add.setText("+ Add new preset");
         add.setTextSize(14);
         add.setAllCaps(false);
-        styleButton(add, true, true);
+        styleSubtlePrimaryButton(add, true);
         add.setOnClickListener(v -> {
             if (dialogHolder[0] != null) {
                 dialogHolder[0].dismiss();
@@ -2193,7 +2223,18 @@ public final class MainActivity extends Activity {
         background.setCornerRadius(dp(10));
         row.setBackground(background);
 
-        TextView title = new TextView(this);
+        TextView title = new TextView(this) {
+            @Override
+            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+                super.onSizeChanged(w, h, oldw, oldh);
+                if (w > 0 && h > 0 && name.equals(editingPreset.name)) {
+                    getPaint().setShader(new LinearGradient(
+                            0, 0, w, 0,
+                            new int[]{Color.rgb(0, 255, 255), Color.rgb(180, 100, 255)},
+                            null, Shader.TileMode.CLAMP));
+                }
+            }
+        };
         title.setText(name);
         title.setTextSize(14);
         title.setSingleLine(true);
@@ -2454,7 +2495,9 @@ public final class MainActivity extends Activity {
             return;
         }
         runningPreset = editingPreset.withEnabled(runningPreset.enabled && supported);
-        enabledSwitch.setChecked(runningPreset.enabled);
+        if (enabledSwitch != null) {
+            enabledSwitch.setChecked(runningPreset.enabled);
+        }
         applyRunningPreset();
     }
 
@@ -2474,7 +2517,9 @@ public final class MainActivity extends Activity {
             redoStack.clear();
         }
         editingPreset = nextPreset;
-        curveView.setPreset(editingPreset);
+        if (curveView != null) {
+            curveView.setPreset(editingPreset);
+        }
         syncRunningIfEditingPresetIsActive();
         updateExtraControls();
         updateEditStateLabels();
@@ -2514,12 +2559,20 @@ public final class MainActivity extends Activity {
     }
 
     private void updateEditStateLabels() {
-        presetSelectButton.setText(editingPreset.name);
-        styleButton(undoButton, false, !undoStack.isEmpty() && supported);
-        styleButton(redoButton, false, !redoStack.isEmpty() && supported);
+        if (presetSelectButton != null) {
+            presetSelectButton.setText(editingPreset.name);
+        }
+        if (undoButton != null) {
+            styleButton(undoButton, false, !undoStack.isEmpty() && supported);
+        }
+        if (redoButton != null) {
+            styleButton(redoButton, false, !redoStack.isEmpty() && supported);
+        }
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
-        statusText.setText(statusLabel(hasClip));
-        statusText.setTextColor(hasClip ? Color.rgb(190, 0, 0) : Color.rgb(0, 121, 107));
+        if (statusText != null) {
+            statusText.setText(statusLabel(hasClip));
+            statusText.setTextColor(hasClip ? Color.rgb(190, 0, 0) : Color.rgb(0, 121, 107));
+        }
     }
 
     private String statusLabel(boolean hasClip) {
@@ -2853,6 +2906,11 @@ public final class MainActivity extends Activity {
     }
 
     private void styleCurveButton(TextView button) {
+        button.setBackground(curveControlBackground());
+        button.setTextColor(Color.rgb(232, 248, 246));
+    }
+
+    private GradientDrawable curveControlBackground() {
         GradientDrawable background = new GradientDrawable();
         background.setShape(GradientDrawable.RECTANGLE);
         background.setCornerRadius(dp(7));
@@ -2862,8 +2920,7 @@ public final class MainActivity extends Activity {
                 Color.argb(232, 12, 18, 28)
         });
         background.setStroke(dp(1), Color.argb(150, 76, 220, 205));
-        button.setBackground(background);
-        button.setTextColor(Color.rgb(232, 248, 246));
+        return background;
     }
 
     private String shortCurveLabel(String name, float offsetDb) {
@@ -3546,11 +3603,18 @@ public final class MainActivity extends Activity {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final android.graphics.RectF rect = new android.graphics.RectF();
+            private android.animation.ValueAnimator labelAnimator;
+            private float labelProgress;
+            private boolean labelProgressReady;
 
             @Override
             public void draw(Canvas canvas) {
                 Rect b = getBounds();
                 boolean checked = drawableStateChecked(getState());
+                if (!labelProgressReady) {
+                    labelProgress = checked ? 1f : 0f;
+                    labelProgressReady = true;
+                }
                 rect.set(b.left, b.top + dpf(2f), b.right, b.bottom - dpf(2f));
 
                 paint.setShader(null);
@@ -3571,12 +3635,33 @@ public final class MainActivity extends Activity {
                 paint.setColor(checked ? Color.argb(92, 4, 32, 34) : Color.argb(88, 255, 255, 255));
                 Paint.FontMetrics metrics = paint.getFontMetrics();
                 float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
-                canvas.drawText(checked ? checkedLabel : uncheckedLabel, rect.centerX(), textY, paint);
+                float leftTextX = rect.left + rect.width() * 0.32f;
+                float rightTextX = rect.left + rect.width() * 0.68f;
+                float textX = rightTextX + (leftTextX - rightTextX) * labelProgress;
+                canvas.drawText(checked ? checkedLabel : uncheckedLabel, textX, textY, paint);
                 paint.setTypeface(android.graphics.Typeface.DEFAULT);
             }
 
             @Override
             protected boolean onStateChange(int[] state) {
+                float target = drawableStateChecked(state) ? 1f : 0f;
+                if (!labelProgressReady) {
+                    labelProgress = target;
+                    labelProgressReady = true;
+                    invalidateSelf();
+                    return true;
+                }
+                if (labelAnimator != null) {
+                    labelAnimator.cancel();
+                }
+                labelAnimator = android.animation.ValueAnimator.ofFloat(labelProgress, target);
+                labelAnimator.setDuration(150);
+                labelAnimator.setInterpolator(new android.view.animation.DecelerateInterpolator());
+                labelAnimator.addUpdateListener(animation -> {
+                    labelProgress = (float) animation.getAnimatedValue();
+                    invalidateSelf();
+                });
+                labelAnimator.start();
                 invalidateSelf();
                 return true;
             }
@@ -3737,11 +3822,11 @@ public final class MainActivity extends Activity {
                     canvas.clipRect(b.left, b.top, b.right, b.bottom);
                     paint.setShader(null);
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setTextAlign(Paint.Align.CENTER);
+                    paint.setTextAlign(Paint.Align.RIGHT);
                     paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                     paint.setTextSize(dpf(watermark.length() > 3 ? 24f : 28f));
                     paint.setColor(Color.argb(30, 0, 245, 212));
-                    canvas.drawText(watermark, b.centerX(), b.bottom + dpf(6f), paint);
+                    canvas.drawText(watermark, b.right + dpf(4f), b.bottom - dpf(1f), paint);
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
                     canvas.restore();
                 }
@@ -3797,6 +3882,15 @@ public final class MainActivity extends Activity {
                 paint.setColor(Color.argb(58, 0, 245, 212));
                 buildFilterTypePath(path, b, filterType);
                 canvas.drawPath(path, paint);
+
+                paint.setShader(null);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setTextAlign(Paint.Align.RIGHT);
+                paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                paint.setTextSize(dpf(filterType.label.length() > 5 ? 19f : 22f));
+                paint.setColor(Color.argb(24, 0, 245, 212));
+                canvas.drawText(filterType.label, b.right + dpf(4f), b.bottom - dpf(1f), paint);
+                paint.setTypeface(android.graphics.Typeface.DEFAULT);
                 canvas.restore();
 
                 paint.setShader(null);
@@ -3827,15 +3921,15 @@ public final class MainActivity extends Activity {
         path.reset();
         float left = b.left + dpf(8f);
         float right = b.right - dpf(8f);
-        float center = b.centerY() + dpf(6f);
-        float high = b.top + dpf(10f);
-        float low = b.bottom - dpf(8f);
+        float center = b.centerY() + dpf(4f);
+        float high = b.top + dpf(11f);
+        float low = b.bottom - dpf(10f);
         float midX = b.centerX();
         switch (filterType) {
             case LOW_SHELF:
                 path.moveTo(left, low);
-                path.lineTo(left + (right - left) * 0.34f, low);
-                path.cubicTo(midX - dpf(10f), low, midX - dpf(8f), high, midX + dpf(6f), high);
+                path.lineTo(left + (right - left) * 0.30f, low);
+                path.cubicTo(midX - dpf(12f), low, midX - dpf(8f), high, midX + dpf(10f), high);
                 path.lineTo(right, high);
                 break;
             case HIGH_SHELF:
@@ -3857,8 +3951,8 @@ public final class MainActivity extends Activity {
             case PEAK:
             default:
                 path.moveTo(left, center);
-                path.cubicTo(left + dpf(16f), center, midX - dpf(16f), high, midX, high);
-                path.cubicTo(midX + dpf(16f), high, right - dpf(16f), center, right, center);
+                path.cubicTo(left + dpf(18f), center, midX - dpf(15f), high, midX, high);
+                path.cubicTo(midX + dpf(15f), high, right - dpf(18f), center, right, center);
                 break;
         }
     }
@@ -3965,9 +4059,9 @@ public final class MainActivity extends Activity {
         gd.setShape(GradientDrawable.RECTANGLE);
         gd.setCornerRadius(dp(10));
         if (isEnabled) {
-            gd.setColors(new int[]{Color.rgb(0, 92, 138), Color.rgb(0, 146, 166)});
+            gd.setColors(new int[]{Color.argb(180, 0, 180, 255), Color.argb(180, 140, 0, 255)});
             gd.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-            gd.setStroke(dp(1), Color.argb(75, 0, 245, 212));
+            gd.setStroke(dp(1), Color.argb(150, 0, 255, 255));
             button.setTextColor(Color.WHITE);
         } else {
             gd.setColor(Color.argb(35, 80, 90, 100));
