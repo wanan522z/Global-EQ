@@ -26,9 +26,11 @@ final class KnobView extends View {
 
     KnobView(Context context) {
         super(context);
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        // 不使用 LAYER_TYPE_SOFTWARE：硬件加速下 shadowLayer 抗锯齿更好，
+        // 避免软件层在高清屏产生 bitmap 缩放锯齿伪影
         basePaint.setStyle(Paint.Style.STROKE);
         basePaint.setStrokeWidth(7f);
+        basePaint.setStrokeCap(Paint.Cap.ROUND);
         basePaint.setColor(Color.argb(35, 255, 255, 255));
         fillPaint.setStyle(Paint.Style.STROKE);
         fillPaint.setStrokeWidth(7f);
