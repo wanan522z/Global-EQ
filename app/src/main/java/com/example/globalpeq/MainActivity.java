@@ -4979,6 +4979,21 @@ public final class MainActivity extends Activity {
         styleSettingsTitleText(view);
     }
 
+    private void styleExtraSectionTitle(TextView view, boolean active) {
+        if (view == null) {
+            return;
+        }
+        if (active) {
+            styleSettingsTitleText(view);
+            registerShimmerView(view);
+        } else {
+            unregisterShimmerView(view);
+            view.setTextColor(Color.rgb(150, 165, 185));
+            view.getPaint().clearShadowLayer();
+            view.invalidate();
+        }
+    }
+
     private void registerShimmerView(TextView view) {
         if (view == null || shimmerTargetViews.contains(view)) {
             return;
