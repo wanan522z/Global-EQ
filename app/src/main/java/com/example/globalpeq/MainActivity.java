@@ -1573,7 +1573,7 @@ public final class MainActivity extends Activity {
         }
         editingPreset = editingPreset.withGeqGainMb(index, gainMb);
         if (curveView != null) {
-            curveView.setPreset(editingPreset);
+            refreshCurveView();
         }
         updateEditStateLabels();
         scheduleGeqCommit();
@@ -1981,7 +1981,7 @@ public final class MainActivity extends Activity {
         if (curveView != null) {
             curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
             curveView.setMaxDb(curveGraphMaxDb);
-            curveView.setPreset(editingPreset);
+            refreshCurveView();
         }
     }
 
@@ -2905,7 +2905,7 @@ public final class MainActivity extends Activity {
             persistEditingPreset();
         }
         applyRunningPreset();
-        curveView.setPreset(editingPreset);
+        refreshCurveView();
         updateEditStateLabels();
         styleModeText();
     }
@@ -3024,7 +3024,7 @@ public final class MainActivity extends Activity {
         }
         editingPreset = nextPreset;
         if (curveView != null) {
-            curveView.setPreset(editingPreset);
+            refreshCurveView();
         }
         syncRunningIfEditingPresetIsActive();
         updateExtraControls();
