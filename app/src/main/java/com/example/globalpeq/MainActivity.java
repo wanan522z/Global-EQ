@@ -2915,6 +2915,7 @@ public final class MainActivity extends Activity {
         if (updatingUi || editingPreset == null) {
             return;
         }
+        virtualBassEnabledState = isChecked;
         if (!isChecked) {
             if (editingPreset.virtualBassAmountPercent > 0) {
                 lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
@@ -2926,6 +2927,17 @@ public final class MainActivity extends Activity {
                 ? editingPreset.virtualBassAmountPercent
                 : Math.max(1, lastVirtualBassAmountPercent);
         setEditingPreset(editingPreset.withVirtualBassAmountPercent(restoreAmount), true);
+    }
+
+    private void syncVirtualBassEnabledFromPreset() {
+        if (editingPreset == null) {
+            virtualBassEnabledState = false;
+            return;
+        }
+        virtualBassEnabledState = editingPreset.virtualBassAmountPercent > 0;
+        if (editingPreset.virtualBassAmountPercent > 0) {
+            lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
+        }
     }
 
     private void applyRunningPreset() {
@@ -3303,11 +3315,11 @@ public final class MainActivity extends Activity {
         virtualBassSwitch.setShowText(false);
         virtualBassSwitch.setOnCheckedChangeListener(this::onVirtualBassEnabledChanged);
         styleTopSwitch(virtualBassSwitch, false);
-        virtualHeader.addView(virtualBassSwitch, new LinearLayout.LayoutParams(dp(54), dp(32)));
+        virtualHeader.addView(virtualBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
         virtualPanel.addView(virtualHeader, blockParams(4));
         LinearLayout virtualKnobs = createExtraKnobRow(virtualPanel);
-        virtualKnobs.addView(createVirtualBassControl("Cutoff", true), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
-        virtualKnobs.addView(createVirtualBassControl("Boost", false), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        virtualKnobs.addView(createVirtualBassControl("Cutoff", true), knobColumnParams());
+        virtualKnobs.addView(createVirtualBassControl("Boost", false), knobColumnParams());
     }
 
     private LinearLayout createExtraPanel(String titleText) {
