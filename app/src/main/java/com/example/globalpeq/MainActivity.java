@@ -209,10 +209,9 @@ public final class MainActivity extends Activity {
         // 因为 Android 硬件加速 (GPU PATH) 的 setShadowLayer 效果在大半径高斯模糊时
         // 渲染极不均匀、出现大颗粒或完全失效，且硬件加速的像素近似合并会产生严重的阶梯型抖动和闪烁。
         // 切换为 SOFTWARE 图层可强制调用精密的 CPU 高斯模糊算法绘制 shadowLayer，获得如烟雾般丝滑柔和、高亮饱满的霓虹光晕！
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            if (view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
-                view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                && view.getLayerType() != View.LAYER_TYPE_NONE) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
 
         // 光晕：大半径 shadowLayer 让 blur 圈大且柔，软件渲染下效果完美
@@ -541,18 +540,24 @@ public final class MainActivity extends Activity {
 
         eqPage = new LinearLayout(this);
         eqPage.setOrientation(LinearLayout.VERTICAL);
+        eqPage.setClipChildren(false);
+        eqPage.setClipToPadding(false);
         mainPageHost.addView(eqPage, pageHostParams());
 
         extraPage = new LinearLayout(this);
         extraPage.setOrientation(LinearLayout.VERTICAL);
         extraPage.setVisibility(View.GONE);
         extraPage.setPadding(0, dp(16), 0, 0);
+        extraPage.setClipChildren(false);
+        extraPage.setClipToPadding(false);
         mainPageHost.addView(extraPage, pageHostParams());
         buildExtraPage(extraPage);
 
         settingsPage = new LinearLayout(this);
         settingsPage.setOrientation(LinearLayout.VERTICAL);
         settingsPage.setVisibility(View.GONE);
+        settingsPage.setClipChildren(false);
+        settingsPage.setClipToPadding(false);
         mainPageHost.addView(settingsPage, pageHostParams());
         buildSettingsPage(settingsPage);
 
