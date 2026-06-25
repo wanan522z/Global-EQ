@@ -5736,11 +5736,11 @@ public final class MainActivity extends Activity {
         View current = view;
         while (current != null) {
             if (current instanceof HorizontalBassSlider) {
-                return ((HorizontalBassSlider) current).isSwipeHandleHit(rawX, rawY);
+                return current.isEnabled() && ((HorizontalBassSlider) current).isSwipeHandleHit(rawX, rawY);
             }
             if (current instanceof HorizontalScrollView
                     || current instanceof KnobView) {
-                return true;
+                return current.isEnabled();
             }
             ViewParent parent = current.getParent();
             current = parent instanceof View ? (View) parent : null;
