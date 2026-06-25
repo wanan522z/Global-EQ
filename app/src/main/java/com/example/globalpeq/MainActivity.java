@@ -5377,6 +5377,8 @@ public final class MainActivity extends Activity {
         if (statusText == null) {
             return;
         }
+        // 确保状态文本也设置左右Padding预留光晕展示，不被视图边界截断
+        statusText.setPadding(dp(16), dp(4), dp(16), dp(4));
         if (!supported) {
             unregisterShimmerView(statusText);
             statusText.setTextColor(Color.rgb(150, 158, 172));
