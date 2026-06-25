@@ -2996,11 +2996,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private LinearLayout buildBottomNav() {
-        LinearLayout nav = new LinearLayout(this);
-        nav.setOrientation(LinearLayout.HORIZONTAL);
+    private View buildBottomNav() {
+        SlidingTabBar nav = new SlidingTabBar(this);
         nav.setPadding(dp(6), dp(6), dp(6), dp(6));
-        nav.setGravity(android.view.Gravity.CENTER);
 
         GradientDrawable navBg = new GradientDrawable();
         navBg.setShape(GradientDrawable.RECTANGLE);
@@ -3009,13 +3007,31 @@ public final class MainActivity extends Activity {
         navBg.setCornerRadius(dp(16));
         nav.setBackground(navBg);
 
+        bottomTabIndicator = new View(this);
+        bottomTabIndicator.setBackground(strokeGlowRoundRectDrawable(
+                Color.argb(24, 255, 255, 255),
+                Color.argb(160, 0, 245, 212),
+                dp(12),
+                dp(3),
+                Color.argb(85, 0, 245, 212)
+        ));
+        nav.addView(bottomTabIndicator, new FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        LinearLayout strip = new LinearLayout(this);
+        strip.setOrientation(LinearLayout.HORIZONTAL);
+        strip.setGravity(android.view.Gravity.CENTER);
+        nav.addView(strip, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
         eqTabButton = new Button(this);
         eqTabButton.setText("EQ");
         eqTabButton.setTextSize(13);
         eqTabButton.setAllCaps(false);
         normalizeBottomTab(eqTabButton);
         eqTabButton.setOnClickListener(v -> showEqPage());
-        nav.addView(eqTabButton, bottomTabParams());
+        strip.addView(eqTabButton, bottomTabParams());
 
         extraTabButton = new Button(this);
         extraTabButton.setText("EXTRA");
@@ -3023,7 +3039,7 @@ public final class MainActivity extends Activity {
         extraTabButton.setAllCaps(false);
         normalizeBottomTab(extraTabButton);
         extraTabButton.setOnClickListener(v -> showExtraPage());
-        nav.addView(extraTabButton, bottomTabParams());
+        strip.addView(extraTabButton, bottomTabParams());
 
         settingsTabButton = new Button(this);
         settingsTabButton.setText("Settings");
@@ -3031,7 +3047,7 @@ public final class MainActivity extends Activity {
         settingsTabButton.setAllCaps(false);
         normalizeBottomTab(settingsTabButton);
         settingsTabButton.setOnClickListener(v -> showSettingsPage());
-        nav.addView(settingsTabButton, bottomTabParams());
+        strip.addView(settingsTabButton, bottomTabParams());
 
         Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         for (Button tab : tabs) {
@@ -3049,7 +3065,7 @@ public final class MainActivity extends Activity {
             });
         }
 
-        updateBottomNavSelection(0);
+        updateBottomNavSelection(activeMainPageIndex);
 
         return nav;
     }
@@ -3070,21 +3086,19 @@ public final class MainActivity extends Activity {
         button.setGravity(android.view.Gravity.CENTER);
         button.setPadding(0, 0, 0, 0);
         button.setIncludeFontPadding(false);
+        button.setBackgroundColor(Color.TRANSPARENT);
     }
 
     private void showEqPage() {
-        animatePageTransition(eqPage, extraPage, settingsPage);
-        updateBottomNavSelection(0);
+        switchToMainPage(0, true);
     }
 
     private void showExtraPage() {
-        animatePageTransition(extraPage, eqPage, settingsPage);
-        updateBottomNavSelection(1);
+        switchToMainPage(1, true);
     }
 
     private void showSettingsPage() {
-        animatePageTransition(settingsPage, eqPage, extraPage);
-        updateBottomNavSelection(2);
+        switchToMainPage(2, true);
     }
 
     private void buildExtraPage(LinearLayout page) {
