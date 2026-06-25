@@ -4857,23 +4857,24 @@ public final class MainActivity extends Activity {
         // 色阶：蓝色绝对主导，偏蓝水色极少量点缀，白热核心作流光焦点。
         // 所有颜色 B 通道显著高于 G，避免任何绿色感。
         // 浅蓝 → 亮蓝 → 偏蓝水色 → 白热核心 → 偏蓝水色 → 亮蓝 → 浅蓝
-        int lightBlue  = Color.rgb(130, 200, 255);  // 浅蓝（B-G=55）
-        int brightBlue = Color.rgb(70, 145, 255);   // 亮蓝（B-G=110，纯蓝）
-        int aqua       = Color.rgb(100, 200, 255);  // 偏蓝水色（B-G=70，去绿化）
-        int hotCore    = Color.rgb(245, 250, 255);  // 白热核心
+        // 浅蓝青色调，无深蓝，无绿色感。
+        // 极浅蓝青 → 浅青蓝 → 饱和青 → 白热核心 → 饱和青 → 浅青蓝 → 极浅蓝青
+        int paleCyan  = Color.rgb(185, 235, 255);  // 极浅蓝青（B-G=20）
+        int lightAqua = Color.rgb(130, 225, 250);  // 浅青蓝（B-G=25）
+        int aqua      = Color.rgb(85, 220, 240);   // 饱和青色（B-G=20，青色感）
+        int hotCore   = Color.rgb(245, 250, 255);  // 白热核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
-                        lightBlue,
-                        brightBlue,
+                        paleCyan,
+                        lightAqua,
                         aqua,
                         hotCore,
                         aqua,
-                        brightBlue,
-                        lightBlue
+                        lightAqua,
+                        paleCyan
                 },
-                // 蓝色区域占 84%，水色仅占 16%（中心两侧窄带）
                 new float[]{0.0f, 0.25f, 0.42f, 0.5f, 0.58f, 0.75f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
