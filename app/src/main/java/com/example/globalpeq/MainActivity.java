@@ -3522,7 +3522,7 @@ public final class MainActivity extends Activity {
         title.setTextColor(Color.rgb(180, 195, 215));
         title.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.topMargin = dp(2);
+        titleParams.topMargin = dp(8);
         column.addView(title, titleParams);
         return column;
     }
