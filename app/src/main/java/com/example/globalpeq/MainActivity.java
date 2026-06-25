@@ -3434,14 +3434,6 @@ public final class MainActivity extends Activity {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
-        TextView title = new TextView(this);
-        title.setText(label);
-        title.setTextSize(13);
-        title.setTextColor(Color.rgb(200, 210, 230));
-        title.setGravity(android.view.Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.bottomMargin = dp(4);
-        column.addView(title, titleParams);
 
         KnobView knob = new KnobView(this);
         if (cutoff) {
