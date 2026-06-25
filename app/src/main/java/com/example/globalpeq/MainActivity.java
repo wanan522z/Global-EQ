@@ -3467,21 +3467,13 @@ public final class MainActivity extends Activity {
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
 
-        TextView title = new TextView(this);
-        title.setText(label);
-        title.setTextSize(13);
-        title.setTextColor(Color.rgb(200, 210, 230));
-        title.setGravity(android.view.Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.bottomMargin = dp(2);
-        column.addView(title, titleParams);
-
         KnobView knob = new KnobView(this);
         knob.configure(min, max, value, suffix, listener::onChanged);
         knob.setTapListener(this::showStyledKnobInputDialog);
+        // 旋钮放大：减小上下边距让弧形占据更多空间
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = dp(6);
-        knobParams.bottomMargin = dp(6);
+        knobParams.topMargin = dp(2);
+        knobParams.bottomMargin = dp(2);
         column.addView(knob, knobParams);
 
         if ("Decay".equals(label)) {
