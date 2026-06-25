@@ -130,8 +130,9 @@ public final class MainActivity extends Activity {
             long now = System.currentTimeMillis();
             if (lastShimmerTime > 0) {
                 float elapsed = (now - lastShimmerTime) / 1000f;
-                // 按类似 EqCurveView 极其丝滑的长周期连续滑动（0.25f 即每秒滑动 25% 宽度，极大减慢速度且保障持续性）
-                shimmerAnimPhase += elapsed * 0.25f;
+                // 【极大减慢速度】
+                // 从之前的 0.25f 降到 0.08f（每秒仅滑动 8% 宽度），达到极致平缓、高雅平稳的视觉流动速度
+                shimmerAnimPhase += elapsed * 0.08f;
                 if (shimmerAnimPhase > 1.0f) {
                     shimmerAnimPhase -= 1.0f;
                 }
@@ -162,10 +163,11 @@ public final class MainActivity extends Activity {
                 }
                 
                 if (shader != null) {
-                    float totalWidth = width * 1.5f;
+                    // 【连续性保障】
+                    // LinearGradient 的渐变宽度与此处的平移边界 width 保持严格的 1:1 物理咬合，
+                    // 彻底消除由于宽度倍数不一致（之前使用了 1.5 倍）导致 REPEAT 模式产生跳变和不连续的闪烁问题。
                     shimmerShaderMatrix.reset();
-                    // 连贯无限平移
-                    shimmerShaderMatrix.postTranslate(shimmerAnimPhase * totalWidth, 0);
+                    shimmerShaderMatrix.postTranslate(shimmerAnimPhase * width, 0);
                     shader.setLocalMatrix(shimmerShaderMatrix);
                     view.invalidate();
                 }
