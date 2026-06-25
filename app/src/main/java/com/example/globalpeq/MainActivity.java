@@ -206,13 +206,24 @@ public final class MainActivity extends Activity {
                 colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
-        // 光晕：大半径 shadowLayer 让 blur 圈大且柔，减少 GPU 近似锯齿
+
+        // 关键优化：强制将正在作动流光的标题和状态文本切换为 SOFTWARE 软件绘制层。
+        // 因为 Android 硬件加速 (GPU PATH) 的 setShadowLayer 效果在大半径高斯模糊时
+        // 渲染极不均匀、出现大颗粒或完全失效，且硬件加速的像素近似合并会产生严重的阶梯型抖动和闪烁。
+        // 切换为 SOFTWARE 图层可强制调用精密的 CPU 高斯模糊算法绘制 shadowLayer，获得如烟雾般丝滑柔和、高亮饱满的霓虹光晕！
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            if (view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
+                view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            }
+        }
+
+        // 光晕：大半径 shadowLayer 让 blur 圈大且柔，软件渲染下效果完美
         if (view == statusText) {
             // GLOBAL EQ 状态标识：强青色荧光光晕，区别于其他标题
-            view.getPaint().setShadowLayer(dpf(12f), 0, 0, Color.argb(140, 0, 245, 212));
+            view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
         } else {
             // 其他标题：浅蓝青色光晕，大半径柔光
-            view.getPaint().setShadowLayer(dpf(9f), 0, 0, Color.argb(100, 120, 220, 255));
+            view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
         }
         view.invalidate();
     }
