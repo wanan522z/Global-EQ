@@ -637,21 +637,21 @@ public final class MainActivity extends Activity {
         statusText.setTextSize(12);
         statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         statusText.setGravity(android.view.Gravity.CENTER);
-        statusText.setPadding(dp(8), dp(4), dp(8), dp(4));
+        statusText.setPadding(dp(10), dp(4), dp(10), dp(4));
         styleStatusText(false);
         int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
                 dp(60),
                 dp(30)
         );
-        autoSwitchParams.rightMargin = dp(12);
+        autoSwitchParams.rightMargin = dp(2);
         top.addView(autoSwitchOutputSwitch, autoSwitchParams);
 
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        statusParams.rightMargin = dp(12);
+        statusParams.rightMargin = dp(2);
         top.addView(statusText, statusParams);
 
         top.addView(enabledSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
