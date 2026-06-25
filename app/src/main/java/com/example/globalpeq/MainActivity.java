@@ -3379,7 +3379,7 @@ public final class MainActivity extends Activity {
         button.setGravity(android.view.Gravity.CENTER);
         button.setTextColor(Color.argb(210, 240, 244, 255));
         button.setPadding(dp(12), 0, dp(12), 0);
-        button.setBackground(createFieldBackground(24, 70, 8));
+        button.setBackground(createFieldBackground(12, 35, 8));
         button.setOnTouchListener((view, event) -> {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
