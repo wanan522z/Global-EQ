@@ -2980,10 +2980,6 @@ public final class MainActivity extends Activity {
         repository.saveGlobalPreset(runningPreset);
         engine.apply(runningPreset);
         Intent service = new Intent(this, GlobalEqForegroundService.class);
-        if (!runningPreset.enabled) {
-            stopService(service);
-            return;
-        }
         service.setAction(GlobalEqForegroundService.ACTION_APPLY);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(service);
