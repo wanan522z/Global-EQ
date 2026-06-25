@@ -23,3 +23,26 @@ system bands using frequency and Q. No compression stage is created.
 Open the `GlobalPEQ` directory as a Gradle Android project. The local environment used to
 create this scaffold did not include Gradle or `ANDROID_HOME`, so APK compilation was not
 run here.
+
+## Auto commit
+
+This repo includes a local auto-commit helper that commits changes every few seconds and
+leaves `git push` manual.
+
+Run it from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\auto-commit.ps1
+```
+
+Optional custom interval:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\auto-commit.ps1 -IntervalSeconds 10
+```
+
+Stop it with `Ctrl+C`, then push manually when you are ready:
+
+```powershell
+git push
+```
