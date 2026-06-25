@@ -264,7 +264,9 @@ public final class MainActivity extends Activity {
             Color.rgb(100, 140, 165),  // 优雅灰青蓝
             Color.rgb(90, 130, 155),   // 优雅灰青
             Color.rgb(80, 120, 145),   // 优雅灰
+            Color.rgb(108, 145, 170),  // 过渡提亮
             Color.rgb(135, 165, 190),  // 浅灰白核心
+            Color.rgb(108, 145, 170),  // 过渡提亮
             Color.rgb(80, 120, 145),   // 优雅灰
             Color.rgb(90, 130, 155),   // 优雅灰青
             Color.rgb(100, 140, 165)   // 优雅灰青蓝
