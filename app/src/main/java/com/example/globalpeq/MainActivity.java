@@ -5603,7 +5603,9 @@ public final class MainActivity extends Activity {
             if (isEnabled) {
                 gd.setColor(Color.argb(24, 255, 255, 255));
                 gd.setStroke(dp(1), Color.argb(52, 255, 255, 255));
-                styleCyanGlowText(button);
+                if (button != undoButton && button != redoButton) {
+                    styleCyanGlowText(button);
+                }
             } else {
                 gd.setColor(Color.argb(10, 255, 255, 255));
                 gd.setStroke(dp(1), Color.argb(20, 255, 255, 255));
@@ -5614,9 +5616,19 @@ public final class MainActivity extends Activity {
         button.setBackground(gd);
         button.setAllCaps(false);
         if (button == undoButton || button == redoButton) {
-            button.setPadding(0, 0, 0, dp(1));
-            button.setGravity(android.view.Gravity.CENTER);
-            button.setIncludeFontPadding(false);
+            button.setPadding(0, 0, 0, 0);
+            button.setForegroundGravity(android.view.Gravity.CENTER);
+            Drawable icon = button.getForeground();
+            if (icon != null) {
+                icon.mutate();
+                if (isEnabled) {
+                    icon.setColorFilter(null);
+                } else {
+                    icon.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                            Color.argb(95, 255, 255, 255),
+                            android.graphics.PorterDuff.Mode.SRC_IN));
+                }
+            }
         } else {
             button.setPadding(dp(8), 0, dp(8), 0);
         }
