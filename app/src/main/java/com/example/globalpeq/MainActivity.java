@@ -567,6 +567,10 @@ public final class MainActivity extends Activity {
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        top.setClipChildren(false);
+        top.setClipToPadding(false);
+        controlCard.setClipChildren(false);
+        controlCard.setClipToPadding(false);
         controlCard.addView(top, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -3390,6 +3394,8 @@ public final class MainActivity extends Activity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(16), dp(14), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
+        panel.setClipChildren(false);
+        panel.setClipToPadding(false);
         return panel;
     }
 
@@ -3446,6 +3452,8 @@ public final class MainActivity extends Activity {
         LinearLayout knobs = new LinearLayout(this);
         knobs.setOrientation(LinearLayout.HORIZONTAL);
         knobs.setGravity(android.view.Gravity.CENTER);
+        knobs.setClipChildren(false);
+        knobs.setClipToPadding(false);
         LinearLayout.LayoutParams knobsParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
@@ -3804,17 +3812,17 @@ public final class MainActivity extends Activity {
                 if (active) {
                     dotPaint.setStyle(Paint.Style.FILL);
                     dotPaint.setShader(new RadialGradient(
-                            cx, cy, radius * 1.35f,
+                            cx, cy, radius * 1.12f,
                             new int[]{
-                                    Color.argb(86, 0, 245, 212),
-                                    Color.argb(34, 0, 180, 255),
+                                    Color.argb(54, 0, 245, 212),
+                                    Color.argb(18, 0, 180, 255),
                                     Color.TRANSPARENT
                             },
-                            new float[]{0f, 0.58f, 1f},
+                            new float[]{0f, 0.64f, 1f},
                             Shader.TileMode.CLAMP
                     ));
                     dotPaint.clearShadowLayer();
-                    canvas.drawCircle(cx, cy, radius * 1.35f, dotPaint);
+                    canvas.drawCircle(cx, cy, radius * 1.12f, dotPaint);
                     dotPaint.setShader(null);
                 }
 
@@ -3823,16 +3831,16 @@ public final class MainActivity extends Activity {
                 ringPaint.clearShadowLayer();
                 // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
                 // 先画一层粗描边光晕底（大半径 FILL 圆 + BlurMaskFilter），再画 ring 描边
-                float glowRadius = radius + dpf(2f);
+                float glowRadius = radius + dpf(0.9f);
                 dotPaint.setStyle(Paint.Style.STROKE);
-                dotPaint.setStrokeWidth(dpf(3f));
+                dotPaint.setStrokeWidth(dpf(2.1f));
                 dotPaint.setShader(null);
                 if (active) {
-                    dotPaint.setColor(Color.argb(180, 0, 245, 212));
-                    dotPaint.setMaskFilter(new BlurMaskFilter(dpf(4f), BlurMaskFilter.Blur.NORMAL));
+                    dotPaint.setColor(Color.argb(120, 0, 245, 212));
+                    dotPaint.setMaskFilter(new BlurMaskFilter(dpf(2f), BlurMaskFilter.Blur.NORMAL));
                 } else {
-                    dotPaint.setColor(Color.argb(60, 120, 180, 220));
-                    dotPaint.setMaskFilter(new BlurMaskFilter(dpf(2.5f), BlurMaskFilter.Blur.NORMAL));
+                    dotPaint.setColor(Color.argb(36, 120, 180, 220));
+                    dotPaint.setMaskFilter(new BlurMaskFilter(dpf(1.4f), BlurMaskFilter.Blur.NORMAL));
                 }
                 canvas.drawCircle(cx, cy, glowRadius, dotPaint);
                 dotPaint.setMaskFilter(null);
@@ -3892,16 +3900,16 @@ public final class MainActivity extends Activity {
                 canvas.drawCircle(cx, cy, radius, ringPaint);
 
                 // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
-                float glowRadius = radius + dpf(2f);
+                float glowRadius = radius + dpf(0.9f);
                 crossPaint.setStyle(Paint.Style.STROKE);
-                crossPaint.setStrokeWidth(dpf(3f));
+                crossPaint.setStrokeWidth(dpf(2.1f));
                 crossPaint.setShader(null);
                 if (enabled) {
-                    crossPaint.setColor(Color.argb(170, 255, 90, 90));
-                    crossPaint.setMaskFilter(new BlurMaskFilter(dpf(4f), BlurMaskFilter.Blur.NORMAL));
+                    crossPaint.setColor(Color.argb(120, 255, 90, 90));
+                    crossPaint.setMaskFilter(new BlurMaskFilter(dpf(2f), BlurMaskFilter.Blur.NORMAL));
                 } else {
-                    crossPaint.setColor(Color.argb(50, 255, 90, 90));
-                    crossPaint.setMaskFilter(new BlurMaskFilter(dpf(2.5f), BlurMaskFilter.Blur.NORMAL));
+                    crossPaint.setColor(Color.argb(34, 255, 90, 90));
+                    crossPaint.setMaskFilter(new BlurMaskFilter(dpf(1.4f), BlurMaskFilter.Blur.NORMAL));
                 }
                 canvas.drawCircle(cx, cy, glowRadius, crossPaint);
                 crossPaint.setMaskFilter(null);
@@ -5129,7 +5137,7 @@ public final class MainActivity extends Activity {
         // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
         // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
         // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
-        title.setPadding(dp(16), dp(4), dp(16), dp(4));
+        title.setPadding(dp(22), dp(4), dp(22), dp(4));
         styleGradientTitle(title);
         return title;
     }
@@ -5191,14 +5199,14 @@ public final class MainActivity extends Activity {
         applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
-        // 大半径高亮霓虹光晕
-        view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
+        // 缩小一圈，但保留完整衰减空间
+        view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
         view.invalidate();
         view.post(() -> {
             applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                     Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
             view.setTextColor(Color.WHITE);
-            view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
+            view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
             view.invalidate();
         });
     }
