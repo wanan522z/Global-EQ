@@ -476,6 +476,7 @@ public final class MainActivity extends Activity {
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
         applyPresetCurveSettings(editingPreset);
+        syncVirtualBassEnabledFromPreset();
         renderAll();
         applyRunningPreset();
     }
@@ -2759,6 +2760,7 @@ public final class MainActivity extends Activity {
         fallback = limitPresetForHeadroom(fallback);
         editingPreset = fallback;
         applyPresetCurveSettings(editingPreset);
+        syncVirtualBassEnabledFromPreset();
         if (deletedRunning) {
             runningPreset = editingPreset.withEnabled(runningPreset != null && runningPreset.enabled && supported);
             applyRunningPreset();
@@ -2804,6 +2806,7 @@ public final class MainActivity extends Activity {
         runningPreset = selected.withEnabled(supported);
         editingPreset = runningPreset;
         applyPresetCurveSettings(editingPreset);
+        syncVirtualBassEnabledFromPreset();
         repository.saveDraftPreset(editingPreset);
         undoStack.clear();
         redoStack.clear();
@@ -2861,6 +2864,7 @@ public final class MainActivity extends Activity {
         selected = limitPresetForHeadroom(selected);
         editingPreset = selected;
         applyPresetCurveSettings(editingPreset);
+        syncVirtualBassEnabledFromPreset();
         undoStack.clear();
         redoStack.clear();
         renderAll();
@@ -2946,6 +2950,7 @@ public final class MainActivity extends Activity {
         runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
         editingPreset = runningPreset;
         applyPresetCurveSettings(editingPreset);
+        syncVirtualBassEnabledFromPreset();
         undoStack.clear();
         redoStack.clear();
         renderAll();
