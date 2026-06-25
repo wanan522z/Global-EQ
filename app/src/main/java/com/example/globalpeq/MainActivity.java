@@ -3267,6 +3267,7 @@ public final class MainActivity extends Activity {
         LinearLayout reverbPanel = createExtraPanelShell();
         page.addView(reverbPanel, extraPanelParams(0));
         LinearLayout reverbHeader = createExtraHeaderRow("Reverb");
+        reverbTitleView = (TextView) reverbHeader.getChildAt(0);
         reverbTypeButton = createExtraChoiceButton();
         reverbTypeButton.setOnClickListener(v -> showReverbTypeChoiceMenu());
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(126), dp(32)));
@@ -3284,6 +3285,7 @@ public final class MainActivity extends Activity {
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
         LinearLayout bassHeader = createExtraHeaderRow("BassBoost");
+        bassBoostTitleView = (TextView) bassHeader.getChildAt(0);
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
         // UI 占位选择框，system/dsp 切换功能后续接入
@@ -3303,6 +3305,7 @@ public final class MainActivity extends Activity {
         LinearLayout virtualPanel = createExtraPanelShell();
         page.addView(virtualPanel, extraPanelParams(12));
         LinearLayout virtualHeader = createExtraHeaderRow("Virtual Bass");
+        virtualBassTitleView = (TextView) virtualHeader.getChildAt(0);
         virtualBassSwitch = new Switch(this);
         virtualBassSwitch.setText("");
         virtualBassSwitch.setShowText(false);
