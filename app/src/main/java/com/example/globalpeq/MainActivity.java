@@ -3440,11 +3440,6 @@ public final class MainActivity extends Activity {
         if (cutoff) {
             cutoffKnob = knob;
             knob.configure(60, 250, editingPreset.virtualBassCutoffHz, "Hz", value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
-            input = createNumberInput(String.valueOf(editingPreset.virtualBassCutoffHz), "Hz", value -> {
-                int hz = Math.round(value);
-                setEditingPreset(editingPreset.withVirtualBassCutoffHz(clamp(hz, 60, 250)), true);
-            });
-            cutoffInput = input;
         } else {
             amountKnob = knob;
             knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
