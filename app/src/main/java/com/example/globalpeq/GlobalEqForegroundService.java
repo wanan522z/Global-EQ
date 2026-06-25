@@ -36,10 +36,15 @@ public final class GlobalEqForegroundService extends Service {
             if (!repository.loadAutoSwitchOutput()) {
                 return;
             }
+            boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             currentPreset = repository.loadPreset(device);
-            engine.apply(currentPreset);
+            if (sameRoute) {
+                engine.reapplyForRouteChange(currentPreset);
+            } else {
+                engine.apply(currentPreset);
+            }
             updateNotification();
         });
     }
