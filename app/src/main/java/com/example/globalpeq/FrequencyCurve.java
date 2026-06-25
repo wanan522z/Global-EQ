@@ -40,6 +40,10 @@ final class FrequencyCurve {
     }
 
     float gainAtHz(int frequencyHz) {
+        return gainAtFrequency(frequencyHz);
+    }
+
+    float gainAtFrequency(double frequencyHz) {
         if (points.isEmpty() || frequencyHz <= 0) {
             return 0f;
         }
