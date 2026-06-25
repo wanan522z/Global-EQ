@@ -5025,13 +5025,11 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 色阶：浅蓝青色调，无深蓝，无绿色感，整体提亮。
-        // 所有颜色 B>=G，青色感来自 G、B 同时较高。
-        // 极亮浅蓝青 → 亮浅青蓝 → 饱和亮青 → 白热核心 → 饱和亮青 → 亮浅青蓝 → 极亮浅蓝青
-        int paleCyan  = Color.rgb(205, 243, 255);  // 极亮浅蓝青
-        int lightAqua = Color.rgb(155, 232, 252);  // 亮浅青蓝
-        int aqua      = Color.rgb(105, 228, 248);  // 饱和亮青（青色感，提亮）
-        int hotCore   = Color.rgb(250, 252, 255);  // 白热核心
+        // 色阶：浅蓝青色调，亮色为主，多一点蓝色感（与 SHIMMER_BRIGHT_COLORS 一致）
+        int paleCyan  = Color.rgb(210, 240, 255);  // 极亮浅蓝青
+        int lightAqua = Color.rgb(150, 215, 250);  // 亮浅蓝（偏蓝）
+        int aqua      = Color.rgb(95, 200, 245);   // 饱和亮青蓝（偏蓝）
+        int hotCore   = Color.rgb(255, 255, 255);  // 纯白热核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
@@ -5044,7 +5042,6 @@ public final class MainActivity extends Activity {
                         lightAqua,
                         paleCyan
                 },
-                // 亮色（aqua）区域占 0.3-0.7 = 40%，原 16%，亮色感显著增强
                 new float[]{0.0f, 0.15f, 0.3f, 0.5f, 0.7f, 0.85f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
