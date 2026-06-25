@@ -122,14 +122,22 @@ public final class MainActivity extends Activity {
     private static final int SHIMMER_FPS_DELAY = 30;
     private final android.graphics.Matrix shimmerShaderMatrix = new android.graphics.Matrix();
     private float shimmerAnimPhase = 0f;
+    private long lastShimmerTime = 0L; // 采用类似 EqCurveView 的基于真实时间的平滑相位更新
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
-            shimmerAnimPhase += 0.012f; // 更优雅温和的动画刷新步长
-            if (shimmerAnimPhase > 1.0f) {
-                shimmerAnimPhase -= 1.0f;
+            long now = System.currentTimeMillis();
+            if (lastShimmerTime > 0) {
+                float elapsed = (now - lastShimmerTime) / 1000f;
+                // 按类似 EqCurveView 极其丝滑的长周期连续滑动（0.15f 即每秒滑动 15% 宽度，极大减慢速度且保障持续性）
+                shimmerAnimPhase += elapsed * 0.15f;
+                if (shimmerAnimPhase > 1.0f) {
+                    shimmerAnimPhase -= 1.0f;
+                }
             }
+            lastShimmerTime = now;
+
             for (int i = shimmerTargetViews.size() - 1; i >= 0; i--) {
                 TextView view = shimmerTargetViews.get(i);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
@@ -139,13 +147,17 @@ public final class MainActivity extends Activity {
                 int width = view.getWidth();
                 if (width > 0) {
                     Shader shader = view.getPaint().getShader();
+                    // 实时刷新核心：由于部分组件在外部刷新页面或触发重绘（renderAll 等）时，
+                    // 可能会由于重新 style 被清空 Shader。我们在此处动态检测，发现 Shader 为空就立即原地自动重建！
+                    if (shader == null) {
+                        recreateShaderForView(view, width);
+                        shader = view.getPaint().getShader();
+                    }
                     if (shader != null) {
-                        // 【高性能优化核心】
-                        // 不再每帧重新分配(new) LinearGradient、颜色数组和位置数组。
-                        // 通过更新已附加在 View 的 Paint 上的已存在 Shader 的 LocalMatrix 矩阵实现流光移动。
-                        // 极大降低内存压力，CPU 消耗降为几乎为零，避免由于垃圾回收(GC)导致的帧率抖动。
-                        float offset = shimmerAnimPhase * width * 3.0f - width * 1.0f;
-                        shimmerShaderMatrix.setTranslate(offset, 0);
+                        float totalWidth = width * 1.5f;
+                        shimmerShaderMatrix.reset();
+                        // 运用连续流动：让流光矩阵平移连续起来
+                        shimmerShaderMatrix.postTranslate(shimmerAnimPhase * totalWidth, 0);
                         shader.setLocalMatrix(shimmerShaderMatrix);
                         view.invalidate();
                     }
@@ -153,14 +165,34 @@ public final class MainActivity extends Activity {
             }
             if (!shimmerTargetViews.isEmpty()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                    // 与硬件刷新率对齐
                     getWindow().getDecorView().postOnAnimation(this);
                 } else {
                     uiHandler.postDelayed(this, SHIMMER_FPS_DELAY);
                 }
+            } else {
+                lastShimmerTime = 0L;
             }
         }
     };
+
+    private void recreateShaderForView(TextView view, int width) {
+        if (view == null || width <= 0) return;
+        if (view == statusText) {
+            boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
+            if (!supported || hasClip) return;
+            if (isEditingPresetActive()) {
+                applyStatusShimmerShader(view, width, Color.rgb(0, 255, 200), Color.rgb(0, 200, 255));
+            } else {
+                applyStatusShimmerShader(view, width, Color.rgb(240, 248, 255), Color.rgb(180, 210, 255));
+            }
+        } else if (view == modeSpinner) {
+            applyStatusShimmerShader(view, width, Color.rgb(0, 255, 230), Color.rgb(180, 100, 255));
+        } else if (view == eqTabButton || view == extraTabButton || view == settingsTabButton) {
+            applyTitleGradientShader(view, width, Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+        } else {
+            applyTitleGradientShader(view, width, Color.rgb(0, 245, 212), Color.rgb(80, 220, 255), Color.rgb(180, 100, 255));
+        }
+    }
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
     private Preset pendingGeqHistorySnapshot;
@@ -4515,19 +4547,23 @@ public final class MainActivity extends Activity {
         }
         textLeft = Math.max(0f, textLeft);
 
-        // 高性能流光渐变（双重融合）：
-        // 11 点对称渐变，首尾使用饱和度极高的文字主题原色，中心局部插入极高亮冰白流光。
-        // 当流光 Matrix 平移时，外部不被扫过的区域永远是好看的、饱满的渐变艺术字，完全不存在看不清或缺失问题。
-        int shadowCyan = Color.rgb(0, 245, 212);
+        // 完美复刻 EqCurveView 的超凡视觉特征：
+        // 1. 无缝重复流动 (Shader.TileMode.REPEAT)：首尾颜色在逻辑与视觉上完全咬合。
+        // 2. 多重渐变溢彩色轮 (极宽色域和高饱含度)：Cyan 青 -> White 冰白核心 -> Pink/Purple 霓虹紫 -> Amber 琥珀金 -> Cyan 青。
+        // 3. 长周期连贯滑动：提供极其平稳、不刺眼、具有持续性的高级玻璃折射感。
         view.getPaint().setShader(new LinearGradient(
-                textLeft - textWidth * 1.5f, 0, textLeft + textWidth * 1.5f, 0,
+                0, 0, textWidth * 1.5f, 0,
                 new int[]{
-                        startColor, startColor, midColor, 
-                        Color.rgb(255, 255, 255), Color.rgb(255, 255, 255), 
-                        endColor, endColor
+                        Color.argb(0, 0, 255, 255),
+                        Color.argb(120, 0, 255, 255),      // 动感青色
+                        Color.argb(255, 255, 255, 255),    // 极高亮雪白核心
+                        Color.argb(140, 255, 60, 180),     // 霓虹粉桃红
+                        Color.argb(120, 130, 65, 255),     // 高贵深紫
+                        Color.argb(90, 255, 180, 0),       // 琥珀微金
+                        Color.argb(0, 0, 255, 255)
                 },
-                new float[]{0.0f, 0.35f, 0.44f, 0.5f, 0.56f, 0.65f, 1.0f},
-                Shader.TileMode.CLAMP));
+                new float[]{0.0f, 0.2f, 0.5f, 0.65f, 0.8f, 0.9f, 1.0f},
+                Shader.TileMode.REPEAT));
     }
 
     private void applyStatusShimmerShader(TextView view, int width, int startColor, int endColor) {
@@ -4548,15 +4584,19 @@ public final class MainActivity extends Activity {
         }
         textLeft = Math.max(0f, textLeft);
 
+        // 针对状态组件（Live / Edit）和模式（Mode）进行精致流光复刻：
+        // 同样采用 REPEAT 模式保障持续流动的连贯性，主色调根据状态动态偏向。
         view.getPaint().setShader(new LinearGradient(
-                textLeft - textWidth * 1.5f, 0, textLeft + textWidth * 1.5f, 0,
+                0, 0, textWidth * 1.5f, 0,
                 new int[]{
-                        startColor, startColor, 
-                        Color.rgb(255, 255, 255), Color.rgb(255, 255, 255), 
-                        endColor, endColor
+                        Color.argb(0, Color.red(startColor), Color.green(startColor), Color.blue(startColor)),
+                        Color.argb(140, Color.red(startColor), Color.green(startColor), Color.blue(startColor)),
+                        Color.argb(255, 255, 255, 255),    // 耀眼白芯
+                        Color.argb(140, Color.red(endColor), Color.green(endColor), Color.blue(endColor)),
+                        Color.argb(0, Color.red(endColor), Color.green(endColor), Color.blue(endColor))
                 },
-                new float[]{0.0f, 0.38f, 0.48f, 0.52f, 0.62f, 1.0f},
-                Shader.TileMode.CLAMP));
+                new float[]{0.0f, 0.25f, 0.5f, 0.75f, 1.0f},
+                Shader.TileMode.REPEAT));
     }
 
     private void applySettingsPageTitleShader(TextView view, int width) {
@@ -4696,11 +4736,13 @@ public final class MainActivity extends Activity {
             statusText.setTextColor(Color.rgb(255, 100, 100));
             statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
         } else if (isEditingPresetActive()) {
-            styleSettingsTitleText(statusText);
+            // Live 模式：迷人动感的青绿色至翡翠色流光
+            styleStatusTextShimmer(statusText, Color.rgb(0, 255, 200), Color.rgb(0, 200, 255));
             registerShimmerView(statusText);
         } else {
-            unregisterShimmerView(statusText);
-            styleDimPlainText(statusText);
+            // Edit 模式：平稳高贵的浅白至淡黄流光
+            styleStatusTextShimmer(statusText, Color.rgb(240, 248, 255), Color.rgb(180, 210, 255));
+            registerShimmerView(statusText);
         }
         statusText.invalidate();
     }
@@ -4710,7 +4752,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (runningPreset != null && runningPreset.enabled && supported) {
-            styleSettingsTitleText(modeSpinner);
+            styleStatusTextShimmer(modeSpinner, Color.rgb(0, 255, 230), Color.rgb(180, 100, 255));
             registerShimmerView(modeSpinner);
         } else {
             unregisterShimmerView(modeSpinner);
@@ -4990,7 +5032,15 @@ public final class MainActivity extends Activity {
                         dp(3),
                         Color.argb(85, 0, 245, 212)
                 ));
-                styleSettingsTitleText(tab);
+                // 底部 Tab 流光：使用饱满动人的青色到电光紫渐变
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                    tab.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+                }
+                applyTitleGradientShader(tab, settingsTitleGradientWidth(tab), 
+                        Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+                tab.setTextColor(Color.WHITE);
+                tab.setShadowLayer(dp(5), 0, 0, Color.argb(125, 0, 245, 212));
+                tab.invalidate();
                 registerShimmerView(tab);
             } else {
                 GradientDrawable gd = new GradientDrawable();
