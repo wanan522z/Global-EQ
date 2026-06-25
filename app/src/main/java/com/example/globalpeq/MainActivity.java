@@ -72,6 +72,7 @@ public final class MainActivity extends Activity {
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
+    private static final String[] BASS_MODE_LABELS = {"system", "dsp"};
 
     private PresetRepository repository;
     private GlobalEqualizerEngine engine;
