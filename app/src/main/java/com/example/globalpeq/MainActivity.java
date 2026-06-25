@@ -3326,6 +3326,7 @@ public final class MainActivity extends Activity {
         bassPanel.addView(bassBoostSlider, sliderParams);
 
         LinearLayout virtualPanel = createExtraPanelShell();
+        virtualPanel.setPadding(dp(16), dp(6), dp(16), dp(16));
         page.addView(virtualPanel, extraPanelParams(12));
         LinearLayout virtualHeader = createExtraHeaderRow("Virtual Bass");
         virtualBassTitleView = (TextView) virtualHeader.getChildAt(0);
@@ -3335,7 +3336,7 @@ public final class MainActivity extends Activity {
         virtualBassSwitch.setOnCheckedChangeListener(this::onVirtualBassEnabledChanged);
         styleTopSwitch(virtualBassSwitch, false);
         virtualHeader.addView(virtualBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
-        virtualPanel.addView(virtualHeader, blockParams(4));
+        virtualPanel.addView(virtualHeader, blockParams(0));
         LinearLayout virtualKnobs = createExtraKnobRow(virtualPanel);
         virtualKnobs.addView(createVirtualBassControl("Cutoff", true), knobColumnParams());
         virtualKnobs.addView(createVirtualBassControl("Boost", false), knobColumnParams());
