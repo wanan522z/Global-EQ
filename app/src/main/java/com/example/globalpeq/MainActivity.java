@@ -796,6 +796,18 @@ public final class MainActivity extends Activity {
 
         TextView title = new TextView(this) {
             @Override
+            protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                registerShimmerView(this);
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                unregisterShimmerView(this);
+                super.onDetachedFromWindow();
+            }
+
+            @Override
             protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
                 if (w > 0 && h > 0) {
