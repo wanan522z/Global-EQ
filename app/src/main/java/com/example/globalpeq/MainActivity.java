@@ -3803,37 +3803,22 @@ public final class MainActivity extends Activity {
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
                 ringPaint.clearShadowLayer();
-                // 柔光底：加大外圈半径 + 多档 alpha 过渡，让边缘平滑消散，消除锯齿
-                float glowR = radius + dpf(6f);
-                float ringStop = radius / glowR;
-                float midStop = (radius + dpf(1.5f)) / glowR;
-                float farStop = (radius + dpf(3.5f)) / glowR;
+                // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
+                // 先画一层粗描边光晕底（大半径 FILL 圆 + BlurMaskFilter），再画 ring 描边
+                float glowRadius = radius + dpf(2f);
+                dotPaint.setStyle(Paint.Style.STROKE);
+                dotPaint.setStrokeWidth(dpf(3f));
+                dotPaint.setShader(null);
                 if (active) {
-                    dotPaint.setStyle(Paint.Style.FILL);
-                    dotPaint.setShader(new RadialGradient(
-                            cx, cy, glowR,
-                            new int[]{Color.TRANSPARENT,
-                                    Color.argb(110, 0, 245, 212),
-                                    Color.argb(70, 0, 220, 240),
-                                    Color.argb(30, 0, 200, 230),
-                                    Color.TRANSPARENT},
-                            new float[]{0f, ringStop, midStop, farStop, 1f},
-                            Shader.TileMode.CLAMP));
-                    canvas.drawCircle(cx, cy, glowR, dotPaint);
-                    dotPaint.setShader(null);
+                    dotPaint.setColor(Color.argb(180, 0, 245, 212));
+                    dotPaint.setMaskFilter(new BlurMaskFilter(dpf(4f), BlurMaskFilter.Blur.NORMAL));
                 } else {
-                    dotPaint.setStyle(Paint.Style.FILL);
-                    dotPaint.setShader(new RadialGradient(
-                            cx, cy, glowR,
-                            new int[]{Color.TRANSPARENT,
-                                    Color.argb(45, 120, 180, 220),
-                                    Color.argb(20, 120, 180, 220),
-                                    Color.TRANSPARENT},
-                            new float[]{0f, ringStop, midStop, 1f},
-                            Shader.TileMode.CLAMP));
-                    canvas.drawCircle(cx, cy, glowR, dotPaint);
-                    dotPaint.setShader(null);
+                    dotPaint.setColor(Color.argb(60, 120, 180, 220));
+                    dotPaint.setMaskFilter(new BlurMaskFilter(dpf(2.5f), BlurMaskFilter.Blur.NORMAL));
                 }
+                canvas.drawCircle(cx, cy, glowRadius, dotPaint);
+                dotPaint.setMaskFilter(null);
+
                 ringPaint.setColor(active ? Color.argb(220, 0, 245, 212) : Color.argb(72, 255, 255, 255));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
 
