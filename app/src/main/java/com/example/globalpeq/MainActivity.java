@@ -3059,10 +3059,7 @@ public final class MainActivity extends Activity {
         extraTabButton.setOnClickListener(v -> showExtraPage());
         strip.addView(extraTabButton, bottomTabParams());
 
-        settingsTabButton = new Button(this);
-        settingsTabButton.setText("Settings");
-        settingsTabButton.setTextSize(13);
-        settingsTabButton.setAllCaps(false);
+        settingsTabButton = createShimmerButton("Settings");
         normalizeBottomTab(settingsTabButton);
         settingsTabButton.setOnClickListener(v -> showSettingsPage());
         strip.addView(settingsTabButton, bottomTabParams());
