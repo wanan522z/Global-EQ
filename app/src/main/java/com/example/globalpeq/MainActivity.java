@@ -5738,16 +5738,13 @@ public final class MainActivity extends Activity {
                 return;
             }
             int trackWidth = getWidth() - getPaddingLeft() - getPaddingRight();
-            int pageWidth = mainPageHost.getWidth();
-            if (trackWidth <= 0 || pageWidth <= 0) {
+            if (trackWidth <= 0) {
                 return;
             }
             float clampedX = Math.max(getPaddingLeft(), Math.min(getWidth() - getPaddingRight(), x));
             float relative = clampedX - getPaddingLeft();
             float desiredPosition = Math.max(0f, Math.min(2f, relative / (trackWidth / 3f)));
-            float deltaPages = Math.max(-1f, Math.min(1f, desiredPosition - activeMainPageIndex));
-            float rawOffset = -deltaPages * pageWidth;
-            mainPageHost.updatePageDrag(rawOffset);
+            mainPageHost.updatePagePositionFromTab(desiredPosition);
         }
 
         private void settleDragFromTouch(float x) {
@@ -5755,16 +5752,13 @@ public final class MainActivity extends Activity {
                 return;
             }
             int trackWidth = getWidth() - getPaddingLeft() - getPaddingRight();
-            int pageWidth = mainPageHost.getWidth();
-            if (trackWidth <= 0 || pageWidth <= 0) {
+            if (trackWidth <= 0) {
                 return;
             }
             float clampedX = Math.max(getPaddingLeft(), Math.min(getWidth() - getPaddingRight(), x));
             float relative = clampedX - getPaddingLeft();
             float desiredPosition = Math.max(0f, Math.min(2f, relative / (trackWidth / 3f)));
-            float deltaPages = Math.max(-1f, Math.min(1f, desiredPosition - activeMainPageIndex));
-            float rawOffset = -deltaPages * pageWidth;
-            mainPageHost.finishPageDrag(rawOffset);
+            mainPageHost.settleToTabPosition(desiredPosition);
         }
     }
 
