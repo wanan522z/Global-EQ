@@ -5767,8 +5767,8 @@ public final class MainActivity extends Activity {
             return 0f;
         }
         // 统一为 tab 宽度的固定比例，保证三个 tab 的 indicator 框宽度完全一致，
-        // 视觉对齐整齐。不再依赖文字宽度（EQ/EXTRA/SETTINGS 长度不同会导致框宽不均）。
-        return tab.getWidth() * 0.72f;
+        // 视觉对齐整齐。基本占据 1/3 位置（留少量边距）。
+        return tab.getWidth() * 0.92f;
     }
 
     private View[] mainPages() {
