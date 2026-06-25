@@ -1085,14 +1085,29 @@ public final class MainActivity extends Activity {
         renderSavedPresetSpinner();
         renderCurveButtons();
         if (curveView != null) {
-            curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
-            curveView.setMaxDb(curveGraphMaxDb);
-            curveView.setPreset(editingPreset);
+            refreshCurveView();
         }
         renderHeader();
         renderRows();
         updateExtraControls();
         updatingUi = false;
+    }
+
+    private Preset curveDisplayPreset() {
+        if (editingPreset == null) {
+            return Preset.flat(false);
+        }
+        boolean enabled = runningPreset != null && runningPreset.enabled && supported;
+        return editingPreset.withEnabled(enabled);
+    }
+
+    private void refreshCurveView() {
+        if (curveView == null) {
+            return;
+        }
+        curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
+        curveView.setMaxDb(curveGraphMaxDb);
+        curveView.setPreset(curveDisplayPreset());
     }
 
     private void renderCurveButtons() {
