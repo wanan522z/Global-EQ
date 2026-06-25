@@ -3049,18 +3049,12 @@ public final class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        eqTabButton = new Button(this);
-        eqTabButton.setText("EQ");
-        eqTabButton.setTextSize(13);
-        eqTabButton.setAllCaps(false);
+        eqTabButton = createShimmerButton("EQ");
         normalizeBottomTab(eqTabButton);
         eqTabButton.setOnClickListener(v -> showEqPage());
         strip.addView(eqTabButton, bottomTabParams());
 
-        extraTabButton = new Button(this);
-        extraTabButton.setText("EXTRA");
-        extraTabButton.setTextSize(13);
-        extraTabButton.setAllCaps(false);
+        extraTabButton = createShimmerButton("EXTRA");
         normalizeBottomTab(extraTabButton);
         extraTabButton.setOnClickListener(v -> showExtraPage());
         strip.addView(extraTabButton, bottomTabParams());
