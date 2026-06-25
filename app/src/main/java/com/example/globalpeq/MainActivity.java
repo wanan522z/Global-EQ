@@ -145,8 +145,8 @@ public final class MainActivity extends Activity {
             for (int i = shimmerTargetViews.size() - 1; i >= 0; i--) {
                 TextView view = shimmerTargetViews.get(i);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
-                    shimmerTargetViews.remove(i);
-                    shimmerLastWidth.remove(view);
+                    // 未 attached 时仅跳过本帧，保留在列表中；
+                    // 等 view attached 后自然参与动画（解决 buildContent 中提前注册的 tab 被误删的问题）
                     continue;
                 }
                 int width = view.getWidth();
