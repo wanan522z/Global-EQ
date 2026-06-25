@@ -3412,10 +3412,12 @@ public final class MainActivity extends Activity {
         column.setGravity(android.view.Gravity.CENTER);
         TextView title = new TextView(this);
         title.setText(label);
-        title.setTextSize(15);
+        title.setTextSize(13);
         title.setTextColor(Color.rgb(200, 210, 230));
         title.setGravity(android.view.Gravity.CENTER);
-        column.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        titleParams.bottomMargin = dp(2);
+        column.addView(title, titleParams);
 
         KnobView knob = new KnobView(this);
         if (cutoff) {
