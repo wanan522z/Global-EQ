@@ -3794,14 +3794,35 @@ public final class MainActivity extends Activity {
 
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
+                ringPaint.clearShadowLayer();
+                // 先画一层柔光底：RadialGradient 从 ring 半径向外平滑过渡，消除 shadowLayer 锯齿
+                float glowR = radius + dpf(4f);
                 if (active) {
-                    ringPaint.setShadowLayer(dpf(4f), 0, 0, Color.argb(170, 0, 245, 212));
+                    dotPaint.setStyle(Paint.Style.FILL);
+                    dotPaint.setShader(new RadialGradient(
+                            cx, cy, glowR,
+                            new int[]{Color.TRANSPARENT,
+                                    Color.argb(90, 0, 245, 212),
+                                    Color.argb(40, 0, 200, 230),
+                                    Color.TRANSPARENT},
+                            new float[]{0f, (radius / glowR), ((radius + dpf(1f)) / glowR), 1f},
+                            Shader.TileMode.CLAMP));
+                    canvas.drawCircle(cx, cy, glowR, dotPaint);
+                    dotPaint.setShader(null);
                 } else {
-                    ringPaint.setShadowLayer(dpf(2f), 0, 0, Color.argb(50, 120, 180, 220));
+                    dotPaint.setStyle(Paint.Style.FILL);
+                    dotPaint.setShader(new RadialGradient(
+                            cx, cy, glowR,
+                            new int[]{Color.TRANSPARENT,
+                                    Color.argb(35, 120, 180, 220),
+                                    Color.TRANSPARENT},
+                            new float[]{0f, (radius / glowR), 1f},
+                            Shader.TileMode.CLAMP));
+                    canvas.drawCircle(cx, cy, glowR, dotPaint);
+                    dotPaint.setShader(null);
                 }
                 ringPaint.setColor(active ? Color.argb(220, 0, 245, 212) : Color.argb(72, 255, 255, 255));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
-                ringPaint.clearShadowLayer();
 
                 dotPaint.setStyle(Paint.Style.FILL);
                 dotPaint.setShader(null);
