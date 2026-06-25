@@ -590,7 +590,7 @@ public final class MainActivity extends Activity {
         modeSpinner.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
         modeSpinner.setSingleLine(true);
         modeSpinner.setIncludeFontPadding(false);
-        modeSpinner.setPadding(dp(8), 0, dp(8), 0);
+        modeSpinner.setPadding(0, 0, dp(6), 0);
         modeSpinner.setMinWidth(0);
         modeSpinner.setMinimumWidth(0);
         styleSettingsTitleText(modeSpinner);
