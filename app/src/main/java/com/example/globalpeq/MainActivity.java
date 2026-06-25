@@ -5165,6 +5165,7 @@ public final class MainActivity extends Activity {
 
         @Override
         protected void onDraw(Canvas canvas) {
+            getPaint().clearShadowLayer();
             drawTitleGlow(canvas);
             super.onDraw(canvas);
         }
