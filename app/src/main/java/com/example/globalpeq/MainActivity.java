@@ -357,16 +357,14 @@ public final class MainActivity extends Activity {
         // 此时强制重建 modeSpinner 和 active tab 的 shader，确保流光用正确宽度运行。
         // 解决 onCreate 中注册时 getWidth()==0 导致 shader width=1 的问题。
         if (modeSpinner != null && modeSpinner.getWidth() > 0) {
-            applyStatusShimmerShader(modeSpinner, modeSpinner.getWidth(),
-                    Color.rgb(0, 255, 230), Color.rgb(80, 220, 255));
+            styleSettingsTitleText(modeSpinner);
             shimmerLastWidth.remove(modeSpinner);
             registerShimmerView(modeSpinner);
         }
         Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         for (Button tab : tabs) {
             if (tab != null && tab.getWidth() > 0 && tab.getPaint().getShader() != null) {
-                applyTitleGradientShader(tab, tab.getWidth(),
-                        Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+                styleSettingsTitleText(tab);
                 shimmerLastWidth.remove(tab);
                 registerShimmerView(tab);
             }
