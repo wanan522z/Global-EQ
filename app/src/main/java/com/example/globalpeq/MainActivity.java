@@ -4761,13 +4761,14 @@ public final class MainActivity extends Activity {
         if (modeSpinner == null) {
             return;
         }
+        // modeSpinner 作为顶部标题，始终启用流光：
+        // 启用时用饱满蓝绿亮色，未启用时用暗调蓝绿（仍有流光动感但不刺眼）
         if (runningPreset != null && runningPreset.enabled && supported) {
-            styleStatusTextShimmer(modeSpinner, Color.rgb(0, 255, 230), Color.rgb(180, 100, 255));
-            registerShimmerView(modeSpinner);
+            styleStatusTextShimmer(modeSpinner, Color.rgb(0, 255, 230), Color.rgb(80, 220, 255));
         } else {
-            unregisterShimmerView(modeSpinner);
-            styleDimPlainText(modeSpinner);
+            styleStatusTextShimmer(modeSpinner, Color.rgb(60, 130, 130), Color.rgb(80, 110, 130));
         }
+        registerShimmerView(modeSpinner);
     }
 
     private void styleCyanGlowText(TextView view) {
