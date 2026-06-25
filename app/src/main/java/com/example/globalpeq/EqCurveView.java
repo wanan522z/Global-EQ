@@ -18,9 +18,9 @@ import android.view.View;
 final class EqCurveView extends View {
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
-    private static final float CURVE_SAMPLE_STEP_PX = 0.5f;
-    private static final float REF_SAMPLE_STEP_PX = 1.5f;
-    private static final int CURVE_SUPERSAMPLE_SCALE = 2;
+    private static final float CURVE_SAMPLE_STEP_PX = 0.25f;
+    private static final float REF_SAMPLE_STEP_PX = 1.0f;
+    private static final int CURVE_SUPERSAMPLE_SCALE = 3;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
