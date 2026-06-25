@@ -440,9 +440,8 @@ public final class MainActivity extends Activity {
             root.post(root::requestApplyInsets);
         }
 
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        root.addView(content, new LinearLayout.LayoutParams(
+        mainPageHost = new MainPageHost(this);
+        root.addView(mainPageHost, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1f
@@ -450,28 +449,19 @@ public final class MainActivity extends Activity {
 
         eqPage = new LinearLayout(this);
         eqPage.setOrientation(LinearLayout.VERTICAL);
-        content.addView(eqPage, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-        ));
+        mainPageHost.addView(eqPage, pageHostParams());
 
         extraPage = new LinearLayout(this);
         extraPage.setOrientation(LinearLayout.VERTICAL);
         extraPage.setVisibility(View.GONE);
         extraPage.setPadding(0, dp(16), 0, 0);
-        content.addView(extraPage, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-        ));
+        mainPageHost.addView(extraPage, pageHostParams());
         buildExtraPage(extraPage);
 
         settingsPage = new LinearLayout(this);
         settingsPage.setOrientation(LinearLayout.VERTICAL);
         settingsPage.setVisibility(View.GONE);
-        content.addView(settingsPage, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-        ));
+        mainPageHost.addView(settingsPage, pageHostParams());
         buildSettingsPage(settingsPage);
 
         LinearLayout controlCard = new LinearLayout(this);
@@ -788,6 +778,13 @@ public final class MainActivity extends Activity {
         root.addView(buildBottomNav(), bottomNavParams);
 
         return root;
+    }
+
+    private FrameLayout.LayoutParams pageHostParams() {
+        return new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        );
     }
 
     private void buildSettingsPage(LinearLayout page) {
