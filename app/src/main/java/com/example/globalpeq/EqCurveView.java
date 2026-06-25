@@ -52,6 +52,7 @@ final class EqCurveView extends View {
     EqCurveView(Context context) {
         super(context);
         setBackgroundColor(Color.TRANSPARENT);
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         gridPaint.setColor(Color.argb(20, 255, 255, 255));
         gridPaint.setStrokeWidth(1.5f);
         minorGridPaint.setColor(Color.argb(11, 255, 255, 255));
@@ -61,8 +62,10 @@ final class EqCurveView extends View {
         curvePaint.setStyle(Paint.Style.STROKE);
         curvePaint.setStrokeCap(Paint.Cap.ROUND);
         curvePaint.setStrokeJoin(Paint.Join.ROUND);
+        curvePaint.setDither(true);
         referencePaint.setStyle(Paint.Style.STROKE);
         referencePaint.setStrokeWidth(3f);
+        referencePaint.setDither(true);
         dashPathEffect = new DashPathEffect(new float[]{12f, 10f}, 0f);
         textPaint.setColor(Color.argb(160, 255, 255, 255));
         textPaint.setTextSize(22f);
@@ -177,7 +180,7 @@ final class EqCurveView extends View {
         if (pathDirty || width != lastWidth || height != lastHeight) {
             curvePath.reset();
             // Since path calculations are fully cached, we can keep the curve ultra smooth at step = 2 with zero frame drop
-            int step = 2;
+            int step = 1;
             boolean first = true;
             for (int x = (int) left; x <= (int) right; x += step) {
                 int hz = xToFreq(x, left, right);
