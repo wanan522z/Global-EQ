@@ -5556,58 +5556,29 @@ public final class MainActivity extends Activity {
         }
 
         private void updatePageDrag(float rawOffset) {
-            View[] pages = mainPages();
             int width = getWidth();
             if (width <= 0) {
                 return;
             }
 
             int proposedTarget = activeMainPageIndex + (rawOffset < 0 ? 1 : -1);
-            if (Math.abs(rawOffset) < 1f) {
+            if (Math.abs(rawOffset) < 1f || proposedTarget < 0 || proposedTarget >= mainPages().length) {
                 proposedTarget = -1;
             }
-            if (proposedTarget < 0 || proposedTarget >= pages.length) {
-                proposedTarget = -1;
-            }
-
             dragTargetIndex = proposedTarget;
             float appliedOffset = rawOffset;
             if (dragTargetIndex == -1) {
                 appliedOffset *= 0.22f;
             }
             dragOffset = appliedOffset;
-
-            View current = pages[activeMainPageIndex];
-            current.animate().cancel();
-            current.setVisibility(View.VISIBLE);
-            current.setAlpha(1f);
-            current.setTranslationX(appliedOffset);
-
-            for (int i = 0; i < pages.length; i++) {
-                if (i == activeMainPageIndex) {
-                    continue;
-                }
-                View page = pages[i];
-                page.animate().cancel();
-                page.setAlpha(1f);
-                if (i == dragTargetIndex) {
-                    page.setVisibility(View.VISIBLE);
-                    page.setTranslationX(appliedOffset > 0 ? appliedOffset - width : appliedOffset + width);
-                } else {
-                    page.setVisibility(View.GONE);
-                    page.setTranslationX(0f);
-                }
-            }
-
             float pagePosition = activeMainPageIndex;
             if (dragTargetIndex != -1) {
                 pagePosition += -appliedOffset / width;
             }
-            updateBottomTabIndicatorProgress(pagePosition);
+            applyPagePosition(pagePosition);
         }
 
         private void finishPageDrag(float rawOffset) {
-            View[] pages = mainPages();
             int width = getWidth();
             if (width <= 0 || dragTargetIndex == -1) {
                 cancelPageDrag();
@@ -5616,71 +5587,76 @@ public final class MainActivity extends Activity {
 
             float progress = Math.abs(dragOffset) / width;
             boolean shouldAdvance = progress > 0.16f || Math.abs(rawOffset) > dpf(42f);
-            View current = pages[activeMainPageIndex];
-            View target = pages[dragTargetIndex];
-            int nextIndex = dragTargetIndex;
-
-            current.animate().cancel();
-            target.animate().cancel();
-            current.setVisibility(View.VISIBLE);
-            target.setVisibility(View.VISIBLE);
-
             if (shouldAdvance) {
-                float endCurrent = dragOffset < 0 ? -width : width;
-                current.animate()
-                        .translationX(endCurrent)
-                        .setDuration(180)
-                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                        .withEndAction(() -> {
-                            current.setVisibility(View.GONE);
-                            current.setTranslationX(0f);
-                        })
-                        .start();
-                target.animate()
-                        .translationX(0f)
-                        .setDuration(180)
-                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                        .start();
-                activeMainPageIndex = nextIndex;
-                updateBottomNavSelection(nextIndex);
+                settleToPage(dragTargetIndex);
             } else {
                 cancelPageDrag();
             }
         }
 
         private void cancelPageDrag() {
-            View[] pages = mainPages();
-            View current = pages[activeMainPageIndex];
-            current.animate().cancel();
-            current.setVisibility(View.VISIBLE);
-            current.animate()
-                    .translationX(0f)
-                    .setDuration(180)
-                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                    .start();
+            settleToPage(activeMainPageIndex);
+        }
 
+        private void applyPagePosition(float pagePosition) {
+            View[] pages = mainPages();
+            int width = getWidth();
+            if (width <= 0) {
+                return;
+            }
+            float clampedPosition = Math.max(0f, Math.min(pages.length - 1, pagePosition));
             for (int i = 0; i < pages.length; i++) {
-                if (i == activeMainPageIndex) {
-                    continue;
-                }
                 View page = pages[i];
-                if (page.getVisibility() == View.VISIBLE) {
-                    View pageRef = page;
-                    page.animate().cancel();
-                    pageRef.animate()
-                            .translationX(i < activeMainPageIndex ? -getWidth() : getWidth())
-                            .setDuration(180)
-                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                            .withEndAction(() -> {
-                                pageRef.setVisibility(View.GONE);
-                                pageRef.setTranslationX(0f);
-                            })
-                            .start();
+                page.animate().cancel();
+                page.setAlpha(1f);
+                float translation = (i - clampedPosition) * width;
+                page.setTranslationX(translation);
+                if (Math.abs(i - clampedPosition) <= 1.05f) {
+                    page.setVisibility(View.VISIBLE);
                 } else {
-                    page.setTranslationX(0f);
+                    page.setVisibility(View.GONE);
                 }
             }
-            updateBottomNavSelection(activeMainPageIndex);
+            updateBottomTabIndicatorProgress(clampedPosition);
+        }
+
+        private void settleToPage(int pageIndex) {
+            View[] pages = mainPages();
+            int width = getWidth();
+            if (width <= 0) {
+                activeMainPageIndex = clamp(pageIndex, 0, pages.length - 1);
+                updateBottomNavSelection(activeMainPageIndex);
+                return;
+            }
+            int nextIndex = clamp(pageIndex, 0, pages.length - 1);
+            for (int i = 0; i < pages.length; i++) {
+                View page = pages[i];
+                View pageRef = page;
+                page.animate().cancel();
+                pageRef.setVisibility(View.VISIBLE);
+                pageRef.animate()
+                        .translationX((i - nextIndex) * width)
+                        .setDuration(180)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .withEndAction(() -> {
+                            if (pageRef != mainPages()[nextIndex]) {
+                                pageRef.setVisibility(View.GONE);
+                            }
+                        })
+                        .start();
+            }
+            activeMainPageIndex = nextIndex;
+            updateBottomNavSelection(nextIndex);
+        }
+
+        private void updatePagePositionFromTab(float pagePosition) {
+            dragTargetIndex = clamp(Math.round(pagePosition), 0, mainPages().length - 1);
+            dragOffset = (activeMainPageIndex - pagePosition) * getWidth();
+            applyPagePosition(pagePosition);
+        }
+
+        private void settleToTabPosition(float pagePosition) {
+            settleToPage(clamp(Math.round(pagePosition), 0, mainPages().length - 1));
         }
     }
 
