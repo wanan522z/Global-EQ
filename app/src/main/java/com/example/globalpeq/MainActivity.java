@@ -5483,7 +5483,8 @@ public final class MainActivity extends Activity {
 
     /**
      * 绘制上一步/下一步用的圆弧箭头图标。isRedo 为 true 时水平镜像得到下一步箭头。
-     * 图标以白色描边 + 填充绘制，并叠加一层半透明青色作为柔光底；通过 ColorFilter 在禁用时整体变暗。
+     * 仅绘制白色描边 + 填充主体（避免宽描边光晕在硬件加速下产生锯齿）；
+     * 通过 ColorFilter 在禁用时整体变暗。
      */
     private Drawable makeCurvedArrowDrawable(boolean isRedo) {
         return new Drawable() {
@@ -5491,7 +5492,7 @@ public final class MainActivity extends Activity {
             private final Path arcPath = new Path();
             private final Path headPath = new Path();
             private final android.graphics.RectF arcRect = new android.graphics.RectF();
-            private final int sizePx = dp(26);
+            private final int sizePx = dp(18);
 
             @Override
             public int getIntrinsicWidth() { return sizePx; }
@@ -5507,7 +5508,7 @@ public final class MainActivity extends Activity {
                 if (isRedo) canvas.scale(-1f, 1f);
 
                 float r = sizePx * 0.40f;
-                float strokeW = dpf(1.7f);
+                float strokeW = dpf(1.4f);
                 arcRect.set(-r, -r, r, r);
                 // 上一步箭头：从 165° 逆时针扫过 300°，缺口位于左侧，箭尖收在 225°（左上）并指向左侧。
                 float startAngle = 165f;
@@ -5537,15 +5538,8 @@ public final class MainActivity extends Activity {
                 paint.setStrokeCap(Paint.Cap.ROUND);
                 paint.setStrokeJoin(Paint.Join.ROUND);
 
-                // 青色柔光底（宽描边）
+                // 白色主体（描边 + 填充）
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(strokeW + dpf(2.6f));
-                paint.setColor(Color.argb(55, 0, 245, 212));
-                canvas.drawPath(arcPath, paint);
-                paint.setStrokeWidth(dpf(2.2f));
-                canvas.drawPath(headPath, paint);
-
-                // 白色主体（细描边 + 填充）
                 paint.setStrokeWidth(strokeW);
                 paint.setColor(Color.WHITE);
                 canvas.drawPath(arcPath, paint);
