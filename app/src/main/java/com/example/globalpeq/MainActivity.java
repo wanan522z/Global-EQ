@@ -5460,27 +5460,27 @@ public final class MainActivity extends Activity {
             if (bottomTabIndicator == null) {
                 return;
             }
-            int trackWidth = parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight();
-            if (trackWidth <= 0) {
+            float[] metrics = bottomTabIndicatorMetrics(Math.max(0f, Math.min(2f, activeIndex)));
+            if (metrics == null) {
                 return;
             }
-            int tabWidth = trackWidth / 3;
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) bottomTabIndicator.getLayoutParams();
-            if (params.width != tabWidth || params.leftMargin != parent.getPaddingLeft()) {
-                params.width = tabWidth;
-                params.leftMargin = parent.getPaddingLeft();
+            int targetWidth = Math.round(metrics[1]);
+            int targetLeft = Math.round(metrics[0]);
+            if (params.width != targetWidth || params.leftMargin != targetLeft) {
+                params.width = targetWidth;
+                params.leftMargin = targetLeft;
                 bottomTabIndicator.setLayoutParams(params);
             }
-            float targetX = activeIndex * tabWidth;
             if (animate) {
                 bottomTabIndicator.animate()
-                        .translationX(targetX)
+                        .translationX(0f)
                         .setDuration(180)
                         .setInterpolator(new android.view.animation.DecelerateInterpolator())
                         .start();
             } else {
                 bottomTabIndicator.animate().cancel();
-                bottomTabIndicator.setTranslationX(targetX);
+                bottomTabIndicator.setTranslationX(0f);
             }
         });
     }
@@ -5493,20 +5493,55 @@ public final class MainActivity extends Activity {
         if (parent == null) {
             return;
         }
-        int trackWidth = parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight();
-        if (trackWidth <= 0) {
+        float[] metrics = bottomTabIndicatorMetrics(pagePosition);
+        if (metrics == null) {
             return;
         }
-        int tabWidth = trackWidth / 3;
         FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) bottomTabIndicator.getLayoutParams();
-        if (params.width != tabWidth || params.leftMargin != parent.getPaddingLeft()) {
-            params.width = tabWidth;
-            params.leftMargin = parent.getPaddingLeft();
+        int targetWidth = Math.round(metrics[1]);
+        int targetLeft = Math.round(metrics[0]);
+        if (params.width != targetWidth || params.leftMargin != targetLeft) {
+            params.width = targetWidth;
+            params.leftMargin = targetLeft;
             bottomTabIndicator.setLayoutParams(params);
         }
-        float clamped = Math.max(0f, Math.min(2f, pagePosition));
         bottomTabIndicator.animate().cancel();
-        bottomTabIndicator.setTranslationX(clamped * tabWidth);
+        bottomTabIndicator.setTranslationX(0f);
+    }
+
+    private float[] bottomTabIndicatorMetrics(float pagePosition) {
+        if (bottomTabIndicator == null || eqTabButton == null || extraTabButton == null || settingsTabButton == null) {
+            return null;
+        }
+        View parent = (View) bottomTabIndicator.getParent();
+        if (parent == null || parent.getWidth() <= 0) {
+            return null;
+        }
+        Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        int[] parentLocation = new int[2];
+        parent.getLocationOnScreen(parentLocation);
+
+        float clamped = Math.max(0f, Math.min(2f, pagePosition));
+        int leftIndex = (int) Math.floor(clamped);
+        int rightIndex = Math.min(tabs.length - 1, leftIndex + 1);
+        float t = clamped - leftIndex;
+
+        float leftStart = tabLeftInParent(tabs[leftIndex], parentLocation[0]);
+        float widthStart = tabs[leftIndex].getWidth();
+        float leftEnd = tabLeftInParent(tabs[rightIndex], parentLocation[0]);
+        float widthEnd = tabs[rightIndex].getWidth();
+        if (widthStart <= 0f || widthEnd <= 0f) {
+            return null;
+        }
+        float left = leftStart + (leftEnd - leftStart) * t;
+        float width = widthStart + (widthEnd - widthStart) * t;
+        return new float[]{left, width};
+    }
+
+    private float tabLeftInParent(View tab, int parentScreenLeft) {
+        int[] tabLocation = new int[2];
+        tab.getLocationOnScreen(tabLocation);
+        return tabLocation[0] - parentScreenLeft;
     }
 
     private View[] mainPages() {
