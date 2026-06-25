@@ -134,6 +134,9 @@ public final class MainActivity extends Activity {
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
+    // ===== 诊断日志（定位 tab/modeSpinner 不动问题，验证后删除）=====
+    private static final String SHIMMER_TAG = "ShimmerDBG";
+    private int shimmerFrameCounter = 0;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
