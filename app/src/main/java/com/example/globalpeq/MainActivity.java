@@ -3092,6 +3092,26 @@ public final class MainActivity extends Activity {
         return params;
     }
 
+    private Button createShimmerButton(String text) {
+        Button button = new Button(this) {
+            @Override
+            protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                registerShimmerView(this);
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                unregisterShimmerView(this);
+                super.onDetachedFromWindow();
+            }
+        };
+        button.setText(text);
+        button.setTextSize(13);
+        button.setAllCaps(false);
+        return button;
+    }
+
     private void normalizeBottomTab(Button button) {
         button.setMinWidth(0);
         button.setMinHeight(0);
@@ -5625,6 +5645,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             int nextIndex = clamp(pageIndex, 0, pages.length - 1);
+            View activePage = pages[nextIndex];
             for (int i = 0; i < pages.length; i++) {
                 View page = pages[i];
                 View pageRef = page;
@@ -5635,7 +5656,7 @@ public final class MainActivity extends Activity {
                         .setDuration(180)
                         .setInterpolator(new android.view.animation.DecelerateInterpolator())
                         .withEndAction(() -> {
-                            if (pageRef != mainPages()[nextIndex]) {
+                            if (pageRef != activePage) {
                                 pageRef.setVisibility(View.GONE);
                             }
                         })
