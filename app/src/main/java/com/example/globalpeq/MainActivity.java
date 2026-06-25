@@ -207,7 +207,7 @@ public final class MainActivity extends Activity {
                 Shader.TileMode.REPEAT));
         // 统一光晕：浅蓝青色光晕，与流光色系一致
         // 当前 baked-offset 架构每帧新建 shader 对象，shadowLayer 不再阻塞流光
-        view.getPaint().setShadowLayer(dpf(3f), 0, 0, Color.argb(110, 120, 220, 255));
+        view.getPaint().setShadowLayer(dpf(4.5f), 0, 0, Color.argb(130, 120, 220, 255));
         view.invalidate();
     }
 
