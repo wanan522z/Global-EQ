@@ -4603,7 +4603,7 @@ public final class MainActivity extends Activity {
                 colorAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
                 colorAnimator.addUpdateListener(animation -> {
                     float t = (float) animation.getAnimatedValue();
-                    currentColor = (int) android.animation.ArgbEvaluator.getInstance()
+                    currentColor = (int) new android.animation.ArgbEvaluator()
                             .evaluate(t, startColor, targetColor);
                     glowAlpha = startGlow + (targetGlow - startGlow) * t;
                     invalidateSelf();
