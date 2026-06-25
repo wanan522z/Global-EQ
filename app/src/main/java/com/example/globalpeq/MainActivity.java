@@ -5454,6 +5454,91 @@ public final class MainActivity extends Activity {
         return background;
     }
 
+    /**
+     * 绘制上一步/下一步用的圆弧箭头图标。isRedo 为 true 时水平镜像得到下一步箭头。
+     * 图标以白色描边 + 填充绘制，并叠加一层半透明青色作为柔光底；通过 ColorFilter 在禁用时整体变暗。
+     */
+    private Drawable makeCurvedArrowDrawable(boolean isRedo) {
+        return new Drawable() {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Path arcPath = new Path();
+            private final Path headPath = new Path();
+            private final android.graphics.RectF arcRect = new android.graphics.RectF();
+            private final int sizePx = dp(26);
+
+            @Override
+            public int getIntrinsicWidth() { return sizePx; }
+            @Override
+            public int getIntrinsicHeight() { return sizePx; }
+
+            @Override
+            public void draw(Canvas canvas) {
+                Rect b = getBounds();
+                if (b.width() <= 0 || b.height() <= 0) return;
+                canvas.save();
+                canvas.translate(b.exactCenterX(), b.exactCenterY());
+                if (isRedo) canvas.scale(-1f, 1f);
+
+                float r = sizePx * 0.40f;
+                float strokeW = dpf(1.7f);
+                arcRect.set(-r, -r, r, r);
+                // 上一步箭头：从 165° 逆时针扫过 300°，缺口位于左侧，箭尖收在 225°（左上）并指向左侧。
+                float startAngle = 165f;
+                float sweepAngle = -300f;
+                arcPath.reset();
+                arcPath.arcTo(arcRect, startAngle, sweepAngle);
+
+                double endRad = Math.toRadians(startAngle + sweepAngle);
+                float tipX = r * (float) Math.cos(endRad);
+                float tipY = r * (float) Math.sin(endRad);
+                // 逆时针运动在角度 θ 处的切向：(sin θ, -cos θ)
+                float tanX = (float) Math.sin(endRad);
+                float tanY = -(float) Math.cos(endRad);
+                float arrowLen = r * 0.62f;
+                float halfW = r * 0.34f;
+                float apexX = tipX + tanX * arrowLen;
+                float apexY = tipY + tanY * arrowLen;
+                float perpX = -tanY;
+                float perpY = tanX;
+                headPath.reset();
+                headPath.moveTo(tipX, tipY);
+                headPath.lineTo(tipX + perpX * halfW, tipY + perpY * halfW);
+                headPath.lineTo(apexX, apexY);
+                headPath.lineTo(tipX - perpX * halfW, tipY - perpY * halfW);
+                headPath.close();
+
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+
+                // 青色柔光底（宽描边）
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(strokeW + dpf(2.6f));
+                paint.setColor(Color.argb(55, 0, 245, 212));
+                canvas.drawPath(arcPath, paint);
+                paint.setStrokeWidth(dpf(2.2f));
+                canvas.drawPath(headPath, paint);
+
+                // 白色主体（细描边 + 填充）
+                paint.setStrokeWidth(strokeW);
+                paint.setColor(Color.WHITE);
+                canvas.drawPath(arcPath, paint);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawPath(headPath, paint);
+
+                canvas.restore();
+            }
+
+            @Override
+            public void setAlpha(int alpha) { paint.setAlpha(alpha); }
+
+            @Override
+            public void setColorFilter(ColorFilter colorFilter) { paint.setColorFilter(colorFilter); }
+
+            @Override
+            public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+        };
+    }
+
     private Drawable strokeGlowRoundRectDrawable(int fillColor, int strokeColor, int radiusPx, int glowRadiusPx, int glowColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
