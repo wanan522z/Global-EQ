@@ -5407,8 +5407,6 @@ public final class MainActivity extends Activity {
         View current = view;
         while (current != null) {
             if (current instanceof HorizontalScrollView
-                    || current instanceof ScrollView
-                    || current instanceof ListView
                     || current instanceof EqCurveView
                     || current instanceof KnobView) {
                 return true;
