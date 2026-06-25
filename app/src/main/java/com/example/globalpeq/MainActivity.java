@@ -3449,6 +3449,16 @@ public final class MainActivity extends Activity {
         knobParams.topMargin = dp(6);
         knobParams.bottomMargin = dp(6);
         column.addView(knob, knobParams);
+
+        // 标签移到旋钮下方，视觉重心在旋钮弧形
+        TextView title = new TextView(this);
+        title.setText(label);
+        title.setTextSize(13);
+        title.setTextColor(Color.rgb(200, 210, 230));
+        title.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        titleParams.topMargin = dp(2);
+        column.addView(title, titleParams);
         return column;
     }
 
