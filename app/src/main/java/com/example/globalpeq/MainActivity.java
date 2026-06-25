@@ -3315,20 +3315,16 @@ public final class MainActivity extends Activity {
 
     private void styleExtraKnobInput(EditText input, int value, boolean enabled) {
         boolean active = enabled && value != 0;
-        GradientDrawable bg = new GradientDrawable();
-        bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setColor(enabled ? Color.argb(46, 255, 255, 255) : Color.argb(20, 255, 255, 255));
-        bg.setStroke(dp(1), active ? Color.argb(135, 0, 245, 212) : Color.argb(enabled ? 72 : 28, 255, 255, 255));
-        bg.setCornerRadius(dp(8));
-        input.setBackground(bg);
-        input.setTextSize(20);
+        // 输入框缩小、样式对齐 EQ 页面：createFieldBackground 风格 + 小字号
+        input.setBackground(createFieldBackground(20, active ? 90 : 40, 8));
+        input.setTextSize(13);
         input.setIncludeFontPadding(false);
-        input.setPadding(0, 0, 0, 0);
+        input.setPadding(dp(4), 0, dp(4), 0);
         input.setGravity(android.view.Gravity.CENTER);
         input.setTextColor(active ? Color.rgb(0, 245, 212) : enabled ? Color.argb(230, 245, 247, 255) : Color.argb(120, 190, 198, 210));
         input.setHintTextColor(Color.argb(100, 255, 255, 255));
         if (active) {
-            input.setShadowLayer(dpf(5f), 0, 0, Color.argb(150, 0, 245, 212));
+            input.setShadowLayer(dpf(4f), 0, 0, Color.argb(140, 0, 245, 212));
         } else {
             input.setShadowLayer(0, 0, 0, Color.TRANSPARENT);
         }
