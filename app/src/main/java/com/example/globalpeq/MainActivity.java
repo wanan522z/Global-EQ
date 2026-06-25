@@ -3262,17 +3262,17 @@ public final class MainActivity extends Activity {
         reverbTitleView = (TextView) reverbHeader.getChildAt(0);
         reverbTypeButton = createExtraChoiceButton();
         reverbTypeButton.setOnClickListener(v -> showReverbTypeChoiceMenu());
-        reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(126), dp(32)));
+        reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
         reverbKnobs.addView(createReverbControl("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbControl("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbControl("Size", 0, 100, editingPreset.reverbSizePercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbControl("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
