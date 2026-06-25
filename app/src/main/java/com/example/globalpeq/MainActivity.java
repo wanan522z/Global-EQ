@@ -4734,7 +4734,10 @@ public final class MainActivity extends Activity {
             return;
         }
         shimmerTargetViews.add(view);
+        // 清除缓存的宽度，确保下次 runnable 会用真实宽度重建 shader
+        shimmerLastWidth.remove(view);
         if (shimmerTargetViews.size() == 1) {
+            lastShimmerTime = 0L;
             uiHandler.postDelayed(shimmerAnimationRunnable, SHIMMER_FPS_DELAY);
         }
     }
