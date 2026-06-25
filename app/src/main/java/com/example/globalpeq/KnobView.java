@@ -101,7 +101,8 @@ final class KnobView extends View {
         }
 
         // 3) 数字 LED（模仿滑杆 thumb 中心 LED 指示）
-        textPaint.setTextSize(sp(15));
+        // 字号与旋钮标题(13sp)协调，bold 增强可读性
+        textPaint.setTextSize(sp(12));
         textPaint.setFakeBoldText(true);
         if (active) {
             textPaint.setColor(Color.rgb(0, 245, 212));
