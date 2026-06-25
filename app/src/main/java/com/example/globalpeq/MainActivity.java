@@ -3132,8 +3132,8 @@ public final class MainActivity extends Activity {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
-        reverbHeader.addView(reverbTypeSpinner, new LinearLayout.LayoutParams(dp(126), dp(34)));
-        reverbPanel.addView(reverbHeader, blockParams(6));
+        reverbHeader.addView(reverbTypeSpinner, new LinearLayout.LayoutParams(dp(126), dp(32)));
+        reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
         reverbKnobs.addView(createReverbControl("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
                 setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
