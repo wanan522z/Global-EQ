@@ -3104,7 +3104,7 @@ public final class MainActivity extends Activity {
     private void buildExtraPage(LinearLayout page) {
         page.setPadding(dp(12), dp(16), dp(12), dp(12));
 
-        LinearLayout reverbPanel = createExtraPanel("Reverb", "Room tone controls.");
+        LinearLayout reverbPanel = createExtraPanel("Reverb");
         page.addView(reverbPanel, extraPanelParams(0));
         LinearLayout reverbHeader = new LinearLayout(this);
         reverbHeader.setOrientation(LinearLayout.HORIZONTAL);
