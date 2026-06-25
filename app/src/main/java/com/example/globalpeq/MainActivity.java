@@ -591,6 +591,15 @@ public final class MainActivity extends Activity {
                 unregisterShimmerView(this);
                 super.onDetachedFromWindow();
             }
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                int save = canvas.save();
+                int overflow = dp(28);
+                canvas.clipRect(-overflow, 0, getWidth() + overflow, getHeight());
+                super.onDraw(canvas);
+                canvas.restoreToCount(save);
+            }
         };
         modeSpinner.setTextSize(16);
         modeSpinner.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -3290,6 +3299,15 @@ public final class MainActivity extends Activity {
                 unregisterShimmerView(this);
                 super.onDetachedFromWindow();
             }
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                int save = canvas.save();
+                int overflow = dp(28);
+                canvas.clipRect(-overflow, 0, getWidth() + overflow, getHeight());
+                super.onDraw(canvas);
+                canvas.restoreToCount(save);
+            }
         };
         button.setText(text);
         button.setTextSize(13);
@@ -5134,6 +5152,15 @@ public final class MainActivity extends Activity {
             protected void onDetachedFromWindow() {
                 unregisterShimmerView(this);
                 super.onDetachedFromWindow();
+            }
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                int save = canvas.save();
+                int overflow = dp(28);
+                canvas.clipRect(-overflow, 0, getWidth() + overflow, getHeight());
+                super.onDraw(canvas);
+                canvas.restoreToCount(save);
             }
         };
         title.setText(text);
