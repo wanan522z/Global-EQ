@@ -4568,11 +4568,11 @@ public final class MainActivity extends Activity {
         switchView.setShowText(false);
         switchView.setText("");
         switchView.setPadding(0, 0, 0, 0);
-        switchView.setMinWidth(dp(54));
-        switchView.setMinimumWidth(dp(54));
-        switchView.setMinHeight(dp(32));
-        switchView.setMinimumHeight(dp(32));
-        switchView.setSwitchMinWidth(dp(54));
+        switchView.setMinWidth(dp(60));
+        switchView.setMinimumWidth(dp(60));
+        switchView.setMinHeight(dp(30));
+        switchView.setMinimumHeight(dp(30));
+        switchView.setSwitchMinWidth(dp(60));
         // 去掉开关外围的圈圈动画：清除默认 background 和 stateListAnimator
         switchView.setBackground(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
