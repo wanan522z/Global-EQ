@@ -3221,8 +3221,8 @@ public final class MainActivity extends Activity {
         title.setGravity(android.view.Gravity.CENTER);
         column.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        systemBassBoostKnob = new KnobView(this);
-        systemBassBoostKnob.configure(0, 100, editingPreset.systemBassBoostPercent, "%", value -> setEditingPreset(editingPreset.withSystemBassBoostPercent(value), true));
+        // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断裂
+        LinearLayout placeholder = new LinearLayout(this);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(8);
         knobParams.bottomMargin = dp(8);
