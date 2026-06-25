@@ -4783,27 +4783,25 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 渐变周期宽度 = 视图宽度，与 shimmer runnable 中 postTranslate(phase*width,0) 严格 1:1，
-        // 配合 REPEAT 模式实现无缝循环（首尾颜色完全一致）。
-        // 色阶设计：纯蓝绿亮色调，无深蓝；中心 0.5 处为白热核心模拟扫光高亮。
-        // 首尾用柔和青绿作为过渡，保证 REPEAT 接缝不可见。
-        int softCyan = Color.rgb(0, 170, 150);     // 柔和青绿：两端过渡（替代深蓝，更亮）
-        int cyan = Color.rgb(0, 250, 210);         // 鲜亮蓝绿
-        int brightCyan = Color.rgb(50, 225, 255);  // 亮蓝绿
-        int hotCore = Color.rgb(240, 255, 250);    // 白热核心
+        // 色阶：浅蓝 → 青色 → 浅绿 → 白热核心 → 浅绿 → 青色 → 浅蓝
+        // 纯亮色调，无深蓝无深绿；首尾同色(浅蓝)保证 REPEAT 无缝
+        int lightBlue  = Color.rgb(120, 210, 255);  // 浅蓝：两端过渡
+        int cyan       = Color.rgb(0, 230, 210);     // 青色
+        int lightGreen = Color.rgb(130, 255, 180);   // 浅绿
+        int hotCore    = Color.rgb(245, 255, 250);   // 白热核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
-                        softCyan,
+                        lightBlue,
                         cyan,
-                        brightCyan,
+                        lightGreen,
                         hotCore,
-                        brightCyan,
+                        lightGreen,
                         cyan,
-                        softCyan
+                        lightBlue
                 },
-                new float[]{0.0f, 0.12f, 0.32f, 0.5f, 0.68f, 0.88f, 1.0f},
+                new float[]{0.0f, 0.15f, 0.35f, 0.5f, 0.65f, 0.85f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
@@ -4811,24 +4809,24 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 状态文字同样使用纯蓝绿亮色 + 白热核心的统一主题（无深蓝）
-        int softCyan = Color.rgb(0, 170, 150);
-        int cyan = Color.rgb(0, 245, 205);
-        int brightCyan = Color.rgb(50, 220, 255);
-        int hotCore = Color.rgb(235, 255, 250);
+        // 状态文字同样使用浅蓝/青色/浅绿 + 白热核心的统一主题
+        int lightBlue  = Color.rgb(120, 210, 255);
+        int cyan       = Color.rgb(0, 225, 205);
+        int lightGreen = Color.rgb(130, 250, 180);
+        int hotCore    = Color.rgb(240, 255, 250);
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
                 new int[]{
-                        softCyan,
+                        lightBlue,
                         cyan,
-                        brightCyan,
+                        lightGreen,
                         hotCore,
-                        brightCyan,
+                        lightGreen,
                         cyan,
-                        softCyan
+                        lightBlue
                 },
-                new float[]{0.0f, 0.12f, 0.32f, 0.5f, 0.68f, 0.88f, 1.0f},
+                new float[]{0.0f, 0.15f, 0.35f, 0.5f, 0.65f, 0.85f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
 
