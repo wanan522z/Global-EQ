@@ -5371,7 +5371,10 @@ public final class MainActivity extends Activity {
                 applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
                         Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
                 tab.setTextColor(Color.WHITE);
-                tab.setShadowLayer(dp(5), 0, 0, Color.argb(125, 0, 245, 212));
+                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
+                // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
+                // hotCore 白热核心已作视觉焦点。
+                tab.getPaint().clearShadowLayer();
                 tab.invalidate();
                 registerShimmerView(tab);
                 // 布局完成后重新应用正确宽度的 shader（解决 weight 布局下 getWidth()==0 的问题）
@@ -5809,7 +5812,10 @@ public final class MainActivity extends Activity {
                 applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
                         Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
                 tab.setTextColor(Color.WHITE);
-                tab.setShadowLayer(dp(5), 0, 0, Color.argb(125, 0, 245, 212));
+                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
+                // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
+                // hotCore 白热核心已作视觉焦点。
+                tab.getPaint().clearShadowLayer();
                 tab.invalidate();
                 registerShimmerView(tab);
             } else {
