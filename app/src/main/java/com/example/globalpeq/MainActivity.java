@@ -4110,6 +4110,20 @@ public final class MainActivity extends Activity {
             return Math.round(min + (max - min) * t);
         }
 
+        boolean isSwipeHandleHit(float rawX, float rawY) {
+            int[] location = new int[2];
+            getLocationOnScreen(location);
+            float localX = rawX - location[0];
+            float localY = rawY - location[1];
+            float cy = trackCenterY();
+            float touchTop = cy - dpf(22f);
+            float touchBottom = cy + dpf(22f);
+            float touchLeft = trackLeft() - dpf(12f);
+            float touchRight = trackRight() + dpf(12f);
+            return localX >= touchLeft && localX <= touchRight
+                    && localY >= touchTop && localY <= touchBottom;
+        }
+
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
@@ -5466,12 +5480,14 @@ public final class MainActivity extends Activity {
         return pages[clamp(activeMainPageIndex, 0, pages.length - 1)];
     }
 
-    private boolean shouldBlockPageSwipe(View view) {
+    private boolean shouldBlockPageSwipe(View view, float rawX, float rawY) {
         View current = view;
         while (current != null) {
+            if (current instanceof HorizontalBassSlider) {
+                return ((HorizontalBassSlider) current).isSwipeHandleHit(rawX, rawY);
+            }
             if (current instanceof HorizontalScrollView
-                    || current instanceof KnobView
-                    || current instanceof HorizontalBassSlider) {
+                    || current instanceof KnobView) {
                 return true;
             }
             ViewParent parent = current.getParent();
@@ -5524,7 +5540,7 @@ public final class MainActivity extends Activity {
                     dragOffset = 0f;
                     dragTargetIndex = -1;
                     View hit = findDeepestChildUnder(activeMainPageView(), downX, downY);
-                    trackSwipe = hit == null || !shouldBlockPageSwipe(hit);
+                    trackSwipe = hit == null || !shouldBlockPageSwipe(hit, downX, downY);
                     break;
                 case MotionEvent.ACTION_MOVE:
                     if (trackSwipe) {
