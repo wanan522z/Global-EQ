@@ -1371,7 +1371,7 @@ public final class MainActivity extends Activity {
                 || status.startsWith("Capture authorized")
                 || status.startsWith("Armed for")
                 || status.startsWith("Monitoring");
-        return armed ? "Reauthorize capture" : "Authorize capture";
+        return armed ? "Reconnect capture" : "Authorize capture";
     }
 
     private String advancedModeSummaryText() {
@@ -1519,6 +1519,72 @@ public final class MainActivity extends Activity {
     }
 
     private void showMonitoredAppChoiceDialog() {
+        List<ResolveInfo> suggested = loadSuggestedMonitoredApps();
+        AlertDialog[] dialogHolder = new AlertDialog[1];
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(12), dp(10), dp(12), dp(12));
+        list.addView(createMonitoredAppAddButton(dialogHolder), curveMenuRowParams(0));
+        boolean clearActive = advancedModeConfig.monitoredAppPackage == null
+                || advancedModeConfig.monitoredAppPackage.isEmpty();
+        list.addView(createMonitoredAppClearRow(clearActive, dialogHolder), curveMenuRowParams(6));
+        for (int i = 0; i < suggested.size(); i++) {
+            ResolveInfo info = suggested.get(i);
+            boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(6));
+        }
+        if (suggested.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("No suggested media apps were detected. Use Add to pick any installed app.");
+            empty.setTextSize(12);
+            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setPadding(dp(4), dp(8), dp(4), dp(4));
+            list.addView(empty, curveMenuRowParams(6));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView("Choose monitored app"))
+                .setView(scroll)
+                .setNegativeButton("Close", null)
+                .create();
+        dialogHolder[0] = dialog;
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private List<ResolveInfo> loadSuggestedMonitoredApps() {
+        List<ResolveInfo> launchable = loadLaunchableActivities();
+        List<ResolveInfo> suggested = new ArrayList<>();
+        for (ResolveInfo info : launchable) {
+            if (isLikelyMediaApp(info)) {
+                suggested.add(info);
+            }
+        }
+        if (advancedModeConfig.monitoredAppPackage != null && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
+            boolean alreadyIncluded = false;
+            for (ResolveInfo info : suggested) {
+                if (info.activityInfo != null
+                        && advancedModeConfig.monitoredAppPackage.equals(info.activityInfo.packageName)) {
+                    alreadyIncluded = true;
+                    break;
+                }
+            }
+            if (!alreadyIncluded) {
+                for (ResolveInfo info : launchable) {
+                    if (info.activityInfo != null
+                            && advancedModeConfig.monitoredAppPackage.equals(info.activityInfo.packageName)) {
+                        suggested.add(0, info);
+                        break;
+                    }
+                }
+            }
+        }
+        return suggested;
+    }
+
+    private List<ResolveInfo> loadLaunchableActivities() {
         Intent launcherIntent = new Intent(Intent.ACTION_MAIN, null);
         launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> activities = getPackageManager().queryIntentActivities(launcherIntent, 0);
@@ -1526,6 +1592,9 @@ public final class MainActivity extends Activity {
         java.util.HashSet<String> seenPackages = new java.util.HashSet<>();
         for (ResolveInfo info : activities) {
             if (info.activityInfo == null || info.activityInfo.packageName == null) {
+                continue;
+            }
+            if (getPackageName().equals(info.activityInfo.packageName)) {
                 continue;
             }
             if (!seenPackages.add(info.activityInfo.packageName)) {
@@ -1540,27 +1609,95 @@ public final class MainActivity extends Activity {
             String r = rightLabel == null ? "" : rightLabel.toString();
             return l.compareToIgnoreCase(r);
         });
-        if (unique.isEmpty()) {
-            Toast.makeText(this, "No launchable apps found", Toast.LENGTH_SHORT).show();
+        return unique;
+    }
+
+    private boolean isLikelyMediaApp(ResolveInfo info) {
+        if (info == null || info.activityInfo == null) {
+            return false;
+        }
+        String label = String.valueOf(info.loadLabel(getPackageManager())).toLowerCase(Locale.US);
+        String pkg = info.activityInfo.packageName.toLowerCase(Locale.US);
+        String combined = label + " " + pkg;
+        String[] keywords = {
+                "music", "audio", "video", "media", "player", "podcast", "radio",
+                "spotify", "youtube", "netflix", "vlc", "tidal", "deezer", "soundcloud",
+                "qqmusic", "cloudmusic", "bilibili", "bili", "douyin", "tiktok",
+                "musicfx", "stream", "tv", "tune", "amp", "fm",
+                "音乐", "视频", "播客", "电台", "播放器", "影视", "听书", "广播"
+        };
+        for (String keyword : keywords) {
+            if (combined.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private View createMonitoredAppAddButton(AlertDialog[] dialogHolder) {
+        Button add = new Button(this);
+        add.setText("+ Add");
+        add.setTextSize(14);
+        add.setAllCaps(false);
+        styleAccentButton(add, true);
+        add.setOnClickListener(v -> {
+            if (dialogHolder[0] != null) {
+                dialogHolder[0].dismiss();
+            }
+            showInstalledAppPickerDialog();
+        });
+        return add;
+    }
+
+    private void showInstalledAppPickerDialog() {
+        List<ApplicationInfo> installed = new ArrayList<>();
+        for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
+            if (info == null || !info.enabled) {
+                continue;
+            }
+            if (getPackageName().equals(info.packageName)) {
+                continue;
+            }
+            boolean launchable = getPackageManager().getLaunchIntentForPackage(info.packageName) != null;
+            boolean selected = info.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            if (!launchable && !selected) {
+                continue;
+            }
+            installed.add(info);
+        }
+        installed.sort((left, right) -> {
+            String l = String.valueOf(getPackageManager().getApplicationLabel(left));
+            String r = String.valueOf(getPackageManager().getApplicationLabel(right));
+            return l.compareToIgnoreCase(r);
+        });
+        if (installed.isEmpty()) {
+            Toast.makeText(this, "No installed apps available", Toast.LENGTH_SHORT).show();
             return;
         }
+
         AlertDialog[] dialogHolder = new AlertDialog[1];
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(12), dp(10), dp(12), dp(12));
-        boolean clearActive = advancedModeConfig.monitoredAppPackage == null
-                || advancedModeConfig.monitoredAppPackage.isEmpty();
-        list.addView(createMonitoredAppClearRow(clearActive, dialogHolder), curveMenuRowParams(0));
-        for (int i = 0; i < unique.size(); i++) {
-            ResolveInfo info = unique.get(i);
-            boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(6));
+        for (int i = 0; i < installed.size(); i++) {
+            ApplicationInfo info = installed.get(i);
+            String packageName = info.packageName;
+            String label = String.valueOf(getPackageManager().getApplicationLabel(info));
+            boolean active = packageName.equals(advancedModeConfig.monitoredAppPackage);
+            list.addView(createMonitoredAppMenuRow(
+                    getPackageManager().getApplicationIcon(info),
+                    label,
+                    packageName,
+                    active,
+                    dialogHolder,
+                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, label))
+            ), curveMenuRowParams(i == 0 ? 0 : 6));
         }
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Choose monitored app"))
+                .setCustomTitle(dialogTitleView("Add installed app"))
                 .setView(scroll)
                 .setNegativeButton("Close", null)
                 .create();
