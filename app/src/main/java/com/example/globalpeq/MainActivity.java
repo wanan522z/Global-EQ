@@ -73,6 +73,7 @@ public final class MainActivity extends Activity {
     private static final int EQ_EDIT_FIELD_Q = 2;
     private static final int GEQ_COMMIT_DELAY_MS = 160;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
+    private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
@@ -284,6 +285,7 @@ public final class MainActivity extends Activity {
     private Preset pendingGeqHistorySnapshot;
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
+    private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
@@ -313,6 +315,7 @@ public final class MainActivity extends Activity {
     private int lastVirtualBassAmountPercent = 25;
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
+    private boolean pendingEnabledUiRefresh;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
