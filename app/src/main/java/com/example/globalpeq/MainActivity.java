@@ -1329,15 +1329,14 @@ public final class MainActivity extends Activity {
         launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> activities = getPackageManager().queryIntentActivities(launcherIntent, 0);
         List<ResolveInfo> unique = new ArrayList<>();
-        List<String> seenPackages = new ArrayList<>();
+        java.util.HashSet<String> seenPackages = new java.util.HashSet<>();
         for (ResolveInfo info : activities) {
             if (info.activityInfo == null || info.activityInfo.packageName == null) {
                 continue;
             }
-            if (seenPackages.contains(info.activityInfo.packageName)) {
+            if (!seenPackages.add(info.activityInfo.packageName)) {
                 continue;
             }
-            seenPackages.add(info.activityInfo.packageName);
             unique.add(info);
         }
         unique.sort((left, right) -> {
@@ -1351,40 +1350,99 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, "No launchable apps found", Toast.LENGTH_SHORT).show();
             return;
         }
-        String[] labels = new String[unique.size()];
-        int selected = 0;
+        AlertDialog[] dialogHolder = new AlertDialog[1];
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(12), dp(10), dp(12), dp(12));
         for (int i = 0; i < unique.size(); i++) {
             ResolveInfo info = unique.get(i);
-            String packageName = info.activityInfo.packageName;
-            CharSequence label = info.loadLabel(getPackageManager());
-            labels[i] = label == null ? packageName : label.toString();
-            if (packageName.equals(advancedModeConfig.monitoredAppPackage)) {
-                selected = i;
-            }
+            boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(i == 0 ? 0 : 6));
         }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Choose monitored app")
-                .setSingleChoiceItems(labels, selected, (d, which) -> {
-                    ResolveInfo info = unique.get(which);
-                    String packageName = info.activityInfo.packageName;
-                    CharSequence label = info.loadLabel(getPackageManager());
-                    updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(
-                            packageName,
-                            label == null ? packageName : label.toString()));
-                    d.dismiss();
-                })
-                .setNegativeButton("Cancel", null)
+                .setCustomTitle(dialogTitleView("Choose monitored app"))
+                .setView(scroll)
+                .setNegativeButton("Close", null)
                 .create();
-        dialog.setOnShowListener(d -> styleDialog(dialog));
+        dialogHolder[0] = dialog;
         dialog.show();
+        styleDialog(dialog);
+    }
+
+    private View createMonitoredAppMenuRow(ResolveInfo info, boolean active, AlertDialog[] dialogHolder) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), dp(6), dp(8), dp(6));
+        row.setBackground(active
+                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
+                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(info.loadIcon(getPackageManager()));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        textParams.leftMargin = dp(10);
+        row.addView(textColumn, textParams);
+
+        String packageName = info.activityInfo.packageName;
+        CharSequence label = info.loadLabel(getPackageManager());
+        String titleText = label == null ? packageName : label.toString();
+
+        TextView title = new TextView(this);
+        title.setText(titleText);
+        title.setTextSize(14);
+        title.setSingleLine(true);
+        if (active) {
+            styleCyanGlowText(title);
+        } else {
+            stylePlainWhiteText(title);
+        }
+        textColumn.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText(packageName);
+        subtitle.setTextSize(11);
+        subtitle.setSingleLine(true);
+        styleDimPlainText(subtitle);
+        textColumn.addView(subtitle, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        Runnable select = () -> {
+            if (dialogHolder[0] != null) {
+                dialogHolder[0].dismiss();
+            }
+            updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, titleText));
+        };
+        row.setOnClickListener(v -> select.run());
+        title.setOnClickListener(v -> select.run());
+        subtitle.setOnClickListener(v -> select.run());
+        return row;
     }
 
     private void updateMonitoredAppIcon() {
         if (monitoredAppIconView == null) {
             return;
         }
-        monitoredAppIconView.setImageDrawable(loadMonitoredAppDrawable());
-        monitoredAppIconView.setAlpha(processingMode == ProcessingMode.ADVANCED_DSP ? 1f : 0.6f);
+        boolean visible = processingMode == ProcessingMode.ADVANCED_DSP
+                && advancedModeConfig.monitoredAppPackage != null
+                && !advancedModeConfig.monitoredAppPackage.isEmpty();
+        monitoredAppIconView.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible) {
+            monitoredAppIconView.setImageDrawable(loadMonitoredAppDrawable());
+            monitoredAppIconView.setAlpha(1f);
+        }
     }
 
     private Drawable loadMonitoredAppDrawable() {
@@ -1394,7 +1452,7 @@ public final class MainActivity extends Activity {
             } catch (PackageManager.NameNotFoundException ignored) {
             }
         }
-        return getDrawable(android.R.drawable.sym_def_app_icon);
+        return null;
     }
 
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
