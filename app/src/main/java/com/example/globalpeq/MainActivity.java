@@ -1139,18 +1139,9 @@ public final class MainActivity extends Activity {
         footerParams.topMargin = dp(32);
         settingsRootContent.addView(footerText, footerParams);
 
-        advancedModeSettingsPage = new LinearLayout(this);
-        advancedModeSettingsPage.setOrientation(LinearLayout.VERTICAL);
-        advancedModeSettingsPage.setVisibility(View.GONE);
-        advancedModeSettingsPage.setPadding(0, 0, 0, dp(12));
-        page.addView(advancedModeSettingsPage, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
-        buildAdvancedSettingsPage(advancedModeSettingsPage);
     }
 
-    private void buildAdvancedSettingsPage(LinearLayout page) {
+    private void buildMonitorSettingsPage(LinearLayout page) {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setClipChildren(false);
