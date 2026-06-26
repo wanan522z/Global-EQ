@@ -23,7 +23,8 @@ final class PcmDspProcessor {
                 }
             }
             virtualBass = new VirtualBass(sampleRate, channelCount);
-            virtualBass.configure(preset.virtualBassCutoffHz, preset.virtualBassAmountPercent);
+            virtualBass.configure(preset.virtualBassCutoffHz,
+                    preset.virtualBassEnabled ? preset.virtualBassAmountPercent : 0);
         }
     }
 
