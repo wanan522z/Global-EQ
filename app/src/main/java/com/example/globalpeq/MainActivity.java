@@ -5678,6 +5678,7 @@ public final class MainActivity extends Activity {
             styleSettingsTitleText(view);
             registerShimmerView(view);
         } else {
+            bumpTextStyleVersion(view);
             unregisterShimmerView(view);
             view.setTextColor(Color.rgb(150, 165, 185));
             clearGlowFromTextView(view);
