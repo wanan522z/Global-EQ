@@ -1985,6 +1985,267 @@ public final class MainActivity extends Activity {
         styleDialog(dialog);
     }
 
+    private void showInstalledAppPickerDialogEnhanced() {
+        List<InstalledAppEntry> installed = loadInstalledAppEntries();
+        if (installed.isEmpty()) {
+            Toast.makeText(this, tr("No installed apps available", "没有可用的已安装应用"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        AlertDialog[] dialogHolder = new AlertDialog[1];
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(16), dp(8), dp(16), dp(10));
+
+        EditText searchInput = new EditText(this);
+        searchInput.setSingleLine(true);
+        searchInput.setHint(tr("Search app or package", "搜索应用或包名"));
+        searchInput.setTextSize(13);
+        searchInput.setTextColor(Color.WHITE);
+        searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
+        searchInput.setBackground(createFieldBackground(20, 40, 8));
+        searchInput.setPadding(dp(12), dp(10), dp(12), dp(10));
+        shell.addView(searchInput, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44)
+        ));
+
+        FrameLayout content = new FrameLayout(this);
+        LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.min(dp(460), getResources().getDisplayMetrics().heightPixels - dp(220))
+        );
+        contentParams.topMargin = dp(10);
+        shell.addView(content, contentParams);
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(12), dp(10), dp(12), dp(12));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setClipToPadding(false);
+        scroll.addView(list);
+        FrameLayout.LayoutParams scrollParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        scrollParams.rightMargin = dp(30);
+        content.addView(scroll, scrollParams);
+
+        LinearLayout indexBar = new LinearLayout(this);
+        indexBar.setOrientation(LinearLayout.VERTICAL);
+        indexBar.setGravity(android.view.Gravity.CENTER);
+        indexBar.setPadding(dp(4), dp(8), dp(4), dp(8));
+        indexBar.setBackground(plainRoundRectDrawable(
+                Color.argb(20, 255, 255, 255),
+                Color.argb(35, 255, 255, 255),
+                dp(10)
+        ));
+        FrameLayout.LayoutParams indexParams = new FrameLayout.LayoutParams(
+                dp(26),
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL
+        );
+        content.addView(indexBar, indexParams);
+
+        Runnable rebuild = () -> rebuildInstalledAppPickerList(
+                list,
+                indexBar,
+                scroll,
+                installed,
+                searchInput.getText().toString(),
+                dialogHolder
+        );
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                rebuild.run();
+            }
+        });
+        rebuild.run();
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应用")))
+                .setView(shell)
+                .setNegativeButton(tr("Close", "关闭"), null)
+                .create();
+        dialogHolder[0] = dialog;
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private List<InstalledAppEntry> loadInstalledAppEntries() {
+        List<InstalledAppEntry> installed = new ArrayList<>();
+        for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
+            if (info == null) {
+                continue;
+            }
+            if (getPackageName().equals(info.packageName)) {
+                continue;
+            }
+            boolean selected = info.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            if (!selected && !isUserInstalledApp(info)) {
+                continue;
+            }
+            String label = String.valueOf(getPackageManager().getApplicationLabel(info));
+            installed.add(new InstalledAppEntry(info, label, info.packageName));
+        }
+        installed.sort((left, right) -> left.label.compareToIgnoreCase(right.label));
+        return installed;
+    }
+
+    private void rebuildInstalledAppPickerList(LinearLayout list,
+                                               LinearLayout indexBar,
+                                               ScrollView scroll,
+                                               List<InstalledAppEntry> installed,
+                                               String query,
+                                               AlertDialog[] dialogHolder) {
+        list.removeAllViews();
+        indexBar.removeAllViews();
+
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.US);
+        java.util.LinkedHashMap<String, View> sectionAnchors = new java.util.LinkedHashMap<>();
+        int matchCount = 0;
+        String lastSection = null;
+        for (InstalledAppEntry entry : installed) {
+            if (!matchesInstalledAppQuery(entry, normalizedQuery)) {
+                continue;
+            }
+            String section = alphabetKeyForLabel(entry.label);
+            if (!section.equals(lastSection)) {
+                View header = createInstalledAppSectionHeader(section);
+                list.addView(header, curveMenuRowParams(matchCount == 0 ? 0 : 10));
+                sectionAnchors.put(section, header);
+                lastSection = section;
+            }
+            boolean active = entry.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            list.addView(createMonitoredAppMenuRow(
+                    getPackageManager().getApplicationIcon(entry.appInfo),
+                    entry.label,
+                    entry.packageName,
+                    active,
+                    dialogHolder,
+                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(entry.packageName, entry.label))
+            ), curveMenuRowParams(4));
+            matchCount++;
+        }
+
+        if (matchCount == 0) {
+            TextView empty = new TextView(this);
+            empty.setText(tr("No apps match your search.", "没有匹配搜索的应用"));
+            empty.setTextSize(12);
+            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setPadding(dp(4), dp(8), dp(4), dp(4));
+            list.addView(empty, curveMenuRowParams(0));
+            indexBar.setVisibility(View.GONE);
+            scroll.post(() -> scroll.scrollTo(0, 0));
+            return;
+        }
+
+        indexBar.setVisibility(View.VISIBLE);
+        populateInstalledAppIndexBar(indexBar, new ArrayList<>(sectionAnchors.keySet()), sectionAnchors, scroll);
+        scroll.post(() -> scroll.scrollTo(0, 0));
+    }
+
+    private boolean matchesInstalledAppQuery(InstalledAppEntry entry, String query) {
+        if (entry == null) {
+            return false;
+        }
+        if (query == null || query.isEmpty()) {
+            return true;
+        }
+        return entry.normalizedLabel.contains(query) || entry.normalizedPackage.contains(query);
+    }
+
+    private String alphabetKeyForLabel(String label) {
+        if (label == null) {
+            return "#";
+        }
+        String trimmed = label.trim();
+        if (trimmed.isEmpty()) {
+            return "#";
+        }
+        char first = Character.toUpperCase(trimmed.charAt(0));
+        return first >= 'A' && first <= 'Z' ? String.valueOf(first) : "#";
+    }
+
+    private TextView createInstalledAppSectionHeader(String section) {
+        TextView header = new TextView(this);
+        header.setText(section);
+        header.setTextSize(12);
+        header.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleCyanGlowText(header);
+        header.setPadding(dp(4), dp(2), dp(4), dp(2));
+        return header;
+    }
+
+    private void populateInstalledAppIndexBar(LinearLayout indexBar,
+                                              List<String> sections,
+                                              java.util.LinkedHashMap<String, View> sectionAnchors,
+                                              ScrollView scroll) {
+        if (sections == null || sections.isEmpty()) {
+            indexBar.setVisibility(View.GONE);
+            return;
+        }
+        for (String section : sections) {
+            TextView letter = new TextView(this);
+            letter.setText(section);
+            letter.setTextSize(10.5f);
+            letter.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            letter.setGravity(android.view.Gravity.CENTER);
+            letter.setIncludeFontPadding(false);
+            styleDimPlainText(letter);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+            );
+            indexBar.addView(letter, params);
+        }
+        indexBar.setOnTouchListener((view, event) -> {
+            int count = sections.size();
+            if (count == 0) {
+                return false;
+            }
+            float clampedY = Math.max(0f, Math.min(event.getY(), Math.max(1, view.getHeight()) - 1f));
+            int index = clamp((int) (clampedY / Math.max(1f, view.getHeight()) * count), 0, count - 1);
+            highlightInstalledAppIndex(indexBar, index);
+            String key = sections.get(index);
+            View target = sectionAnchors.get(key);
+            if (target != null) {
+                scroll.post(() -> scroll.scrollTo(0, Math.max(0, target.getTop() - dp(6))));
+            }
+            if (event.getActionMasked() == MotionEvent.ACTION_UP
+                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                view.postDelayed(() -> highlightInstalledAppIndex(indexBar, -1), 120L);
+            }
+            return true;
+        });
+    }
+
+    private void highlightInstalledAppIndex(LinearLayout indexBar, int activeIndex) {
+        for (int i = 0; i < indexBar.getChildCount(); i++) {
+            View child = indexBar.getChildAt(i);
+            if (!(child instanceof TextView)) {
+                continue;
+            }
+            TextView letter = (TextView) child;
+            if (i == activeIndex) {
+                styleCyanGlowText(letter);
+            } else {
+                styleDimPlainText(letter);
+            }
+        }
+    }
+
     private boolean isUserInstalledApp(ApplicationInfo info) {
         if (info == null) {
             return false;
