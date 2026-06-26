@@ -1465,6 +1465,8 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             pendingMonitorCaptureAuthorization = true;
+            repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
+            renderAll();
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
             return;
         }
@@ -1473,6 +1475,8 @@ public final class MainActivity extends Activity {
 
     private void launchMonitorCaptureAuthorization() {
         pendingMonitorCaptureAuthorization = false;
+        repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
+        renderAll();
         android.media.projection.MediaProjectionManager manager =
                 (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (manager == null) {
