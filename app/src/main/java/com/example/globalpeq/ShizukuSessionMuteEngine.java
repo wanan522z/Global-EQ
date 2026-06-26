@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
-import android.media.AudioAttributes;
 import android.media.AudioPlaybackConfiguration;
 import android.media.audiofx.AudioEffect;
 import android.media.audiofx.DynamicsProcessing;
@@ -186,46 +185,11 @@ final class ShizukuSessionMuteEngine {
     }
 
     private List<SessionInfo> dumpPolicySessions() {
-        List<SessionInfo> activeSessions = collectActivePlaybackSessions();
-        if (!activeSessions.isEmpty()) {
-            return activeSessions;
-        }
         String output = ShizukuCompat.dumpSystemService("media.audio_policy");
         if (output == null || output.trim().isEmpty()) {
             return new ArrayList<>();
         }
         return parseAudioConfigurations(output);
-    }
-
-    private List<SessionInfo> collectActivePlaybackSessions() {
-        List<SessionInfo> sessions = new ArrayList<>();
-        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return sessions;
-        }
-        try {
-            List<AudioPlaybackConfiguration> configs = audioManager.getActivePlaybackConfigurations();
-            if (configs == null) {
-                return sessions;
-            }
-            for (AudioPlaybackConfiguration config : configs) {
-                if (config == null) {
-                    continue;
-                }
-                int sessionId = readPlaybackSessionId(config);
-                int uid = readPlaybackClientUid(config);
-                if (sessionId <= 0 || uid <= 0) {
-                    continue;
-                }
-                AudioAttributes attributes = readPlaybackAttributes(config);
-                String usage = describeUsage(attributes);
-                String content = describeContentType(attributes);
-                String pkgName = getPackageNameForUid(uid);
-                sessions.add(new SessionInfo(sessionId, uid, usage, content, pkgName));
-            }
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to inspect active playback configurations for mute", ex);
-        }
-        return sessions;
     }
 
     private List<SessionInfo> parseAudioConfigurations(String output) {
@@ -287,6 +251,12 @@ final class ShizukuSessionMuteEngine {
             if (session.sessionId <= 0 || session.sessionId == 0) {
                 continue;
             }
+            String usage = session.usage.toUpperCase(Locale.US).trim();
+            if (!usage.contains("USAGE_MEDIA")
+                    && !usage.contains("USAGE_GAME")
+                    && !usage.contains("USAGE_UNKNOWN")) {
+                continue;
+            }
             synchronized (stateLock) {
                 if (muteEffects.containsKey(session.sessionId)) {
                     continue;
@@ -303,93 +273,6 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
-    private int readPlaybackSessionId(AudioPlaybackConfiguration configuration) {
-        if (configuration == null) {
-            return -1;
-        }
-        try {
-            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getAudioSessionId");
-            Object value = method.invoke(configuration);
-            if (value instanceof Integer) {
-                return (Integer) value;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to read playback session id", ex);
-        }
-        return -1;
-    }
-
-    private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
-        if (configuration == null) {
-            return -1;
-        }
-        try {
-            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getClientUid");
-            Object value = method.invoke(configuration);
-            if (value instanceof Integer) {
-                return (Integer) value;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to read playback client uid", ex);
-        }
-        return -1;
-    }
-
-    private AudioAttributes readPlaybackAttributes(AudioPlaybackConfiguration configuration) {
-        if (configuration == null) {
-            return null;
-        }
-        try {
-            return configuration.getAudioAttributes();
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to read playback attributes", ex);
-            return null;
-        }
-    }
-
-    private String describeUsage(AudioAttributes attributes) {
-        if (attributes == null) {
-            return "USAGE_UNKNOWN";
-        }
-        switch (attributes.getUsage()) {
-            case AudioAttributes.USAGE_MEDIA:
-                return "USAGE_MEDIA";
-            case AudioAttributes.USAGE_GAME:
-                return "USAGE_GAME";
-            case AudioAttributes.USAGE_ASSISTANT:
-                return "USAGE_ASSISTANT";
-            case AudioAttributes.USAGE_NOTIFICATION:
-                return "USAGE_NOTIFICATION";
-            case AudioAttributes.USAGE_NOTIFICATION_RINGTONE:
-                return "USAGE_NOTIFICATION_RINGTONE";
-            case AudioAttributes.USAGE_ALARM:
-                return "USAGE_ALARM";
-            case AudioAttributes.USAGE_VOICE_COMMUNICATION:
-                return "USAGE_VOICE_COMMUNICATION";
-            default:
-                return "USAGE_" + attributes.getUsage();
-        }
-    }
-
-    private String describeContentType(AudioAttributes attributes) {
-        if (attributes == null) {
-            return "CONTENT_TYPE_UNKNOWN";
-        }
-        switch (attributes.getContentType()) {
-            case AudioAttributes.CONTENT_TYPE_MUSIC:
-                return "CONTENT_TYPE_MUSIC";
-            case AudioAttributes.CONTENT_TYPE_MOVIE:
-                return "CONTENT_TYPE_MOVIE";
-            case AudioAttributes.CONTENT_TYPE_SPEECH:
-                return "CONTENT_TYPE_SPEECH";
-            case AudioAttributes.CONTENT_TYPE_SONIFICATION:
-                return "CONTENT_TYPE_SONIFICATION";
-            default:
-                return "CONTENT_TYPE_" + attributes.getContentType();
-        }
-    }
 
     private DynamicsProcessing makeMuteEffect(int sessionId, String packageName) {
         DynamicsProcessing effect = new DynamicsProcessing(Integer.MAX_VALUE, sessionId, null);
