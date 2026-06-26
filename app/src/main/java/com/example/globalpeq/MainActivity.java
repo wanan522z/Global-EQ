@@ -5935,7 +5935,6 @@ public final class MainActivity extends Activity {
                 // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
                 // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
                 // hotCore 白热核心已作视觉焦点。
-                tab.getPaint().clearShadowLayer();
                 tab.invalidate();
                 registerShimmerView(tab);
                 // 布局完成后重新应用正确宽度的 shader（解决 weight 布局下 getWidth()==0 的问题）
