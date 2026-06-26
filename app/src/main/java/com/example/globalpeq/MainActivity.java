@@ -1679,13 +1679,30 @@ public final class MainActivity extends Activity {
     }
 
     private void showModeLockedDialog(String message) {
+        TextView messageView = new TextView(this);
+        messageView.setText(message);
+        messageView.setTextSize(14);
+        messageView.setTextColor(Color.rgb(200, 210, 230));
+        messageView.setPadding(dp(20), dp(12), dp(20), dp(4));
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Mode locked")
-                .setMessage(message)
+                .setCustomTitle(dialogTitleView("Mode locked"))
+                .setView(messageView)
                 .setPositiveButton("OK", null)
                 .create();
-        dialog.setOnShowListener(d -> styleDialog(dialog));
         dialog.show();
+        styleDialog(dialog);
+    }
+
+    private void showProcessingModeChoiceMenu(View anchor) {
+        if (anchor == null) {
+            return;
+        }
+        showLimitedChoiceMenu(anchor, ProcessingMode.labels(), processingMode.ordinal(), position -> {
+            ProcessingMode nextMode = ProcessingMode.values()[clamp(position, 0, ProcessingMode.values().length - 1)];
+            if (processingMode != nextMode) {
+                setProcessingMode(nextMode);
+            }
+        });
     }
 
     private void showLimitedChoiceMenu(View anchor, String[] labels, int selected, ChoiceCallback callback) {
