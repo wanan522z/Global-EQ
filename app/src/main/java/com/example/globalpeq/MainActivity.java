@@ -8011,10 +8011,10 @@ public final class MainActivity extends Activity {
             }
             statusText.setTextColor(Color.rgb(255, 100, 100));
             statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
-            // Duplicate edit-mode branch removed: current UI already uses the same shimmer path.
+        } else {
             // Live 模式：迷人动感的青绿色至翡翠色流光
-            // registerShimmerView(statusText);
-            // applyShimmerFrame(statusText, settingsTitleGradientWidth(statusText), currentShimmerPhaseForView(statusText));
+            registerShimmerView(statusText);
+            applyShimmerFrame(statusText, settingsTitleGradientWidth(statusText), currentShimmerPhaseForView(statusText));
         } else {
             // Edit 模式：平稳高贵的浅白至淡黄流光
             registerShimmerView(statusText);
