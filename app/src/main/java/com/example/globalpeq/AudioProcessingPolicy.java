@@ -55,7 +55,7 @@ final class AudioProcessingPolicy {
         }
         Preset effective = preset.withReverbType("Default");
         if (!systemBassBoostAllowed(bassModeIndex)) {
-            effective = effective.withSystemBassBoostPercent(0);
+            effective = effective.withBassEnhanceAmountPercent(0);
         }
         return effective;
     }
