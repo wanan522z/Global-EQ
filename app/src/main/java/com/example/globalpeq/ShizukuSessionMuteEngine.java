@@ -247,44 +247,74 @@ final class ShizukuSessionMuteEngine {
 
     private void setupEffectListeners(DynamicsProcessing effect, int sessionId, String packageName) {
         try {
-            effect.setEnableStatusListener(new AudioEffect.OnEnableStatusChangeListener() {
-                @Override
-                public void onEnableStatusChange(AudioEffect audioEffect, boolean enabled) {
-                    if (!enabled) {
-                        Log.w(TAG, "DynamicsProcessing effect disabled for session: " + sessionId + ", re-enabling");
-                        try {
-                            effect.setInputGainAllChannelsTo(MUTE_GAIN_DB);
-                            effect.setEnabled(true);
-                        } catch (RuntimeException reError) {
-                            Log.e(TAG, "Failed to re-enable DynamicsProcessing for session: " + sessionId, reError);
-                            postReacquireControl(sessionId, packageName);
-                        }
-                    }
-                }
-            });
-        } catch (RuntimeException ex) {
+            try {
+                Class<?> listenerInterface = Class.forName("android.media.audiofx.AudioEffect$OnEnableStatusChangeListener");
+                java.lang.reflect.Method method = AudioEffect.class.getMethod(
+                        "setEnableStatusListener",
+                        listenerInterface
+                );
+                Object listener = java.lang.reflect.Proxy.newProxyInstance(
+                        listenerInterface.getClassLoader(),
+                        new Class[]{listenerInterface},
+                        (proxy, invokedMethod, args) -> {
+                            if ("onEnableStatusChange".equals(invokedMethod.getName())) {
+                                boolean enabled = args != null && args.length > 1 && args[1] instanceof Boolean
+                                        && (Boolean) args[1];
+                                if (!enabled) {
+                                    Log.w(TAG, "DynamicsProcessing effect disabled for session: " + sessionId + ", re-enabling");
+                                    try {
+                                        effect.setInputGainAllChannelsTo(MUTE_GAIN_DB);
+                                        effect.setEnabled(true);
+                                    } catch (RuntimeException reError) {
+                                        Log.e(TAG, "Failed to re-enable DynamicsProcessing for session: " + sessionId, reError);
+                                        postReacquireControl(sessionId, packageName);
+                                    }
+                                }
+                            }
+                            return null;
+                        });
+                method.invoke(effect, listener);
+            } catch (NoSuchMethodException ex) {
+                Log.d(TAG, "setEnableStatusListener not available on this API level");
+            }
+        } catch (ReflectiveOperationException ex) {
             Log.w(TAG, "Unable to set enable listener for session: " + sessionId, ex);
         }
 
         try {
-            effect.setControlStatusListener(new AudioEffect.OnControlStatusChangeListener() {
-                @Override
-                public void onControlStatusChange(AudioEffect audioEffect, boolean controlGranted) {
-                    if (!controlGranted) {
-                        Log.w(TAG, "DynamicsProcessing control lost for session: " + sessionId + ", package: " + packageName);
-                        postReacquireControl(sessionId, packageName);
-                    } else {
-                        try {
-                            effect.setInputGainAllChannelsTo(-200f);
-                            effect.setEnabled(true);
-                        } catch (RuntimeException ex) {
-                            Log.w(TAG, "Failed to regain control over DynamicsProcessing (session " + sessionId + ")", ex);
-                            postReacquireControl(sessionId, packageName);
-                        }
-                    }
-                }
-            });
-        } catch (RuntimeException ex) {
+            try {
+                Class<?> listenerInterface = Class.forName("android.media.audiofx.AudioEffect$OnControlStatusChangeListener");
+                java.lang.reflect.Method method = AudioEffect.class.getMethod(
+                        "setControlStatusListener",
+                        listenerInterface
+                );
+                Object listener = java.lang.reflect.Proxy.newProxyInstance(
+                        listenerInterface.getClassLoader(),
+                        new Class[]{listenerInterface},
+                        (proxy, invokedMethod, args) -> {
+                            if ("onControlStatusChange".equals(invokedMethod.getName())) {
+                                boolean controlGranted = args != null && args.length > 1 && args[1] instanceof Boolean
+                                        && (Boolean) args[1];
+                                if (!controlGranted) {
+                                    Log.w(TAG, "DynamicsProcessing control lost for session: " + sessionId + ", package: " + packageName);
+                                    postReacquireControl(sessionId, packageName);
+                                } else {
+                                    try {
+                                        effect.setInputGainAllChannelsTo(-200f);
+                                        effect.setEnabled(true);
+                                    } catch (RuntimeException regainError) {
+                                        Log.w(TAG, "Failed to regain control over DynamicsProcessing (session " + sessionId + ")", regainError);
+                                        postReacquireControl(sessionId, packageName);
+                                    }
+                                }
+                            }
+                            return null;
+                        });
+                method.invoke(effect, listener);
+            } catch (NoSuchMethodException ex) {
+                Log.d(TAG, "setControlStatusListener not available on this API level");
+            }
+        } catch (ReflectiveOperationException ex) {
             Log.w(TAG, "Unable to set control listener for session: " + sessionId, ex);
         }
     }
