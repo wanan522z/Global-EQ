@@ -1,4 +1,4 @@
-package com.example.globalpeq;
+﻿package com.example.globalpeq;
 
 import android.Manifest;
 import android.app.Activity;
@@ -1624,8 +1624,7 @@ public final class MainActivity extends Activity {
                 "music", "audio", "video", "media", "player", "podcast", "radio",
                 "spotify", "youtube", "netflix", "vlc", "tidal", "deezer", "soundcloud",
                 "qqmusic", "cloudmusic", "bilibili", "bili", "douyin", "tiktok",
-                "musicfx", "stream", "tv", "tune", "amp", "fm",
-                "音乐", "视频", "播客", "电台", "播放器", "影视", "听书", "广播"
+                "musicfx", "stream", "tv", "tune", "amp", "fm"
         };
         for (String keyword : keywords) {
             if (combined.contains(keyword)) {
@@ -8125,3 +8124,4 @@ public final class MainActivity extends Activity {
         return Math.max(min, Math.min(max, value));
     }
 }
+
