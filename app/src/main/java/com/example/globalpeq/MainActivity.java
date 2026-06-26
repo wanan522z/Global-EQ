@@ -6388,7 +6388,7 @@ public final class MainActivity extends Activity {
                 styleActiveBottomTabText(tab);
                 tab.invalidate();
                 registerShimmerView(tab);
-                final Button tabRef = tab;
+                final TextView tabRef = tab;
                 tab.post(() -> {
                     int w = tabRef.getWidth();
                     if (w > 0) {
