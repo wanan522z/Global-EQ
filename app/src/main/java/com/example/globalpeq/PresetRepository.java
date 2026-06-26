@@ -65,10 +65,14 @@ final class PresetRepository {
 
     Preset loadPreset(AudioOutputDevice device) {
         String json = prefs.getString(deviceKey(device), null);
-        if (json == null) {
-            json = prefs.getString(GLOBAL_PRESET, null);
+        if (json != null) {
+            return Preset.fromJson(json);
         }
-        return Preset.fromJson(json);
+        Preset preset = loadDefaultDevicePreset();
+        if (device != null && device.key != null && !device.key.trim().isEmpty()) {
+            prefs.edit().putString(deviceKey(device), preset.toJson()).apply();
+        }
+        return preset;
     }
 
     void saveKnownDevice(AudioOutputDevice device) {
@@ -367,6 +371,14 @@ final class PresetRepository {
 
     private String namedPresetKey(String name) {
         return "named_preset_" + name.trim().toLowerCase().replaceAll("[^a-z0-9_\\-]+", "_");
+    }
+
+    private Preset loadDefaultDevicePreset() {
+        Preset namedDefault = loadNamedPreset("Default");
+        if (namedDefault != null) {
+            return namedDefault.withName("Default");
+        }
+        return Preset.flat(false).withName("Default");
     }
 
     private void saveCurve(String setKey, FrequencyCurve curve) {
