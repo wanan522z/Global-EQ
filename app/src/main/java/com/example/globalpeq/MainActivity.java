@@ -5747,6 +5747,16 @@ public final class MainActivity extends Activity {
         if (isExtraSectionTitle(view) && !isExtraSectionTitleActive(view)) {
             return;
         }
+        if (view == modeSpinner && !isModeVisualEnabled()) {
+            return;
+        }
+        if (view == statusText) {
+            boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
+            if (!supported || hasClip) {
+                return;
+            }
+        }
+        currentShimmerPhaseForView(view);
         shimmerTargetViews.add(view);
         shimmerLastWidth.remove(view);
         if (shimmerTargetViews.size() == 1) {
@@ -5767,6 +5777,15 @@ public final class MainActivity extends Activity {
         if (shimmerTargetViews.isEmpty()) {
             uiHandler.removeCallbacks(shimmerAnimationRunnable);
         }
+    }
+
+    private void disposeShimmerView(TextView view) {
+        if (view == null) {
+            return;
+        }
+        unregisterShimmerView(view);
+        shimmerViewPhases.remove(view);
+        textStyleVersion.remove(view);
     }
 
     private int bumpTextStyleVersion(TextView view) {
