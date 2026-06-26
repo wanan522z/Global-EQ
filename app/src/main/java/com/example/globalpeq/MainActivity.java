@@ -2259,6 +2259,9 @@ public final class MainActivity extends Activity {
         name.setTextColor(Color.rgb(185, 196, 212));
         name.setSingleLine(true);
         name.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        name.setClickable(true);
+        name.setFocusable(true);
+        name.setOnClickListener(v -> showCurveRenameDialog(targetCurve, name));
         topRow.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
         int smoothingIndex = curveSmoothingIndex(targetCurve ? targetCurveSmoothing : deviceCurveSmoothing);
@@ -2418,6 +2421,100 @@ public final class MainActivity extends Activity {
 
     private float clampCurveGainOffset(float value) {
         return Math.max(-24f, Math.min(24f, value));
+    }
+
+    private void showCurveRenameDialog(boolean targetCurve, TextView nameView) {
+        String currentName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
+        if ("Default".equals(currentName)) {
+            Toast.makeText(this, "Default curve can't be renamed", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(currentName);
+        input.setSelectAllOnFocus(true);
+        input.setTextSize(14);
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setHint(targetCurve ? "Target curve name" : "Device curve name");
+        input.setBackground(createFieldBackground(20, 40, 8));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        input.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(20), dp(4), dp(20), dp(8));
+        container.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+        ));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(targetCurve ? "Rename target curve" : "Rename device curve"))
+                .setView(container)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Rename", null)
+                .create();
+        dialog.setOnShowListener(d -> {
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (positive != null) {
+                positive.setOnClickListener(v -> {
+                    if (renameCurrentCurve(targetCurve, input.getText().toString(), nameView)) {
+                        dialog.dismiss();
+                    }
+                });
+            }
+            input.requestFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private boolean renameCurrentCurve(boolean targetCurve, String rawName, TextView nameView) {
+        String oldName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
+        String nextName = rawName == null ? "" : rawName.trim();
+        if (nextName.isEmpty()) {
+            Toast.makeText(this, "Curve name required", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        if ("Default".equals(nextName)) {
+            Toast.makeText(this, "Default is reserved", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        boolean sameName = oldName.equals(nextName);
+        boolean exists = targetCurve ? repository.hasTargetCurveName(nextName) : repository.hasDeviceCurveName(nextName);
+        if (!sameName && exists) {
+            Toast.makeText(this, "Curve name already exists", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+
+        boolean renamed = targetCurve
+                ? repository.renameTargetCurve(oldName, nextName)
+                : repository.renameDeviceCurve(oldName, nextName);
+        if (!renamed) {
+            Toast.makeText(this, "Curve rename failed", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+
+        if (targetCurve) {
+            selectedTargetCurveName = nextName;
+            refreshTargetCurveCache();
+        } else {
+            selectedDeviceCurveName = nextName;
+            refreshDeviceCurveCache();
+        }
+        syncCurrentCurveSettingsToEditingPreset(true);
+        if (nameView != null) {
+            nameView.setText(nextName);
+        }
+        renderAll();
+        Toast.makeText(this, "Curve renamed", Toast.LENGTH_SHORT).show();
+        return true;
     }
 
     private void setCurveGainOffset(boolean targetCurve, float offsetDb) {
