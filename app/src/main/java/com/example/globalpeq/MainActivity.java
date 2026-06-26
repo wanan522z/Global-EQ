@@ -5655,7 +5655,7 @@ public final class MainActivity extends Activity {
             labelPaint.set(getPaint());
             if (shimmerActive) {
                 int width = Math.max(1, settingsTitleGradientWidth(this));
-                float offset = shimmerAnimPhase * width;
+                float offset = currentShimmerPhaseForView(this) * width;
                 labelPaint.setShader(new LinearGradient(
                         offset, 0, width + offset, 0,
                         SHIMMER_BRIGHT_COLORS,
@@ -5907,7 +5907,7 @@ public final class MainActivity extends Activity {
     }
 
     private void styleStatusTextShimmer(TextView view, int baseColorStart, int baseColorEnd) {
-        applyAnimatedStatusShimmerShader(view, settingsTitleGradientWidth(view), shimmerAnimPhase, baseColorStart, baseColorEnd);
+        applyAnimatedStatusShimmerShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view), baseColorStart, baseColorEnd);
         view.setTextColor(Color.WHITE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && !(view instanceof GlowTitleTextView)
