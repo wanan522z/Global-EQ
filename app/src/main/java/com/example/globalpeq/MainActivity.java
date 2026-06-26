@@ -1892,7 +1892,7 @@ public final class MainActivity extends Activity {
             row.setBackground(warningBg);
         }
 
-        holder.enable = circleButton("", false, false);
+        holder.enable = circleButton(false);
         holder.enable.setOnClickListener(v -> {
             updateBand(index, editingPreset.bands[index].withEnabled(!editingPreset.bands[index].enabled));
             updatePeqBandVisuals();
@@ -1943,7 +1943,7 @@ public final class MainActivity extends Activity {
         attachEqEditFocus(holder.q, index, EQ_EDIT_FIELD_Q);
         row.addView(holder.q, cellParams(1f, 36));
 
-        View delete = circleButton("", false, true);
+        View delete = circleButton(true);
         delete.setEnabled(supported && editingPreset.bands.length > 1);
         delete.setBackground(deleteSymbolDrawable(delete.isEnabled()));
         delete.setOnClickListener(v -> confirmDeleteBand(index));
@@ -3100,7 +3100,7 @@ public final class MainActivity extends Activity {
         row.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1f));
 
         if (canDelete) {
-            View delete = circleButton("", false, true);
+            View delete = circleButton(true);
             delete.setBackground(deleteSymbolDrawable(true));
             delete.setOnClickListener(v -> deleted.run());
             row.addView(wrapCircularButton(delete, 0.18f, 24));
@@ -3338,7 +3338,7 @@ public final class MainActivity extends Activity {
         });
         row.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1f));
 
-        View delete = circleButton("", false, true);
+        View delete = circleButton(true);
         delete.setBackground(deleteSymbolDrawable(true));
         delete.setOnClickListener(v -> confirmDeletePreset(name, dialogHolder));
         row.addView(wrapCircularButton(delete, 0.16f, 24));
