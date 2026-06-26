@@ -3840,6 +3840,9 @@ public final class MainActivity extends Activity {
         if (pendingGeqHistorySnapshot != null) {
             commitPendingGeqUpdate();
         }
+        if (pendingPeqToggleHistorySnapshot != null) {
+            commitPendingPeqToggle();
+        }
         if (nextPreset.toJson().equals(editingPreset.toJson())) {
             return;
         }
@@ -3858,6 +3861,7 @@ public final class MainActivity extends Activity {
 
     private void undoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqToggle();
         if (undoStack.isEmpty()) {
             return;
         }
@@ -3870,6 +3874,7 @@ public final class MainActivity extends Activity {
 
     private void redoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqToggle();
         if (redoStack.isEmpty()) {
             return;
         }
