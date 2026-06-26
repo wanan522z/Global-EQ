@@ -23,6 +23,7 @@ public final class GlobalEqForegroundService extends Service {
 
     private GlobalEqualizerEngine engine;
     private PlaybackCaptureEngine captureEngine;
+    private ShizukuSessionMuteEngine shizukuMuteEngine;
     private PresetRepository repository;
     private AudioOutputDeviceMonitor deviceMonitor;
     private HandlerThread captureControlThread;
@@ -47,6 +48,10 @@ public final class GlobalEqForegroundService extends Service {
                     pendingCaptureConfig,
                     pendingCaptureBassModeIndex,
                     pendingCaptureDevice);
+            shizukuMuteEngine.updateProcessing(
+                    pendingCaptureMode,
+                    pendingCapturePreset,
+                    pendingCaptureConfig);
         }
     };
 
@@ -56,6 +61,7 @@ public final class GlobalEqForegroundService extends Service {
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
         captureEngine = new PlaybackCaptureEngine(this, repository, this::updateNotification);
+        shizukuMuteEngine = new ShizukuSessionMuteEngine(this, repository, this::updateNotification);
         captureControlThread = new HandlerThread("global-peq-capture-control");
         captureControlThread.start();
         captureControlHandler = new Handler(captureControlThread.getLooper());
@@ -118,6 +124,7 @@ public final class GlobalEqForegroundService extends Service {
         Preset preset = applySavedPreset();
         if (!preset.enabled) {
             scheduleCaptureStopAll();
+            scheduleShizukuStopAll();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
@@ -134,6 +141,7 @@ public final class GlobalEqForegroundService extends Service {
     public void onDestroy() {
         deviceMonitor.stop();
         scheduleCaptureStopAll();
+        scheduleShizukuStopAll();
         if (captureControlHandler != null) {
             captureControlHandler.removeCallbacksAndMessages(null);
         }
@@ -194,9 +202,17 @@ public final class GlobalEqForegroundService extends Service {
                 : new Notification.Builder(this);
 
         String state = currentPreset.enabled ? "Global PEQ on" : "Global PEQ off";
-        String content = repository.loadProcessingMode() == ProcessingMode.ADVANCED_DSP
-                ? repository.loadMonitorCaptureStatus()
-                : currentDevice.label;
+        ProcessingMode mode = repository.loadProcessingMode();
+        String content;
+        if (mode == ProcessingMode.ADVANCED_DSP) {
+            content = repository.loadMonitorCaptureStatus();
+        } else if (mode == ProcessingMode.SHIZUKU_MUTE) {
+            content = repository.loadMonitorCaptureActive()
+                    ? repository.loadShizukuMuteStatus()
+                    : repository.loadMonitorCaptureStatus();
+        } else {
+            content = currentDevice.label;
+        }
         return builder
                 .setSmallIcon(R.drawable.ic_eq)
                 .setContentTitle(state)
@@ -259,8 +275,17 @@ public final class GlobalEqForegroundService extends Service {
         if (handler == null || captureEngine == null) {
             return;
         }
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
         handler.post(() -> captureEngine.stopAll());
+    }
+
+    private void scheduleShizukuStopAll() {
+        Handler handler = captureControlHandler;
+        if (handler == null || shizukuMuteEngine == null) {
+            return;
+        }
+        handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
+        handler.post(() -> shizukuMuteEngine.stopAll());
     }
 
     private void scheduleCaptureUpdate(ProcessingMode processingMode,
@@ -270,7 +295,7 @@ public final class GlobalEqForegroundService extends Service {
                                        AudioOutputDevice outputDevice,
                                        long delayMs) {
         Handler handler = captureControlHandler;
-        if (handler == null || captureEngine == null) {
+        if (handler == null || captureEngine == null || shizukuMuteEngine == null) {
             return;
         }
         pendingCaptureMode = processingMode == null ? ProcessingMode.SYSTEM_EQ : processingMode;
