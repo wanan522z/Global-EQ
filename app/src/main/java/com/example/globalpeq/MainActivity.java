@@ -630,7 +630,8 @@ public final class MainActivity extends Activity {
         modeSpinner.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
         modeSpinner.setSingleLine(true);
         modeSpinner.setIncludeFontPadding(false);
-        modeSpinner.setPadding(dp(16), 0, dp(6), 0);
+        modeSpinner.setPadding(0, 0, dp(6), 0);
+        reserveStartGlowWithoutMoving(modeSpinner, 16);
         modeSpinner.setMinWidth(0);
         modeSpinner.setMinimumWidth(0);
         styleSettingsTitleText(modeSpinner);
@@ -960,7 +961,8 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams engineTitleParams = blockParams(0);
         // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都从 panel 内容区左边开始）。
         // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，shadow 半径 5.5dp 仍落在 panel 16dp padding 内，不裁剪。
-        engineTitleParams.leftMargin = -dp(10);
+        engineTitleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(title, 12);
         panel.addView(title, engineTitleParams);
 
         TextView detail = new TextView(this);
@@ -1023,7 +1025,8 @@ public final class MainActivity extends Activity {
         styleGradientTitle(aboutTitle);
         LinearLayout.LayoutParams aboutTitleParams = blockParams(0);
         // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都从 panel 内容区左边开始）。
-        aboutTitleParams.leftMargin = -dp(10);
+        aboutTitleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(aboutTitle, 12);
         aboutPanel.addView(aboutTitle, aboutTitleParams);
 
         TextView aboutText = new TextView(this);
