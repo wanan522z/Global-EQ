@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.AudioPlaybackConfiguration;
+import android.media.audiofx.AudioEffect;
 import android.media.audiofx.DynamicsProcessing;
 import android.os.Build;
 import android.os.Handler;
@@ -44,6 +45,7 @@ final class ShizukuSessionMuteEngine {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Object stateLock = new Object();
     private final Map<Integer, DynamicsProcessing> activeEffects = new HashMap<>();
+    private final Set<Integer> rebuildingSessions = new LinkedHashSet<>();
     private final Runnable pollRunnable = this::pollOnWorker;
 
     private HandlerThread workerThread;
@@ -258,20 +260,7 @@ final class ShizukuSessionMuteEngine {
 
     private DynamicsProcessing createMuteEffect(int sessionId) {
         try {
-            DynamicsProcessing.Config.Builder configBuilder =
-                    new DynamicsProcessing.Config.Builder(
-                            DynamicsProcessing.VARIANT_FAVOR_TIME_RESOLUTION,
-                            2,
-                            false,
-                            0,
-                            false,
-                            0,
-                            false,
-                            0,
-                            false
-                    );
-            configBuilder.setInputGainAllChannelsTo(MUTE_GAIN_DB);
-            DynamicsProcessing effect = new DynamicsProcessing(1000, sessionId, configBuilder.build());
+            DynamicsProcessing effect = new DynamicsProcessing(Integer.MAX_VALUE, sessionId, null);
             effect.setEnabled(false);
             effect.setInputGainAllChannelsTo(MUTE_GAIN_DB);
             for (int channel = 0; channel < effect.getChannelCount(); channel++) {
@@ -288,6 +277,7 @@ final class ShizukuSessionMuteEngine {
                 }
             }
             effect.setEnabled(true);
+            setupEffectListeners(effect, sessionId);
             Log.i(TAG, "Muted foreign audio session " + sessionId
                     + " channels=" + effect.getChannelCount()
                     + " gainDb=" + MUTE_GAIN_DB);
@@ -296,6 +286,62 @@ final class ShizukuSessionMuteEngine {
             Log.w(TAG, "Unable to mute foreign audio session " + sessionId, ex);
             return null;
         }
+    }
+
+    private void setupEffectListeners(DynamicsProcessing effect, int sessionId) {
+        try {
+            effect.setEnableStatusListener(new AudioEffect.OnEnableStatusChangeListener() {
+                @Override
+                public void onEnableStatusChange(AudioEffect audioEffect, boolean enabled) {
+                    if (!enabled) {
+                        Log.w(TAG, "DynamicsProcessing disabled for session " + sessionId + ", rebuilding");
+                        rebuildMuteEffect(sessionId);
+                    }
+                }
+            });
+        } catch (RuntimeException listenerEx) {
+            Log.w(TAG, "Unable to set enable listener for session " + sessionId, listenerEx);
+        }
+        try {
+            effect.setControlStatusListener(new AudioEffect.OnControlStatusChangeListener() {
+                @Override
+                public void onControlStatusChange(AudioEffect audioEffect, boolean controlGranted) {
+                    if (!controlGranted) {
+                        Log.w(TAG, "DynamicsProcessing lost control for session " + sessionId + ", rebuilding");
+                        rebuildMuteEffect(sessionId);
+                    }
+                }
+            });
+        } catch (RuntimeException listenerEx) {
+            Log.w(TAG, "Unable to set control listener for session " + sessionId, listenerEx);
+        }
+    }
+
+    private void rebuildMuteEffect(int sessionId) {
+        Handler handler = workerHandler;
+        if (handler == null || sessionId <= 0) {
+            return;
+        }
+        synchronized (stateLock) {
+            if (!rebuildingSessions.add(sessionId)) {
+                return;
+            }
+        }
+        handler.post(() -> {
+            try {
+                synchronized (stateLock) {
+                    releaseEffectLocked(sessionId);
+                    DynamicsProcessing effect = createMuteEffect(sessionId);
+                    if (effect != null) {
+                        activeEffects.put(sessionId, effect);
+                    }
+                }
+            } finally {
+                synchronized (stateLock) {
+                    rebuildingSessions.remove(sessionId);
+                }
+            }
+        });
     }
 
     private int resolveTargetUid(String packageName) {
