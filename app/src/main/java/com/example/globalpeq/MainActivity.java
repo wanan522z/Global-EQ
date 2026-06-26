@@ -306,6 +306,47 @@ public final class MainActivity extends Activity {
         return phase;
     }
 
+    private String shimmerViewName(TextView view) {
+        if (view == null) {
+            return "null";
+        }
+        if (view == statusText) {
+            return "statusText";
+        }
+        if (view == modeSpinner) {
+            return "modeSpinner";
+        }
+        if (view == reverbTitleView) {
+            return "reverbTitle";
+        }
+        if (view == bassBoostTitleView) {
+            return "bassBoostTitle";
+        }
+        if (view == virtualBassTitleView) {
+            return "virtualBassTitle";
+        }
+        if (view == eqTabButton) {
+            return "eqTab";
+        }
+        if (view == extraTabButton) {
+            return "extraTab";
+        }
+        if (view == settingsTabButton) {
+            return "settingsTab";
+        }
+        return view.getClass().getSimpleName() + "#" + Integer.toHexString(System.identityHashCode(view));
+    }
+
+    private void logShimmerEvent(String event, TextView view, String extra) {
+        Log.d(SHIMMER_DEBUG_TAG,
+                event
+                        + " view=" + shimmerViewName(view)
+                        + " t=" + SystemClock.uptimeMillis()
+                        + " phase=" + currentShimmerPhaseForView(view)
+                        + " width=" + settingsTitleGradientWidth(view)
+                        + " extra=" + extra);
+    }
+
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
 
