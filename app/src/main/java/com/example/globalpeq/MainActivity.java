@@ -1511,11 +1511,6 @@ public final class MainActivity extends Activity {
         if (!editingPreset.bands[index].enabled) {
             return false;
         }
-        // peqBandVisualEnabled 只用于总开关开启时的逐个点亮动画，动画结束后
-        // 统一回到 band.enabled 这一套真实状态，避免手动开关 band 时被旧动画状态压暗。
-        if (peqVisualSequenceRunning && peqBandVisualEnabled.length == editingPreset.bands.length) {
-            return peqBandVisualEnabled[index];
-        }
         return true;
     }
 
