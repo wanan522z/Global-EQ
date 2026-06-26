@@ -6084,17 +6084,6 @@ public final class MainActivity extends Activity {
         return p;
     }
 
-    private LinearLayout createSystemBassBoostControl() {
-        LinearLayout column = new LinearLayout(this);
-        column.setOrientation(LinearLayout.VERTICAL);
-        column.setGravity(android.view.Gravity.CENTER);
-
-        TextView title = new TextView(this);
-        title.setText("Boost");
-        title.setTextSize(15);
-        title.setTextColor(Color.rgb(200, 210, 230));
-        title.setGravity(android.view.Gravity.CENTER);
-        column.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断裂
         LinearLayout placeholder = new LinearLayout(this);
