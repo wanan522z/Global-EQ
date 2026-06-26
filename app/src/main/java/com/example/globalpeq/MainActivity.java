@@ -211,7 +211,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             colors = SHIMMER_MODE_ON_COLORS;
-        } else {
+        } else if (usesCustomGlow) {
             colors = SHIMMER_BRIGHT_COLORS;
         }
 
