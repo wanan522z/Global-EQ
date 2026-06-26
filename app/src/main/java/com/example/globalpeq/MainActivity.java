@@ -9606,6 +9606,7 @@ public final class MainActivity extends Activity {
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (granted) {
             applyRunningPreset();
+            ensureShizukuModeReady(true);
             Toast.makeText(this, tr("Shizuku access granted", "Shizuku \u6388\u6743\u5df2\u6210\u529f"), Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(this, tr("Shizuku access was denied", "Shizuku \u6388\u6743\u88ab\u62d2\u7edd"), Toast.LENGTH_SHORT).show();
