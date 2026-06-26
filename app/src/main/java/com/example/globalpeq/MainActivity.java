@@ -1324,6 +1324,13 @@ public final class MainActivity extends Activity {
         label.setText(labelText);
         label.setTextSize(14);
         label.setTextColor(Color.rgb(200, 210, 230));
+        if (languageLabelView == null && labelText.equals(settingsLanguageLabelText())) {
+            languageLabelView = label;
+        } else if (monitorCaptureLabelView == null && labelText.equals(monitorCaptureLabelText())) {
+            monitorCaptureLabelView = label;
+        } else if (monitoredAppLabelView == null && labelText.equals(monitoredAppLabelText())) {
+            monitoredAppLabelView = label;
+        }
         row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         row.addView(trailingView);
         return row;
@@ -1338,6 +1345,17 @@ public final class MainActivity extends Activity {
         label.setText(labelText);
         label.setTextSize(14);
         label.setTextColor(Color.rgb(200, 210, 230));
+        if (latencyLabelView == null && labelText.equals(latencyLabelText())) {
+            latencyLabelView = label;
+        } else if (bufferLabelView == null && labelText.equals(bufferLabelText())) {
+            bufferLabelView = label;
+        } else if (pollIntervalLabelView == null && labelText.equals(pollIntervalLabelText())) {
+            pollIntervalLabelView = label;
+        } else if (lookaheadLabelView == null && labelText.equals(lookaheadLabelText())) {
+            lookaheadLabelView = label;
+        } else if (wetMixLabelView == null && labelText.equals(wetMixLabelText())) {
+            wetMixLabelView = label;
+        }
         row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         EditText input = new EditText(this);
