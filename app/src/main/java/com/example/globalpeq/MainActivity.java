@@ -1530,7 +1530,7 @@ public final class MainActivity extends Activity {
 
     private String monitorSettingsDetailText() {
         return tr(
-                "Pick the target app, authorize Android playback capture, and tune latency-oriented parameters for the second backend. If capture is live, mute the source app to avoid doubling.",
+                "Pick the target app, authorize Android playback capture and Shizuku, then tune the second backend. If capture is live, the app will try to mute the source sessions automatically.",
                 "选择目标应用，完成 Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加。");
     }
 
