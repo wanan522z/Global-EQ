@@ -6100,11 +6100,6 @@ public final class MainActivity extends Activity {
         }
         // 确保状态文本也设置左右Padding预留光晕展示，不被视图边界截断
         statusText.setPadding(dp(10), dp(4), dp(10), dp(4));
-        String nextStateKey = supported + ":" + hasClip + ":" + statusLabel(hasClip);
-        if (nextStateKey.equals(statusVisualStateKey)) {
-            return;
-        }
-        statusVisualStateKey = nextStateKey;
         if (!supported) {
             unregisterShimmerView(statusText);
             statusText.setTextColor(Color.rgb(150, 158, 172));
