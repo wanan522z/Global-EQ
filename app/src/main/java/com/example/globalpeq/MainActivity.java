@@ -1398,6 +1398,7 @@ public final class MainActivity extends Activity {
         monitorSettingsPage.setVisibility(View.VISIBLE);
         monitorSettingsPage.bringToFront();
         bottomNavView.setVisibility(View.GONE);
+        renderAll();
     }
 
     private void hideAdvancedSettingsSubpage() {
