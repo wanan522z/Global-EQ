@@ -6320,6 +6320,15 @@ public final class MainActivity extends Activity {
         view.getPaint().clearShadowLayer();
     }
 
+    private void clearAnimatedTextStyle(TextView view) {
+        if (view == null) {
+            return;
+        }
+        view.getPaint().setShader(null);
+        clearGlowFromTextView(view);
+        view.invalidate();
+    }
+
     private void styleSettingsTitleText(TextView view) {
         if (view == null) {
             return;
