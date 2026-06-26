@@ -3172,13 +3172,13 @@ public final class MainActivity extends Activity {
             modeSpinner.setAlpha(1f);
         }
         styleModeText();
-        refreshCurveView();
         updateEditStateLabels();
         updatePeqBandVisuals();
         uiHandler.postDelayed(disableNeonCurveRunnable, DISABLE_NEON_CURVE_DELAY_MS);
     }
 
     private void activateDisabledNeonCurve() {
+        refreshCurveView();
         if (curveView != null) {
             curveView.setVisualEnabled(false, true);
         }
