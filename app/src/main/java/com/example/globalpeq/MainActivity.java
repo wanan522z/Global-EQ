@@ -171,12 +171,7 @@ public final class MainActivity extends Activity {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
                     continue;
                 }
-                int width;
-                if (view == eqTabButton || view == extraTabButton || view == settingsTabButton || view == modeSpinner) {
-                    width = settingsTitleGradientWidth(view);
-                } else {
-                    width = view.getWidth();
-                }
+                int width = settingsTitleGradientWidth(view);
                 if (width <= 0) {
                     width = Math.max(view.getMeasuredWidth(),
                             view.getLayoutParams() != null ? view.getLayoutParams().width : 0);
