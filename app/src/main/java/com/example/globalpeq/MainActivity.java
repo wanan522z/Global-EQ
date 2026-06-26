@@ -529,6 +529,7 @@ public final class MainActivity extends Activity {
                     ShizukuCompat.hasPermission());
         }
         renderAll();
+        maybeAutoResumeShizukuCapture();
     }
 
     @Override
@@ -5398,7 +5399,20 @@ public final class MainActivity extends Activity {
         if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
                 && applyPreset.enabled == runningPreset.enabled) {
             applyRunningPreset(applyPreset.enabled);
+            if (applyPreset.enabled && processingMode == ProcessingMode.SHIZUKU_MUTE) {
+                ensureShizukuModeReady(true);
+            }
         }
+    }
+
+    private void maybeAutoResumeShizukuCapture() {
+        if (repository == null
+                || processingMode != ProcessingMode.SHIZUKU_MUTE
+                || runningPreset == null
+                || !runningPreset.enabled) {
+            return;
+        }
+        ensureShizukuModeReady(true);
     }
 
     private void refreshPendingEnabledToggleUi() {
