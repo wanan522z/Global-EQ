@@ -9060,15 +9060,15 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable iconGlowDrawable(int glowColor) {
-        return new IconGlowDrawable(glowColor);
+        return new AppIconBloomDrawable(glowColor);
     }
 
     private void applyIconGlowColor(Drawable icon) {
         Drawable bg = monitoredAppIconView.getBackground();
-        if (!(bg instanceof IconGlowDrawable)) {
+        if (!(bg instanceof AppIconBloomDrawable)) {
             return;
         }
-        ((IconGlowDrawable) bg).setIcon(icon);
+        ((AppIconBloomDrawable) bg).setIcon(icon);
     }
 
     private void styleButton(Button button, boolean isPrimary, boolean isEnabled) {
