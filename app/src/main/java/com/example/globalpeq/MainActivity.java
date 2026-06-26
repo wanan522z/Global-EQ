@@ -1317,7 +1317,9 @@ public final class MainActivity extends Activity {
     }
 
     private void showAdvancedSettingsSubpage() {
-        if (monitorSettingsPage == null || bottomNavView == null) {
+        if (processingMode != ProcessingMode.ADVANCED_DSP
+                || monitorSettingsPage == null
+                || bottomNavView == null) {
             return;
         }
         monitorSettingsOpen = true;
@@ -1333,9 +1335,19 @@ public final class MainActivity extends Activity {
         monitorSettingsOpen = false;
         monitorSettingsPage.setVisibility(View.GONE);
         bottomNavView.setVisibility(View.VISIBLE);
+        updateBottomNavSelection(activeMainPageIndex);
         if (mainPageHost != null) {
             mainPageHost.bringToFront();
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (monitorSettingsOpen) {
+            hideAdvancedSettingsSubpage();
+            return;
+        }
+        super.onBackPressed();
     }
 
     private void updateAdvancedModeConfig(AdvancedModeConfig nextConfig) {
