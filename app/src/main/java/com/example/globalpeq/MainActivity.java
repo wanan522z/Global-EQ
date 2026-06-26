@@ -7939,6 +7939,7 @@ public final class MainActivity extends Activity {
     private float clamp01(float value) {
         return Math.max(0f, Math.min(1f, value));
     }
+
     private class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
