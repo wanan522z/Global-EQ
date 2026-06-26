@@ -2907,12 +2907,12 @@ public final class MainActivity extends Activity {
         runningPreset = runningPreset.withEnabled(isChecked && supported);
         if (isEditingPresetActive()) {
             editingPreset = editingPreset.withEnabled(runningPreset.enabled);
-            persistEditingPreset();
+            pendingEnabledPersistPreset = editingPreset;
         }
-        applyRunningPreset();
         refreshCurveView();
         updateEditStateLabels();
         styleModeText();
+        scheduleEnabledToggleCommit();
     }
 
     private void onAutoSwitchOutputChanged(CompoundButton buttonView, boolean isChecked) {
@@ -2974,6 +2974,26 @@ public final class MainActivity extends Activity {
                 startService(service);
             }
         } catch (Throwable ignored) {
+        }
+    }
+
+    private void scheduleEnabledToggleCommit() {
+        pendingEnabledApplyPreset = runningPreset;
+        uiHandler.removeCallbacks(commitEnabledToggleRunnable);
+        uiHandler.postDelayed(commitEnabledToggleRunnable, ENABLE_TOGGLE_COMMIT_DELAY_MS);
+    }
+
+    private void commitPendingEnabledToggle() {
+        Preset persistPreset = pendingEnabledPersistPreset;
+        Preset applyPreset = pendingEnabledApplyPreset;
+        pendingEnabledPersistPreset = null;
+        pendingEnabledApplyPreset = null;
+        if (persistPreset != null && editingPreset != null && persistPreset.name.equals(editingPreset.name)) {
+            persistEditingPreset();
+        }
+        if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
+                && applyPreset.enabled == runningPreset.enabled) {
+            applyRunningPreset();
         }
     }
 
