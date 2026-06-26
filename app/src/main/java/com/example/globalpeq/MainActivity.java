@@ -1836,6 +1836,131 @@ public final class MainActivity extends Activity {
     }
 
     private void showMonitoredAppChoiceDialog() {
+        {
+            AlertDialog[] dialogHolder = new AlertDialog[1];
+            final List<MonitoredAppListEntry>[] monitoredHolder = new List[]{null};
+            LinearLayout shell = new LinearLayout(this);
+            shell.setOrientation(LinearLayout.VERTICAL);
+            shell.setPadding(dp(16), dp(8), dp(16), dp(10));
+
+            EditText searchInput = new EditText(this);
+            searchInput.setSingleLine(true);
+            searchInput.setHint(tr("Search added apps", "搜索已添加应用"));
+            searchInput.setTextSize(13);
+            searchInput.setTextColor(Color.WHITE);
+            searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
+            searchInput.setBackground(createFieldBackground(20, 40, 8));
+            searchInput.setPadding(dp(12), dp(10), dp(12), dp(10));
+            shell.addView(searchInput, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(44)
+            ));
+
+            FrameLayout content = new FrameLayout(this);
+            LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    Math.max(dp(220), Math.min(dp(460), getResources().getDisplayMetrics().heightPixels - dp(220)))
+            );
+            contentParams.topMargin = dp(10);
+            shell.addView(content, contentParams);
+
+            LinearLayout list = new LinearLayout(this);
+            list.setOrientation(LinearLayout.VERTICAL);
+            list.setPadding(dp(12), dp(10), dp(12), dp(12));
+
+            ScrollView scroll = new ScrollView(this);
+            scroll.setClipToPadding(false);
+            scroll.addView(list);
+            FrameLayout.LayoutParams scrollParams = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+            );
+            scrollParams.rightMargin = dp(30);
+            content.addView(scroll, scrollParams);
+
+            LinearLayout indexBar = new LinearLayout(this);
+            indexBar.setOrientation(LinearLayout.VERTICAL);
+            indexBar.setGravity(android.view.Gravity.CENTER);
+            indexBar.setPadding(dp(1), dp(6), dp(1), dp(6));
+            indexBar.setBackground(plainRoundRectDrawable(
+                    Color.argb(20, 255, 255, 255),
+                    Color.argb(35, 255, 255, 255),
+                    dp(8)
+            ));
+            FrameLayout.LayoutParams indexParams = new FrameLayout.LayoutParams(
+                    dp(16),
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL
+            );
+            indexParams.rightMargin = dp(1);
+            content.addView(indexBar, indexParams);
+            content.post(() -> {
+                ViewGroup.LayoutParams rawParams = indexBar.getLayoutParams();
+                if (!(rawParams instanceof FrameLayout.LayoutParams)) {
+                    return;
+                }
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) rawParams;
+                int targetHeight = Math.max(dp(220), Math.round(content.getHeight() * 0.8f));
+                if (lp.height != targetHeight) {
+                    lp.height = targetHeight;
+                    indexBar.setLayoutParams(lp);
+                }
+            });
+
+            searchInput.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                }
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                    if (monitoredHolder[0] == null) {
+                        return;
+                    }
+                    rebuildMonitoredAppChoiceList(
+                            list,
+                            indexBar,
+                            scroll,
+                            monitoredHolder[0],
+                            s == null ? "" : s.toString(),
+                            dialogHolder
+                    );
+                }
+            });
+            showIndexedLoadingState(list, indexBar, tr("Loading added apps...", "正在加载已添加应用..."));
+
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
+                    .setView(shell)
+                    .setNegativeButton(tr("Close", "关闭"), null)
+                    .create();
+            dialogHolder[0] = dialog;
+            dialog.show();
+            styleDialog(dialog);
+
+            new Thread(() -> {
+                List<MonitoredAppListEntry> monitoredApps = loadMonitoredAppChoiceEntries();
+                uiHandler.post(() -> {
+                    if (dialogHolder[0] == null || !dialogHolder[0].isShowing()) {
+                        return;
+                    }
+                    monitoredHolder[0] = monitoredApps;
+                    rebuildMonitoredAppChoiceList(
+                            list,
+                            indexBar,
+                            scroll,
+                            monitoredApps,
+                            searchInput.getText().toString(),
+                            dialogHolder
+                    );
+                });
+            }, "global-peq-monitored-apps").start();
+            return;
+        }
         AlertDialog[] dialogHolder = new AlertDialog[1];
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
