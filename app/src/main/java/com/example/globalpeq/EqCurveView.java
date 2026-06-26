@@ -18,6 +18,7 @@ final class EqCurveView extends View {
     private static final float CURVE_SAMPLE_STEP_PX = 0.24f;
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
     private static final long ANIMATION_FRAME_DELAY_MS = 33L;
+    private static final long VISUAL_FADE_DURATION_MS = 190L;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -56,6 +57,12 @@ final class EqCurveView extends View {
     private Bitmap glowCacheBitmap;
     private Canvas glowCacheCanvas;
     private boolean animationSuppressed;
+    private boolean visualStateInitialized;
+    private float visualLevel = 0f;
+    private float visualFromLevel = 0f;
+    private float targetVisualLevel = 0f;
+    private long visualTransitionStartAt = 0L;
+    private final Paint glowBitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
 
     private Preset preset = Preset.flat(false);
     private FrequencyCurve deviceCurve = FrequencyCurve.DEFAULT;
@@ -175,6 +182,13 @@ final class EqCurveView extends View {
 
     void setPreset(Preset preset) {
         this.preset = preset == null ? Preset.flat(false) : preset;
+        if (!visualStateInitialized) {
+            float initialLevel = this.preset.enabled ? 1f : 0f;
+            visualLevel = initialLevel;
+            visualFromLevel = initialLevel;
+            targetVisualLevel = initialLevel;
+            visualStateInitialized = true;
+        }
         this.pathDirty = true;
         this.glowCacheDirty = true;
         postInvalidateOnAnimation();
@@ -211,9 +225,39 @@ final class EqCurveView extends View {
         postInvalidateOnAnimation();
     }
 
+    void setVisualEnabled(boolean enabled, boolean animate) {
+        float nextLevel = enabled ? 1f : 0f;
+        if (!visualStateInitialized) {
+            visualLevel = nextLevel;
+            visualFromLevel = nextLevel;
+            targetVisualLevel = nextLevel;
+            visualStateInitialized = true;
+            invalidate();
+            return;
+        }
+        syncVisualLevel(System.currentTimeMillis());
+        if (!animate) {
+            visualLevel = nextLevel;
+            visualFromLevel = nextLevel;
+            targetVisualLevel = nextLevel;
+            visualTransitionStartAt = 0L;
+            invalidate();
+            return;
+        }
+        if (Math.abs(targetVisualLevel - nextLevel) < 0.001f && Math.abs(visualLevel - nextLevel) < 0.001f) {
+            return;
+        }
+        visualFromLevel = visualLevel;
+        targetVisualLevel = nextLevel;
+        visualTransitionStartAt = System.currentTimeMillis();
+        postInvalidateOnAnimation();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        long now = System.currentTimeMillis();
+        syncVisualLevel(now);
         int width = getWidth();
         int height = getHeight();
         if (width <= 0 || height <= 0) {
@@ -269,8 +313,7 @@ final class EqCurveView extends View {
         canvas.drawText("-" + maxDb, left, bottom - 6f, textPaint);
 
         // Keep running the animation loop smoothly if enabled
-        if (preset.enabled && !animationSuppressed) {
-            long now = System.currentTimeMillis();
+        if ((visualLevel > 0.001f || isVisualTransitionRunning()) && !animationSuppressed) {
             if (now - lastInvalidateAt >= ANIMATION_FRAME_DELAY_MS) {
                 lastInvalidateAt = now;
                 postInvalidateOnAnimation();
@@ -324,6 +367,7 @@ final class EqCurveView extends View {
     }
 
     private void drawCurveLayer(Canvas canvas, float left, float right) {
+        float enabledAmount = clamp01(visualLevel);
         if (!targetCurve.isDefault()) {
             referencePaint.setColor(Color.argb(180, 190, 128, 255));
             referencePaint.setPathEffect(dashPathEffect);
@@ -331,10 +375,11 @@ final class EqCurveView extends View {
             referencePaint.setPathEffect(null);
         }
 
-        if (preset.enabled) {
+        if (enabledAmount > 0.001f) {
             ensureGlowCache(getWidth(), getHeight(), left, right);
             if (glowCacheBitmap != null && !glowCacheBitmap.isRecycled()) {
-                canvas.drawBitmap(glowCacheBitmap, 0f, 0f, null);
+                glowBitmapPaint.setAlpha(Math.round(255f * enabledAmount));
+                canvas.drawBitmap(glowCacheBitmap, 0f, 0f, glowBitmapPaint);
             }
             long now = System.currentTimeMillis();
             if (!animationSuppressed && lastTime > 0) {
@@ -344,7 +389,7 @@ final class EqCurveView extends View {
                     sweepPhase -= 1.0f;
                 }
             }
-            lastTime = animationSuppressed ? 0L : now;
+            lastTime = (animationSuppressed || enabledAmount <= 0.001f) ? 0L : now;
 
             if (sweepGradient == null) {
                 sweepGradient = new LinearGradient(
@@ -369,27 +414,68 @@ final class EqCurveView extends View {
                 float totalWidth = right - left;
                 sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
                 sweepGradient.setLocalMatrix(sweepMatrix);
+                sweepPaint.setAlpha(Math.round(255f * enabledAmount));
                 canvas.drawPath(curvePath, sweepPaint);
             }
         } else {
             lastTime = 0;
             lastInvalidateAt = 0L;
-            curvePaint.setStrokeWidth(5f);
-            curvePaint.setDither(true);
-            curvePaint.setColor(Color.argb(18, 130, 140, 150));
-            canvas.drawPath(curvePath, curvePaint);
-
-            edgePaint.setColor(Color.argb(58, 150, 160, 172));
-            canvas.drawPath(curvePath, edgePaint);
         }
+
+        curvePaint.setStrokeWidth(5f);
+        curvePaint.setDither(true);
+        curvePaint.setColor(lerpColor(
+                Color.argb(18, 130, 140, 150),
+                Color.argb(35, 0, 255, 255),
+                enabledAmount));
+        canvas.drawPath(curvePath, curvePaint);
+
+        edgePaint.setColor(lerpColor(
+                Color.argb(58, 150, 160, 172),
+                Color.argb(105, 130, 245, 255),
+                enabledAmount));
+        canvas.drawPath(curvePath, edgePaint);
 
         curvePaint.setStrokeWidth(3.2f);
-        if (preset.enabled) {
-            curvePaint.setColor(Color.rgb(0, 255, 255));
-        } else {
-            curvePaint.setColor(Color.rgb(130, 140, 150));
-        }
+        curvePaint.setColor(lerpColor(
+                Color.rgb(130, 140, 150),
+                Color.rgb(0, 255, 255),
+                enabledAmount));
         canvas.drawPath(curvePath, curvePaint);
+    }
+
+    private void syncVisualLevel(long now) {
+        if (!visualStateInitialized) {
+            return;
+        }
+        if (visualTransitionStartAt <= 0L) {
+            visualLevel = targetVisualLevel;
+            return;
+        }
+        float progress = Math.min(1f, Math.max(0f, (now - visualTransitionStartAt) / (float) VISUAL_FADE_DURATION_MS));
+        visualLevel = visualFromLevel + (targetVisualLevel - visualFromLevel) * progress;
+        if (progress >= 1f) {
+            visualLevel = targetVisualLevel;
+            visualTransitionStartAt = 0L;
+            visualFromLevel = targetVisualLevel;
+        }
+    }
+
+    private boolean isVisualTransitionRunning() {
+        return visualTransitionStartAt > 0L && Math.abs(visualLevel - targetVisualLevel) > 0.001f;
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
+    }
+
+    private static int lerpColor(int from, int to, float amount) {
+        float t = clamp01(amount);
+        int a = Math.round(Color.alpha(from) + (Color.alpha(to) - Color.alpha(from)) * t);
+        int r = Math.round(Color.red(from) + (Color.red(to) - Color.red(from)) * t);
+        int g = Math.round(Color.green(from) + (Color.green(to) - Color.green(from)) * t);
+        int b = Math.round(Color.blue(from) + (Color.blue(to) - Color.blue(from)) * t);
+        return Color.argb(a, r, g, b);
     }
 
     private void ensureGlowCache(int width, int height, float left, float right) {
