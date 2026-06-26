@@ -333,7 +333,6 @@ public final class MainActivity extends Activity {
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
     private final Runnable disableNeonCurveRunnable = this::activateDisabledNeonCurve;
-    private final Runnable enablePeqBandStepRunnable = this::activateNextPeqBandVisual;
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
