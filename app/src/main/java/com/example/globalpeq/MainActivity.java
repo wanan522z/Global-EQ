@@ -5324,7 +5324,8 @@ public final class MainActivity extends Activity {
             return;
         }
         extraBassEnabledState = isChecked;
-        setEditingPreset(editingPreset.withExtraBassEnabled(isChecked), true);
+        setEditingPreset(editingPreset.withExtraBassEnabled(isChecked), true, false);
+        scheduleExtraBassToggleCommit();
     }
 
     private void syncExtraBassEnabledFromPreset() {
