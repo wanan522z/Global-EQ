@@ -33,6 +33,8 @@ final class PresetRepository {
     private static final String TARGET_CURVE_GAIN_OFFSET = "target_curve_gain_offset";
     private static final String DEVICE_CURVE_SMOOTHING = "device_curve_smoothing";
     private static final String TARGET_CURVE_SMOOTHING = "target_curve_smoothing";
+    private static final String MONITOR_CAPTURE_STATUS = "monitor_capture_status";
+    private static final String MONITOR_CAPTURE_ACTIVE = "monitor_capture_active";
     private static final String DEVICE_SEPARATOR = "\t";
 
     private final Context appContext;
@@ -132,6 +134,21 @@ final class PresetRepository {
         prefs.edit()
                 .putInt(BASS_BOOST_MODE, clamp(index, 0, 2))
                 .commit();
+    }
+
+    String loadMonitorCaptureStatus() {
+        return prefs.getString(MONITOR_CAPTURE_STATUS, "Native capture is idle.");
+    }
+
+    boolean loadMonitorCaptureActive() {
+        return prefs.getBoolean(MONITOR_CAPTURE_ACTIVE, false);
+    }
+
+    void saveMonitorCaptureStatus(String status, boolean active) {
+        prefs.edit()
+                .putString(MONITOR_CAPTURE_STATUS, status == null ? "Native capture is idle." : status)
+                .putBoolean(MONITOR_CAPTURE_ACTIVE, active)
+                .apply();
     }
 
     AudioOutputDevice loadSelectedDevice() {
