@@ -1359,6 +1359,10 @@ public final class MainActivity extends Activity {
         }
         showLimitedChoiceMenu(reverbTypeButton, REVERB_TYPE_LABELS, reverbTypeIndex(editingPreset.reverbType), position -> {
             String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
+            if (processingMode == ProcessingMode.SYSTEM_EQ && !"Default".equals(nextType)) {
+                showModeLockedDialog("Reverb requires Monitor DSP mode.");
+                return;
+            }
             if (!nextType.equals(editingPreset.reverbType)) {
                 setEditingPreset(editingPreset.withReverbType(nextType), true);
             }
@@ -1370,7 +1374,13 @@ public final class MainActivity extends Activity {
             return;
         }
         showLimitedChoiceMenu(bassModeButton, BASS_MODE_LABELS, selectedBassModeIndex, position -> {
-            selectedBassModeIndex = clamp(position, 0, BASS_MODE_LABELS.length - 1);
+            int nextIndex = clamp(position, 0, BASS_MODE_LABELS.length - 1);
+            if (processingMode == ProcessingMode.SYSTEM_EQ && nextIndex != 0) {
+                showModeLockedDialog("BassBoost beyond Default requires Monitor DSP mode.");
+                return;
+            }
+            selectedBassModeIndex = nextIndex;
+            repository.saveBassBoostModeIndex(selectedBassModeIndex);
             updateExtraControls();
         });
     }
