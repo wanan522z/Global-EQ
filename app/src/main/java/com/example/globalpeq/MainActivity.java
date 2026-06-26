@@ -1673,15 +1673,14 @@ public final class MainActivity extends Activity {
     private void showInstalledAppPickerDialog() {
         List<ApplicationInfo> installed = new ArrayList<>();
         for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
-            if (info == null || !info.enabled) {
+            if (info == null) {
                 continue;
             }
             if (getPackageName().equals(info.packageName)) {
                 continue;
             }
-            boolean launchable = getPackageManager().getLaunchIntentForPackage(info.packageName) != null;
             boolean selected = info.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            if (!launchable && !selected) {
+            if (!selected && !isUserInstalledApp(info)) {
                 continue;
             }
             installed.add(info);
@@ -1725,6 +1724,16 @@ public final class MainActivity extends Activity {
         dialogHolder[0] = dialog;
         dialog.show();
         styleDialog(dialog);
+    }
+
+    private boolean isUserInstalledApp(ApplicationInfo info) {
+        if (info == null) {
+            return false;
+        }
+        int flags = info.flags;
+        boolean systemApp = (flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+        boolean updatedSystemApp = (flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
+        return !systemApp || updatedSystemApp;
     }
 
     private View createMonitoredAppClearRow(boolean active, AlertDialog[] dialogHolder) {
