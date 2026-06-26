@@ -1387,6 +1387,8 @@ public final class MainActivity extends Activity {
             languageLabelView = label;
         } else if (monitorCaptureLabelView == null && labelText.equals(monitorCaptureLabelText())) {
             monitorCaptureLabelView = label;
+        } else if (shizukuAccessLabelView == null && labelText.equals(shizukuAccessLabelText())) {
+            shizukuAccessLabelView = label;
         } else if (monitoredAppLabelView == null && labelText.equals(monitoredAppLabelText())) {
             monitoredAppLabelView = label;
         }
