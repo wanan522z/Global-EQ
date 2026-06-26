@@ -6,15 +6,20 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 
 public final class GlobalEqForegroundService extends Service {
     static final String ACTION_APPLY = "com.example.globalpeq.APPLY";
+    static final String ACTION_BOOTSTRAP_CAPTURE = "com.example.globalpeq.BOOTSTRAP_CAPTURE";
+    static final String EXTRA_CAPTURE_RESULT_CODE = "capture_result_code";
+    static final String EXTRA_CAPTURE_DATA = "capture_result_data";
     private static final String CHANNEL_ID = "global_eq";
     private static final int NOTIFICATION_ID = 10;
 
     private GlobalEqualizerEngine engine;
+    private PlaybackCaptureEngine captureEngine;
     private PresetRepository repository;
     private AudioOutputDeviceMonitor deviceMonitor;
     private AudioOutputDevice currentDevice = new AudioOutputDevice("none", "Output device");
@@ -26,6 +31,7 @@ public final class GlobalEqForegroundService extends Service {
         super.onCreate();
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
+        captureEngine = new PlaybackCaptureEngine(this, repository);
         deviceMonitor = new AudioOutputDeviceMonitor(this);
         createNotificationChannel();
         AudioOutputDevice selected = repository.loadSelectedDevice();
@@ -60,16 +66,30 @@ public final class GlobalEqForegroundService extends Service {
             } else {
                 engine.applyWithFullReset(effectivePreset);
             }
+            captureEngine.updateProcessing(
+                    processingMode,
+                    currentPreset,
+                    repository.loadAdvancedModeConfig(),
+                    bassModeIndex);
             updateNotification();
         });
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(NOTIFICATION_ID, buildNotification());
+        String action = intent == null ? null : intent.getAction();
+        if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
+            startForegroundInternal(true);
+            captureEngine.bootstrapProjection(
+                    intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
+                    intent.getParcelableExtra(EXTRA_CAPTURE_DATA));
+        } else {
+            startForegroundInternal(captureEngine.hasProjection());
+        }
         boolean applyNow = intent == null || !ACTION_APPLY.equals(intent.getAction());
         Preset preset = applyNow ? applySavedPreset() : refreshSavedPresetState();
         if (!preset.enabled) {
+            captureEngine.stopAll();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
@@ -85,15 +105,23 @@ public final class GlobalEqForegroundService extends Service {
     @Override
     public void onDestroy() {
         deviceMonitor.stop();
+        captureEngine.stopAll();
         super.onDestroy();
     }
 
     private Preset applySavedPreset() {
         Preset preset = refreshSavedPresetState();
+        ProcessingMode processingMode = repository.loadProcessingMode();
+        int bassModeIndex = repository.loadBassBoostModeIndex();
         engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
                 currentPreset,
-                repository.loadProcessingMode(),
-                repository.loadBassBoostModeIndex()));
+                processingMode,
+                bassModeIndex));
+        captureEngine.updateProcessing(
+                processingMode,
+                currentPreset,
+                repository.loadAdvancedModeConfig(),
+                bassModeIndex);
         return preset;
     }
 
@@ -128,13 +156,29 @@ public final class GlobalEqForegroundService extends Service {
                 : new Notification.Builder(this);
 
         String state = currentPreset.enabled ? "Global PEQ on" : "Global PEQ off";
+        String content = repository.loadProcessingMode() == ProcessingMode.ADVANCED_DSP
+                ? repository.loadMonitorCaptureStatus()
+                : currentDevice.label;
         return builder
                 .setSmallIcon(R.drawable.ic_eq)
                 .setContentTitle(state)
-                .setContentText(currentDevice.label)
+                .setContentText(content)
                 .setContentIntent(pendingIntent)
                 .setOngoing(currentPreset.enabled)
                 .build();
+    }
+
+    private void startForegroundInternal(boolean withProjection) {
+        Notification notification = buildNotification();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            int type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+            if (withProjection) {
+                type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+            }
+            startForeground(NOTIFICATION_ID, notification, type);
+            return;
+        }
+        startForeground(NOTIFICATION_ID, notification);
     }
 
     private void createNotificationChannel() {
