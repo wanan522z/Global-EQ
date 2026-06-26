@@ -5765,6 +5765,7 @@ public final class MainActivity extends Activity {
             }
         }
         currentShimmerPhaseForView(view);
+        shimmerPhaseFreezeUntil.put(view, System.currentTimeMillis() + SHIMMER_ACTIVATION_FREEZE_MS);
         shimmerTargetViews.add(view);
         shimmerLastWidth.remove(view);
         if (shimmerTargetViews.size() == 1) {
