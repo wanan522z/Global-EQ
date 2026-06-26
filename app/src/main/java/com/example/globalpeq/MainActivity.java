@@ -1756,7 +1756,7 @@ public final class MainActivity extends Activity {
         int sanitizedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(processingMode, selectedBassModeIndex);
         if (sanitizedBassModeIndex != selectedBassModeIndex) {
             selectedBassModeIndex = sanitizedBassModeIndex;
-            repository.saveBassBoostModeIndex(selectedBassModeIndex);
+            repository.saveBassEnhanceModeIndex(selectedBassModeIndex);
         }
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             if (monitorSettingsOpen) {
