@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.provider.Settings;
 
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -144,10 +145,12 @@ final class ShizukuCompat {
             reader.close();
             inputStream.close();
             readPipe.close();
-            return dump;
+            if (dump != null && !dump.trim().isEmpty()) {
+                return dump;
+            }
         } catch (Throwable ignored) {
-            return null;
         }
+        return dumpViaCommand(service);
     }
 
     static void openManagerOrSettings(Context context) {
@@ -217,6 +220,24 @@ final class ShizukuCompat {
             builder.append(buffer, 0, count);
         }
         return builder.toString();
+    }
+
+    private static String dumpViaCommand(String service) {
+        Process process = newProcess("dumpsys " + service);
+        if (process == null) {
+            return null;
+        }
+        try {
+            InputStream stream = process.getInputStream();
+            InputStreamReader reader = new InputStreamReader(stream, "UTF-8");
+            String output = readAll(reader);
+            reader.close();
+            stream.close();
+            process.waitFor();
+            return output == null || output.trim().isEmpty() ? null : output;
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     static void addStateListener(StateListener listener) {
