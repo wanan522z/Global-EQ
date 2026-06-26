@@ -8037,6 +8037,199 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private class AppIconBloomDrawable extends Drawable {
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint bloomPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF glowRect = new android.graphics.RectF();
+        private final android.graphics.RectF coreRect = new android.graphics.RectF();
+        private Drawable sourceIcon;
+        private int glowColor;
+        private int drawableAlpha = 255;
+
+        AppIconBloomDrawable(int glowColor) {
+            this.glowColor = glowColor;
+            fillPaint.setStyle(Paint.Style.FILL);
+            bloomPaint.setStyle(Paint.Style.FILL);
+            bloomPaint.setDither(true);
+            ringPaint.setStyle(Paint.Style.STROKE);
+            ringPaint.setDither(true);
+        }
+
+        void setIcon(Drawable icon) {
+            sourceIcon = icon;
+            if (icon != null) {
+                glowColor = extractMonitoredAppGlowColor(icon);
+            }
+            invalidateSelf();
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            Rect b = getBounds();
+            if (b.width() <= 0 || b.height() <= 0 || sourceIcon == null) {
+                return;
+            }
+
+            int inset = monitoredAppIconGlowInsetPx();
+            float bloomInset = inset * 0.18f;
+            glowRect.set(b.left + bloomInset, b.top + bloomInset, b.right - bloomInset, b.bottom - bloomInset);
+            coreRect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
+
+            float coreRadius = Math.min(coreRect.width(), coreRect.height()) * 0.34f;
+            float glowRadius = Math.min(glowRect.width(), glowRect.height()) * 0.5f;
+            float cx = glowRect.centerX();
+            float cy = glowRect.centerY();
+
+            int outerColor = withMonitoredAppGlowAlpha(glowColor, 0.20f * drawableAlpha / 255f);
+            int midColor = withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.10f, 1.16f), 0.38f * drawableAlpha / 255f);
+            int innerColor = withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.94f, 1.08f), 0.72f * drawableAlpha / 255f);
+            bloomPaint.setShader(new RadialGradient(
+                    cx,
+                    cy,
+                    glowRadius,
+                    new int[]{innerColor, midColor, outerColor, Color.TRANSPARENT},
+                    new float[]{0f, 0.42f, 0.76f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(glowRect, coreRadius + inset * 0.9f, coreRadius + inset * 0.9f, bloomPaint);
+
+            fillPaint.setShader(null);
+            fillPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.28f, 1.10f), 0.16f * drawableAlpha / 255f));
+            canvas.drawRoundRect(coreRect, coreRadius, coreRadius, fillPaint);
+
+            ringPaint.setShader(new LinearGradient(
+                    coreRect.left,
+                    coreRect.top,
+                    coreRect.right,
+                    coreRect.bottom,
+                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.16f, 1.22f), 0.62f * drawableAlpha / 255f),
+                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.86f, 1.04f), 0.28f * drawableAlpha / 255f),
+                    Shader.TileMode.CLAMP));
+            ringPaint.setStrokeWidth(dpf(1.1f));
+            canvas.drawRoundRect(coreRect, coreRadius, coreRadius, ringPaint);
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            drawableAlpha = clamp(alpha, 0, 255);
+            invalidateSelf();
+        }
+
+        @Override
+        public void setColorFilter(ColorFilter colorFilter) {
+        }
+
+        @Override
+        public int getOpacity() {
+            return PixelFormat.TRANSLUCENT;
+        }
+    }
+
+    private int monitoredAppIconVisualSizePx() {
+        return dp(36);
+    }
+
+    private int monitoredAppIconGlowInsetPx() {
+        return dp(8);
+    }
+
+    private int monitoredAppIconHostSizePx() {
+        return monitoredAppIconVisualSizePx() + monitoredAppIconGlowInsetPx() * 2;
+    }
+
+    private int extractMonitoredAppGlowColor(Drawable icon) {
+        int width = icon.getIntrinsicWidth();
+        int height = icon.getIntrinsicHeight();
+        if (width <= 0 || height <= 0) {
+            width = 64;
+            height = 64;
+        }
+        android.graphics.Rect savedBounds = new android.graphics.Rect(icon.getBounds());
+        float[] sampleHsv = new float[3];
+        try {
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                    width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+            icon.setBounds(0, 0, width, height);
+            icon.draw(canvas);
+            long sumR = 0;
+            long sumG = 0;
+            long sumB = 0;
+            int count = 0;
+            float bestScore = -1f;
+            int bestColor = Color.rgb(235, 242, 140);
+            int stride = Math.max(1, Math.min(width, height) / 18);
+            for (int y = 0; y < height; y += stride) {
+                for (int x = 0; x < width; x += stride) {
+                    int pixel = bmp.getPixel(x, y);
+                    int alpha = (pixel >>> 24) & 0xFF;
+                    if (alpha < 90) {
+                        continue;
+                    }
+                    int r = (pixel >> 16) & 0xFF;
+                    int g = (pixel >> 8) & 0xFF;
+                    int b = pixel & 0xFF;
+                    sumR += r;
+                    sumG += g;
+                    sumB += b;
+                    count++;
+                    Color.RGBToHSV(r, g, b, sampleHsv);
+                    float score = sampleHsv[1] * 1.45f + sampleHsv[2] * 0.55f;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestColor = Color.rgb(r, g, b);
+                    }
+                }
+            }
+            bmp.recycle();
+            if (count == 0) {
+                return Color.argb(176, 120, 220, 255);
+            }
+            int avgColor = Color.rgb(
+                    clamp((int) (sumR / count), 0, 255),
+                    clamp((int) (sumG / count), 0, 255),
+                    clamp((int) (sumB / count), 0, 255));
+            int mixed = mixMonitoredAppGlowColors(bestColor, avgColor, 0.28f);
+            Color.colorToHSV(mixed, sampleHsv);
+            sampleHsv[1] = clampUnit(sampleHsv[1] * 1.08f + 0.10f);
+            sampleHsv[2] = clampUnit(sampleHsv[2] * 1.04f + 0.08f);
+            return Color.HSVToColor(176, sampleHsv);
+        } catch (Exception ignored) {
+            return Color.argb(176, 120, 220, 255);
+        } finally {
+            icon.setBounds(savedBounds);
+        }
+    }
+
+    private int shiftMonitoredAppGlowColor(int color, float saturationScale, float valueScale) {
+        float[] localHsv = new float[3];
+        Color.colorToHSV(color, localHsv);
+        localHsv[1] = clampUnit(localHsv[1] * saturationScale);
+        localHsv[2] = clampUnit(localHsv[2] * valueScale);
+        return Color.HSVToColor(localHsv);
+    }
+
+    private int withMonitoredAppGlowAlpha(int color, float alphaFraction) {
+        return Color.argb(
+                clamp((int) (255f * clampUnit(alphaFraction) + 0.5f), 0, 255),
+                Color.red(color),
+                Color.green(color),
+                Color.blue(color));
+    }
+
+    private int mixMonitoredAppGlowColors(int first, int second, float secondWeight) {
+        float w = clampUnit(secondWeight);
+        float inv = 1f - w;
+        return Color.rgb(
+                clamp((int) (Color.red(first) * inv + Color.red(second) * w + 0.5f), 0, 255),
+                clamp((int) (Color.green(first) * inv + Color.green(second) * w + 0.5f), 0, 255),
+                clamp((int) (Color.blue(first) * inv + Color.blue(second) * w + 0.5f), 0, 255));
+    }
+
+    private float clampUnit(float value) {
+        return Math.max(0f, Math.min(1f, value));
+    }
+
     private class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
