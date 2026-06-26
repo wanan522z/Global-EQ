@@ -23,7 +23,8 @@ final class PresetRepository {
     private static final String PROCESSING_MODE = "processing_mode";
     private static final String UI_LANGUAGE = "ui_language";
     private static final String ADVANCED_MODE_CONFIG = "advanced_mode_config";
-    private static final String BASS_BOOST_MODE = "bass_boost_mode";
+    private static final String BASS_ENHANCE_MODE = "bass_enhance_mode";
+    private static final String LEGACY_BASS_BOOST_MODE = "bass_boost_mode";
     private static final String NAMED_PRESETS = "named_presets";
     private static final String KNOWN_DEVICES = "known_devices";
     private static final String DEVICE_CURVES = "device_curves";
@@ -144,13 +145,16 @@ final class PresetRepository {
                 .commit();
     }
 
-    int loadBassBoostModeIndex() {
-        return clamp(prefs.getInt(BASS_BOOST_MODE, 0), 0, 2);
+    int loadBassEnhanceModeIndex() {
+        if (prefs.contains(BASS_ENHANCE_MODE)) {
+            return clamp(prefs.getInt(BASS_ENHANCE_MODE, 0), 0, 2);
+        }
+        return clamp(prefs.getInt(LEGACY_BASS_BOOST_MODE, 0), 0, 2);
     }
 
-    void saveBassBoostModeIndex(int index) {
+    void saveBassEnhanceModeIndex(int index) {
         prefs.edit()
-                .putInt(BASS_BOOST_MODE, clamp(index, 0, 2))
+                .putInt(BASS_ENHANCE_MODE, clamp(index, 0, 2))
                 .commit();
     }
 

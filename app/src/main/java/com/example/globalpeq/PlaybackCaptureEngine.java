@@ -475,7 +475,7 @@ final class PlaybackCaptureEngine {
             return;
         }
         boolean enableSystemBass = AudioProcessingPolicy.systemBassBoostAllowed(currentBassModeIndex)
-                && currentPreset.systemBassBoostPercent > 0;
+                && currentPreset.bassEnhanceAmountPercent > 0;
         if (!enableSystemBass) {
             releaseTrackBassBoostLocked();
             return;
@@ -485,7 +485,7 @@ final class PlaybackCaptureEngine {
                 trackBassBoost = new BassBoost(1000, audioTrack.getAudioSessionId());
             }
             trackBassBoost.setEnabled(false);
-            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, currentPreset.systemBassBoostPercent * 10)));
+            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, currentPreset.bassEnhanceAmountPercent * 10)));
             trackBassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Track BassBoost failed", ex);
