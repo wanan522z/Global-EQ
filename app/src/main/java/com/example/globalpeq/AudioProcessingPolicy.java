@@ -16,6 +16,25 @@ final class AudioProcessingPolicy {
         return advancedModeEnabled(mode) && bassModeIndex == 2;
     }
 
+    static boolean dspVirtualBassAllowed(ProcessingMode mode, int bassModeIndex) {
+        return advancedModeEnabled(mode) && bassModeIndex == 2;
+    }
+
+    static Preset effectiveDspPreset(Preset preset, ProcessingMode mode, int bassModeIndex) {
+        if (preset == null) {
+            return null;
+        }
+
+        Preset effective = preset;
+        if (!dspVirtualBassAllowed(mode, bassModeIndex)) {
+            effective = effective.withVirtualBassEnabled(false);
+        }
+        if (!advancedModeEnabled(mode) || "Default".equals(effective.reverbType)) {
+            effective = effective.withReverbType("Default");
+        }
+        return effective;
+    }
+
     static Preset effectiveSystemPreset(Preset preset, ProcessingMode mode, int bassModeIndex) {
         if (preset == null) {
             return null;

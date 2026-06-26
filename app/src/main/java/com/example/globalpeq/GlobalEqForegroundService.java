@@ -8,6 +8,8 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 
 public final class GlobalEqForegroundService extends Service {
@@ -17,14 +19,36 @@ public final class GlobalEqForegroundService extends Service {
     static final String EXTRA_CAPTURE_DATA = "capture_result_data";
     private static final String CHANNEL_ID = "global_eq";
     private static final int NOTIFICATION_ID = 10;
+    private static final long CAPTURE_UPDATE_DEBOUNCE_MS = 350L;
 
     private GlobalEqualizerEngine engine;
     private PlaybackCaptureEngine captureEngine;
     private PresetRepository repository;
     private AudioOutputDeviceMonitor deviceMonitor;
+    private HandlerThread captureControlThread;
+    private Handler captureControlHandler;
     private AudioOutputDevice currentDevice = new AudioOutputDevice("none", "Output device");
     private Preset currentPreset = Preset.flat(false);
     private boolean awaitingInitialDeviceMonitorEvent;
+    private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
+    private Preset pendingCapturePreset = Preset.flat(false);
+    private AdvancedModeConfig pendingCaptureConfig = AdvancedModeConfig.DEFAULT;
+    private int pendingCaptureBassModeIndex;
+    private AudioOutputDevice pendingCaptureDevice = new AudioOutputDevice("none", "Output device");
+    private final Runnable applyPendingCaptureUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (captureEngine == null) {
+                return;
+            }
+            captureEngine.updateProcessing(
+                    pendingCaptureMode,
+                    pendingCapturePreset,
+                    pendingCaptureConfig,
+                    pendingCaptureBassModeIndex,
+                    pendingCaptureDevice);
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -32,6 +56,9 @@ public final class GlobalEqForegroundService extends Service {
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
         captureEngine = new PlaybackCaptureEngine(this, repository, this::updateNotification);
+        captureControlThread = new HandlerThread("global-peq-capture-control");
+        captureControlThread.start();
+        captureControlHandler = new Handler(captureControlThread.getLooper());
         deviceMonitor = new AudioOutputDeviceMonitor(this);
         createNotificationChannel();
         AudioOutputDevice selected = repository.loadSelectedDevice();
@@ -66,11 +93,13 @@ public final class GlobalEqForegroundService extends Service {
             } else {
                 engine.applyWithFullReset(effectivePreset);
             }
-            captureEngine.updateProcessing(
+            scheduleCaptureUpdate(
                     processingMode,
                     currentPreset,
                     repository.loadAdvancedModeConfig(),
-                    bassModeIndex);
+                    bassModeIndex,
+                    currentDevice,
+                    CAPTURE_UPDATE_DEBOUNCE_MS);
             updateNotification();
         });
     }
@@ -80,7 +109,7 @@ public final class GlobalEqForegroundService extends Service {
         String action = intent == null ? null : intent.getAction();
         if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
             startForegroundInternal(true);
-            captureEngine.bootstrapProjection(
+            scheduleCaptureBootstrap(
                     intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
                     intent.getParcelableExtra(EXTRA_CAPTURE_DATA));
         } else {
@@ -88,7 +117,7 @@ public final class GlobalEqForegroundService extends Service {
         }
         Preset preset = applySavedPreset();
         if (!preset.enabled) {
-            captureEngine.stopAll();
+            scheduleCaptureStopAll();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
@@ -104,7 +133,15 @@ public final class GlobalEqForegroundService extends Service {
     @Override
     public void onDestroy() {
         deviceMonitor.stop();
-        captureEngine.stopAll();
+        scheduleCaptureStopAll();
+        if (captureControlHandler != null) {
+            captureControlHandler.removeCallbacksAndMessages(null);
+        }
+        if (captureControlThread != null) {
+            captureControlThread.quitSafely();
+            captureControlThread = null;
+        }
+        captureControlHandler = null;
         super.onDestroy();
     }
 
@@ -116,11 +153,13 @@ public final class GlobalEqForegroundService extends Service {
                 currentPreset,
                 processingMode,
                 bassModeIndex));
-        captureEngine.updateProcessing(
+        scheduleCaptureUpdate(
                 processingMode,
                 currentPreset,
                 repository.loadAdvancedModeConfig(),
-                bassModeIndex);
+                bassModeIndex,
+                currentDevice,
+                0L);
         return preset;
     }
 
@@ -196,5 +235,56 @@ public final class GlobalEqForegroundService extends Service {
                 NotificationManager.IMPORTANCE_LOW
         );
         manager.createNotificationChannel(channel);
+    }
+
+    private void scheduleCaptureBootstrap(int resultCode, Intent data) {
+        Handler handler = captureControlHandler;
+        if (handler == null || captureEngine == null) {
+            return;
+        }
+        Intent copy = data == null ? null : new Intent(data);
+        handler.post(() -> {
+            captureEngine.bootstrapProjection(resultCode, copy);
+            captureEngine.updateProcessing(
+                    repository.loadProcessingMode(),
+                    currentPreset,
+                    repository.loadAdvancedModeConfig(),
+                    repository.loadBassBoostModeIndex(),
+                    currentDevice);
+        });
+    }
+
+    private void scheduleCaptureStopAll() {
+        Handler handler = captureControlHandler;
+        if (handler == null || captureEngine == null) {
+            return;
+        }
+        handler.removeCallbacksAndMessages(null);
+        handler.post(() -> captureEngine.stopAll());
+    }
+
+    private void scheduleCaptureUpdate(ProcessingMode processingMode,
+                                       Preset preset,
+                                       AdvancedModeConfig config,
+                                       int bassModeIndex,
+                                       AudioOutputDevice outputDevice,
+                                       long delayMs) {
+        Handler handler = captureControlHandler;
+        if (handler == null || captureEngine == null) {
+            return;
+        }
+        pendingCaptureMode = processingMode == null ? ProcessingMode.SYSTEM_EQ : processingMode;
+        pendingCapturePreset = preset == null ? Preset.flat(false) : preset;
+        pendingCaptureConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        pendingCaptureBassModeIndex = bassModeIndex;
+        pendingCaptureDevice = outputDevice == null
+                ? new AudioOutputDevice("none", "Output device")
+                : outputDevice;
+        handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
+        if (delayMs <= 0L) {
+            handler.post(applyPendingCaptureUpdateRunnable);
+        } else {
+            handler.postDelayed(applyPendingCaptureUpdateRunnable, delayMs);
+        }
     }
 }

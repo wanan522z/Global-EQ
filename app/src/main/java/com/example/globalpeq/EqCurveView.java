@@ -398,18 +398,22 @@ final class EqCurveView extends View {
             lastTime = (animationSuppressed || enabledAmount <= 0.001f) ? 0L : now;
 
             if (sweepGradient == null) {
+                // 暗部范围扩大到约 60%，流光集中在 0.4~0.8 的窄带内，
+                // 让没流光覆盖的曲线区域更暗，增强流光经过时的对比度。
                 sweepGradient = new LinearGradient(
                         0, 0, right - left, 0,
                         new int[]{
+                                Color.argb(0, 0, 255, 255),
                                 Color.argb(0, 0, 255, 255),
                                 Color.argb(120, 0, 255, 255),
                                 Color.argb(255, 255, 255, 255),
                                 Color.argb(140, 255, 60, 180),
                                 Color.argb(120, 130, 65, 255),
-                                Color.argb(90, 255, 180, 0),
+                                Color.argb(80, 255, 180, 0),
+                                Color.argb(0, 0, 255, 255),
                                 Color.argb(0, 0, 255, 255)
                         },
-                        new float[]{0.0f, 0.2f, 0.5f, 0.65f, 0.8f, 0.9f, 1.0f},
+                        new float[]{0.0f, 0.4f, 0.45f, 0.5f, 0.55f, 0.65f, 0.75f, 0.8f, 1.0f},
                         Shader.TileMode.REPEAT
                 );
                 sweepPaint.setShader(sweepGradient);
