@@ -5777,10 +5777,6 @@ public final class MainActivity extends Activity {
         return false;
     }
 
-    private void attachNumberWatermark(EditText input) {
-        attachNumberWatermark(input, false);
-    }
-
     private void attachNumberWatermark(EditText input, boolean active) {
         updateNumberWatermark(input, active);
         input.addTextChangedListener(new TextWatcher() {
@@ -5799,10 +5795,6 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void updateNumberWatermark(EditText input) {
-        updateNumberWatermark(input, false);
-    }
-
     private void updateNumberWatermark(EditText input, boolean active) {
         input.setBackground(numberCellBackground(integerWatermark(input.getText().toString()), active));
     }
@@ -5816,10 +5808,6 @@ public final class MainActivity extends Activity {
         } catch (NumberFormatException ignored) {
             return "";
         }
-    }
-
-    private Drawable numberCellBackground(String watermark) {
-        return numberCellBackground(watermark, false);
     }
 
     private Drawable numberCellBackground(String watermark, boolean active) {
@@ -5871,10 +5859,6 @@ public final class MainActivity extends Activity {
                 return PixelFormat.TRANSLUCENT;
             }
         };
-    }
-
-    private Drawable typeCellBackground(FilterType filterType) {
-        return typeCellBackground(filterType, false);
     }
 
     private Drawable typeCellBackground(FilterType filterType, boolean active) {
