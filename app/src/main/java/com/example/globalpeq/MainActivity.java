@@ -3237,7 +3237,7 @@ public final class MainActivity extends Activity {
     }
 
     private Button createShimmerButton(String text) {
-        Button button = new Button(this);
+        Button button = new GlowShimmerButton(this);
         button.setText(text);
         button.setTextSize(13);
         button.setAllCaps(false);
