@@ -44,11 +44,24 @@ final class AdvancedModeConfig {
         this.monitorIntervalMs = clamp(monitorIntervalMs, 100, 5000);
         this.lookaheadMs = clamp(lookaheadMs, 0, 120);
         this.wetMixPercent = clamp(wetMixPercent, 0, 100);
-        this.monitoredApps = Collections.unmodifiableList(normalizeApps(monitoredApps, this.monitoredAppPackage, this.monitoredAppLabel));
+        this.monitoredApps = Collections.unmodifiableList(normalizeApps(monitoredApps));
     }
 
     AdvancedModeConfig withMonitoredApp(String packageName, String label) {
         return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, wetMixPercent, monitoredApps);
+    }
+
+    AdvancedModeConfig withAddedMonitoredApp(String packageName, String label) {
+        return new AdvancedModeConfig(
+                packageName,
+                label,
+                latencyMs,
+                bufferSizeFrames,
+                monitorIntervalMs,
+                lookaheadMs,
+                wetMixPercent,
+                appendMonitoredApp(monitoredApps, packageName, label)
+        );
     }
 
     AdvancedModeConfig withLatencyMs(int value) {
@@ -137,16 +150,26 @@ final class AdvancedModeConfig {
         return items;
     }
 
-    private static List<MonitoredAppItem> normalizeApps(List<MonitoredAppItem> source,
-                                                        String selectedPackage,
-                                                        String selectedLabel) {
+    private static List<MonitoredAppItem> normalizeApps(List<MonitoredAppItem> source) {
         List<MonitoredAppItem> normalized = new ArrayList<>();
-        addNormalizedApp(normalized, new MonitoredAppItem(selectedPackage, selectedLabel));
         if (source != null) {
             for (MonitoredAppItem item : source) {
                 addNormalizedApp(normalized, item);
             }
         }
+        return normalized;
+    }
+
+    private static List<MonitoredAppItem> appendMonitoredApp(List<MonitoredAppItem> source,
+                                                             String packageName,
+                                                             String label) {
+        List<MonitoredAppItem> normalized = new ArrayList<>();
+        if (source != null) {
+            for (MonitoredAppItem item : source) {
+                addNormalizedApp(normalized, item);
+            }
+        }
+        addNormalizedApp(normalized, new MonitoredAppItem(packageName, label));
         return normalized;
     }
 
