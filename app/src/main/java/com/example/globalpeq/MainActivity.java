@@ -6572,7 +6572,7 @@ public final class MainActivity extends Activity {
         if (active) {
             styleCyanGlowText(view);
         } else {
-            stylePlainWhiteText(view);
+            styleDimPlainText(view);
         }
     }
 
