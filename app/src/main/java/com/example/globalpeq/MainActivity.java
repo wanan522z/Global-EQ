@@ -3294,8 +3294,8 @@ public final class MainActivity extends Activity {
         if (bassModeButton == null) {
             return;
         }
-        showLimitedChoiceMenu(bassModeButton, bassModeDisplayLabels(), selectedBassModeIndex, position -> {
-            int nextIndex = clamp(position, 0, BASS_MODE_LABELS.length - 1);
+        showLimitedChoiceMenu(bassModeButton, bassEnhanceModeDisplayLabels(), selectedBassModeIndex, position -> {
+            int nextIndex = clamp(position, 0, BASS_ENHANCE_MODE_LABELS.length - 1);
             if (!AudioProcessingPolicy.bassModeAllowed(processingMode, nextIndex)) {
                 showModeLockedDialog("DSP bass requires Shizuku Mode.");
                 return;
@@ -3304,7 +3304,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             selectedBassModeIndex = nextIndex;
-            repository.saveBassBoostModeIndex(selectedBassModeIndex);
+            repository.saveBassEnhanceModeIndex(selectedBassModeIndex);
             updateExtraControls();
             applyRunningPreset();
         });
