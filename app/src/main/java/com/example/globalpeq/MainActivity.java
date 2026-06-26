@@ -2050,18 +2050,31 @@ public final class MainActivity extends Activity {
         LinearLayout indexBar = new LinearLayout(this);
         indexBar.setOrientation(LinearLayout.VERTICAL);
         indexBar.setGravity(android.view.Gravity.CENTER);
-        indexBar.setPadding(dp(4), dp(8), dp(4), dp(8));
+        indexBar.setPadding(dp(2), dp(10), dp(2), dp(10));
         indexBar.setBackground(plainRoundRectDrawable(
                 Color.argb(20, 255, 255, 255),
                 Color.argb(35, 255, 255, 255),
                 dp(10)
         ));
         FrameLayout.LayoutParams indexParams = new FrameLayout.LayoutParams(
-                dp(26),
-                FrameLayout.LayoutParams.WRAP_CONTENT,
+                dp(18),
+                FrameLayout.LayoutParams.MATCH_PARENT,
                 android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL
         );
+        indexParams.rightMargin = dp(2);
         content.addView(indexBar, indexParams);
+        content.post(() -> {
+            ViewGroup.LayoutParams rawParams = indexBar.getLayoutParams();
+            if (!(rawParams instanceof FrameLayout.LayoutParams)) {
+                return;
+            }
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) rawParams;
+            int targetHeight = Math.max(dp(180), Math.round(content.getHeight() * 0.8f));
+            if (lp.height != targetHeight) {
+                lp.height = targetHeight;
+                indexBar.setLayoutParams(lp);
+            }
+        });
 
         Runnable rebuild = () -> rebuildInstalledAppPickerList(
                 list,
