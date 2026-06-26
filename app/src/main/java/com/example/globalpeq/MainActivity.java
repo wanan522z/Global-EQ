@@ -1126,6 +1126,9 @@ public final class MainActivity extends Activity {
             styleStatusText(hasClip);
             statusText.postInvalidate();
         }
+        if (engineStatusValueView != null) {
+            engineStatusValueView.setText(engineStatusText());
+        }
         renderDeviceSpinner();
         if (modeSpinner != null) {
             modeSpinner.setText(editingPreset.mode.label);
