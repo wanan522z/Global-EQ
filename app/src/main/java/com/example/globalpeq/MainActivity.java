@@ -143,6 +143,7 @@ public final class MainActivity extends Activity {
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleActiveStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
+    private String statusVisualStateKey = "";
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
