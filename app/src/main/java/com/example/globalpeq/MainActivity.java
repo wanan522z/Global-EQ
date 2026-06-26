@@ -5540,6 +5540,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             labelPaint.set(getPaint());
+            labelPaint.setColor(getCurrentTextColor());
             labelPaint.setMaskFilter(null);
 
             String content = text.toString();
