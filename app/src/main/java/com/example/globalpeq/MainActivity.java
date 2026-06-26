@@ -696,6 +696,19 @@ public final class MainActivity extends Activity {
         modeParams.rightMargin = dp(12);
         top.addView(modeSpinner, modeParams);
 
+        monitoredAppIconView = new ImageView(this);
+        monitoredAppIconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        monitoredAppIconView.setPadding(dp(4), dp(4), dp(4), dp(4));
+        monitoredAppIconView.setBackground(createFieldBackground(11, 28, 6));
+        monitoredAppIconView.setOnClickListener(v -> {
+            if (processingMode == ProcessingMode.ADVANCED_DSP) {
+                showAdvancedSettingsSubpage();
+            }
+        });
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(34), dp(34));
+        iconParams.rightMargin = dp(10);
+        top.addView(monitoredAppIconView, iconParams);
+
         View switchSpacer = new View(this);
         top.addView(switchSpacer, new LinearLayout.LayoutParams(
                 0,
