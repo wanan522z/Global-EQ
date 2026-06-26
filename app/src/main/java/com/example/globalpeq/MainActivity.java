@@ -7454,28 +7454,51 @@ public final class MainActivity extends Activity {
                     labelProgress = checked ? 1f : 0f;
                     labelProgressReady = true;
                 }
-                rect.set(b.left, b.top + dpf(2f), b.right, b.bottom - dpf(2f));
+                rect.set(b.left + dpf(0.5f), b.top + dpf(2f), b.right - dpf(0.5f), b.bottom - dpf(2f));
 
                 float radius = rect.height() / 2f;
-                float haloInset = checked ? dpf(1.15f) : dpf(0.85f);
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(checked ? Color.argb(52, 72, 192, 214) : Color.argb(24, 110, 136, 170));
-                canvas.drawRoundRect(
-                        rect.left - haloInset,
-                        rect.top - haloInset,
-                        rect.right + haloInset,
-                        rect.bottom + haloInset,
-                        radius + haloInset,
-                        radius + haloInset,
-                        paint);
+                if (checked) {
+                    float outerGlow = dpf(2.3f);
+                    float innerGlow = dpf(1.3f);
+                    paint.setColor(Color.argb(22, 84, 212, 228));
+                    canvas.drawRoundRect(
+                            rect.left - outerGlow,
+                            rect.top - outerGlow,
+                            rect.right + outerGlow,
+                            rect.bottom + outerGlow,
+                            radius + outerGlow,
+                            radius + outerGlow,
+                            paint);
+                    paint.setColor(Color.argb(36, 84, 212, 228));
+                    canvas.drawRoundRect(
+                            rect.left - innerGlow,
+                            rect.top - innerGlow,
+                            rect.right + innerGlow,
+                            rect.bottom + innerGlow,
+                            radius + innerGlow,
+                            radius + innerGlow,
+                            paint);
+                } else {
+                    float offGlow = dpf(0.9f);
+                    paint.setColor(Color.argb(14, 116, 142, 176));
+                    canvas.drawRoundRect(
+                            rect.left - offGlow,
+                            rect.top - offGlow,
+                            rect.right + offGlow,
+                            rect.bottom + offGlow,
+                            radius + offGlow,
+                            radius + offGlow,
+                            paint);
+                }
 
                 paint.setColor(checked ? checkedColor : uncheckedColor);
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(116, 160, 240, 244) : Color.argb(84, 194, 220, 255));
+                paint.setColor(checked ? Color.argb(124, 176, 244, 248) : Color.argb(84, 194, 220, 255));
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 paint.setStyle(Paint.Style.FILL);
@@ -7565,21 +7588,26 @@ public final class MainActivity extends Activity {
                     glowAlpha = checked ? 1f : 0f;
                     colorReady = true;
                 }
-                float radius = Math.min(b.width(), b.height()) / 2f - dpf(1f);
-                float haloRadius = radius + dpf(0.8f) + dpf(0.7f) * glowAlpha;
+                float cx = (b.left + b.right) * 0.5f;
+                float cy = (b.top + b.bottom) * 0.5f;
+                float radius = (Math.min(b.width(), b.height()) - dpf(2f)) * 0.5f;
+                float outerHaloRadius = radius + dpf(1.9f) + dpf(0.8f) * glowAlpha;
+                float innerHaloRadius = radius + dpf(1.0f) + dpf(0.45f) * glowAlpha;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.argb((int) (26 + 54 * glowAlpha), 86, 196, 214));
-                canvas.drawCircle(b.centerX(), b.centerY(), haloRadius, paint);
+                paint.setColor(Color.argb((int) (12 + 34 * glowAlpha), 86, 206, 222));
+                canvas.drawCircle(cx, cy, outerHaloRadius, paint);
+                paint.setColor(Color.argb((int) (20 + 52 * glowAlpha), 94, 214, 228));
+                canvas.drawCircle(cx, cy, innerHaloRadius, paint);
 
                 paint.setColor(currentColor);
-                canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
+                canvas.drawCircle(cx, cy, radius, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
                 int strokeAlpha = (int) (78 + (126 - 78) * glowAlpha);
                 paint.setColor(Color.argb(strokeAlpha, 238, 246, 255));
-                canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
+                canvas.drawCircle(cx, cy, radius - dpf(0.1f), paint);
             }
 
             @Override
