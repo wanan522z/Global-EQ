@@ -230,8 +230,8 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && !(view instanceof GlowTitleTextView)
                 && !(view instanceof GlowShimmerButton)
-                && view.getLayerType() != View.LAYER_TYPE_NONE) {
-            view.setLayerType(View.LAYER_TYPE_NONE, null);
+                && view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
 
         // 光晕：大半径 shadowLayer 让 blur 圈大且柔，软件渲染下效果完美
