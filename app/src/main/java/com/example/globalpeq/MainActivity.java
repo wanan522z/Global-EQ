@@ -1,4 +1,4 @@
-﻿package com.example.globalpeq;
+package com.example.globalpeq;
 
 import android.Manifest;
 import android.app.Activity;
