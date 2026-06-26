@@ -482,6 +482,42 @@ final class PlaybackCaptureEngine {
         configuredOutputDeviceKey = "";
     }
 
+    private void muteSourceStreamLocked() {
+        if (audioManager == null || sourceMutedForCapture) {
+            return;
+        }
+        try {
+            savedMusicStreamVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);
+            sourceMutedForCapture = true;
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to mute source app stream for capture playback", ex);
+            savedMusicStreamVolume = -1;
+            sourceMutedForCapture = false;
+        }
+    }
+
+    private void restoreSourceStreamLocked() {
+        if (audioManager == null || !sourceMutedForCapture) {
+            return;
+        }
+        try {
+            if (savedMusicStreamVolume >= 0) {
+                int musicMax = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                audioManager.setStreamVolume(
+                        AudioManager.STREAM_MUSIC,
+                        Math.max(0, Math.min(savedMusicStreamVolume, musicMax)),
+                        0
+                );
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to restore source app stream after capture playback", ex);
+        } finally {
+            savedMusicStreamVolume = -1;
+            sourceMutedForCapture = false;
+        }
+    }
+
     private void bindTrackToPreferredOutputLocked(AudioTrack track) {
         if (track == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return;
