@@ -37,6 +37,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.ViewTreeObserver;
+import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
@@ -5116,8 +5117,8 @@ public final class MainActivity extends Activity {
     private final class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
-        private int glowColor = Color.argb(132, 120, 220, 255);
-        private float glowRadiusPx = dpf(4.25f);
+        private int glowColor = Color.argb(168, 120, 220, 255);
+        private float glowRadiusPx = dpf(5.75f);
 
         GlowTitleTextView(Context context) {
             super(context);
@@ -5176,8 +5177,24 @@ public final class MainActivity extends Activity {
             glowPaint.setMaskFilter(new BlurMaskFilter(glowRadiusPx, BlurMaskFilter.Blur.NORMAL));
 
             String content = text.toString();
+            int availableWidth = getWidth() - getCompoundPaddingLeft() - getCompoundPaddingRight();
+            int availableHeight = getHeight() - getExtendedPaddingTop() - getExtendedPaddingBottom();
+            float layoutLeft = getCompoundPaddingLeft();
+            float layoutTop = getExtendedPaddingTop();
+            int absoluteGravity = Gravity.getAbsoluteGravity(getGravity(), getLayoutDirection()) & Gravity.HORIZONTAL_GRAVITY_MASK;
+            if (absoluteGravity == Gravity.CENTER_HORIZONTAL) {
+                layoutLeft += Math.max(0, availableWidth - layout.getWidth()) * 0.5f;
+            } else if (absoluteGravity == Gravity.RIGHT) {
+                layoutLeft += Math.max(0, availableWidth - layout.getWidth());
+            }
+            int verticalGravity = getGravity() & Gravity.VERTICAL_GRAVITY_MASK;
+            if (verticalGravity == Gravity.CENTER_VERTICAL) {
+                layoutTop += Math.max(0, availableHeight - layout.getHeight()) * 0.5f;
+            } else if (verticalGravity == Gravity.BOTTOM) {
+                layoutTop += Math.max(0, availableHeight - layout.getHeight());
+            }
             int save = canvas.save();
-            canvas.translate(getCompoundPaddingLeft(), getExtendedPaddingTop());
+            canvas.translate(layoutLeft, layoutTop);
             for (int line = 0; line < layout.getLineCount(); line++) {
                 int start = layout.getLineStart(line);
                 int end = layout.getLineEnd(line);
@@ -5194,7 +5211,7 @@ public final class MainActivity extends Activity {
         // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
         // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
         // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
-        title.setPadding(dp(16), dp(4), dp(16), dp(4));
+        title.setPadding(dp(18), dp(4), dp(18), dp(4));
         styleGradientTitle(title);
         return title;
     }
@@ -5284,8 +5301,8 @@ public final class MainActivity extends Activity {
             view.invalidate();
         });
         if (view instanceof GlowTitleTextView) {
-            applyGlowToTextView(view, Color.argb(132, 120, 220, 255), 4.25f);
-            view.post(() -> applyGlowToTextView(view, Color.argb(132, 120, 220, 255), 4.25f));
+            applyGlowToTextView(view, Color.argb(168, 120, 220, 255), 5.75f);
+            view.post(() -> applyGlowToTextView(view, Color.argb(168, 120, 220, 255), 5.75f));
         }
     }
 
