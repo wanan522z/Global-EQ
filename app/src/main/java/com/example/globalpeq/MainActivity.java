@@ -363,6 +363,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStop() {
         commitPendingGeqUpdate();
+        uiHandler.removeCallbacks(commitEnabledToggleRunnable);
+        commitPendingEnabledToggle();
         deviceMonitor.stop();
         super.onStop();
     }
@@ -394,6 +396,7 @@ public final class MainActivity extends Activity {
         shimmerTargetViews.clear();
         shimmerLastWidth.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
+        uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         removeKeyboardVisibilityListener();
         super.onDestroy();
     }
