@@ -5398,7 +5398,7 @@ public final class MainActivity extends Activity {
         };
     }
 
-    private final class GlowTitleTextView extends TextView {
+    private class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
         private boolean autoRegisterShimmer = true;
