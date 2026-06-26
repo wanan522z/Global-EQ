@@ -7742,9 +7742,9 @@ public final class MainActivity extends Activity {
             }
             int aw = Math.max(1, b.width() - pl - pr);
             int ah = Math.max(1, b.height() - pt - pb);
-            // 光晕半径：再收小，让光晕更贴图标轮廓、更精致；
+            // 光晕半径：稍大，让光晕更饱满、扩散更明显；
             // pad 需 >= 3*blurPx 才能完整容纳 3 趟盒式模糊的扩散，避免边缘硬切。
-            int blurPx = Math.max(1, (int) Math.ceil(dpf(1.8f)));
+            int blurPx = Math.max(1, (int) Math.ceil(dpf(2.6f)));
             int pad = blurPx * 3 + 2;
             int key = (aw << 16) | (ah & 0xFFFF);
             if (haloBitmap == null || key != cachedKey) {
