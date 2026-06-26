@@ -9549,6 +9549,7 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
         } else {
             applyRunningPreset();
+            ensureShizukuModeReady(true);
         }
         renderAll();
     }
