@@ -5780,6 +5780,7 @@ public final class MainActivity extends Activity {
         }
         shimmerTargetViews.remove(view);
         shimmerLastWidth.remove(view);
+        shimmerPhaseFreezeUntil.remove(view);
         view.getPaint().setShader(null);
         clearGlowFromTextView(view);
         view.invalidate();
