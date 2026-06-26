@@ -1268,27 +1268,27 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView title = gradientTitleView("Monitor DSP Settings");
-        title.setText("Monitor DSP Settings");
-        title.setTextSize(18);
-        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        styleGradientTitle(title);
+        monitorSettingsTitleView = gradientTitleView(monitorSettingsTitleText());
+        monitorSettingsTitleView.setText(monitorSettingsTitleText());
+        monitorSettingsTitleView.setTextSize(18);
+        monitorSettingsTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleGradientTitle(monitorSettingsTitleView);
         LinearLayout.LayoutParams titleParams = blockParams(0);
         titleParams.leftMargin = -dp(22);
-        reserveStartGlowWithoutMoving(title, 12);
-        panel.addView(title, titleParams);
+        reserveStartGlowWithoutMoving(monitorSettingsTitleView, 12);
+        panel.addView(monitorSettingsTitleView, titleParams);
 
-        TextView detail = new TextView(this);
-        detail.setText("Pick the target app, authorize Android playback capture, and tune latency-oriented parameters for the second backend. If capture is live, mute the source app to avoid doubling.");
-        detail.setTextSize(12);
-        detail.setTextColor(Color.rgb(160, 170, 190));
-        panel.addView(detail, blockParams(2));
+        monitorSettingsDetailView = new TextView(this);
+        monitorSettingsDetailView.setText(monitorSettingsDetailText());
+        monitorSettingsDetailView.setTextSize(12);
+        monitorSettingsDetailView.setTextColor(Color.rgb(160, 170, 190));
+        panel.addView(monitorSettingsDetailView, blockParams(2));
 
         monitorCaptureButton = createExtraChoiceButton();
         monitorCaptureButton.setText(monitorCaptureButtonText());
         styleMonitorActionButton(monitorCaptureButton, 152);
         monitorCaptureButton.setOnClickListener(v -> handleMonitorCaptureAction());
-        panel.addView(labeledSettingsRow("Capture auth", monitorCaptureButton), blockParams(12));
+        panel.addView(labeledSettingsRow(monitorCaptureLabelText(), monitorCaptureButton), blockParams(12));
 
         monitorCaptureStatusView = new TextView(this);
         monitorCaptureStatusView.setText(monitorCaptureStatusText());
@@ -1298,21 +1298,21 @@ public final class MainActivity extends Activity {
 
         advancedMonitorAppButton = createExtraChoiceButton();
         advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
-                ? "Choose app"
+                ? chooseAppText()
                 : advancedModeConfig.monitoredAppLabel);
         styleMonitorActionButton(advancedMonitorAppButton, 188);
         advancedMonitorAppButton.setOnClickListener(v -> showMonitoredAppChoiceDialog());
-        panel.addView(labeledSettingsRow("Monitored app", advancedMonitorAppButton), blockParams(12));
+        panel.addView(labeledSettingsRow(monitoredAppLabelText(), advancedMonitorAppButton), blockParams(12));
 
-        panel.addView(createAdvancedNumberRow("Latency (ms)", String.valueOf(advancedModeConfig.latencyMs), "20-400", value ->
+        panel.addView(createAdvancedNumberRow(latencyLabelText(), String.valueOf(advancedModeConfig.latencyMs), "20-400", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLatencyMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow("Buffer (frames)", String.valueOf(advancedModeConfig.bufferSizeFrames), "128-4096", value ->
+        panel.addView(createAdvancedNumberRow(bufferLabelText(), String.valueOf(advancedModeConfig.bufferSizeFrames), "128-4096", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withBufferSizeFrames(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow("Poll interval (ms)", String.valueOf(advancedModeConfig.monitorIntervalMs), "100-5000", value ->
+        panel.addView(createAdvancedNumberRow(pollIntervalLabelText(), String.valueOf(advancedModeConfig.monitorIntervalMs), "100-5000", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withMonitorIntervalMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow("Lookahead (ms)", String.valueOf(advancedModeConfig.lookaheadMs), "0-120", value ->
+        panel.addView(createAdvancedNumberRow(lookaheadLabelText(), String.valueOf(advancedModeConfig.lookaheadMs), "0-120", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLookaheadMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow("DSP wet mix (%)", String.valueOf(advancedModeConfig.wetMixPercent), "0-100", value ->
+        panel.addView(createAdvancedNumberRow(wetMixLabelText(), String.valueOf(advancedModeConfig.wetMixPercent), "0-100", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withWetMixPercent(value))), blockParams(6));
     }
 
