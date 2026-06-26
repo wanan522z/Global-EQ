@@ -1865,7 +1865,6 @@ public final class MainActivity extends Activity {
 
     private LinearLayout createBandRow(int index) {
         ParametricBand band = editingPreset.bands[index];
-        boolean visualActive = isPeqBandVisualEnabled(index);
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dp(2), dp(6), dp(2), dp(6));
@@ -1881,23 +1880,21 @@ public final class MainActivity extends Activity {
             row.setBackground(warningBg);
         }
 
-        View enable = circleButton("", visualActive, false);
-        enable.setBackground(stateIndicatorDrawable(visualActive));
+        View enable = circleButton("", false, false);
         enable.setOnClickListener(v -> {
             updateBand(index, editingPreset.bands[index].withEnabled(!editingPreset.bands[index].enabled));
-            renderRows();
+            updatePeqBandVisuals();
         });
         row.addView(wrapCircularButton(enable, 0.35f, 22, 0, 3, -1));
 
         TextView type = new TextView(this);
         type.setText(band.type.label);
         type.setTextSize(11);
-        styleEqBandText(type, visualActive);
         type.setGravity(android.view.Gravity.CENTER);
         type.setSingleLine(true);
         type.setIncludeFontPadding(false);
         type.setEnabled(supported);
-        type.setBackground(typeCellBackground(band.type, visualActive));
+        type.setBackground(typeCellBackground(band.type, false));
         type.setOnClickListener(v -> {
             if (!supported) {
                 return;
@@ -1908,8 +1905,8 @@ public final class MainActivity extends Activity {
                 }
                 FilterType selectedType = FilterType.values()[position];
                 type.setText(selectedType.label);
-                type.setBackground(typeCellBackground(selectedType, isPeqBandVisualEnabled(index)));
                 updateBand(index, editingPreset.bands[index].withType(selectedType));
+                updatePeqBandVisuals();
             });
         });
         row.addView(type, cellParams(1f, 36));
@@ -1917,8 +1914,6 @@ public final class MainActivity extends Activity {
         EditText frequencyInput = createNumberInput(String.valueOf(band.frequencyHz), "Hz", value -> {
             updateBand(index, editingPreset.bands[index].withFrequencyHz(clamp(Math.round(value), 20, 20000)));
         });
-        styleEqBandText(frequencyInput, visualActive);
-        attachNumberWatermark(frequencyInput, visualActive);
         attachEqEditFocus(frequencyInput, index, EQ_EDIT_FIELD_FREQ);
         row.addView(frequencyInput, cellParams(1f, 36));
 
@@ -1926,8 +1921,6 @@ public final class MainActivity extends Activity {
             int gainMb = Math.round(value * 100f);
             updateBand(index, editingPreset.bands[index].withGainMb(clamp(gainMb, -1800, 1800)));
         });
-        styleEqBandText(gainInput, visualActive);
-        attachNumberWatermark(gainInput, visualActive);
         attachEqEditFocus(gainInput, index, EQ_EDIT_FIELD_GAIN);
         row.addView(gainInput, cellParams(1f, 36));
 
@@ -1935,8 +1928,6 @@ public final class MainActivity extends Activity {
             int qHundred = Math.round(value * 100f);
             updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 20, 1000)));
         });
-        styleEqBandText(qInput, visualActive);
-        attachNumberWatermark(qInput, visualActive);
         attachEqEditFocus(qInput, index, EQ_EDIT_FIELD_Q);
         row.addView(qInput, cellParams(1f, 36));
 
@@ -1946,6 +1937,7 @@ public final class MainActivity extends Activity {
         delete.setOnClickListener(v -> confirmDeleteBand(index));
         row.addView(wrapCircularButton(delete, 0.35f, 22, 3, 0, 1));
 
+        applyBandRowVisualState(row, index);
         return row;
     }
 
