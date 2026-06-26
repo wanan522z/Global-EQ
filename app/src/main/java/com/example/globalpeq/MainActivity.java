@@ -5650,10 +5650,6 @@ public final class MainActivity extends Activity {
     }
 
     private void syncRunningIfEditingPresetIsActive() {
-        syncRunningIfEditingPresetIsActive(true);
-    }
-
-    private void syncRunningIfEditingPresetIsActive(boolean applyImmediately) {
         persistEditingPreset();
         if (!isEditingPresetActive()) {
             return;
@@ -5662,9 +5658,7 @@ public final class MainActivity extends Activity {
         if (enabledSwitch != null) {
             enabledSwitch.setChecked(runningPreset.enabled);
         }
-        if (applyImmediately) {
-            applyRunningPreset();
-        }
+        applyRunningPreset();
     }
 
     private boolean isEditingPresetActive() {
@@ -5672,10 +5666,6 @@ public final class MainActivity extends Activity {
     }
 
     private void setEditingPreset(Preset nextPreset, boolean recordHistory) {
-        setEditingPreset(nextPreset, recordHistory, true);
-    }
-
-    private void setEditingPreset(Preset nextPreset, boolean recordHistory, boolean applyLiveImmediately) {
         if (pendingGeqHistorySnapshot != null) {
             commitPendingGeqUpdate();
         }
@@ -5694,7 +5684,7 @@ public final class MainActivity extends Activity {
         if (curveView != null) {
             refreshCurveView();
         }
-        syncRunningIfEditingPresetIsActive(applyLiveImmediately);
+        syncRunningIfEditingPresetIsActive();
         updateExtraControls();
         updateEditStateLabels();
     }
