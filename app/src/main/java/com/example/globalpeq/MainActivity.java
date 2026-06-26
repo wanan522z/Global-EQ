@@ -204,6 +204,14 @@ public final class MainActivity extends Activity {
         if (view == null || width <= 0) {
             return;
         }
+        if (isInactiveExtraSectionTitle(view)) {
+            unregisterShimmerView(view);
+            view.getPaint().setShader(null);
+            clearGlowFromTextView(view);
+            view.setTextColor(Color.rgb(150, 165, 185));
+            view.invalidate();
+            return;
+        }
 
         int[] colors;
         if (view == statusText) {
@@ -5695,8 +5703,19 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private boolean isInactiveExtraSectionTitle(TextView view) {
+        if (view == null) {
+            return false;
+        }
+        if (view != reverbTitleView && view != bassBoostTitleView && view != virtualBassTitleView) {
+            return false;
+        }
+        Boolean active = titleActiveStates.get(view);
+        return active == null || !active;
+    }
+
     private void registerShimmerView(TextView view) {
-        if (view == null || shimmerTargetViews.contains(view)) {
+        if (view == null || shimmerTargetViews.contains(view) || isInactiveExtraSectionTitle(view)) {
             return;
         }
         shimmerTargetViews.add(view);
