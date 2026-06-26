@@ -3471,7 +3471,7 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean bassBoostEnabled = supported && selectedBassModeIndex > 0;
+        boolean bassBoostEnabled = supported && processingMode == ProcessingMode.ADVANCED_DSP && selectedBassModeIndex > 0;
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
             bassBoostSlider.setEnabled(bassBoostEnabled);
@@ -3486,7 +3486,7 @@ public final class MainActivity extends Activity {
         }
         updateVirtualBassControl(cutoffKnob, editingPreset.virtualBassCutoffHz, virtualBassEnabled);
         updateVirtualBassControl(amountKnob, editingPreset.virtualBassAmountPercent, virtualBassEnabled);
-        boolean reverbEnabled = supported && !"Default".equals(editingPreset.reverbType);
+        boolean reverbEnabled = supported && processingMode == ProcessingMode.ADVANCED_DSP && !"Default".equals(editingPreset.reverbType);
         if (reverbTypeButton != null) {
             reverbTypeButton.setText(editingPreset.reverbType);
             reverbTypeButton.setEnabled(supported);
@@ -3495,6 +3495,12 @@ public final class MainActivity extends Activity {
         if (bassModeButton != null) {
             bassModeButton.setText(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]);
             bassModeButton.setAlpha(1f);
+        }
+        if (dspBassCutoffInput != null) {
+            dspBassCutoffInput.setVisibility(selectedBassModeIndex == 2 ? View.VISIBLE : View.GONE);
+            dspBassCutoffInput.setEnabled(bassBoostEnabled && selectedBassModeIndex == 2);
+            dspBassCutoffInput.setText(String.valueOf(editingPreset.dspBassCutoffHz));
+            dspBassCutoffInput.setAlpha(selectedBassModeIndex == 2 ? 1f : 0.55f);
         }
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(bassBoostTitleView);
