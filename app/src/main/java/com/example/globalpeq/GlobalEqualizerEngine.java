@@ -78,6 +78,16 @@ final class GlobalEqualizerEngine {
                 }, ARM_DELAY_MS);
                 return;
             }
+            if (shouldStageRaisedBands(preset)) {
+                armRaisedBands(lastAppliedPreset, preset);
+                int generation = applyGeneration;
+                handler.postDelayed(() -> {
+                    if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
+                        applyTargetLevels(pendingPreset);
+                    }
+                }, ARM_DELAY_MS);
+                return;
+            }
             applyTargetLevels(preset);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Failed to apply global preset", ex);
@@ -197,6 +207,21 @@ final class GlobalEqualizerEngine {
         armedWithZeroBands = true;
     }
 
+    private void armRaisedBands(Preset before, Preset after) {
+        if (equalizer == null || before == null || after == null) {
+            return;
+        }
+        short bandCount = equalizer.getNumberOfBands();
+        for (short band = 0; band < bandCount; band++) {
+            int beforeLevel = targetLevelMb(band, before);
+            int afterLevel = targetLevelMb(band, after);
+            if (afterLevel > 0 && afterLevel > beforeLevel) {
+                equalizer.setBandLevel(band, (short) 0);
+            }
+        }
+        armedWithZeroBands = true;
+    }
+
     private void applyTargetLevels(Preset preset) {
         if (equalizer == null || preset == null || !preset.enabled) {
             return;
@@ -206,9 +231,7 @@ final class GlobalEqualizerEngine {
             short bandCount = equalizer.getNumberOfBands();
             boolean hasActiveGain = false;
             for (short band = 0; band < bandCount; band++) {
-                int centerHz = equalizer.getCenterFreq(band) / 1000;
-                int levelMb = PeqMath.gainAtHzMb(centerHz, preset);
-                int clamped = Math.max(minLevelMb, Math.min(maxLevelMb, levelMb));
+                int clamped = targetLevelMb(band, preset);
                 if (clamped != 0) {
                     hasActiveGain = true;
                 }
@@ -244,6 +267,23 @@ final class GlobalEqualizerEngine {
         return eqBandSwitchStateChanged(lastAppliedPreset, preset);
     }
 
+    private boolean shouldStageRaisedBands(Preset preset) {
+        if (equalizer == null || preset == null || lastAppliedPreset == null) {
+            return false;
+        }
+        try {
+            if (!equalizer.getEnabled()) {
+                return false;
+            }
+        } catch (RuntimeException ex) {
+            return false;
+        }
+        if (eqBandSwitchStateChanged(lastAppliedPreset, preset)) {
+            return false;
+        }
+        return hasRaisedPositiveEqGain(lastAppliedPreset, preset);
+    }
+
     private boolean hasAnyEqGain(Preset preset) {
         if (preset == null) {
             return false;
@@ -261,6 +301,23 @@ final class GlobalEqualizerEngine {
                     return true;
                 }
             } catch (RuntimeException ex) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasRaisedPositiveEqGain(Preset before, Preset after) {
+        short bandCount;
+        try {
+            bandCount = equalizer == null ? 0 : equalizer.getNumberOfBands();
+        } catch (RuntimeException ex) {
+            return true;
+        }
+        for (short band = 0; band < bandCount; band++) {
+            int beforeLevel = targetLevelMb(band, before);
+            int afterLevel = targetLevelMb(band, after);
+            if (afterLevel > 0 && afterLevel > beforeLevel) {
                 return true;
             }
         }
@@ -299,6 +356,19 @@ final class GlobalEqualizerEngine {
             } catch (RuntimeException ex) {
                 Log.w(TAG, "Failed to reset band " + band, ex);
             }
+        }
+    }
+
+    private int targetLevelMb(short band, Preset preset) {
+        if (equalizer == null || preset == null) {
+            return 0;
+        }
+        try {
+            int centerHz = equalizer.getCenterFreq(band) / 1000;
+            int levelMb = PeqMath.gainAtHzMb(centerHz, preset);
+            return Math.max(minLevelMb, Math.min(maxLevelMb, levelMb));
+        } catch (RuntimeException ex) {
+            return 0;
         }
     }
 
