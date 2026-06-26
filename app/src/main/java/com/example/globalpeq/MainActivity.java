@@ -7793,25 +7793,26 @@ public final class MainActivity extends Activity {
                 boxBlurV(tmp, alpha, bw, bh, blurPx);
             }
             // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后 alpha），图标本体由上层锐利覆盖。
-            // 整条亮度曲线用单条 C∞ 平滑函数，杜绝任何分段折点：
-            //   f(nf) = smootherstep( nf^gamma )
-            //   - mild gamma(0.7) 温和提亮暗部，修方形图标角部偏暗；
-            //   - smootherstep(6t⁵-15t⁴+10t³) 在 [0,1] 两端一阶/二阶导皆 0，与 gamma
-            //     复合后全程 C2+ 连续；
-            //   - 无分段、无 junction：中等亮度→较暗→消失整段过渡完全平滑，看不到折点；
-            //   - 尾端导数趋 0，轻柔吻接到 0；中高亮度区接近恒等，保持中心明亮。
+            // 亮度曲线：tail = a * M(a)，a = nf^gamma 为模糊后归一化 alpha（随距离
+            // 自然快速衰减，是"光晕只在图标周围晕开"的关键）。M(a) 是全程 C∞ 光滑
+            // 软乘子：中高 alpha 区 M≈1（tail≈a，忠实保留模糊的衰减形状，不会把外圈
+            // 抬亮成一大圈）；尾端 M→0 且一阶导趋 0（轻柔吻接到 0、不生硬截断）。
+            //   M(a) = 1 - (1-a)^p   单调，M(0)=0, M(1)=1，全段无穷阶导存在，无任何
+            //   分段 junction；调 p 大 → 尾端吻接区间更长更柔。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
             final float baseGain = 0.62f;    // 整体亮度系数（<1 降亮度）
             final float gamma = 0.7f;        // 温和暗部提亮（修角部偏暗）
+            final float fadeSharp = 6f;      // 尾端软乘子的指数：越大吻接区间越长越柔
             for (int i = 0; i < alpha.length; i++) {
                 float nf = alpha[i] / 255f;
-                float t = (float) Math.pow(nf, gamma);
-                // smootherstep: 6t⁵ - 15t⁴ + 10t³，两端一阶/二阶导皆为 0
-                float s = t * t * t * (t * (t * 6f - 15f) + 10f);
-                int out = (int) (s * ga * baseGain * 255f + 0.5f);
+                float a = (float) Math.pow(nf, gamma);
+                // 软乘子 M = 1 - (1-a)^p，全程 C∞ 单条函数，无分段无折点
+                float m = 1f - (float) Math.pow(1f - a, fadeSharp);
+                float tail = a * m;
+                int out = (int) (tail * ga * baseGain * 255f + 0.5f);
                 if (out > 255) out = 255;
                 if (out < 0) out = 0;
                 px[i] = (out << 24) | (r << 16) | (g << 8) | bl;
