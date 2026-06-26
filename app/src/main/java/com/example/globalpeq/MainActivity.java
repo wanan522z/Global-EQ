@@ -5795,6 +5795,7 @@ public final class MainActivity extends Activity {
         }
         unregisterShimmerView(view);
         shimmerViewPhases.remove(view);
+        shimmerPhaseFreezeUntil.remove(view);
         textStyleVersion.remove(view);
         titleVisualStates.remove(view);
     }
