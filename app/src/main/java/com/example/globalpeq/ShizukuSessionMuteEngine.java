@@ -95,10 +95,9 @@ final class ShizukuSessionMuteEngine {
         currentMode = mode == null ? ProcessingMode.SYSTEM_EQ : mode;
         currentPreset = preset == null ? Preset.flat(false) : preset;
         currentConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
-        currentTargetPackage = currentConfig.monitoredAppPackage == null ? "" : currentConfig.monitoredAppPackage.trim();
-        currentTargetLabel = currentConfig.monitoredAppLabel.isEmpty()
-                ? currentTargetPackage
-                : currentConfig.monitoredAppLabel;
+        currentTargetPackage = "";
+        currentTargetUid = -1;
+        currentTargetLabel = "system audio";
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             stopAll();
@@ -115,22 +114,10 @@ final class ShizukuSessionMuteEngine {
             publishStatus("Shizuku mute ready. Enable EQ to start.", false);
             return;
         }
-        if (currentConfig.monitoredAppPackage.isEmpty()) {
-            stopPollingLocked();
-            publishStatus("Choose an app to monitor.", false);
-            return;
-        }
         String shizukuState = ShizukuCompat.describeState(appContext);
         if (!ShizukuCompat.hasPermission()) {
             stopPollingLocked();
             publishStatus(shizukuState, false);
-            return;
-        }
-
-        currentTargetUid = resolveTargetUid(currentTargetPackage);
-        if (currentTargetUid <= 0) {
-            stopPollingLocked();
-            publishStatus("Unable to resolve the selected app.", false);
             return;
         }
 
@@ -152,7 +139,7 @@ final class ShizukuSessionMuteEngine {
     }
 
     private void pollOnWorker() {
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE || currentTargetUid <= 0 || workerHandler == null) {
+        if (currentMode != ProcessingMode.SHIZUKU_MUTE || workerHandler == null) {
             return;
         }
         try {
@@ -160,9 +147,9 @@ final class ShizukuSessionMuteEngine {
             muteOtherSessions(sessions);
             int mutedCount = muteEffects.size();
             if (mutedCount == 0) {
-                publishStatus("Waiting for " + currentTargetLabel + " sessions.", false);
+                publishStatus("Waiting for active playback sessions.", false);
             } else {
-                publishStatus("Muted " + mutedCount + " session(s) while monitoring " + currentTargetLabel + ".", true);
+                publishStatus("Muted " + mutedCount + " session(s) while monitoring system audio.", true);
             }
         } catch (RuntimeException ex) {
             Log.w(TAG, "Shizuku mute poll failed", ex);
@@ -238,10 +225,6 @@ final class ShizukuSessionMuteEngine {
                 continue;
             }
             if (session.sessionId <= 0 || session.sessionId == 0) {
-                continue;
-            }
-            if (session.uid != currentTargetUid
-                    && !currentTargetPackage.equals(session.packageName)) {
                 continue;
             }
             String usage = session.usage.toUpperCase(Locale.US).trim();
@@ -396,6 +379,7 @@ final class ShizukuSessionMuteEngine {
         knownSessions.clear();
         currentTargetUid = -1;
         currentTargetPackage = "";
+        currentTargetLabel = "";
     }
 
     private void releaseEffectLocked(Integer sessionId) {
