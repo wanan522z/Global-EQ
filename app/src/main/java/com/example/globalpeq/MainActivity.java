@@ -221,6 +221,7 @@ public final class MainActivity extends Activity {
                 colors,
                 SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
+        view.setTextColor(Color.WHITE);
 
         // 关键优化：强制将正在作动流光的标题和状态文本切换为 SOFTWARE 软件绘制层。
         // 因为 Android 硬件加速 (GPU PATH) 的 setShadowLayer 效果在大半径高斯模糊时
