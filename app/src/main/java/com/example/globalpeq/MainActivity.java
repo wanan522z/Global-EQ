@@ -75,8 +75,8 @@ public final class MainActivity extends Activity {
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
-    private static final long ENABLE_NEON_CURVE_DELAY_MS = 220L;
-    private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 320L;
+    private static final long ENABLE_NEON_CURVE_DELAY_MS = 460L;
+    private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 660L;
     private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 200L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
@@ -3090,12 +3090,7 @@ public final class MainActivity extends Activity {
             modeSpinner.animate().cancel();
             modeSpinner.setAlpha(0.68f);
         }
-        if (curveFrameView != null) {
-            curveFrameView.animate().cancel();
-            curveFrameView.setAlpha(0.74f);
-        }
         styleModeText();
-        refreshCurveView();
         updateEditStateLabels();
         updatePeqBandVisuals();
         uiHandler.postDelayed(enableNeonHeaderRunnable, ENABLE_NEON_HEADER_DELAY_MS);
@@ -3129,11 +3124,6 @@ public final class MainActivity extends Activity {
         }
         curveVisualEnabled = true;
         refreshCurveView();
-        if (curveFrameView != null) {
-            curveFrameView.animate().cancel();
-            curveFrameView.setAlpha(0.82f);
-            curveFrameView.animate().alpha(1f).setDuration(140).start();
-        }
         updateEditStateLabels();
     }
 
@@ -3145,10 +3135,6 @@ public final class MainActivity extends Activity {
         if (modeSpinner != null) {
             modeSpinner.animate().cancel();
             modeSpinner.setAlpha(1f);
-        }
-        if (curveFrameView != null) {
-            curveFrameView.animate().cancel();
-            curveFrameView.setAlpha(1f);
         }
         styleModeText();
         refreshCurveView();
