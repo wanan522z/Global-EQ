@@ -5869,6 +5869,9 @@ public final class MainActivity extends Activity {
     }
 
     private void styleInactiveTabText(TextView view) {
+        if (view instanceof GlowShimmerButton) {
+            ((GlowShimmerButton) view).setBottomTabShimmerActive(false);
+        }
         view.getPaint().setShader(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
@@ -5881,6 +5884,9 @@ public final class MainActivity extends Activity {
     private void styleActiveBottomTabText(TextView view) {
         if (view == null) {
             return;
+        }
+        if (view instanceof GlowShimmerButton) {
+            ((GlowShimmerButton) view).setBottomTabShimmerActive(true);
         }
         view.getPaint().setShader(null);
         view.setTextColor(Color.WHITE);
