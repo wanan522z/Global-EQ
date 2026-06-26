@@ -613,7 +613,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 dp(34)
         );
-        modeParams.leftMargin = 0;
+        modeParams.leftMargin = dp(2);
         modeParams.rightMargin = dp(12);
         top.addView(modeSpinner, modeParams);
 
