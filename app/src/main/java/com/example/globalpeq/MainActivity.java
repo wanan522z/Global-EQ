@@ -3263,6 +3263,7 @@ public final class MainActivity extends Activity {
         }
 
         updateBottomNavSelection(activeMainPageIndex);
+        bottomTabStrip.post(() -> updateBottomNavSelection(activeMainPageIndex));
 
         return nav;
     }
@@ -3275,19 +3276,7 @@ public final class MainActivity extends Activity {
     }
 
     private Button createShimmerButton(String text) {
-        Button button = new Button(this) {
-            @Override
-            protected void onAttachedToWindow() {
-                super.onAttachedToWindow();
-                registerShimmerView(this);
-            }
-
-            @Override
-            protected void onDetachedFromWindow() {
-                unregisterShimmerView(this);
-                super.onDetachedFromWindow();
-            }
-        };
+        Button button = new Button(this);
         button.setText(text);
         button.setTextSize(13);
         button.setAllCaps(false);
