@@ -2013,7 +2013,7 @@ public final class MainActivity extends Activity {
         FrameLayout content = new FrameLayout(this);
         LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                Math.min(dp(460), getResources().getDisplayMetrics().heightPixels - dp(220))
+                Math.max(dp(220), Math.min(dp(460), getResources().getDisplayMetrics().heightPixels - dp(220)))
         );
         contentParams.topMargin = dp(10);
         shell.addView(content, contentParams);
