@@ -5914,7 +5914,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
-        LinearLayout bassHeader = createExtraHeaderRow("Extra Bass");
+        LinearLayout bassHeader = createExtraHeaderRow("Bass Boost");
         bassBoostTitleView = (TextView) bassHeader.getChildAt(0);
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
@@ -5947,20 +5947,20 @@ public final class MainActivity extends Activity {
         cutoffParams.topMargin = dp(10);
         bassPanel.addView(dspBassCutoffInput, cutoffParams);
 
-        LinearLayout virtualPanel = createExtraPanelShell();
-        page.addView(virtualPanel, extraPanelParams(12));
-        LinearLayout virtualHeader = createExtraHeaderRow("Extra Bass");
-        extraBassTitleView = (TextView) virtualHeader.getChildAt(0);
+        LinearLayout extraBassPanel = createExtraPanelShell();
+        page.addView(extraBassPanel, extraPanelParams(12));
+        LinearLayout extraBassHeader = createExtraHeaderRow("Extra Bass");
+        extraBassTitleView = (TextView) extraBassHeader.getChildAt(0);
         extraBassSwitch = new Switch(this);
         extraBassSwitch.setText("");
         extraBassSwitch.setShowText(false);
         extraBassSwitch.setOnCheckedChangeListener(this::onExtraBassEnabledChanged);
         styleTopSwitch(extraBassSwitch, false);
-        virtualHeader.addView(extraBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
-        virtualPanel.addView(virtualHeader, blockParams(4));
-        LinearLayout virtualKnobs = createExtraKnobRow(virtualPanel);
-        virtualKnobs.addView(createExtraBassControl("Cutoff", true), knobColumnParams());
-        virtualKnobs.addView(createExtraBassControl("Boost", false), knobColumnParams());
+        extraBassHeader.addView(extraBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
+        extraBassPanel.addView(extraBassHeader, blockParams(4));
+        LinearLayout extraBassKnobs = createExtraKnobRow(extraBassPanel);
+        extraBassKnobs.addView(createExtraBassControl("Cutoff", true), knobColumnParams());
+        extraBassKnobs.addView(createExtraBassControl("Boost", false), knobColumnParams());
     }
 
     private LinearLayout createExtraPanelShell() {
