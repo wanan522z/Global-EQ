@@ -432,14 +432,7 @@ public final class MainActivity extends Activity {
             shimmerLastWidth.remove(modeSpinner);
             registerShimmerView(modeSpinner);
         }
-        TextView[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
-        for (TextView tab : tabs) {
-            if (tab != null && tab.getWidth() > 0 && tab.getPaint().getShader() != null) {
-                styleActiveBottomTabText(tab);
-                shimmerLastWidth.remove(tab);
-                registerShimmerView(tab);
-            }
-        }
+        updateBottomNavSelection(activeMainPageIndex);
     }
 
     @Override
