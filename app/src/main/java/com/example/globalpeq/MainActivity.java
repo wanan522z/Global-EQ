@@ -1876,6 +1876,8 @@ public final class MainActivity extends Activity {
     private LinearLayout createBandRow(int index) {
         ParametricBand band = editingPreset.bands[index];
         LinearLayout row = new LinearLayout(this);
+        PeqBandRowHolder holder = new PeqBandRowHolder();
+        row.setTag(holder);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dp(2), dp(6), dp(2), dp(6));
         // 关键修复：关闭 EQ 条目行的子视图裁剪，确保条目左侧开关和右侧删除按钮的光晕能够完好展示，绝不被裁切！
@@ -1890,56 +1892,56 @@ public final class MainActivity extends Activity {
             row.setBackground(warningBg);
         }
 
-        View enable = circleButton("", false, false);
-        enable.setOnClickListener(v -> {
+        holder.enable = circleButton("", false, false);
+        holder.enable.setOnClickListener(v -> {
             updateBand(index, editingPreset.bands[index].withEnabled(!editingPreset.bands[index].enabled));
             updatePeqBandVisuals();
         });
-        row.addView(wrapCircularButton(enable, 0.35f, 22, 0, 3, -1));
+        row.addView(wrapCircularButton(holder.enable, 0.35f, 22, 0, 3, -1));
 
-        TextView type = new TextView(this);
-        type.setText(band.type.label);
-        type.setTextSize(11);
-        type.setGravity(android.view.Gravity.CENTER);
-        type.setSingleLine(true);
-        type.setIncludeFontPadding(false);
-        type.setEnabled(supported);
-        type.setBackground(typeCellBackground(band.type, false));
-        type.setOnClickListener(v -> {
+        holder.type = new TextView(this);
+        holder.type.setText(band.type.label);
+        holder.type.setTextSize(11);
+        holder.type.setGravity(android.view.Gravity.CENTER);
+        holder.type.setSingleLine(true);
+        holder.type.setIncludeFontPadding(false);
+        holder.type.setEnabled(supported);
+        holder.type.setBackground(typeCellBackground(band.type, false));
+        holder.type.setOnClickListener(v -> {
             if (!supported) {
                 return;
             }
-            showLimitedChoiceMenu(type, FilterType.labels(), editingPreset.bands[index].type.ordinal(), position -> {
+            showLimitedChoiceMenu(holder.type, FilterType.labels(), editingPreset.bands[index].type.ordinal(), position -> {
                 if (position < 0 || position >= FilterType.values().length) {
                     return;
                 }
                 FilterType selectedType = FilterType.values()[position];
-                type.setText(selectedType.label);
+                holder.type.setText(selectedType.label);
                 updateBand(index, editingPreset.bands[index].withType(selectedType));
                 updatePeqBandVisuals();
             });
         });
-        row.addView(type, cellParams(1f, 36));
+        row.addView(holder.type, cellParams(1f, 36));
 
-        EditText frequencyInput = createNumberInput(String.valueOf(band.frequencyHz), "Hz", value -> {
+        holder.frequency = createNumberInput(String.valueOf(band.frequencyHz), "Hz", value -> {
             updateBand(index, editingPreset.bands[index].withFrequencyHz(clamp(Math.round(value), 20, 20000)));
         });
-        attachEqEditFocus(frequencyInput, index, EQ_EDIT_FIELD_FREQ);
-        row.addView(frequencyInput, cellParams(1f, 36));
+        attachEqEditFocus(holder.frequency, index, EQ_EDIT_FIELD_FREQ);
+        row.addView(holder.frequency, cellParams(1f, 36));
 
-        EditText gainInput = createNumberInput(formatDecimal(band.gainMb / 100f), "dB", value -> {
+        holder.gain = createNumberInput(formatDecimal(band.gainMb / 100f), "dB", value -> {
             int gainMb = Math.round(value * 100f);
             updateBand(index, editingPreset.bands[index].withGainMb(clamp(gainMb, -1800, 1800)));
         });
-        attachEqEditFocus(gainInput, index, EQ_EDIT_FIELD_GAIN);
-        row.addView(gainInput, cellParams(1f, 36));
+        attachEqEditFocus(holder.gain, index, EQ_EDIT_FIELD_GAIN);
+        row.addView(holder.gain, cellParams(1f, 36));
 
-        EditText qInput = createNumberInput(formatDecimal(band.qHundred / 100f), "Q", value -> {
+        holder.q = createNumberInput(formatDecimal(band.qHundred / 100f), "Q", value -> {
             int qHundred = Math.round(value * 100f);
             updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 20, 1000)));
         });
-        attachEqEditFocus(qInput, index, EQ_EDIT_FIELD_Q);
-        row.addView(qInput, cellParams(1f, 36));
+        attachEqEditFocus(holder.q, index, EQ_EDIT_FIELD_Q);
+        row.addView(holder.q, cellParams(1f, 36));
 
         View delete = circleButton("", false, true);
         delete.setEnabled(supported && editingPreset.bands.length > 1);
