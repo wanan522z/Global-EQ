@@ -243,7 +243,15 @@ public final class GlobalEqForegroundService extends Service {
             return;
         }
         Intent copy = data == null ? null : new Intent(data);
-        handler.post(() -> captureEngine.bootstrapProjection(resultCode, copy));
+        handler.post(() -> {
+            captureEngine.bootstrapProjection(resultCode, copy);
+            captureEngine.updateProcessing(
+                    repository.loadProcessingMode(),
+                    currentPreset,
+                    repository.loadAdvancedModeConfig(),
+                    repository.loadBassBoostModeIndex(),
+                    currentDevice);
+        });
     }
 
     private void scheduleCaptureStopAll() {
