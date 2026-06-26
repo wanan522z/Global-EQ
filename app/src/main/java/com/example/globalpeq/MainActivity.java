@@ -8227,7 +8227,7 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return false;
         }
-        return view == reverbTitleView || view == bassBoostTitleView || view == extraBassTitleView;
+        return view == reverbTitleView || view == bassEnhanceTitleView || view == extraBassTitleView;
     }
 
     private boolean isExtraSectionTitleActive(TextView view) {
@@ -8239,7 +8239,7 @@ public final class MainActivity extends Activity {
                     && AudioProcessingPolicy.reverbAllowed(processingMode)
                     && !"Default".equals(editingPreset.reverbType);
         }
-        if (view == bassBoostTitleView) {
+        if (view == bassEnhanceTitleView) {
             return supported && selectedBassModeIndex > 0;
         }
         if (view == extraBassTitleView) {
