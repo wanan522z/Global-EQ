@@ -6393,10 +6393,10 @@ public final class MainActivity extends Activity {
     private void updateBottomNavSelection(int activeIndex) {
         if (eqTabButton == null || extraTabButton == null || settingsTabButton == null) return;
 
-        Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        TextView[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         activeIndex = clamp(activeIndex, 0, tabs.length - 1);
         for (int i = 0; i < tabs.length; i++) {
-            Button tab = tabs[i];
+            TextView tab = tabs[i];
             boolean active = (i == activeIndex);
             tab.setBackgroundColor(Color.TRANSPARENT);
             if (active) {
@@ -6504,7 +6504,7 @@ public final class MainActivity extends Activity {
         if (parent == null || parent.getWidth() <= 0 || bottomTabStrip.getWidth() <= 0) {
             return null;
         }
-        Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        TextView[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         float clamped = Math.max(0f, Math.min(2f, pagePosition));
         int leftIndex = (int) Math.floor(clamped);
         int rightIndex = Math.min(tabs.length - 1, leftIndex + 1);
@@ -6522,7 +6522,7 @@ public final class MainActivity extends Activity {
         return new float[]{left, width};
     }
 
-    private float tabIndicatorLeftForTab(Button tab) {
+    private float tabIndicatorLeftForTab(TextView tab) {
         if (tab == null || bottomTabStrip == null) {
             return 0f;
         }
@@ -6534,7 +6534,7 @@ public final class MainActivity extends Activity {
         return buttonLeftInStrip + (tab.getWidth() - indicatorWidth) / 2f;
     }
 
-    private float tabIndicatorWidthForTab(Button tab) {
+    private float tabIndicatorWidthForTab(TextView tab) {
         if (tab == null || tab.getWidth() <= 0) {
             return 0f;
         }
