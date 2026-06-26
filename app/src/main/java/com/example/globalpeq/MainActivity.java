@@ -277,16 +277,8 @@ public final class MainActivity extends Activity {
         if (elapsedSeconds <= 0f) {
             return;
         }
-        long now = System.currentTimeMillis();
         for (int i = 0; i < shimmerTargetViews.size(); i++) {
             TextView view = shimmerTargetViews.get(i);
-            Long freezeUntil = shimmerPhaseFreezeUntil.get(view);
-            if (freezeUntil != null) {
-                if (freezeUntil > now) {
-                    continue;
-                }
-                shimmerPhaseFreezeUntil.remove(view);
-            }
             float phase = currentShimmerPhaseForView(view);
             phase += elapsedSeconds * SHIMMER_FLOW_RATE * shimmerSpeedMultiplierForView(view);
             shimmerViewPhases.put(view, phase - (float) Math.floor(phase));
@@ -300,47 +292,6 @@ public final class MainActivity extends Activity {
             phase += 1f;
         }
         return phase;
-    }
-
-    private String shimmerViewName(TextView view) {
-        if (view == null) {
-            return "null";
-        }
-        if (view == statusText) {
-            return "statusText";
-        }
-        if (view == modeSpinner) {
-            return "modeSpinner";
-        }
-        if (view == reverbTitleView) {
-            return "reverbTitle";
-        }
-        if (view == bassBoostTitleView) {
-            return "bassBoostTitle";
-        }
-        if (view == virtualBassTitleView) {
-            return "virtualBassTitle";
-        }
-        if (view == eqTabButton) {
-            return "eqTab";
-        }
-        if (view == extraTabButton) {
-            return "extraTab";
-        }
-        if (view == settingsTabButton) {
-            return "settingsTab";
-        }
-        return view.getClass().getSimpleName() + "#" + Integer.toHexString(System.identityHashCode(view));
-    }
-
-    private void logShimmerEvent(String event, TextView view, String extra) {
-        Log.d(SHIMMER_DEBUG_TAG,
-                event
-                        + " view=" + shimmerViewName(view)
-                        + " t=" + SystemClock.uptimeMillis()
-                        + " phase=" + currentShimmerPhaseForView(view)
-                        + " width=" + settingsTitleGradientWidth(view)
-                        + " extra=" + extra);
     }
 
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
