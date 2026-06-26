@@ -31,7 +31,7 @@ public final class GlobalEqForegroundService extends Service {
         super.onCreate();
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
-        captureEngine = new PlaybackCaptureEngine(this, repository);
+        captureEngine = new PlaybackCaptureEngine(this, repository, this::updateNotification);
         deviceMonitor = new AudioOutputDeviceMonitor(this);
         createNotificationChannel();
         AudioOutputDevice selected = repository.loadSelectedDevice();
