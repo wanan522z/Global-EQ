@@ -204,12 +204,8 @@ public final class MainActivity extends Activity {
         if (view == null || width <= 0) {
             return;
         }
-        if (isInactiveExtraSectionTitle(view)) {
-            unregisterShimmerView(view);
-            view.getPaint().setShader(null);
-            clearGlowFromTextView(view);
-            view.setTextColor(Color.rgb(150, 165, 185));
-            view.invalidate();
+        if (isExtraSectionTitle(view) && !isExtraSectionTitleActive(view)) {
+            applyInactiveExtraSectionTitleStyle(view);
             return;
         }
 
