@@ -1086,7 +1086,6 @@ public final class MainActivity extends Activity {
         if (statusText != null) {
             statusText.setText(statusLabel(hasClip));
             styleStatusText(hasClip);
-            statusText.post(() -> styleStatusText(hasClip));
             statusText.postInvalidate();
         }
         renderDeviceSpinner();
@@ -3398,7 +3397,6 @@ public final class MainActivity extends Activity {
         if (statusText != null) {
             statusText.setText(statusLabel(hasClip));
             styleStatusText(hasClip);
-            statusText.post(() -> styleStatusText(hasClip));
         }
         styleModeText();
         if (modeSpinner != null) {
