@@ -5392,11 +5392,13 @@ public final class MainActivity extends Activity {
     private void styleStatusTextShimmer(TextView view, int baseColorStart, int baseColorEnd) {
         applyStatusShimmerShader(view, settingsTitleGradientWidth(view), baseColorStart, baseColorEnd);
         view.setTextColor(Color.WHITE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB && !(view instanceof GlowTitleTextView)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                && !(view instanceof GlowTitleTextView)
+                && !(view instanceof GlowShimmerButton)) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
         view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
-        if (view instanceof GlowTitleTextView) {
+        if (view instanceof GlowTitleTextView || view instanceof GlowShimmerButton) {
             applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
         }
         view.invalidate();
