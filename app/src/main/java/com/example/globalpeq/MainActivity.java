@@ -459,11 +459,10 @@ public final class MainActivity extends Activity {
         processingMode = repository.loadProcessingMode();
         uiLanguage = repository.loadUiLanguage();
         advancedModeConfig = repository.loadAdvancedModeConfig();
-        selectedBassModeIndex = repository.loadBassBoostModeIndex();
-        if (processingMode == ProcessingMode.SYSTEM_EQ && selectedBassModeIndex != 0) {
-            selectedBassModeIndex = 0;
-            repository.saveBassBoostModeIndex(0);
-        }
+        selectedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(
+                processingMode,
+                repository.loadBassBoostModeIndex());
+        repository.saveBassBoostModeIndex(selectedBassModeIndex);
         selectedDeviceCurveName = repository.loadSelectedDeviceCurveName();
         selectedTargetCurveName = repository.loadSelectedTargetCurveName();
         deviceCurveGainOffsetDb = repository.loadDeviceCurveGainOffsetDb();
@@ -1759,9 +1758,12 @@ public final class MainActivity extends Activity {
     private void setProcessingMode(ProcessingMode nextMode) {
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
-        if (processingMode == ProcessingMode.SYSTEM_EQ) {
-            selectedBassModeIndex = 0;
+        int sanitizedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(processingMode, selectedBassModeIndex);
+        if (sanitizedBassModeIndex != selectedBassModeIndex) {
+            selectedBassModeIndex = sanitizedBassModeIndex;
             repository.saveBassBoostModeIndex(selectedBassModeIndex);
+        }
+        if (processingMode == ProcessingMode.SYSTEM_EQ) {
             if (monitorSettingsOpen) {
                 hideAdvancedSettingsSubpage();
             }
@@ -3227,7 +3229,7 @@ public final class MainActivity extends Activity {
         }
         showLimitedChoiceMenu(reverbTypeButton, REVERB_TYPE_LABELS, reverbTypeIndex(editingPreset.reverbType), position -> {
             String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
-            if (processingMode == ProcessingMode.SYSTEM_EQ && !"Default".equals(nextType)) {
+            if (!AudioProcessingPolicy.reverbAllowed(processingMode) && !"Default".equals(nextType)) {
                 showModeLockedDialog("Reverb requires Shizuku Mode.");
                 return;
             }
@@ -3243,8 +3245,8 @@ public final class MainActivity extends Activity {
         }
         showLimitedChoiceMenu(bassModeButton, bassModeDisplayLabels(), selectedBassModeIndex, position -> {
             int nextIndex = clamp(position, 0, BASS_MODE_LABELS.length - 1);
-            if (processingMode == ProcessingMode.SYSTEM_EQ && nextIndex != 0) {
-                showModeLockedDialog("Virtual Bass beyond Default requires Shizuku Mode.");
+            if (!AudioProcessingPolicy.bassModeAllowed(processingMode, nextIndex)) {
+                showModeLockedDialog("DSP bass requires Shizuku Mode.");
                 return;
             }
             if (selectedBassModeIndex == nextIndex) {
@@ -5646,32 +5648,30 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean bassBoostEnabled = supported && AudioProcessingPolicy.advancedModeEnabled(processingMode) && selectedBassModeIndex > 0;
-        boolean dspBassMode = selectedBassModeIndex == 2;
-        boolean virtualBassModeAvailable = supported
-                && AudioProcessingPolicy.advancedModeEnabled(processingMode)
-                && selectedBassModeIndex == 2;
+        boolean bassBoostEnabled = supported && selectedBassModeIndex > 0;
+        boolean dspBassMode = AudioProcessingPolicy.dspBassAllowed(processingMode, selectedBassModeIndex);
+        boolean extraBassEnabled = supported && virtualBassEnabledState;
+        boolean reverbAllowed = supported && AudioProcessingPolicy.reverbAllowed(processingMode);
+        boolean reverbEnabled = reverbAllowed && !"Default".equals(editingPreset.reverbType);
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
             bassBoostSlider.setLabel(dspBassMode ? "Amount" : "Boost");
             bassBoostSlider.setEnabled(bassBoostEnabled);
             bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
         }
-        boolean virtualBassEnabled = virtualBassModeAvailable && virtualBassEnabledState;
         if (virtualBassSwitch != null) {
             updatingUi = true;
-            virtualBassSwitch.setChecked(virtualBassEnabled);
-            virtualBassSwitch.setEnabled(virtualBassModeAvailable);
-            virtualBassSwitch.setAlpha(virtualBassModeAvailable ? 1f : 0.55f);
+            virtualBassSwitch.setChecked(virtualBassEnabledState);
+            virtualBassSwitch.setEnabled(supported);
+            virtualBassSwitch.setAlpha(supported ? 1f : 0.55f);
             updatingUi = false;
         }
-        updateVirtualBassControl(cutoffKnob, editingPreset.virtualBassCutoffHz, virtualBassEnabled);
-        updateVirtualBassControl(amountKnob, editingPreset.virtualBassAmountPercent, virtualBassEnabled);
-        boolean reverbEnabled = supported && AudioProcessingPolicy.advancedModeEnabled(processingMode) && !"Default".equals(editingPreset.reverbType);
+        updateVirtualBassControl(cutoffKnob, editingPreset.virtualBassCutoffHz, extraBassEnabled);
+        updateVirtualBassControl(amountKnob, editingPreset.virtualBassAmountPercent, extraBassEnabled);
         if (reverbTypeButton != null) {
             reverbTypeButton.setText(editingPreset.reverbType);
-            reverbTypeButton.setEnabled(supported);
-            reverbTypeButton.setAlpha(supported ? 1f : 0.5f);
+            reverbTypeButton.setEnabled(reverbAllowed);
+            reverbTypeButton.setAlpha(reverbAllowed ? 1f : 0.5f);
         }
         if (bassModeButton != null) {
             bassModeButton.setText(bassModeDisplayLabel(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]));
@@ -5913,18 +5913,6 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout createExtraPanel(String titleText) {
-        LinearLayout panel = createExtraPanelShell();
-        TextView title = gradientTitleView(titleText);
-        if (title instanceof GlowTitleTextView) {
-            ((GlowTitleTextView) title).setAutoRegisterShimmer(false);
-        }
-        title.setText(titleText);
-        title.setTextSize(16);
-        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        panel.addView(title, blockParams(0));
-        return panel;
-    }
-
     private LinearLayout createExtraPanelShell() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
@@ -8156,7 +8144,9 @@ public final class MainActivity extends Activity {
             return false;
         }
         if (view == reverbTitleView) {
-            return supported && !"Default".equals(editingPreset.reverbType);
+            return supported
+                    && AudioProcessingPolicy.reverbAllowed(processingMode)
+                    && !"Default".equals(editingPreset.reverbType);
         }
         if (view == bassBoostTitleView) {
             return supported && selectedBassModeIndex > 0;
