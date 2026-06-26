@@ -79,8 +79,6 @@ public final class MainActivity extends Activity {
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
     private static final long ENABLE_NEON_CURVE_DELAY_MS = 460L;
     private static final long DISABLE_NEON_CURVE_DELAY_MS = 280L;
-    private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 660L;
-    private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 60L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
