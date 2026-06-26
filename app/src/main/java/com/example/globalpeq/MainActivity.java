@@ -8084,12 +8084,12 @@ public final class MainActivity extends Activity {
             float maxInset = inset * 0.70f;
             for (int layer = 0; layer < glowLayers; layer++) {
                 float t = glowLayers <= 1 ? 1f : layer / (float) (glowLayers - 1);
-                float eased = 1f - t;
+                float logFalloff = (float) (Math.log1p((1f - t) * 7f) / Math.log(8f));
                 float layerInset = maxInset * t;
                 float layerRadius = coreRadius + inset * (1.08f - 0.48f * t);
                 float saturationScale = 1.02f - 0.08f * t;
                 float valueScale = 1.08f - 0.07f * t;
-                float alpha = (0.010f + 0.030f * eased) * drawableAlpha / 255f;
+                float alpha = (0.006f + 0.026f * logFalloff) * drawableAlpha / 255f;
                 bloomPaint.setColor(withMonitoredAppGlowAlpha(
                         shiftMonitoredAppGlowColor(glowColor, saturationScale, valueScale),
                         alpha));
