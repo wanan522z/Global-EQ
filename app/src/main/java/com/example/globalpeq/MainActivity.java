@@ -1281,6 +1281,10 @@ public final class MainActivity extends Activity {
         return processingMode == ProcessingMode.ADVANCED_DSP ? "MONITOR DSP" : "SYSTEM EQ";
     }
 
+    private String processingModeTitleText() {
+        return "Engine Status · " + processingMode.label;
+    }
+
     private String advancedModeSummaryText() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
             return "Default mode keeps the existing system EQ and virtual bass path unchanged.";
