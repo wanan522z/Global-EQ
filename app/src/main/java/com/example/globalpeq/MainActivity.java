@@ -1100,7 +1100,6 @@ public final class MainActivity extends Activity {
         if (modeSpinner != null) {
             modeSpinner.setText(editingPreset.mode.label);
             styleModeText();
-            modeSpinner.post(() -> styleModeText());
         }
         if (autoSwitchOutputSwitch != null) {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);

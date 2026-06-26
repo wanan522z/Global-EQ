@@ -20,6 +20,9 @@ final class PresetRepository {
     private static final String LAST_DEVICE_KEY = "last_device_key";
     private static final String LAST_DEVICE_LABEL = "last_device_label";
     private static final String AUTO_SWITCH_OUTPUT = "auto_switch_output";
+    private static final String PROCESSING_MODE = "processing_mode";
+    private static final String ADVANCED_MODE_CONFIG = "advanced_mode_config";
+    private static final String BASS_BOOST_MODE = "bass_boost_mode";
     private static final String NAMED_PRESETS = "named_presets";
     private static final String KNOWN_DEVICES = "known_devices";
     private static final String DEVICE_CURVES = "device_curves";
@@ -97,6 +100,37 @@ final class PresetRepository {
     void saveAutoSwitchOutput(boolean enabled) {
         prefs.edit()
                 .putBoolean(AUTO_SWITCH_OUTPUT, enabled)
+                .commit();
+    }
+
+    ProcessingMode loadProcessingMode() {
+        return ProcessingMode.fromKey(prefs.getString(PROCESSING_MODE, ProcessingMode.SYSTEM_EQ.key));
+    }
+
+    void saveProcessingMode(ProcessingMode mode) {
+        prefs.edit()
+                .putString(PROCESSING_MODE, mode == null ? ProcessingMode.SYSTEM_EQ.key : mode.key)
+                .commit();
+    }
+
+    AdvancedModeConfig loadAdvancedModeConfig() {
+        return AdvancedModeConfig.fromJson(prefs.getString(ADVANCED_MODE_CONFIG, null));
+    }
+
+    void saveAdvancedModeConfig(AdvancedModeConfig config) {
+        AdvancedModeConfig safe = config == null ? AdvancedModeConfig.DEFAULT : config;
+        prefs.edit()
+                .putString(ADVANCED_MODE_CONFIG, safe.toJson())
+                .commit();
+    }
+
+    int loadBassBoostModeIndex() {
+        return clamp(prefs.getInt(BASS_BOOST_MODE, 0), 0, 2);
+    }
+
+    void saveBassBoostModeIndex(int index) {
+        prefs.edit()
+                .putInt(BASS_BOOST_MODE, clamp(index, 0, 2))
                 .commit();
     }
 
@@ -352,5 +386,9 @@ final class PresetRepository {
 
     private String curveKey(String setKey, String name) {
         return setKey + "_" + normalizeCurveName(name).toLowerCase().replaceAll("[^a-z0-9_\\-]+", "_");
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 }
