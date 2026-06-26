@@ -5676,11 +5676,29 @@ public final class MainActivity extends Activity {
         }
         titleVisualStates.put(view, active);
         if (active) {
-            styleSettingsTitleText(view);
             registerShimmerView(view);
+            applyActiveExtraSectionTitleStyle(view);
         } else {
             applyInactiveExtraSectionTitleStyle(view);
         }
+    }
+
+    private void applyActiveExtraSectionTitleStyle(TextView view) {
+        if (view == null) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            if (view instanceof GlowTitleTextView || view instanceof GlowShimmerButton) {
+                if (view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
+                    view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+                }
+            } else if (view.getLayerType() != View.LAYER_TYPE_NONE) {
+                view.setLayerType(View.LAYER_TYPE_NONE, null);
+            }
+        }
+        view.setTextColor(Color.WHITE);
+        applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+        applyShimmerFrame(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view));
     }
 
     private void applyInactiveExtraSectionTitleStyle(TextView view) {
