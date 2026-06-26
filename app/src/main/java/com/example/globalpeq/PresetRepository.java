@@ -582,7 +582,4 @@ final class PresetRepository {
         return normalizeCurveName(name).toLowerCase().replaceAll("[^a-z0-9_\\-]+", "_");
     }
 
-    private int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }
