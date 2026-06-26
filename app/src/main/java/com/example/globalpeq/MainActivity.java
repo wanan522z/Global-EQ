@@ -1903,6 +1903,10 @@ public final class MainActivity extends Activity {
         if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
             return;
         }
+        if (pendingMonitorCaptureAuthorization) {
+            renderAll();
+            return;
+        }
         boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
         if (granted) {
             ShizukuCompat.grantPermissionsAndAppOps(this);
@@ -1941,6 +1945,8 @@ public final class MainActivity extends Activity {
             return true;
         }
         return !status.startsWith("Capture authorized")
+                && !status.startsWith("Starting native capture")
+                && !status.startsWith("Waiting for capture authorization")
                 && !status.startsWith("Monitoring ")
                 && !status.startsWith("Armed for ");
     }
