@@ -5891,20 +5891,7 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
-        if (view instanceof GlowShimmerButton) {
-            ((GlowShimmerButton) view).setBottomTabShimmerActive(true);
-        }
-        view.getPaint().setShader(null);
-        view.setTextColor(Color.WHITE);
-        clearGlowFromTextView(view);
-        applyGlowToTextView(view, Color.argb(176, 0, 245, 212), 5.4f);
-        view.invalidate();
-        view.post(() -> {
-            view.getPaint().setShader(null);
-            view.setTextColor(Color.WHITE);
-            applyGlowToTextView(view, Color.argb(176, 0, 245, 212), 5.4f);
-            view.invalidate();
-        });
+        styleSettingsTitleText(view);
     }
 
     private void styleDimPlainText(TextView view) {
