@@ -27,6 +27,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.Layout;
@@ -67,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
+    private static final String SHIMMER_DEBUG_TAG = "GlobalPEQShimmer";
     private static final int HISTORY_LIMIT = 30;
     private static final int REQUEST_IMPORT_DEVICE_CURVE = 4101;
     private static final int REQUEST_IMPORT_TARGET_CURVE = 4102;
