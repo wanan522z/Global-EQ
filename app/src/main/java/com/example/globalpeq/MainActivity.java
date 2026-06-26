@@ -2874,7 +2874,9 @@ public final class MainActivity extends Activity {
             topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
             int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(22);
             int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(22);
-            float titleTextRight = titleRect.left + modeSpinner.getCompoundPaddingLeft();
+            float titleTextRight = titleRect.left
+                    + modeSpinner.getTranslationX()
+                    + modeSpinner.getCompoundPaddingLeft();
             Layout titleLayout = modeSpinner.getLayout();
             if (titleLayout != null && titleLayout.getLineCount() > 0) {
                 titleTextRight += titleLayout.getLineRight(0);
