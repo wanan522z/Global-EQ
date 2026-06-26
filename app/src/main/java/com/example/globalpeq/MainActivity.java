@@ -2463,6 +2463,9 @@ public final class MainActivity extends Activity {
                 && !advancedModeConfig.monitoredAppPackage.isEmpty();
         Drawable icon = visible ? loadMonitoredAppDrawable() : null;
         if (!visible || icon == null) {
+            if (monitoredAppGlowView != null) {
+                monitoredAppGlowView.setVisibility(View.GONE);
+            }
             monitoredAppIconView.setImageDrawable(null);
             monitoredAppIconView.setVisibility(View.GONE);
             return;
@@ -2470,6 +2473,9 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setImageDrawable(icon);
         monitoredAppIconView.setAlpha(1f);
         monitoredAppIconView.setVisibility(View.VISIBLE);
+        if (monitoredAppGlowView != null) {
+            monitoredAppGlowView.setVisibility(View.VISIBLE);
+        }
         updateMonitoredAppIconPosition();
     }
 
@@ -2484,6 +2490,7 @@ public final class MainActivity extends Activity {
         topControlOverlay.post(() -> {
             if (topControlOverlay == null
                     || monitoredAppIconView == null
+                    || monitoredAppGlowView == null
                     || modeSpinner == null
                     || autoSwitchOutputSwitch == null
                     || monitoredAppIconView.getVisibility() != View.VISIBLE
@@ -2501,6 +2508,10 @@ public final class MainActivity extends Activity {
             float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
             monitoredAppIconView.setY(y);
+            float glowWidth = monitoredAppGlowView.getWidth() > 0 ? monitoredAppGlowView.getWidth() : dp(40);
+            float glowHeight = monitoredAppGlowView.getHeight() > 0 ? monitoredAppGlowView.getHeight() : dp(40);
+            monitoredAppGlowView.setX(centerX - glowWidth / 2f);
+            monitoredAppGlowView.setY(Math.max(0f, (topControlOverlay.getHeight() - glowHeight) * 0.5f));
         });
     }
 
