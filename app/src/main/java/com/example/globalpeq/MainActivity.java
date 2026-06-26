@@ -3678,6 +3678,9 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         TextView title = gradientTitleView(titleText);
+        if (title instanceof GlowTitleTextView) {
+            ((GlowTitleTextView) title).setAutoRegisterShimmer(false);
+        }
         title.setText(titleText);
         title.setTextSize(16);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
