@@ -3394,9 +3394,6 @@ public final class MainActivity extends Activity {
             styleStatusText(hasClip);
         }
         styleModeText();
-        if (modeSpinner != null) {
-            modeSpinner.post(() -> styleModeText());
-        }
     }
 
     private String statusLabel(boolean hasClip) {
