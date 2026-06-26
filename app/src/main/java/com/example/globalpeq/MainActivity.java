@@ -250,23 +250,38 @@ public final class MainActivity extends Activity {
         return 1f;
     }
 
-    private float rawGlobalShimmerPhaseForView(TextView view) {
-        float phase = shimmerAnimPhase * shimmerSpeedMultiplierForView(view);
-        return phase - (float) Math.floor(phase);
+    private float currentShimmerPhaseForView(TextView view) {
+        if (view == null) {
+            return 0f;
+        }
+        Float phase = shimmerViewPhases.get(view);
+        if (phase != null) {
+            return phase;
+        }
+        float seeded = seedShimmerPhaseForView(view);
+        shimmerViewPhases.put(view, seeded);
+        return seeded;
     }
 
-    private float currentShimmerPhaseForView(TextView view) {
-        float phase = rawGlobalShimmerPhaseForView(view);
-        if (!isExtraSectionTitle(view)) {
-            return phase;
+    private void advanceShimmerPhases(float elapsedSeconds) {
+        if (elapsedSeconds <= 0f) {
+            return;
         }
-        Float anchor = shimmerPhaseAnchors.get(view);
-        if (anchor == null) {
-            return phase;
+        for (int i = 0; i < shimmerTargetViews.size(); i++) {
+            TextView view = shimmerTargetViews.get(i);
+            float phase = currentShimmerPhaseForView(view);
+            phase += elapsedSeconds * SHIMMER_FLOW_RATE * shimmerSpeedMultiplierForView(view);
+            shimmerViewPhases.put(view, phase - (float) Math.floor(phase));
         }
-        float local = phase - anchor;
-        local -= (float) Math.floor(local);
-        return local;
+    }
+
+    private float seedShimmerPhaseForView(TextView view) {
+        int hash = System.identityHashCode(view);
+        float phase = (hash * 0.6180339f) % 1f;
+        if (phase < 0f) {
+            phase += 1f;
+        }
+        return phase;
     }
 
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
