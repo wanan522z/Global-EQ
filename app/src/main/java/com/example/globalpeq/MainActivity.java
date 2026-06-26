@@ -6180,8 +6180,6 @@ public final class MainActivity extends Activity {
                 if (view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
                     view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
                 }
-            } else if (view.getLayerType() != View.LAYER_TYPE_NONE) {
-                view.setLayerType(View.LAYER_TYPE_NONE, null);
             }
         }
         view.setTextColor(Color.WHITE);
@@ -6197,8 +6195,9 @@ public final class MainActivity extends Activity {
         bumpTextStyleVersion(view);
         unregisterShimmerView(view);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                && view.getLayerType() != View.LAYER_TYPE_NONE) {
-            view.setLayerType(View.LAYER_TYPE_NONE, null);
+                && (view instanceof GlowTitleTextView || view instanceof GlowShimmerButton)
+                && view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
         view.getPaint().setShader(null);
         view.setTextColor(Color.rgb(150, 165, 185));
