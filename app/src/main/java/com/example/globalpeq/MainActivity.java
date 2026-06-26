@@ -5406,6 +5406,7 @@ public final class MainActivity extends Activity {
     private final class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
+        private boolean autoRegisterShimmer = true;
         private int glowColor = Color.argb(210, 120, 220, 255);
         private float glowRadiusPx = dpf(7.4f);
 
@@ -5431,10 +5432,16 @@ public final class MainActivity extends Activity {
             invalidate();
         }
 
+        void setAutoRegisterShimmer(boolean enabled) {
+            autoRegisterShimmer = enabled;
+        }
+
         @Override
         protected void onAttachedToWindow() {
             super.onAttachedToWindow();
-            registerShimmerView(this);
+            if (autoRegisterShimmer) {
+                registerShimmerView(this);
+            }
         }
 
         @Override
