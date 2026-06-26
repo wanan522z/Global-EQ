@@ -5548,7 +5548,19 @@ public final class MainActivity extends Activity {
                 return;
             }
             labelPaint.set(getPaint());
-            labelPaint.setColor(getCurrentTextColor());
+            boolean activeBottomTab = MainActivity.this.isActiveBottomTab(this);
+            if (activeBottomTab) {
+                int width = Math.max(1, settingsTitleGradientWidth(this));
+                float offset = shimmerAnimPhase * width;
+                labelPaint.setShader(new LinearGradient(
+                        offset, 0, width + offset, 0,
+                        SHIMMER_BRIGHT_COLORS,
+                        SHIMMER_POSITIONS,
+                        Shader.TileMode.REPEAT));
+            } else {
+                labelPaint.setShader(null);
+                labelPaint.setColor(getCurrentTextColor());
+            }
             labelPaint.setMaskFilter(null);
 
             String content = text.toString();
