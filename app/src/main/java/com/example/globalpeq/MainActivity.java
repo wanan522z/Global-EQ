@@ -863,14 +863,16 @@ public final class MainActivity extends Activity {
 
         monitoredAppIconView = new ImageView(this);
         monitoredAppIconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        int iconPad = dp(6);
+        int iconPad = monitoredAppIconGlowInsetPx();
         monitoredAppIconView.setPadding(iconPad, iconPad, iconPad, iconPad);
-        monitoredAppIconView.setBackground(iconGlowDrawable(Color.argb(205, 120, 220, 255)));
+        monitoredAppIconView.setBackground(iconGlowDrawable(Color.argb(178, 120, 220, 255)));
         monitoredAppIconView.setClipToOutline(false);
         // 注意：不能再设 LAYER_TYPE_SOFTWARE——软件图层会把绘制裁剪到 View 尺寸，
         // 导致超出 36dp View 边界的光晕被切掉。新光晕用预模糊位图，无需软件渲染。
         monitoredAppIconView.setVisibility(View.GONE);
-        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(36), dp(36));
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+                monitoredAppIconHostSizePx(),
+                monitoredAppIconHostSizePx());
         iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
         top.addView(monitoredAppIconView, iconParams);
 
