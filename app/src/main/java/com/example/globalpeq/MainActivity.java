@@ -5165,6 +5165,85 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private final class GlowShimmerButton extends Button {
+        private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+        private boolean glowEnabled = true;
+        private int glowColor = Color.argb(168, 120, 220, 255);
+        private float glowRadiusPx = dpf(5.75f);
+
+        GlowShimmerButton(Context context) {
+            super(context);
+            glowPaint.setDither(true);
+            glowPaint.setLinearText(true);
+            glowPaint.setSubpixelText(true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            }
+        }
+
+        void setGlowState(boolean enabled, int color, float radiusPx) {
+            glowEnabled = enabled;
+            glowColor = color;
+            glowRadiusPx = radiusPx;
+            invalidate();
+        }
+
+        void clearGlowState() {
+            glowEnabled = false;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            getPaint().clearShadowLayer();
+            drawButtonGlow(canvas);
+            super.onDraw(canvas);
+        }
+
+        private void drawButtonGlow(Canvas canvas) {
+            if (!glowEnabled || glowRadiusPx <= 0f || Color.alpha(glowColor) <= 0) {
+                return;
+            }
+            Layout layout = getLayout();
+            CharSequence text = getText();
+            if (layout == null || text == null || text.length() == 0) {
+                return;
+            }
+            glowPaint.set(getPaint());
+            glowPaint.setShader(null);
+            glowPaint.setColor(glowColor);
+            glowPaint.setStyle(Paint.Style.FILL);
+            glowPaint.setMaskFilter(new BlurMaskFilter(glowRadiusPx, BlurMaskFilter.Blur.NORMAL));
+
+            String content = text.toString();
+            int availableWidth = getWidth() - getCompoundPaddingLeft() - getCompoundPaddingRight();
+            int availableHeight = getHeight() - getExtendedPaddingTop() - getExtendedPaddingBottom();
+            float layoutLeft = getCompoundPaddingLeft();
+            float layoutTop = getExtendedPaddingTop();
+            int absoluteGravity = Gravity.getAbsoluteGravity(getGravity(), getLayoutDirection()) & Gravity.HORIZONTAL_GRAVITY_MASK;
+            if (absoluteGravity == Gravity.CENTER_HORIZONTAL) {
+                layoutLeft += Math.max(0, availableWidth - layout.getWidth()) * 0.5f;
+            } else if (absoluteGravity == Gravity.RIGHT) {
+                layoutLeft += Math.max(0, availableWidth - layout.getWidth());
+            }
+            int verticalGravity = getGravity() & Gravity.VERTICAL_GRAVITY_MASK;
+            if (verticalGravity == Gravity.CENTER_VERTICAL) {
+                layoutTop += Math.max(0, availableHeight - layout.getHeight()) * 0.5f;
+            } else if (verticalGravity == Gravity.BOTTOM) {
+                layoutTop += Math.max(0, availableHeight - layout.getHeight());
+            }
+            int save = canvas.save();
+            canvas.translate(layoutLeft, layoutTop);
+            for (int line = 0; line < layout.getLineCount(); line++) {
+                int start = layout.getLineStart(line);
+                int end = layout.getLineEnd(line);
+                canvas.drawText(content, start, end, layout.getLineLeft(line), layout.getLineBaseline(line), glowPaint);
+            }
+            canvas.restoreToCount(save);
+            glowPaint.setMaskFilter(null);
+        }
+    }
+
     private TextView gradientTitleView(String text) {
         TextView title = new GlowTitleTextView(this);
         title.setText(text);
@@ -5227,12 +5306,20 @@ public final class MainActivity extends Activity {
             view.getPaint().clearShadowLayer();
             return;
         }
+        if (view instanceof GlowShimmerButton) {
+            ((GlowShimmerButton) view).setGlowState(true, glowColor, dpf(glowRadiusDp));
+            view.getPaint().clearShadowLayer();
+            return;
+        }
         view.getPaint().setShadowLayer(dpf(glowRadiusDp), 0, 0, glowColor);
     }
 
     private void clearGlowFromTextView(TextView view) {
         if (view instanceof GlowTitleTextView) {
             ((GlowTitleTextView) view).clearGlowState();
+        }
+        if (view instanceof GlowShimmerButton) {
+            ((GlowShimmerButton) view).clearGlowState();
         }
         view.getPaint().clearShadowLayer();
     }
