@@ -1389,22 +1389,144 @@ public final class MainActivity extends Activity {
         return row;
     }
 
+    private boolean isChineseUi() {
+        return UI_LANGUAGE_ZH.equals(uiLanguage);
+    }
+
+    private String tr(String english, String chinese) {
+        return isChineseUi() ? chinese : english;
+    }
+
+    private String chooseAppText() {
+        return tr("Choose app", "选择应用");
+    }
+
+    private String settingsModeDetailText() {
+        return tr(
+                "Tap the title above to switch backend mode.",
+                "点击上方标题即可切换后端模式。");
+    }
+
+    private String settingsStatusLabelText() {
+        return tr("System Processing:", "系统处理：");
+    }
+
+    private String settingsLanguageLabelText() {
+        return tr("Language", "语言");
+    }
+
+    private String languageButtonText() {
+        return isChineseUi() ? "中文" : "English";
+    }
+
+    private String aboutTitleText() {
+        return tr("About Global PEQ", "关于 Global PEQ");
+    }
+
+    private String aboutBodyText() {
+        return tr(
+                "Global PEQ is a low-latency, audiophile-grade Parametric Equalizer running natively on Android's high-performance audio routing engine. Enjoy tailored, professional equalization for all your playback devices.",
+                "Global PEQ 是一款原生运行在 Android 高性能音频路由引擎上的低延迟发烧级 Parametric Equalizer，可为你的所有播放设备提供更细致、更专业的均衡调音。");
+    }
+
+    private String footerText() {
+        return tr("Version 0.1 - Powered by Gemini 3.5", "版本 0.1 - Powered by Gemini 3.5");
+    }
+
+    private String monitorSettingsTitleText() {
+        return tr("Monitor DSP Settings", "Monitor DSP 设置");
+    }
+
+    private String monitorSettingsDetailText() {
+        return tr(
+                "Pick the target app, authorize Android playback capture, and tune latency-oriented parameters for the second backend. If capture is live, mute the source app to avoid doubling.",
+                "选择目标应用，完成 Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加。");
+    }
+
+    private String monitorCaptureLabelText() {
+        return tr("Capture auth", "捕获授权");
+    }
+
+    private String monitoredAppLabelText() {
+        return tr("Monitored app", "监听应用");
+    }
+
+    private String latencyLabelText() {
+        return tr("Latency (ms)", "延迟 (ms)");
+    }
+
+    private String bufferLabelText() {
+        return tr("Buffer (frames)", "缓冲区 (frames)");
+    }
+
+    private String pollIntervalLabelText() {
+        return tr("Poll interval (ms)", "轮询间隔 (ms)");
+    }
+
+    private String lookaheadLabelText() {
+        return tr("Lookahead (ms)", "Lookahead (ms)");
+    }
+
+    private String wetMixLabelText() {
+        return tr("DSP wet mix (%)", "DSP 湿声混合 (%)");
+    }
+
+    private String processingModeDisplayLabel(ProcessingMode mode) {
+        return mode == ProcessingMode.ADVANCED_DSP ? "Monitor DSP" : "Default";
+    }
+
     private String engineStatusText() {
         if (!supported) {
-            return "UNSUPPORTED";
+            return isChineseUi() ? "不支持" : "UNSUPPORTED";
         }
-        return processingMode == ProcessingMode.ADVANCED_DSP ? "MONITOR DSP" : "SYSTEM EQ";
+        return processingModeDisplayLabel(processingMode);
     }
 
     private String processingModeTitleText() {
-        return "Engine Status · " + processingMode.label;
+        return tr("Engine Status · ", "引擎状态 · ") + processingModeDisplayLabel(processingMode);
+    }
+
+    private String translateMonitorCaptureStatus(String status) {
+        String safe = status == null || status.trim().isEmpty() ? "Native capture is idle." : status;
+        if (!isChineseUi()) {
+            return safe;
+        }
+        if ("Native capture is idle.".equals(safe)) return "原生捕获空闲中。";
+        if ("Capture authorization was cancelled.".equals(safe)) return "捕获授权已取消。";
+        if ("Starting native capture...".equals(safe)) return "正在启动原生捕获...";
+        if ("Record-audio permission was denied.".equals(safe)) return "录音权限已被拒绝。";
+        if ("Grant record-audio permission to continue.".equals(safe)) return "请先授予录音权限再继续。";
+        if ("Waiting for capture authorization...".equals(safe)) return "正在等待捕获授权...";
+        if ("Native capture requires Android 10 or later.".equals(safe)) return "原生捕获需要 Android 10 或更高版本。";
+        if ("Capture authorization could not be initialized.".equals(safe)) return "无法初始化捕获授权。";
+        if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "捕获权限已失效，请重新授权后恢复。";
+        if ("Default mode active. Native capture disabled.".equals(safe)) return "当前为 Default 模式，原生捕获已禁用。";
+        if ("Choose an app to monitor.".equals(safe)) return "请选择要监听的应用。";
+        if ("Native capture is not authorized.".equals(safe)) return "原生捕获尚未授权。";
+        if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "原生捕获已停止，如会话中断请重新授权。";
+        if (safe.startsWith("Capture authorized. Choose an app to monitor.")) return "捕获已授权，请选择要监听的应用。";
+        if (safe.startsWith("Capture authorized for ") && safe.endsWith(".")) {
+            return "已为 " + safe.substring("Capture authorized for ".length(), safe.length() - 1) + " 完成捕获授权。";
+        }
+        if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture.")) {
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture.".length()) + "。";
+        }
+        if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture. Mute the source app.")) {
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture. Mute the source app.".length()) + "。请将源应用静音。";
+        }
+        if (safe.startsWith("Armed for ") && safe.endsWith(" - waiting for playback.")) {
+            return "已为 " + safe.substring("Armed for ".length(), safe.length() - " - waiting for playback.".length()) + " 就绪，等待播放中。";
+        }
+        return safe;
     }
 
     private String monitorCaptureStatusText() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
-            return "Native capture is only used by the second backend mode.";
+            return tr(
+                    "Native capture is only used by the second backend mode.",
+                    "原生捕获仅在第二套后端模式下使用。");
         }
-        return repository.loadMonitorCaptureStatus();
+        return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
     }
 
     private String monitorCaptureButtonText() {
@@ -1413,20 +1535,117 @@ public final class MainActivity extends Activity {
                 || status.startsWith("Capture authorized")
                 || status.startsWith("Armed for")
                 || status.startsWith("Monitoring");
-        return armed ? "Reconnect capture" : "Authorize capture";
+        return armed
+                ? tr("Reconnect capture", "重新连接捕获")
+                : tr("Authorize capture", "授权捕获");
     }
 
     private String advancedModeSummaryText() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
-            return "Default mode keeps the existing system EQ and virtual bass path unchanged.";
+            return tr(
+                    "Default mode keeps the existing system EQ and virtual bass path unchanged.",
+                    "Default 模式会保持现有的系统 EQ 和 virtual bass 路径不变。");
         }
-        String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty() ? "No app selected" : advancedModeConfig.monitoredAppLabel;
+        String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
+                ? tr("No app selected", "未选择应用")
+                : advancedModeConfig.monitoredAppLabel;
         return String.format(Locale.US,
-                "App: %s  |  %d ms  |  %d frames  |  poll %d ms",
+                tr("App: %s  |  %d ms  |  %d frames  |  poll %d ms",
+                        "应用：%s  |  %d ms  |  %d frames  |  轮询 %d ms"),
                 appLabel,
                 advancedModeConfig.latencyMs,
                 advancedModeConfig.bufferSizeFrames,
                 advancedModeConfig.monitorIntervalMs);
+    }
+
+    private void showLanguageChoiceMenu(View anchor) {
+        showLimitedChoiceMenu(anchor, new String[]{"English", "中文"}, isChineseUi() ? 1 : 0, position ->
+                setUiLanguage(position == 1 ? UI_LANGUAGE_ZH : UI_LANGUAGE_EN));
+    }
+
+    private void setUiLanguage(String nextLanguage) {
+        String normalized = UI_LANGUAGE_ZH.equals(nextLanguage) ? UI_LANGUAGE_ZH : UI_LANGUAGE_EN;
+        if (normalized.equals(uiLanguage)) {
+            return;
+        }
+        uiLanguage = normalized;
+        repository.saveUiLanguage(uiLanguage);
+        refreshSettingsLanguageViews();
+    }
+
+    private void refreshSettingsLanguageViews() {
+        if (settingsPanelDetailView != null) {
+            settingsPanelDetailView.setText(settingsModeDetailText());
+        }
+        if (settingsStatusLabelView != null) {
+            settingsStatusLabelView.setText(settingsStatusLabelText());
+        }
+        if (processingModeButton != null) {
+            processingModeButton.setText(processingModeTitleText());
+            styleGradientTitle(processingModeButton);
+        }
+        if (engineStatusValueView != null) {
+            engineStatusValueView.setText(engineStatusText());
+        }
+        if (advancedModeDetailButton != null) {
+            advancedModeDetailButton.setText(monitorSettingsTitleText());
+        }
+        if (advancedModeSummaryView != null) {
+            advancedModeSummaryView.setText(advancedModeSummaryText());
+        }
+        if (languageLabelView != null) {
+            languageLabelView.setText(settingsLanguageLabelText());
+        }
+        if (languageButton != null) {
+            languageButton.setText(languageButtonText());
+        }
+        if (aboutTitleView != null) {
+            aboutTitleView.setText(aboutTitleText());
+            styleGradientTitle(aboutTitleView);
+        }
+        if (aboutTextView != null) {
+            aboutTextView.setText(aboutBodyText());
+        }
+        if (footerTextView != null) {
+            footerTextView.setText(footerText());
+        }
+        if (monitorSettingsTitleView != null) {
+            monitorSettingsTitleView.setText(monitorSettingsTitleText());
+            styleGradientTitle(monitorSettingsTitleView);
+        }
+        if (monitorSettingsDetailView != null) {
+            monitorSettingsDetailView.setText(monitorSettingsDetailText());
+        }
+        if (monitorCaptureLabelView != null) {
+            monitorCaptureLabelView.setText(monitorCaptureLabelText());
+        }
+        if (monitorCaptureButton != null) {
+            monitorCaptureButton.setText(monitorCaptureButtonText());
+        }
+        if (monitorCaptureStatusView != null) {
+            monitorCaptureStatusView.setText(monitorCaptureStatusText());
+        }
+        if (monitoredAppLabelView != null) {
+            monitoredAppLabelView.setText(monitoredAppLabelText());
+        }
+        if (advancedMonitorAppButton != null && (advancedModeConfig.monitoredAppLabel == null || advancedModeConfig.monitoredAppLabel.isEmpty())) {
+            advancedMonitorAppButton.setText(chooseAppText());
+        }
+        if (latencyLabelView != null) {
+            latencyLabelView.setText(latencyLabelText());
+        }
+        if (bufferLabelView != null) {
+            bufferLabelView.setText(bufferLabelText());
+        }
+        if (pollIntervalLabelView != null) {
+            pollIntervalLabelView.setText(pollIntervalLabelText());
+        }
+        if (lookaheadLabelView != null) {
+            lookaheadLabelView.setText(lookaheadLabelText());
+        }
+        if (wetMixLabelView != null) {
+            wetMixLabelView.setText(wetMixLabelText());
+        }
     }
 
     private void setProcessingMode(ProcessingMode nextMode) {
