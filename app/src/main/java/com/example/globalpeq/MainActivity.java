@@ -341,14 +341,6 @@ public final class MainActivity extends Activity {
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
-    // modeSpinner disabled：暗调优雅灰蓝（去绿，偏蓝，微亮流光，平缓静谧）
-    private static final int[] SHIMMER_MODE_OFF_COLORS = {
-            Color.rgb(105, 145, 175),  // 暗灰蓝
-            Color.rgb(95, 140, 175),   // 暗灰冰蓝
-            Color.rgb(190, 215, 235),  // 优雅灰白蓝核心
-            Color.rgb(95, 140, 175),   // 暗灰冰蓝
-            Color.rgb(105, 145, 175)   // 暗灰蓝
-    };
 
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
