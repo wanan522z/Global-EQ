@@ -7806,33 +7806,38 @@ public final class MainActivity extends Activity {
                 boxBlurV(tmp, alpha, bw, bh, blurPx);
             }
             // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后 alpha），图标本体由上层锐利覆盖。
-            // 亮度处理（三段）：
+            // 亮度处理：
             //   1) gamma<1 提亮角部，消除方形图标角部比边线暗的十字形瑕疵；
             //   2) 整体乘 baseGain 降低亮度，避免过亮；
-            //   3) smoothstep 做末端平滑过渡：把 ~0.06 以下的低 alpha 用幂曲线
-            //      软压到 0，消除"较暗→突然消失"的硬边，让光晕尾端丝滑融入背景。
+            //   3) 尾端用 smoothstep 软乘子：tail = a * S(a)，S 在 0 处导数为 0（轻柔
+            //      吻合到 0，不死板截断）、在 fadeBand 处导数为 0 平滑接回恒等（a>=band
+            //      时 S=1，tail=a 不变中高调）。全程 C1 连续，无可见折点，光晕由暗到
+            //      消失呈自然指数式衰减，丝滑融入背景。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
-            final float baseGain = 0.62f;   // 整体亮度系数（<1 降亮度）
-            final float fadeStart = 0.06f;  // 低于此值的尾部开始平滑收尾
+            final float baseGain = 0.62f;    // 整体亮度系数（<1 降亮度）
+            final float fadeBand = 0.16f;    // 尾端软衰减带宽（归一化 alpha）
+            final float invBand = 1f / fadeBand;
             for (int i = 0; i < alpha.length; i++) {
                 float nf = alpha[i] / 255f;
-                float boosted = (float) Math.pow(nf, 0.45f);
-                // 末端平滑过渡：在 fadeStart 附近用幂曲线软压到 0
-                float tail;
-                if (boosted <= 0f) {
-                    tail = 0f;
-                } else if (boosted < fadeStart) {
-                    tail = (float) Math.pow(boosted / fadeStart, 2.2f) * fadeStart;
+                float a = (float) Math.pow(nf, 0.45f);
+                // smoothstep 软乘子：低 alpha 区平滑压到 0，高于带宽回归恒等
+                float s;
+                if (a >= fadeBand) {
+                    s = 1f;
+                } else if (a <= 0f) {
+                    s = 0f;
                 } else {
-                    tail = boosted;
+                    float t = a * invBand;
+                    s = t * t * (3f - 2f * t);  // smoothstep：两端导数皆为 0
                 }
-                int a = (int) (tail * ga * baseGain + 0.5f);
-                if (a > 255) a = 255;
-                if (a < 0) a = 0;
-                px[i] = (a << 24) | (r << 16) | (g << 8) | bl;
+                float tail = a * s;
+                int out = (int) (tail * ga * baseGain + 0.5f);
+                if (out > 255) out = 255;
+                if (out < 0) out = 0;
+                px[i] = (out << 24) | (r << 16) | (g << 8) | bl;
             }
             android.graphics.Bitmap halo = android.graphics.Bitmap.createBitmap(
                     px, bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
