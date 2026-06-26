@@ -366,9 +366,6 @@ public final class MainActivity extends Activity {
     private boolean pendingEnabledUiRefresh;
     private boolean modeVisualEnabled = true;
     private boolean curveVisualEnabled = true;
-    private boolean[] peqBandVisualEnabled = new boolean[0];
-    private boolean peqVisualSequenceRunning;
-    private int pendingPeqVisualIndex;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
