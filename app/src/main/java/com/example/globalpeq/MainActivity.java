@@ -1774,6 +1774,7 @@ public final class MainActivity extends Activity {
             }
         } else {
             applyRunningPreset();
+            ensureShizukuModeReady(true);
         }
         renderAll();
     }
