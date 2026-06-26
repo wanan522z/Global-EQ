@@ -15,9 +15,7 @@ final class PeqMath {
             return 0;
         }
 
-        return preset.pregainMb
-                + rawEqGainAtHzMb(frequencyHz, preset)
-                + virtualBassGainAtHzMb(frequencyHz, preset);
+        return preset.pregainMb + rawEqGainAtHzMb(frequencyHz, preset);
     }
 
     static int visualGainAtHzMb(int frequencyHz, Preset preset) {
@@ -130,17 +128,6 @@ final class PeqMath {
         }
     }
 
-    private static int virtualBassGainAtHzMb(double frequencyHz, Preset preset) {
-        if (frequencyHz <= 0 || preset == null || !preset.virtualBassEnabled || preset.virtualBassAmountPercent <= 0) {
-            return 0;
-        }
-
-        double cutoff = preset.virtualBassCutoffHz;
-        double amount = preset.virtualBassAmountPercent / 100.0;
-        double maxBoostMb = 1800.0;
-        return (int) Math.round(maxBoostMb * amount * lowShelfWeight(frequencyHz, cutoff));
-    }
-
     private static int rawGeqGainAtHzMb(int frequencyHz, Preset preset) {
         return rawGeqGainAtFrequencyMb(frequencyHz, preset);
     }
@@ -190,11 +177,6 @@ final class PeqMath {
 
     private static double log2(double value) {
         return Math.log(value) / Math.log(2.0);
-    }
-
-    private static double lowShelfWeight(double frequencyHz, double cutoffHz) {
-        double transition = Math.max(12.0, cutoffHz * 0.16);
-        return 1.0 / (1.0 + Math.exp((frequencyHz - cutoffHz) / transition));
     }
 
 }
