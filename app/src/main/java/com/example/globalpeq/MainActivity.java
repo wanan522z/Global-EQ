@@ -233,13 +233,13 @@ public final class MainActivity extends Activity {
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
 
-    // 亮色阶：极其高亮炽白的极地冰蓝与电光青蓝，大幅减少偏绿的翡翠青，提升高透白青与极白核心，将整体流光的发光亮度直接拉满！
+    // 亮色阶：超高亮炽白冰青流光——彻底压掉绿色成分，提升纯青与超白核心占比，整体发光亮度直接拉满！
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(100, 255, 240),  // 极亮高发光白青 (High-glow Cyan-white)
-            Color.rgb(0, 235, 255),    // 极其饱满的璀璨冰青蓝 (Vibrant Ice Cyan)
-            Color.rgb(255, 255, 255),  // 纯白热超亮核心 (Super HotCore White)
-            Color.rgb(0, 235, 255),    // 极其饱满的璀璨冰青蓝 (Vibrant Ice Cyan)
-            Color.rgb(100, 255, 240)   // 极亮高发光白青 (High-glow Cyan-white)
+            Color.rgb(180, 255, 255),  // 极高亮白青 (G==B，无绿色偏移，亮度更高的发光白青)
+            Color.rgb(60, 245, 255),   // 极亮电光冰青蓝 (B>G，纯净冰青，零绿色)
+            Color.rgb(255, 255, 255),  // 纯白超炽亮核心 (Super HotCore White)
+            Color.rgb(60, 245, 255),   // 极亮电光冰青蓝
+            Color.rgb(180, 255, 255)   // 极高亮白青
     };
     // Live 模式 statusText：同亮色阶（极亮冰蓝与炽白光晕，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
