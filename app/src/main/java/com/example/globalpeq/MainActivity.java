@@ -117,6 +117,7 @@ public final class MainActivity extends Activity {
     private TextView bassBoostTitleView;
     private TextView virtualBassTitleView;
     private TextView statusText;
+    private TextView engineStatusValueView;
     private ImageView monitoredAppIconView;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
