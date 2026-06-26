@@ -502,6 +502,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
+        ShizukuCompat.addStateListener(shizukuStateListener);
+        ShizukuCompat.addPermissionResultListener(shizukuPermissionResultListener);
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
     }
@@ -517,6 +519,8 @@ public final class MainActivity extends Activity {
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
         deviceMonitor.stop();
+        ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
+        ShizukuCompat.removeStateListener(shizukuStateListener);
         super.onStop();
     }
 
