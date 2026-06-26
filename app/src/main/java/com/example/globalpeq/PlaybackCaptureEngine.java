@@ -43,6 +43,7 @@ final class PlaybackCaptureEngine {
     private AudioTrack audioTrack;
     private BassBoost trackBassBoost;
     private Thread workerThread;
+    private Object activeWorkerToken;
 
     private volatile boolean running;
     private volatile Preset currentPreset = Preset.flat(false);
@@ -215,15 +216,15 @@ final class PlaybackCaptureEngine {
                             .build();
 
             int bytesPerFrame = CHANNEL_COUNT * 2;
-            int desiredFrames = Math.max(256, currentConfig.bufferSizeFrames);
+            int desiredFrames = Math.max(512, currentConfig.bufferSizeFrames);
             int minRecordBytes = AudioRecord.getMinBufferSize(
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
             if (minRecordBytes <= 0) {
-                minRecordBytes = desiredFrames * bytesPerFrame * 2;
+                minRecordBytes = desiredFrames * bytesPerFrame * 4;
             }
-            int recordBufferBytes = Math.max(minRecordBytes, desiredFrames * bytesPerFrame * 2);
+            int recordBufferBytes = Math.max(minRecordBytes * 2, desiredFrames * bytesPerFrame * 4);
 
             audioRecord = new AudioRecord.Builder()
                     .setAudioFormat(recordFormat)
@@ -243,11 +244,11 @@ final class PlaybackCaptureEngine {
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_OUT_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
-            int latencyFrames = Math.max(desiredFrames, SAMPLE_RATE * Math.max(20, currentConfig.latencyMs) / 1000);
+            int latencyFrames = Math.max(desiredFrames * 2, SAMPLE_RATE * Math.max(20, currentConfig.latencyMs) / 1000);
             if (minTrackBytes <= 0) {
-                minTrackBytes = latencyFrames * bytesPerFrame;
+                minTrackBytes = latencyFrames * bytesPerFrame * 2;
             }
-            int trackBufferBytes = Math.max(minTrackBytes, latencyFrames * bytesPerFrame);
+            int trackBufferBytes = Math.max(minTrackBytes * 2, latencyFrames * bytesPerFrame * 2);
 
             muteSourceAndLiftEqStreamLocked();
             audioTrack = new AudioTrack.Builder()
@@ -273,7 +274,9 @@ final class PlaybackCaptureEngine {
 
             audioRecord.startRecording();
             audioTrack.play();
-            workerThread = new Thread(this::runCaptureLoop, "global-peq-capture");
+            Object workerToken = new Object();
+            activeWorkerToken = workerToken;
+            workerThread = new Thread(() -> runCaptureLoop(workerToken), "global-peq-capture");
             workerThread.start();
             publishStatus("Monitoring " + currentTargetLabel + " via native capture. Mute the source app.", true);
         } catch (RuntimeException ex) {
@@ -283,7 +286,8 @@ final class PlaybackCaptureEngine {
         }
     }
 
-    private void runCaptureLoop() {
+    private void runCaptureLoop(Object workerToken) {
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
         AudioRecord record = audioRecord;
         AudioTrack track = audioTrack;
         if (record == null || track == null) {
@@ -357,7 +361,17 @@ final class PlaybackCaptureEngine {
             }
         }
 
+        finishCaptureLoop(workerToken);
+    }
+
+    private void finishCaptureLoop(Object workerToken) {
+        if (workerToken == null || activeWorkerToken != workerToken) {
+            return;
+        }
         synchronized (this) {
+            if (activeWorkerToken != workerToken || workerThread != Thread.currentThread()) {
+                return;
+            }
             stopPipelineLocked();
         }
         publishStatus("Native capture stopped. Re-authorize if the session was interrupted.", false);
@@ -417,6 +431,7 @@ final class PlaybackCaptureEngine {
 
     private void stopPipelineLocked() {
         running = false;
+        activeWorkerToken = null;
 
         AudioRecord record = audioRecord;
         audioRecord = null;
@@ -445,6 +460,7 @@ final class PlaybackCaptureEngine {
         workerThread = null;
         if (thread != null && thread != Thread.currentThread()) {
             try {
+                thread.interrupt();
                 thread.join(350L);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();

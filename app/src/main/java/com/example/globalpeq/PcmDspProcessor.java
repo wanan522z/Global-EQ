@@ -174,6 +174,7 @@ final class PcmDspProcessor {
         private final int channelCount;
         private Biquad lowPass;
         private Biquad bandPass;
+        private float[] generated = new float[0];
         private float drive = 0f;
         private float mix = 0f;
 
@@ -199,7 +200,9 @@ final class PcmDspProcessor {
                 return;
             }
 
-            float[] generated = new float[sampleCount];
+            if (generated.length < sampleCount) {
+                generated = new float[sampleCount];
+            }
             System.arraycopy(samples, 0, generated, 0, sampleCount);
             lowPass.process(generated, sampleCount, channelCount);
             for (int i = 0; i < sampleCount; i++) {
@@ -222,6 +225,7 @@ final class PcmDspProcessor {
         private Biquad highPass;
         private Biquad secondPeak;
         private Biquad thirdPeak;
+        private float[] generated = new float[0];
         private final float[] dcEstimate;
         private float secondMix;
         private float thirdMix;
@@ -254,7 +258,9 @@ final class PcmDspProcessor {
                 return;
             }
 
-            float[] generated = new float[sampleCount];
+            if (generated.length < sampleCount) {
+                generated = new float[sampleCount];
+            }
             System.arraycopy(samples, 0, generated, 0, sampleCount);
             lowPass.process(generated, sampleCount, channelCount);
             for (int i = 0; i < sampleCount; i++) {
