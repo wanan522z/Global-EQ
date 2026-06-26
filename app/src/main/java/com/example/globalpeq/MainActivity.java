@@ -126,6 +126,7 @@ public final class MainActivity extends Activity {
     private TextView reverbTitleView;
     private TextView bassBoostTitleView;
     private TextView virtualBassTitleView;
+    private FrameLayout topControlOverlay;
     private TextView statusText;
     private TextView engineStatusValueView;
     private ImageView monitoredAppIconView;
@@ -767,9 +768,7 @@ public final class MainActivity extends Activity {
         controlCard.setBackground(createGlassCard(35));
         eqPage.addView(controlCard, blockParams(0));
 
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        FrameLayout top = new FrameLayout(this);
         top.setClipChildren(false);
         top.setClipToPadding(false);
         controlCard.setClipChildren(false);
@@ -777,6 +776,17 @@ public final class MainActivity extends Activity {
         controlCard.addView(top, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+        topControlOverlay = top;
+
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        topRow.setClipChildren(false);
+        topRow.setClipToPadding(false);
+        top.addView(topRow, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
         ));
 
         modeSpinner = new GlowTitleTextView(this);
@@ -806,7 +816,7 @@ public final class MainActivity extends Activity {
         LinearLayout leftCluster = new LinearLayout(this);
         leftCluster.setOrientation(LinearLayout.HORIZONTAL);
         leftCluster.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        top.addView(leftCluster, new LinearLayout.LayoutParams(
+        topRow.addView(leftCluster, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
@@ -831,10 +841,9 @@ public final class MainActivity extends Activity {
                 showAdvancedSettingsSubpage();
             }
         });
-        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(22), dp(22));
-        iconParams.leftMargin = dp(4);
-        iconParams.rightMargin = dp(8);
-        leftCluster.addView(monitoredAppIconView, iconParams);
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(22), dp(22));
+        iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+        top.addView(monitoredAppIconView, iconParams);
 
         enabledSwitch = new Switch(this);
         enabledSwitch.setText("");
@@ -860,16 +869,16 @@ public final class MainActivity extends Activity {
                 dp(30)
         );
         autoSwitchParams.rightMargin = dp(2);
-        top.addView(autoSwitchOutputSwitch, autoSwitchParams);
+        topRow.addView(autoSwitchOutputSwitch, autoSwitchParams);
 
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         statusParams.rightMargin = dp(2);
-        top.addView(statusText, statusParams);
+        topRow.addView(statusText, statusParams);
 
-        top.addView(enabledSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
+        topRow.addView(enabledSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
 
         LinearLayout deviceRow = new LinearLayout(this);
         deviceRow.setOrientation(LinearLayout.HORIZONTAL);
