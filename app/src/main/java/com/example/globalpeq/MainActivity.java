@@ -952,6 +952,8 @@ public final class MainActivity extends Activity {
         
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setClipChildren(false);
+        panel.setClipToPadding(false);
         panel.setPadding(dp(16), dp(16), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
         page.addView(panel, new LinearLayout.LayoutParams(
@@ -1014,6 +1016,8 @@ public final class MainActivity extends Activity {
 
         LinearLayout aboutPanel = new LinearLayout(this);
         aboutPanel.setOrientation(LinearLayout.VERTICAL);
+        aboutPanel.setClipChildren(false);
+        aboutPanel.setClipToPadding(false);
         aboutPanel.setPadding(dp(16), dp(16), dp(16), dp(16));
         aboutPanel.setBackground(createGlassCard(30));
         
