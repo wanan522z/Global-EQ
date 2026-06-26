@@ -235,7 +235,7 @@ final class PcmDspProcessor {
         }
 
         void configure(int cutoffHz, int amountPercent) {
-            int cutoff = Math.max(45, Math.min(220, cutoffHz));
+            int cutoff = Math.max(20, Math.min(250, cutoffHz));
             float amount = Math.max(0f, Math.min(1f, amountPercent / 100f));
             lowPass = Biquad.fromBand(new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 65), sampleRate, channelCount);
             highPass = Biquad.fromBand(new ParametricBand(FilterType.HIGH_PASS, true, Math.min(700, Math.max(120, Math.round(cutoff * 1.35f))), 0, 70), sampleRate, channelCount);
