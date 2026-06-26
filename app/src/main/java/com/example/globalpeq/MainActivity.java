@@ -8098,7 +8098,13 @@ public final class MainActivity extends Activity {
                 float layerRadius = coreRadius + inset * (1.12f - 0.42f * t);
                 float saturationScale = 1.01f - 0.07f * t;
                 float valueScale = 1.07f - 0.06f * t;
-                float alpha = (0.008f + 0.030f * blendedFalloff) * drawableAlpha / 255f;
+                float alpha = (0.010f + 0.028f * blendedFalloff) * drawableAlpha / 255f;
+                if (layer >= glowLayers - 3) {
+                    float tailT = (layer - (glowLayers - 3)) / 2f;
+                    float tailAlphaScale = 1f - 0.78f * tailT;
+                    alpha *= Math.max(0.10f, tailAlphaScale);
+                    valueScale -= 0.05f * tailT;
+                }
                 bloomPaint.setColor(withMonitoredAppGlowAlpha(
                         shiftMonitoredAppGlowColor(glowColor, saturationScale, valueScale),
                         alpha));
