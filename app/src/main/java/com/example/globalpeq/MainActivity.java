@@ -15,6 +15,7 @@ import android.graphics.Canvas;
 import android.graphics.BlurMaskFilter;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.LinearGradient;
 import android.graphics.RadialGradient;
@@ -82,6 +83,7 @@ public final class MainActivity extends Activity {
     private static final int GEQ_COMMIT_DELAY_MS = 160;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
+    private static final long EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS = 96L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
     private static final long ENABLE_NEON_CURVE_DELAY_MS = 460L;
@@ -352,6 +354,7 @@ public final class MainActivity extends Activity {
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
     private final Runnable commitPeqToggleRunnable = this::commitPendingPeqToggle;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
+    private final Runnable commitExtraBassToggleRunnable = this::commitPendingExtraBassToggle;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
@@ -388,6 +391,7 @@ public final class MainActivity extends Activity {
     private AdvancedModeConfig advancedModeConfig = AdvancedModeConfig.DEFAULT;
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
+    private Preset pendingExtraBassApplyPreset;
     private boolean pendingEnabledUiRefresh;
     private boolean modeVisualEnabled = true;
     private boolean curveVisualEnabled = true;
