@@ -3693,6 +3693,19 @@ public final class MainActivity extends Activity {
         sliderParams.topMargin = dp(8);
         bassPanel.addView(bassBoostSlider, sliderParams);
 
+        dspBassCutoffInput = createNumberInput(String.valueOf(editingPreset.dspBassCutoffHz), "DSP Cutoff", value -> {
+            int cutoffHz = clamp(Math.round(value), 45, 220);
+            setEditingPreset(editingPreset.withDspBassCutoffHz(cutoffHz), true);
+        });
+        dspBassCutoffInput.setTextSize(13);
+        dspBassCutoffInput.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(36)
+        );
+        cutoffParams.topMargin = dp(10);
+        bassPanel.addView(dspBassCutoffInput, cutoffParams);
+
         LinearLayout virtualPanel = createExtraPanelShell();
         page.addView(virtualPanel, extraPanelParams(12));
         LinearLayout virtualHeader = createExtraHeaderRow("Virtual Bass");
