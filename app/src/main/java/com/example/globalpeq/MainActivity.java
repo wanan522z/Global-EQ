@@ -6128,11 +6128,6 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean active = isModeVisualEnabled();
-        Boolean previous = titleActiveStates.get(modeSpinner);
-        if (previous != null && previous == active) {
-            return;
-        }
-        titleActiveStates.put(modeSpinner, active);
         if (!active) {
             unregisterShimmerView(modeSpinner);
             modeSpinner.getPaint().setShader(null);
