@@ -5557,10 +5557,12 @@ public final class MainActivity extends Activity {
         sliderParams.topMargin = dp(8);
         bassPanel.addView(bassBoostSlider, sliderParams);
 
-        dspBassCutoffInput = createNumberInput(String.valueOf(editingPreset.dspBassCutoffHz), "Cutoff Hz", value -> {
-            int cutoffHz = clamp(Math.round(value), 45, 220);
-            setEditingPreset(editingPreset.withDspBassCutoffHz(cutoffHz), true);
-        });
+        dspBassCutoffInput = createDeferredIntegerInput(
+                String.valueOf(editingPreset.dspBassCutoffHz),
+                "Cutoff Hz",
+                20,
+                250,
+                value -> setEditingPreset(editingPreset.withDspBassCutoffHz(value), true));
         dspBassCutoffInput.setTextSize(13);
         dspBassCutoffInput.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
