@@ -209,6 +209,33 @@ final class PlaybackCaptureEngine {
         }
     }
 
+    private AudioPlaybackCaptureConfiguration buildCaptureConfiguration() {
+        AudioPlaybackCaptureConfiguration.Builder builder =
+                new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                        .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                        .addMatchingUsage(AudioAttributes.USAGE_GAME);
+        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+            builder.excludeUid(android.os.Process.myUid());
+        } else {
+            builder.addMatchingUid(currentTargetUid);
+        }
+        return builder.build();
+    }
+
+    private String monitoringStatusText() {
+        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+            return "Monitoring system audio via native capture.";
+        }
+        return "Monitoring " + currentTargetLabel + " via native capture.";
+    }
+
+    private String waitingStatusText() {
+        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+            return "Armed for system audio - waiting for playback.";
+        }
+        return "Armed for " + currentTargetLabel + " - waiting for playback.";
+    }
+
     private void startPipelineLocked() {
         stopPipelineLocked();
         if (mediaProjection == null || (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0)) {
