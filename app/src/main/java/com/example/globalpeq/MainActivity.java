@@ -1431,9 +1431,6 @@ public final class MainActivity extends Activity {
         bottomNavView.setVisibility(View.VISIBLE);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
         updateBottomNavSelection(activeMainPageIndex);
-        if (mainPageHost != null) {
-            mainPageHost.bringToFront();
-        }
     }
 
     @Override
