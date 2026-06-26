@@ -1756,7 +1756,7 @@ public final class MainActivity extends Activity {
         int sanitizedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(processingMode, selectedBassModeIndex);
         if (sanitizedBassModeIndex != selectedBassModeIndex) {
             selectedBassModeIndex = sanitizedBassModeIndex;
-            repository.saveBassEnhanceModeIndex(selectedBassModeIndex);
+            repository.saveVirtualBassModeIndex(selectedBassModeIndex);
         }
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             if (monitorSettingsOpen) {
@@ -3095,8 +3095,8 @@ public final class MainActivity extends Activity {
         if (pregainInput != null) {
             pregainInput.setText(formatDecimal(editingPreset.pregainMb / 100f));
         }
-        if (bassEnhanceSlider != null) {
-            bassEnhanceSlider.setValue(editingPreset.bassEnhanceAmountPercent, false);
+        if (virtualBassSlider != null) {
+            virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
         }
         if (cutoffKnob != null) {
             cutoffKnob.setValue(editingPreset.extraBassCutoffHz, false);
