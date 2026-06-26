@@ -7697,50 +7697,233 @@ public final class MainActivity extends Activity {
         };
     }
 
+    // 图标光晕：以图标自身 alpha 为蒙版做高斯外发光，视觉与 GlowTitleTextView
+    // 的标题光晕同源（模糊后的剪影 + 取色），图标本体由 ImageView 锐利绘制在上层，
+    // 保持清晰度。光晕只在图标 / 尺寸变化时重建，避免每帧 GC。
     private class IconGlowDrawable extends Drawable {
-        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final android.graphics.RectF rect = new android.graphics.RectF();
-        private int currentGlowColor;
+        private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF dstRect = new android.graphics.RectF();
+        private Drawable sourceIcon;
+        private int glowColor;
+        private android.graphics.Bitmap haloBitmap;
+        private int cachedKey = 0;
 
         IconGlowDrawable(int glowColor) {
-            currentGlowColor = glowColor;
-            glowPaint.setStyle(Paint.Style.FILL);
-            glowPaint.setMaskFilter(new BlurMaskFilter(dpf(5f), BlurMaskFilter.Blur.NORMAL));
+            this.glowColor = glowColor;
+            haloPaint.setDither(true);
+            haloPaint.setFilterBitmap(true);
         }
 
-        void updateGlowColor(int color) {
-            if (currentGlowColor == color) {
+        void setIcon(Drawable icon) {
+            if (sourceIcon == icon) {
                 return;
             }
-            currentGlowColor = color;
+            sourceIcon = icon;
+            if (icon != null) {
+                glowColor = extractIconGlowColor(icon);
+            }
+            dropHalo();
             invalidateSelf();
+        }
+
+        private void dropHalo() {
+            if (haloBitmap != null) {
+                haloBitmap.recycle();
+                haloBitmap = null;
+            }
+            cachedKey = 0;
         }
 
         @Override
         public void draw(Canvas canvas) {
             Rect b = getBounds();
-            float inset = dpf(1f);
-            rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
-            float radius = Math.min(rect.width(), rect.height()) * 0.37f;
+            if (b.width() <= 0 || b.height() <= 0 || sourceIcon == null) {
+                return;
+            }
+            // 图标显示区 = bounds 减去宿主 ImageView 的 padding（FIT_CENTER 居中）
+            int pl = 0, pt = 0, pr = 0, pb = 0;
+            android.graphics.drawable.Drawable.Callback cb = getCallback();
+            if (cb instanceof View) {
+                View host = (View) cb;
+                pl = host.getPaddingLeft();
+                pt = host.getPaddingTop();
+                pr = host.getPaddingRight();
+                pb = host.getPaddingBottom();
+            }
+            int aw = Math.max(1, b.width() - pl - pr);
+            int ah = Math.max(1, b.height() - pt - pb);
+            int blurPx = Math.max(1, (int) Math.ceil(dpf(6f)));
+            int pad = blurPx + 2;
+            int key = (aw << 16) | (ah & 0xFFFF);
+            if (haloBitmap == null || key != cachedKey) {
+                buildHalo(aw, ah, pad, blurPx);
+                cachedKey = key;
+            }
+            if (haloBitmap == null) {
+                return;
+            }
+            // haloBitmap 中图标区域居于 [pad, pad+aw]，与 ImageView 绘制的图标重合；
+            // 整张光晕按此偏移贴齐，模糊溢出部分自然环绕图标四周。
+            float left = b.left + pl - pad;
+            float top = b.top + pt - pad;
+            dstRect.set(left, top, left + haloBitmap.getWidth(), top + haloBitmap.getHeight());
+            haloPaint.setAlpha(255);
+            canvas.drawBitmap(haloBitmap, null, dstRect, haloPaint);
+        }
 
-            glowPaint.setColor(currentGlowColor);
-            glowPaint.setAlpha(210);
-            canvas.drawRoundRect(rect, radius, radius, glowPaint);
+        private void buildHalo(int aw, int ah, int pad, int blurPx) {
+            int bw = aw + 2 * pad;
+            int bh = ah + 2 * pad;
+            if (bw <= 0 || bh <= 0) {
+                return;
+            }
+            // 1. 把图标 FIT_CENTER 渲染到画布中心区域（四周留 pad 给模糊溢出）
+            android.graphics.Bitmap src = android.graphics.Bitmap.createBitmap(
+                    bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas c = new android.graphics.Canvas(src);
+            android.graphics.Rect fit = fitCenter(sourceIcon, aw, ah);
+            fit.offset(pad, pad);
+            sourceIcon.setBounds(fit);
+            sourceIcon.draw(c);
+            // 2. 取出 alpha 通道，做 3 趟可分离盒式模糊（近似高斯），生成柔和光晕
+            int[] px = new int[bw * bh];
+            src.getPixels(px, 0, bw, 0, 0, bw, bh);
+            src.recycle();
+            int[] alpha = new int[bw * bh];
+            for (int i = 0; i < px.length; i++) {
+                alpha[i] = (px[i] >>> 24) & 0xFF;
+            }
+            int[] tmp = new int[bw * bh];
+            for (int p = 0; p < 3; p++) {
+                boxBlurH(alpha, tmp, bw, bh, blurPx);
+                boxBlurV(tmp, alpha, bw, bh, blurPx);
+            }
+            // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后 alpha），图标本体由上层锐利覆盖
+            int r = (glowColor >> 16) & 0xFF;
+            int g = (glowColor >> 8) & 0xFF;
+            int bl = glowColor & 0xFF;
+            int ga = (glowColor >>> 24) & 0xFF;
+            for (int i = 0; i < alpha.length; i++) {
+                int a = (alpha[i] * ga) / 255;
+                px[i] = (a << 24) | (r << 16) | (g << 8) | bl;
+            }
+            android.graphics.Bitmap halo = android.graphics.Bitmap.createBitmap(
+                    px, bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
+            if (haloBitmap != null) {
+                haloBitmap.recycle();
+            }
+            haloBitmap = halo;
         }
 
         @Override
         public void setAlpha(int alpha) {
-            glowPaint.setAlpha(alpha);
+            haloPaint.setAlpha(alpha);
         }
 
         @Override
         public void setColorFilter(ColorFilter colorFilter) {
-            glowPaint.setColorFilter(colorFilter);
+            // 保留图标取色逻辑，忽略外部 colorFilter 以维持光晕配色稳定
         }
 
         @Override
         public int getOpacity() {
             return PixelFormat.TRANSLUCENT;
+        }
+    }
+
+    // ---- 图标光晕辅助：取色 / 居中 / 盒式模糊 ----
+    // 取软件图标平均色并把最亮通道拉满，保留色相的同时让光晕通透鲜亮
+    private int extractIconGlowColor(Drawable icon) {
+        int width = icon.getIntrinsicWidth();
+        int height = icon.getIntrinsicHeight();
+        if (width <= 0 || height <= 0) {
+            width = 64;
+            height = 64;
+        }
+        try {
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                    width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+            icon.setBounds(0, 0, width, height);
+            icon.draw(canvas);
+            long sumR = 0, sumG = 0, sumB = 0, count = 0;
+            int stride = Math.max(1, Math.min(width, height) / 16);
+            for (int y = 0; y < height; y += stride) {
+                for (int x = 0; x < width; x += stride) {
+                    int pixel = bmp.getPixel(x, y);
+                    if (((pixel >>> 24) & 0xFF) < 100) {
+                        continue;
+                    }
+                    sumR += (pixel >> 16) & 0xFF;
+                    sumG += (pixel >> 8) & 0xFF;
+                    sumB += pixel & 0xFF;
+                    count++;
+                }
+            }
+            bmp.recycle();
+            if (count == 0) {
+                return Color.argb(215, 120, 220, 255);
+            }
+            int r = (int) (sumR / count);
+            int g = (int) (sumG / count);
+            int b = (int) (sumB / count);
+            int max = Math.max(r, Math.max(g, b));
+            if (max > 0) {
+                r = r * 255 / max;
+                g = g * 255 / max;
+                b = b * 255 / max;
+            }
+            return Color.argb(215, r, g, b);
+        } catch (Exception ignored) {
+            return Color.argb(215, 120, 220, 255);
+        }
+    }
+
+    private android.graphics.Rect fitCenter(Drawable icon, int aw, int ah) {
+        int iw = icon.getIntrinsicWidth();
+        int ih = icon.getIntrinsicHeight();
+        if (iw <= 0 || ih <= 0) {
+            iw = aw;
+            ih = ah;
+        }
+        float scale = Math.min((float) aw / iw, (float) ah / ih);
+        int dw = Math.max(1, (int) (iw * scale));
+        int dh = Math.max(1, (int) (ih * scale));
+        int left = (aw - dw) / 2;
+        int top = (ah - dh) / 2;
+        return new android.graphics.Rect(left, top, left + dw, top + dh);
+    }
+
+    private void boxBlurH(int[] src, int[] dst, int w, int h, int r) {
+        int window = r * 2 + 1;
+        for (int y = 0; y < h; y++) {
+            int row = y * w;
+            int sum = 0;
+            for (int x = -r; x <= r; x++) {
+                sum += src[row + Math.max(0, Math.min(w - 1, x))];
+            }
+            for (int x = 0; x < w; x++) {
+                dst[row + x] = sum / window;
+                int xOut = Math.max(0, Math.min(w - 1, x - r));
+                int xIn = Math.max(0, Math.min(w - 1, x + r + 1));
+                sum += src[row + xIn] - src[row + xOut];
+            }
+        }
+    }
+
+    private void boxBlurV(int[] src, int[] dst, int w, int h, int r) {
+        int window = r * 2 + 1;
+        for (int x = 0; x < w; x++) {
+            int sum = 0;
+            for (int y = -r; y <= r; y++) {
+                sum += src[Math.max(0, Math.min(h - 1, y)) * w + x];
+            }
+            for (int y = 0; y < h; y++) {
+                dst[y * w + x] = sum / window;
+                int yOut = Math.max(0, Math.min(h - 1, y - r));
+                int yIn = Math.max(0, Math.min(h - 1, y + r + 1));
+                sum += src[yIn * w + x] - src[yOut * w + x];
+            }
         }
     }
 
