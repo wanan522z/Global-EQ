@@ -1950,23 +1950,29 @@ public final class MainActivity extends Activity {
             return;
         }
         List<ApplicationInfo> installed = new ArrayList<>();
-        for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
+        PackageManager pm = getPackageManager();
+        Set<String> seenPackages = new HashSet<>();
+        for (ApplicationInfo info : pm.getInstalledApplications(installedAppListFlags())) {
             if (info == null) {
                 continue;
             }
             if (getPackageName().equals(info.packageName)) {
                 continue;
             }
-            boolean selected = info.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            if (!selected && !isUserInstalledApp(info)) {
+            if (!seenPackages.add(info.packageName)) {
                 continue;
             }
             installed.add(info);
         }
+        final Collator collator = appLabelCollator();
         installed.sort((left, right) -> {
-            String l = String.valueOf(getPackageManager().getApplicationLabel(left));
-            String r = String.valueOf(getPackageManager().getApplicationLabel(right));
-            return l.compareToIgnoreCase(r);
+            String l = normalizeInstalledAppLabel(String.valueOf(pm.getApplicationLabel(left)), left.packageName);
+            String r = normalizeInstalledAppLabel(String.valueOf(pm.getApplicationLabel(right)), right.packageName);
+            int labelCompare = collator.compare(l, r);
+            if (labelCompare != 0) {
+                return labelCompare;
+            }
+            return collator.compare(left.packageName, right.packageName);
         });
         if (installed.isEmpty()) {
             Toast.makeText(this, tr("No installed apps available", "没有可用的已安装应用"), Toast.LENGTH_SHORT).show();
