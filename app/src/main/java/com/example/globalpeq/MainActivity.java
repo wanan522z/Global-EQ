@@ -1172,6 +1172,15 @@ public final class MainActivity extends Activity {
         curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
         curveView.setMaxDb(curveGraphMaxDb);
         curveView.setPreset(curveDisplayPreset());
+        updateCurveAnimationState(false);
+    }
+
+    private void updateCurveAnimationState(boolean movingBetweenPages) {
+        if (curveView == null) {
+            return;
+        }
+        boolean suppress = movingBetweenPages || activeMainPageIndex != 0;
+        curveView.setAnimationSuppressed(suppress);
     }
 
     private void renderCurveButtons() {
@@ -6301,8 +6310,10 @@ public final class MainActivity extends Activity {
                 page.setTranslationY(0f);
             }
             updateBottomNavSelection(nextIndex);
+            updateCurveAnimationState(false);
             return;
         }
+        updateCurveAnimationState(true);
 
         int width = mainPageHost != null ? mainPageHost.getWidth() : 0;
         if (width <= 0) {
@@ -6348,6 +6359,7 @@ public final class MainActivity extends Activity {
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .start();
         updateBottomNavSelection(nextIndex);
+        uiHandler.postDelayed(() -> updateCurveAnimationState(false), 210L);
     }
 
     private void updateBottomNavSelection(int activeIndex) {
@@ -6676,6 +6688,7 @@ public final class MainActivity extends Activity {
                 }
             }
             updateBottomTabIndicatorProgress(clampedPosition);
+            updateCurveAnimationState(Math.abs(clampedPosition - Math.round(clampedPosition)) > 0.001f);
         }
 
         private void settleToPage(int pageIndex) {
@@ -6684,9 +6697,11 @@ public final class MainActivity extends Activity {
             if (width <= 0) {
                 activeMainPageIndex = clamp(pageIndex, 0, pages.length - 1);
                 updateBottomNavSelection(activeMainPageIndex);
+                updateCurveAnimationState(false);
                 return;
             }
             int nextIndex = clamp(pageIndex, 0, pages.length - 1);
+            updateCurveAnimationState(true);
             View activePage = pages[nextIndex];
             for (int i = 0; i < pages.length; i++) {
                 View page = pages[i];
@@ -6706,6 +6721,7 @@ public final class MainActivity extends Activity {
             }
             activeMainPageIndex = nextIndex;
             updateBottomNavSelection(nextIndex);
+            uiHandler.postDelayed(() -> updateCurveAnimationState(false), 210L);
         }
 
         private void updatePagePositionFromTab(float pagePosition) {
