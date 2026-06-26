@@ -7809,18 +7809,32 @@ public final class MainActivity extends Activity {
                 boxBlurV(tmp, alpha, bw, bh, blurPx);
             }
             // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后 alpha），图标本体由上层锐利覆盖。
-            // 对 alpha 做 gamma 校正（幂次 < 1）：方形图标的角部 alpha 衰减比边线快，
-            // gamma 提升把偏暗的角部光晕拉亮，使整圈光晕均匀饱满、不露十字形。
-            // 角部衰减最严重，用更强的 gamma（0.45）把暗角充分提亮至接近边线亮度。
+            // 亮度处理（三段）：
+            //   1) gamma<1 提亮角部，消除方形图标角部比边线暗的十字形瑕疵；
+            //   2) 整体乘 baseGain 降低亮度，避免过亮；
+            //   3) smoothstep 做末端平滑过渡：把 ~0.06 以下的低 alpha 用幂曲线
+            //      软压到 0，消除"较暗→突然消失"的硬边，让光晕尾端丝滑融入背景。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
+            final float baseGain = 0.62f;   // 整体亮度系数（<1 降亮度）
+            final float fadeStart = 0.06f;  // 低于此值的尾部开始平滑收尾
             for (int i = 0; i < alpha.length; i++) {
                 float nf = alpha[i] / 255f;
-                int boosted = (int) (Math.pow(nf, 0.45f) * 255f + 0.5f);
-                if (boosted > 255) boosted = 255;
-                int a = (boosted * ga) / 255;
+                float boosted = (float) Math.pow(nf, 0.45f);
+                // 末端平滑过渡：在 fadeStart 附近用幂曲线软压到 0
+                float tail;
+                if (boosted <= 0f) {
+                    tail = 0f;
+                } else if (boosted < fadeStart) {
+                    tail = (float) Math.pow(boosted / fadeStart, 2.2f) * fadeStart;
+                } else {
+                    tail = boosted;
+                }
+                int a = (int) (tail * ga * baseGain + 0.5f);
+                if (a > 255) a = 255;
+                if (a < 0) a = 0;
                 px[i] = (a << 24) | (r << 16) | (g << 8) | bl;
             }
             android.graphics.Bitmap halo = android.graphics.Bitmap.createBitmap(
