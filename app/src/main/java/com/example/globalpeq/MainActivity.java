@@ -376,6 +376,16 @@ public final class MainActivity extends Activity {
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
+    private final Runnable monitorStatusRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!monitorSettingsOpen) {
+                return;
+            }
+            renderAll();
+            uiHandler.postDelayed(this, 900L);
+        }
+    };
     private boolean awaitingInitialDeviceMonitorEvent;
 
     private static final class PeqBandRowHolder {
