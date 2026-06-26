@@ -153,7 +153,6 @@ public final class MainActivity extends Activity {
     private final java.util.Map<TextView, Integer> shimmerLastWidth = new java.util.HashMap<>();
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
-    private final java.util.Map<TextView, Long> shimmerPhaseFreezeUntil = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleVisualStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
