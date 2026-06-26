@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 final class ShizukuSessionMuteEngine {
     private static final String TAG = "ShizukuSessionMute";
     private static final float MUTE_GAIN_DB = -144f;
+    private static final long RESCAN_INTERVAL_MS = 750L;
     private static final Pattern SESSION_REGEX = Pattern.compile(
             "Session Id:\\s*(\\d+)\\s+UID:\\s*(\\d+)[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
@@ -66,9 +67,23 @@ final class ShizukuSessionMuteEngine {
             new AudioManager.AudioPlaybackCallback() {
                 @Override
                 public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
+                    Log.d(TAG, "Playback configs changed, rescanning sessions");
                     dumpSessionsAndMute();
                 }
             };
+    private final Runnable periodicRescanRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (currentMode != ProcessingMode.SHIZUKU_MUTE
+                    || currentPreset == null
+                    || !currentPreset.enabled
+                    || !ShizukuCompat.hasPermission()) {
+                return;
+            }
+            dumpSessionsAndMute();
+            mainHandler.postDelayed(this, RESCAN_INTERVAL_MS);
+        }
+    };
 
     private boolean playbackCallbackRegistered;
     private volatile ProcessingMode currentMode = ProcessingMode.SYSTEM_EQ;
@@ -118,10 +133,12 @@ final class ShizukuSessionMuteEngine {
         ShizukuCompat.grantPermissionsAndAppOps(appContext);
         updateCurrentAppSessionIds();
         registerPlaybackCallback();
+        schedulePeriodicRescan();
         dumpSessionsAndMute();
     }
 
     synchronized void stopAll() {
+        cancelPeriodicRescan();
         unregisterPlaybackCallback();
         releaseAllEffects();
         currentAppSessionIds = new LinkedHashSet<>();
@@ -134,6 +151,9 @@ final class ShizukuSessionMuteEngine {
         }
         updateCurrentAppSessionIds();
         List<SessionInfo> sessions = dumpPolicySessions();
+        Log.d(TAG, "Rescanned audio policy, matched sessions=" + sessions.size()
+                + ", ownedSessions=" + currentAppSessionIds.size()
+                + ", activeMuteEffects=" + muteEffects.size());
         muteOtherSessions(sessions);
         int mutedCount = muteEffects.size();
         if (mutedCount == 0) {
@@ -156,12 +176,16 @@ final class ShizukuSessionMuteEngine {
     private List<SessionInfo> dumpPolicySessions() {
         String output = ShizukuCompat.dumpSystemService("media.audio_policy");
         if (output == null || output.trim().isEmpty()) {
+            Log.w(TAG, "Audio policy dump was empty");
             return new ArrayList<>();
         }
         List<SessionInfo> sessions = new ArrayList<>();
         collectSessionsWithPattern(output, SESSION_REGEX, sessions);
         if (sessions.isEmpty()) {
             collectSessionsWithPattern(output, SESSION_REGEX_33, sessions);
+        }
+        if (sessions.isEmpty()) {
+            Log.w(TAG, "No audio sessions matched the audio_policy dump");
         }
         return sessions;
     }
@@ -221,6 +245,12 @@ final class ShizukuSessionMuteEngine {
                     && !usage.contains("USAGE_UNKNOWN")) {
                 continue;
             }
+
+            Log.d(TAG, "Attempting to mute session " + session.sessionId
+                    + " uid=" + session.uid
+                    + " package=" + session.packageName
+                    + " usage=" + session.usage
+                    + " content=" + session.content);
 
             try {
                 DynamicsProcessing muteEffect = makeMuteEffect(session.sessionId, session.packageName);
@@ -359,6 +389,15 @@ final class ShizukuSessionMuteEngine {
         audioManager.unregisterAudioPlaybackCallback(playbackCallback);
         playbackCallbackRegistered = false;
         Log.i(TAG, "PlaybackCallback unregistered");
+    }
+
+    private void schedulePeriodicRescan() {
+        mainHandler.removeCallbacks(periodicRescanRunnable);
+        mainHandler.post(periodicRescanRunnable);
+    }
+
+    private void cancelPeriodicRescan() {
+        mainHandler.removeCallbacks(periodicRescanRunnable);
     }
 
     private void releaseAllEffects() {
