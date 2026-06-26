@@ -12,15 +12,12 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Canvas;
-import android.graphics.Bitmap;
 import android.graphics.BlurMaskFilter;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.LinearGradient;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
@@ -181,13 +178,15 @@ public final class MainActivity extends Activity {
     // software text redraw cost while keeping the motion visually smooth.
     private static final int SHIMMER_FPS_DELAY = 66;
     private long lastShimmerTime = 0L;
-    // Cache shader widths and rebuild only on size changes to reduce churn.
+    // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleVisualStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
-    // Slow shimmer motion keeps the glow calm and low-cost.
+    // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
+    // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
+    private static final float TAB_SHIMMER_SPEED_MULTIPLIER = 4.2f;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
@@ -212,9 +211,13 @@ public final class MainActivity extends Activity {
                     }
                 }
 
-                // 关键修复：每帧把 phase 偏移直接 baked �?LinearGradient 的坐标参数，
-                // Rebuild the shader with baked offset so TextView repaints reliably.
+                // 关键修复：每帧把 phase 偏移直接 baked 进 LinearGradient 的坐标参数，
+                // 而非用 setLocalMatrix。硬件加速下 TextView 文字走 glyph atlas 渲染，
+                // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化，
+                // 导致 matrix 更新了但 glyph 不重绘（视觉不动）。
+                // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘。
                 applyShimmerFrame(view, width, currentShimmerPhaseForView(view));
+            }
             if (!shimmerTargetViews.isEmpty()) {
                 uiHandler.postDelayed(this, SHIMMER_FPS_DELAY);
             } else {
@@ -223,8 +226,9 @@ public final class MainActivity extends Activity {
         }
     };
 
-    // 每帧调用：根�?view 类型 + 状态选色阶，�?phase 偏移 baked 进渐变坐标�?    // 恢复原始状态判定（isEditingPresetActive / runningPreset.enabled），
-    // Apply shimmer colors per state while keeping the offset baked into shader coordinates.
+    // 每帧调用：根据 view 类型 + 状态选色阶，把 phase 偏移 baked 进渐变坐标。
+    // 恢复原始状态判定（isEditingPresetActive / runningPreset.enabled），
+    // 不同状态用不同色阶，但都用 baked offset 方式（不用 setLocalMatrix）。
     private void applyShimmerFrame(TextView view, int width, float phase) {
         if (view == null || width <= 0) {
             return;
@@ -314,27 +318,37 @@ public final class MainActivity extends Activity {
         return phase;
     }
 
-    // Brighter but shorter 5-stop shimmer palette for lower per-frame cost.
+    // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
-    // High-brightness blue-white shimmer core.
+
+    // 亮色阶：超高亮炽白冰蓝流光——压掉绿色、加大浅亮蓝与超白核心占比，整体发光亮度直接拉满！
     private static final int[] SHIMMER_BRIGHT_COLORS = {
+            Color.rgb(150, 235, 255),  // 浅亮蓝白 (B>G，偏蓝的发光白)
             Color.rgb(50, 210, 255),   // 极亮电光冰蓝 (B>>G，纯净冰蓝，零绿色)
-            Color.rgb(255, 255, 255),  // 纯白超炽亮核�?(Super HotCore White)
+            Color.rgb(255, 255, 255),  // 纯白超炽亮核心 (Super HotCore White)
             Color.rgb(50, 210, 255),   // 极亮电光冰蓝
             Color.rgb(150, 235, 255)   // 浅亮蓝白
     };
     // Live 模式 statusText：同亮色阶（极亮冰蓝与炽白光晕，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
-    // Edit-mode shimmer palette stays cooler and softer than live mode.
+    // Edit 模式 statusText：高雅通透、极其明亮的浅冰蓝白（去绿，偏蓝与白）
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(110, 210, 255),  // 极高亮冰�?            Color.rgb(180, 230, 255)   // 极亮淡蓝�?    };
+            Color.rgb(180, 230, 255),  // 极亮淡蓝白
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
+            Color.rgb(255, 255, 255),  // 纯白核心
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
+            Color.rgb(180, 230, 255)   // 极亮淡蓝白
+    };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
     // modeSpinner disabled：暗调优雅灰蓝（去绿，偏蓝，微亮流光，平缓静谧）
     private static final int[] SHIMMER_MODE_OFF_COLORS = {
-            Color.rgb(105, 145, 175),  // 暗灰�?            Color.rgb(95, 140, 175),   // 暗灰冰蓝
-            Color.rgb(190, 215, 235),  // 优雅灰白蓝核�?            Color.rgb(95, 140, 175),   // 暗灰冰蓝
-            Color.rgb(105, 145, 175)   // 暗灰�?    };
+            Color.rgb(105, 145, 175),  // 暗灰蓝
+            Color.rgb(95, 140, 175),   // 暗灰冰蓝
+            Color.rgb(190, 215, 235),  // 优雅灰白蓝核心
+            Color.rgb(95, 140, 175),   // 暗灰冰蓝
+            Color.rgb(105, 145, 175)   // 暗灰蓝
+    };
 
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
@@ -423,20 +437,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private static final class MonitoredAppListEntry {
-        final String label;
-        final String packageName;
-        final String normalizedLabel;
-        final String normalizedPackage;
-
-        MonitoredAppListEntry(String label, String packageName) {
-            this.label = label == null ? "" : label;
-            this.packageName = packageName == null ? "" : packageName;
-            this.normalizedLabel = this.label.toLowerCase(Locale.US);
-            this.normalizedPackage = this.packageName.toLowerCase(Locale.US);
-        }
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -518,9 +518,9 @@ public final class MainActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (!hasFocus) return;
-        // 窗口获得焦点时所�?view 已完成布局，getWidth() 返回真实值�?
-        // 此时强制重建 modeSpinner �?active tab �?shader，确保流光用正确宽度运行�?
-        // 解决 onCreate 中注册时 getWidth()==0 导致 shader width=1 的问题�?
+        // 窗口获得焦点时所有 view 已完成布局，getWidth() 返回真实值。
+        // 此时强制重建 modeSpinner 和 active tab 的 shader，确保流光用正确宽度运行。
+        // 解决 onCreate 中注册时 getWidth()==0 导致 shader width=1 的问题。
         if (modeSpinner != null && modeSpinner.getWidth() > 0) {
             styleSettingsTitleText(modeSpinner);
             registerShimmerView(modeSpinner);
@@ -831,8 +831,8 @@ public final class MainActivity extends Activity {
         modeParams.rightMargin = dp(4);
         leftCluster.addView(modeSpinner, modeParams);
 
-        monitoredAppIconView = new ShapeAwareGlowImageView(this);
-        monitoredAppIconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        monitoredAppIconView = new ImageView(this);
+        monitoredAppIconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
         monitoredAppIconView.setPadding(0, 0, 0, 0);
         monitoredAppIconView.setBackground(null);
         monitoredAppIconView.setVisibility(View.GONE);
@@ -841,7 +841,7 @@ public final class MainActivity extends Activity {
                 showAdvancedSettingsSubpage();
             }
         });
-        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(24), dp(24));
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(22), dp(22));
         iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
         top.addView(monitoredAppIconView, iconParams);
 
@@ -1153,8 +1153,10 @@ public final class MainActivity extends Activity {
         styleGradientTitle(title);
         title.setOnClickListener(this::showProcessingModeChoiceMenu);
         LinearLayout.LayoutParams engineTitleParams = blockParams(0);
-        // Pull the title back by its extra left padding so body text aligns.
+        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都从 panel 内容区左边开始）。
+        // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，shadow 半径 5.5dp 仍落在 panel 16dp padding 内，不裁剪。
         engineTitleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(title, 12);
         panel.addView(title, engineTitleParams);
         processingModeButton = title;
 
@@ -1237,8 +1239,9 @@ public final class MainActivity extends Activity {
         aboutTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(aboutTitleView);
         LinearLayout.LayoutParams aboutTitleParams = blockParams(0);
-        // Pull the title back by its extra left padding so body text aligns.
+        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都从 panel 内容区左边开始）。
         aboutTitleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(aboutTitleView, 12);
         aboutPanel.addView(aboutTitleView, aboutTitleParams);
 
         aboutTextView = new TextView(this);
@@ -1430,11 +1433,11 @@ public final class MainActivity extends Activity {
     private String settingsModeDetailText() {
         return tr(
                 "Tap the title above to switch backend mode.",
-                "点击上方标题即可切换后端模式�?);
+                "点击上方标题即可切换后端模式。");
     }
 
     private String settingsStatusLabelText() {
-        return tr("System Processing:", "系统处理�?);
+        return tr("System Processing:", "系统处理：");
     }
 
     private String settingsLanguageLabelText() {
@@ -1467,7 +1470,7 @@ public final class MainActivity extends Activity {
     private String aboutBodyText() {
         return tr(
                 "Global PEQ is a low-latency, audiophile-grade Parametric Equalizer running natively on Android's high-performance audio routing engine. Enjoy tailored, professional equalization for all your playback devices.",
-                "Global PEQ 是一款原生运行在 Android 高性能音频路由引擎上的低延迟发烧级 Parametric Equalizer，可为你的所有播放设备提供更细致、更专业的均衡调音�?);
+                "Global PEQ 是一款原生运行在 Android 高性能音频路由引擎上的低延迟发烧级 Parametric Equalizer，可为你的所有播放设备提供更细致、更专业的均衡调音。");
     }
 
     private String footerText() {
@@ -1481,7 +1484,7 @@ public final class MainActivity extends Activity {
     private String monitorSettingsDetailText() {
         return tr(
                 "Pick the target app, authorize Android playback capture, and tune latency-oriented parameters for the second backend. If capture is live, mute the source app to avoid doubling.",
-                "选择目标应用，完�?Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加�?);
+                "选择目标应用，完成 Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加。");
     }
 
     private String monitorCaptureLabelText() {
@@ -1497,7 +1500,7 @@ public final class MainActivity extends Activity {
     }
 
     private String bufferLabelText() {
-        return tr("Buffer (frames)", "缓冲�?(frames)");
+        return tr("Buffer (frames)", "缓冲区 (frames)");
     }
 
     private String pollIntervalLabelText() {
@@ -1518,13 +1521,13 @@ public final class MainActivity extends Activity {
 
     private String engineStatusText() {
         if (!supported) {
-            return isChineseUi() ? "不支�? : "UNSUPPORTED";
+            return isChineseUi() ? "不支持" : "UNSUPPORTED";
         }
         return processingModeDisplayLabel(processingMode);
     }
 
     private String processingModeTitleText() {
-        return tr("Engine Status · ", "引擎状�?· ") + processingModeDisplayLabel(processingMode);
+        return tr("Engine Status · ", "引擎状态 · ") + processingModeDisplayLabel(processingMode);
     }
 
     private String translateMonitorCaptureStatus(String status) {
@@ -1532,31 +1535,31 @@ public final class MainActivity extends Activity {
         if (!isChineseUi()) {
             return safe;
         }
-        if ("Native capture is idle.".equals(safe)) return "原生捕获空闲中�?;
-        if ("Capture authorization was cancelled.".equals(safe)) return "捕获授权已取消�?;
+        if ("Native capture is idle.".equals(safe)) return "原生捕获空闲中。";
+        if ("Capture authorization was cancelled.".equals(safe)) return "捕获授权已取消。";
         if ("Starting native capture...".equals(safe)) return "正在启动原生捕获...";
-        if ("Record-audio permission was denied.".equals(safe)) return "录音权限已被拒绝�?;
-        if ("Grant record-audio permission to continue.".equals(safe)) return "请先授予录音权限再继续�?;
+        if ("Record-audio permission was denied.".equals(safe)) return "录音权限已被拒绝。";
+        if ("Grant record-audio permission to continue.".equals(safe)) return "请先授予录音权限再继续。";
         if ("Waiting for capture authorization...".equals(safe)) return "正在等待捕获授权...";
-        if ("Native capture requires Android 10 or later.".equals(safe)) return "原生捕获需�?Android 10 或更高版本�?;
-        if ("Capture authorization could not be initialized.".equals(safe)) return "无法初始化捕获授权�?;
-        if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "捕获权限已失效，请重新授权后恢复�?;
-        if ("Default mode active. Native capture disabled.".equals(safe)) return "当前�?Default 模式，原生捕获已禁用�?;
-        if ("Choose an app to monitor.".equals(safe)) return "请选择要监听的应用�?;
-        if ("Native capture is not authorized.".equals(safe)) return "原生捕获尚未授权�?;
-        if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "原生捕获已停止，如会话中断请重新授权�?;
-        if (safe.startsWith("Capture authorized. Choose an app to monitor.")) return "捕获已授权，请选择要监听的应用�?;
+        if ("Native capture requires Android 10 or later.".equals(safe)) return "原生捕获需要 Android 10 或更高版本。";
+        if ("Capture authorization could not be initialized.".equals(safe)) return "无法初始化捕获授权。";
+        if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "捕获权限已失效，请重新授权后恢复。";
+        if ("Default mode active. Native capture disabled.".equals(safe)) return "当前为 Default 模式，原生捕获已禁用。";
+        if ("Choose an app to monitor.".equals(safe)) return "请选择要监听的应用。";
+        if ("Native capture is not authorized.".equals(safe)) return "原生捕获尚未授权。";
+        if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "原生捕获已停止，如会话中断请重新授权。";
+        if (safe.startsWith("Capture authorized. Choose an app to monitor.")) return "捕获已授权，请选择要监听的应用。";
         if (safe.startsWith("Capture authorized for ") && safe.endsWith(".")) {
-            return "已为 " + safe.substring("Capture authorized for ".length(), safe.length() - 1) + " 完成捕获授权�?;
+            return "已为 " + safe.substring("Capture authorized for ".length(), safe.length() - 1) + " 完成捕获授权。";
         }
         if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture.")) {
-            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture.".length()) + "�?;
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture.".length()) + "。";
         }
         if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture. Mute the source app.")) {
-            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture. Mute the source app.".length()) + "。请将源应用静音�?;
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture. Mute the source app.".length()) + "。请将源应用静音。";
         }
         if (safe.startsWith("Armed for ") && safe.endsWith(" - waiting for playback.")) {
-            return "已为 " + safe.substring("Armed for ".length(), safe.length() - " - waiting for playback.".length()) + " 就绪，等待播放中�?;
+            return "已为 " + safe.substring("Armed for ".length(), safe.length() - " - waiting for playback.".length()) + " 就绪，等待播放中。";
         }
         return safe;
     }
@@ -1565,7 +1568,7 @@ public final class MainActivity extends Activity {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
             return tr(
                     "Native capture is only used by the second backend mode.",
-                    "原生捕获仅在第二套后端模式下使用�?);
+                    "原生捕获仅在第二套后端模式下使用。");
         }
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
     }
@@ -1584,15 +1587,15 @@ public final class MainActivity extends Activity {
     private String advancedModeSummaryText() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
             return tr(
-                    "Default mode keeps the existing system EQ and bass enhancement paths unchanged.",
-                    "Default 模式会保持现有的系统 EQ 和低音增强路径不变�?);
+                    "Default mode keeps the existing system EQ and virtual bass path unchanged.",
+                    "Default 模式会保持现有的系统 EQ 和 virtual bass 路径不变。");
         }
         String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? tr("No app selected", "未选择应用")
                 : advancedModeConfig.monitoredAppLabel;
         return String.format(Locale.US,
                 tr("App: %s  |  %d ms  |  %d frames  |  poll %d ms",
-                        "应用�?s  |  %d ms  |  %d frames  |  轮询 %d ms"),
+                        "应用：%s  |  %d ms  |  %d frames  |  轮询 %d ms"),
                 appLabel,
                 advancedModeConfig.latencyMs,
                 advancedModeConfig.bufferSizeFrames,
@@ -1746,7 +1749,7 @@ public final class MainActivity extends Activity {
             pendingMonitorCaptureAuthorization = false;
             repository.saveMonitorCaptureStatus("Record-audio permission was denied.", false);
             renderAll();
-            Toast.makeText(this, tr("Record audio permission is required for native capture", "原生捕获需要录音权�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Record audio permission is required for native capture", "原生捕获需要录音权限"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (pendingMonitorCaptureAuthorization) {
@@ -1782,7 +1785,7 @@ public final class MainActivity extends Activity {
 
     private void handleMonitorCaptureAction() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
-            Toast.makeText(this, tr("Switch to Monitor DSP mode first", "请先切换�?Monitor DSP 模式"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Switch to Monitor DSP mode first", "请先切换到 Monitor DSP 模式"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -1808,116 +1811,54 @@ public final class MainActivity extends Activity {
         pendingMonitorCaptureAuthorization = false;
         repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
         renderAll();
-        Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 现在会请求回放捕获授�?), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 现在会请求回放捕获授权"), Toast.LENGTH_SHORT).show();
         android.media.projection.MediaProjectionManager manager =
                 (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (manager == null) {
-            Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 服务不可�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 服务不可用"), Toast.LENGTH_SHORT).show();
             return;
         }
         startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MONITOR_CAPTURE);
     }
 
     private void showMonitoredAppChoiceDialog() {
-        List<MonitoredAppListEntry> monitoredApps = loadMonitoredAppChoiceEntries();
+        List<ResolveInfo> suggested = loadSuggestedMonitoredApps();
         AlertDialog[] dialogHolder = new AlertDialog[1];
-        LinearLayout shell = new LinearLayout(this);
-        shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(8), dp(8), dp(8), dp(8));
-
-        EditText searchInput = new EditText(this);
-        searchInput.setHint(tr("Search added apps", "���������Ӧ��"));
-        searchInput.setSingleLine(true);
-        searchInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        styleAdvancedInput(searchInput);
-        shell.addView(searchInput, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
-
-        FrameLayout content = new FrameLayout(this);
-        LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(420)
-        );
-        contentParams.topMargin = dp(10);
-        shell.addView(content, contentParams);
-
-        ScrollView scroll = new ScrollView(this);
-        FrameLayout.LayoutParams scrollParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-        );
-        scrollParams.rightMargin = dp(30);
-        content.addView(scroll, scrollParams);
-
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(12), dp(10), dp(12), dp(12));
+        list.addView(createMonitoredAppAddButton(dialogHolder), curveMenuRowParams(0));
+        boolean clearActive = advancedModeConfig.monitoredAppPackage == null
+                || advancedModeConfig.monitoredAppPackage.isEmpty();
+        list.addView(createMonitoredAppClearRow(clearActive, dialogHolder), curveMenuRowParams(6));
+        for (int i = 0; i < suggested.size(); i++) {
+            ResolveInfo info = suggested.get(i);
+            boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(6));
+        }
+        if (suggested.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(tr(
+                    "No suggested media apps were detected. Use Add to pick any installed app.",
+                    "没有检测到推荐的媒体应用。可以通过 Add 选择任意已安装应用。"));
+            empty.setTextSize(12);
+            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setPadding(dp(4), dp(8), dp(4), dp(4));
+            list.addView(empty, curveMenuRowParams(6));
+        }
+
+        ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
-
-        LinearLayout indexBar = new LinearLayout(this);
-        indexBar.setOrientation(LinearLayout.VERTICAL);
-        indexBar.setGravity(android.view.Gravity.CENTER);
-        indexBar.setPadding(dp(1), dp(6), dp(1), dp(6));
-        indexBar.setBackground(plainRoundRectDrawable(
-                Color.argb(20, 255, 255, 255),
-                Color.argb(35, 255, 255, 255),
-                dp(8)
-        ));
-        FrameLayout.LayoutParams indexParams = new FrameLayout.LayoutParams(
-                dp(16),
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL
-        );
-        indexParams.rightMargin = dp(1);
-        content.addView(indexBar, indexParams);
-        content.post(() -> {
-            ViewGroup.LayoutParams rawParams = indexBar.getLayoutParams();
-            if (!(rawParams instanceof FrameLayout.LayoutParams)) {
-                return;
-            }
-            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) rawParams;
-            int targetHeight = Math.max(dp(220), Math.round(content.getHeight() * 0.8f));
-            if (lp.height != targetHeight) {
-                lp.height = targetHeight;
-                indexBar.setLayoutParams(lp);
-            }
-        });
-
-        Runnable rebuild = () -> rebuildMonitoredAppChoiceList(
-                list,
-                indexBar,
-                scroll,
-                monitoredApps,
-                searchInput.getText().toString(),
-                dialogHolder
-        );
-        searchInput.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                rebuild.run();
-            }
-        });
-        rebuild.run();
-
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
-                .setView(shell)
+                .setView(scroll)
                 .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
         styleDialog(dialog);
     }
+
     private List<ResolveInfo> loadSuggestedMonitoredApps() {
         List<ResolveInfo> launchable = loadLaunchableActivities();
         List<ResolveInfo> suggested = new ArrayList<>();
@@ -2069,7 +2010,7 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应�?)))
+                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应用")))
                 .setView(scroll)
                 .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
@@ -2092,7 +2033,7 @@ public final class MainActivity extends Activity {
 
         EditText searchInput = new EditText(this);
         searchInput.setSingleLine(true);
-        searchInput.setHint(tr("Search app or package", "搜索应用或包�?));
+        searchInput.setHint(tr("Search app or package", "搜索应用或包名"));
         searchInput.setTextSize(13);
         searchInput.setTextColor(Color.WHITE);
         searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
@@ -2179,7 +2120,7 @@ public final class MainActivity extends Activity {
         rebuild.run();
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应�?)))
+                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应用")))
                 .setView(shell)
                 .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
@@ -2240,103 +2181,6 @@ public final class MainActivity extends Activity {
         return normalized;
     }
 
-    private List<MonitoredAppListEntry> loadMonitoredAppChoiceEntries() {
-        List<MonitoredAppListEntry> entries = new ArrayList<>();
-        if (advancedModeConfig.monitoredApps != null) {
-            for (AdvancedModeConfig.MonitoredAppItem item : advancedModeConfig.monitoredApps) {
-                if (item == null || item.packageName == null || item.packageName.trim().isEmpty()) {
-                    continue;
-                }
-                entries.add(new MonitoredAppListEntry(
-                        normalizeInstalledAppLabel(item.label, item.packageName),
-                        item.packageName
-                ));
-            }
-        }
-        final Collator collator = appLabelCollator();
-        entries.sort((left, right) -> {
-            int labelCompare = collator.compare(left.label, right.label);
-            if (labelCompare != 0) {
-                return labelCompare;
-            }
-            return collator.compare(left.packageName, right.packageName);
-        });
-        return entries;
-    }
-
-    private void rebuildMonitoredAppChoiceList(LinearLayout list,
-                                               LinearLayout indexBar,
-                                               ScrollView scroll,
-                                               List<MonitoredAppListEntry> monitoredApps,
-                                               String query,
-                                               AlertDialog[] dialogHolder) {
-        list.removeAllViews();
-        indexBar.removeAllViews();
-
-        list.addView(createMonitoredAppAddButton(dialogHolder), curveMenuRowParams(0));
-        boolean clearActive = advancedModeConfig.monitoredAppPackage == null
-                || advancedModeConfig.monitoredAppPackage.isEmpty();
-        list.addView(createMonitoredAppClearRow(clearActive, dialogHolder), curveMenuRowParams(6));
-
-        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.US);
-        java.util.LinkedHashMap<String, View> sectionAnchors = new java.util.LinkedHashMap<>();
-        int matchCount = 0;
-        String lastSection = null;
-        for (MonitoredAppListEntry entry : monitoredApps) {
-            if (!matchesMonitoredAppQuery(entry, normalizedQuery)) {
-                continue;
-            }
-            String section = alphabetKeyForLabel(entry.label);
-            if (!section.equals(lastSection)) {
-                View header = createInstalledAppSectionHeader(section);
-                list.addView(header, curveMenuRowParams(matchCount == 0 ? 10 : 10));
-                sectionAnchors.put(section, header);
-                lastSection = section;
-            }
-            boolean active = entry.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            list.addView(createMonitoredAppMenuRow(
-                    loadApplicationIconOrFallback(entry.packageName),
-                    entry.label,
-                    entry.packageName,
-                    active,
-                    dialogHolder,
-                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(entry.packageName, entry.label))
-            ), curveMenuRowParams(4));
-            matchCount++;
-        }
-        if (matchCount == 0) {
-            TextView empty = new TextView(this);
-            empty.setText(monitoredApps.isEmpty()
-                    ? tr("No monitored apps yet. Use Add to build your own list.", "��û�м���Ӧ�ã����� Add �ֶ���ӡ�")
-                    : tr("No added apps match your search.", "û��ƥ�䵱ǰ�����������Ӧ�á�"));
-            empty.setTextSize(12);
-            empty.setTextColor(Color.rgb(170, 180, 198));
-            empty.setPadding(dp(4), dp(10), dp(4), dp(4));
-            list.addView(empty, curveMenuRowParams(10));
-            indexBar.setVisibility(View.GONE);
-            return;
-        }
-        indexBar.setVisibility(View.VISIBLE);
-        populateInstalledAppIndexBar(indexBar, new ArrayList<>(sectionAnchors.keySet()), sectionAnchors, scroll);
-    }
-
-    private boolean matchesMonitoredAppQuery(MonitoredAppListEntry entry, String normalizedQuery) {
-        if (normalizedQuery == null || normalizedQuery.isEmpty()) {
-            return true;
-        }
-        return entry != null
-                && (entry.normalizedLabel.contains(normalizedQuery)
-                || entry.normalizedPackage.contains(normalizedQuery));
-    }
-
-    private Drawable loadApplicationIconOrFallback(String packageName) {
-        try {
-            return getPackageManager().getApplicationIcon(packageName);
-        } catch (Exception ignored) {
-            return getResources().getDrawable(android.R.drawable.sym_def_app_icon);
-        }
-    }
-
     private void rebuildInstalledAppPickerList(LinearLayout list,
                                                LinearLayout indexBar,
                                                ScrollView scroll,
@@ -2375,7 +2219,7 @@ public final class MainActivity extends Activity {
 
         if (matchCount == 0) {
             TextView empty = new TextView(this);
-            empty.setText(tr("No apps match your search.", "没有匹配搜索的应�?));
+            empty.setText(tr("No apps match your search.", "没有匹配搜索的应用"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -2496,8 +2340,8 @@ public final class MainActivity extends Activity {
         Drawable icon = getResources().getDrawable(android.R.drawable.ic_menu_close_clear_cancel);
         return createMonitoredAppMenuRow(
                 icon,
-                tr("No monitored app", "不监听应�?),
-                tr("Disable app-targeted monitor routing", "关闭面向指定应用的监听路�?),
+                tr("No monitored app", "不监听应用"),
+                tr("Disable app-targeted monitor routing", "关闭面向指定应用的监听路由"),
                 active,
                 dialogHolder,
                 () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp("", ""))
@@ -2620,44 +2464,19 @@ public final class MainActivity extends Activity {
                     || topControlOverlay.getWidth() <= 0) {
                 return;
             }
+            Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
             Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
+            topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
             topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
-            int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(24);
-            int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(24);
-            float titleRight = textRightInAncestor(modeSpinner, topControlOverlay);
-            float centerX = (titleRight + switchRect.left) * 0.5f;
+            int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(22);
+            int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(22);
+            float centerX = (titleRect.right + switchRect.left) * 0.5f;
             float x = centerX - iconWidth / 2f;
             x = Math.max(0f, Math.min(x, topControlOverlay.getWidth() - iconWidth));
             float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
             monitoredAppIconView.setY(y);
         });
-    }
-
-    private float textRightInAncestor(TextView view, ViewGroup ancestor) {
-        if (view == null || ancestor == null) {
-            return 0f;
-        }
-        Rect viewRect = new Rect(0, 0, view.getWidth(), view.getHeight());
-        ancestor.offsetDescendantRectToMyCoords(view, viewRect);
-        Layout layout = view.getLayout();
-        CharSequence text = view.getText();
-        if (layout == null || text == null || text.length() == 0) {
-            return viewRect.right;
-        }
-        int availableWidth = view.getWidth() - view.getCompoundPaddingLeft() - view.getCompoundPaddingRight();
-        float layoutLeft = viewRect.left + view.getCompoundPaddingLeft();
-        int absoluteGravity = Gravity.getAbsoluteGravity(view.getGravity(), view.getLayoutDirection()) & Gravity.HORIZONTAL_GRAVITY_MASK;
-        if (absoluteGravity == Gravity.CENTER_HORIZONTAL) {
-            layoutLeft += Math.max(0, availableWidth - layout.getWidth()) * 0.5f;
-        } else if (absoluteGravity == Gravity.RIGHT) {
-            layoutLeft += Math.max(0, availableWidth - layout.getWidth());
-        }
-        float maxLineRight = 0f;
-        for (int line = 0; line < layout.getLineCount(); line++) {
-            maxLineRight = Math.max(maxLineRight, layout.getLineRight(line));
-        }
-        return layoutLeft + maxLineRight;
     }
 
     private Drawable loadMonitoredAppDrawable() {
@@ -3216,7 +3035,7 @@ public final class MainActivity extends Activity {
         row.setTag(holder);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dp(2), dp(6), dp(2), dp(6));
-        // 关键修复：关�?EQ 条目行的子视图裁剪，确保条目左侧开关和右侧删除按钮的光晕能够完好展示，绝不被裁切！
+        // 关键修复：关闭 EQ 条目行的子视图裁剪，确保条目左侧开关和右侧删除按钮的光晕能够完好展示，绝不被裁切！
         row.setClipChildren(false);
         row.setClipToPadding(false);
         if (PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB)) {
@@ -3343,85 +3162,6 @@ public final class MainActivity extends Activity {
         input.setGravity(android.view.Gravity.CENTER);
 
         return input;
-    }
-
-    private EditText createDeferredIntegerInput(String value, String hint, int min, int max, IntChanged listener) {
-        EditText input = new EditText(this);
-        input.setSingleLine(true);
-        input.setText(value);
-        input.setHint(hint);
-        input.setTextSize(13);
-        input.setSelectAllOnFocus(true);
-        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
-        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        input.setEnabled(supported);
-        try {
-            input.setTag(Integer.parseInt(value));
-        } catch (NumberFormatException ignored) {
-            input.setTag(min);
-        }
-        input.setOnEditorActionListener((view, actionId, event) -> {
-            boolean enterUp = event != null
-                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
-                    && event.getAction() == KeyEvent.ACTION_UP;
-            if (actionId == EditorInfo.IME_ACTION_DONE
-                    || actionId == EditorInfo.IME_ACTION_NEXT
-                    || enterUp) {
-                commitDeferredIntegerInput(input, min, max, listener);
-                closeKeyboard(view);
-                view.clearFocus();
-                return true;
-            }
-            return false;
-        });
-        input.setOnFocusChangeListener((view, hasFocus) -> {
-            if (!hasFocus) {
-                commitDeferredIntegerInput(input, min, max, listener);
-            }
-        });
-
-        GradientDrawable inputBg = new GradientDrawable();
-        inputBg.setShape(GradientDrawable.RECTANGLE);
-        inputBg.setColor(Color.argb(24, 255, 255, 255));
-        inputBg.setStroke(dp(1), Color.argb(52, 255, 255, 255));
-        inputBg.setCornerRadius(dp(8));
-        input.setBackground(inputBg);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(100, 255, 255, 255));
-        input.setPadding(dp(6), dp(4), dp(6), dp(4));
-        input.setGravity(android.view.Gravity.CENTER);
-
-        return input;
-    }
-
-    private void commitDeferredIntegerInput(EditText input, int min, int max, IntChanged listener) {
-        if (input == null || listener == null || updatingUi) {
-            return;
-        }
-        Object tag = input.getTag();
-        int lastCommitted = tag instanceof Integer ? (Integer) tag : min;
-        String rawText = input.getText() == null ? "" : input.getText().toString().trim();
-        int clampedValue = lastCommitted;
-        if (!rawText.isEmpty()) {
-            try {
-                clampedValue = clamp(Integer.parseInt(rawText), min, max);
-            } catch (NumberFormatException ignored) {
-                clampedValue = lastCommitted;
-            }
-        }
-        String normalizedText = String.valueOf(clampedValue);
-        if (!normalizedText.contentEquals(input.getText())) {
-            updatingUi = true;
-            input.setText(normalizedText);
-            input.setSelection(normalizedText.length());
-            updatingUi = false;
-        }
-        if (!(tag instanceof Integer) || ((Integer) tag) != clampedValue) {
-            input.setTag(clampedValue);
-            listener.onChanged(clampedValue);
-        } else {
-            input.setTag(clampedValue);
-        }
     }
 
     private void updateBand(int index, ParametricBand band) {
@@ -3564,7 +3304,7 @@ public final class MainActivity extends Activity {
         overlay.setPadding(dp(8), dp(6), dp(8), dp(6));
         overlay.setBackground(createGlassCard(88));
         overlay.setElevation(dp(12));
-        // 关键修复：关闭输入参数弹�?overlay 的子视图裁剪�?
+        // 关键修复：关闭输入参数弹窗 overlay 的子视图裁剪。
         // 开关和右侧小×作为该容器的直接子代，其自身发出的高斯模糊边缘可以直接突破容器边界溢出，展现高亮完整光效！
         overlay.setClipChildren(false);
         overlay.setClipToPadding(false);
@@ -3661,8 +3401,9 @@ public final class MainActivity extends Activity {
 
     private View wrapEqOverlaySwitch(View button, float weight) {
         FrameLayout container = new FrameLayout(this);
-        // Allow glow to extend outside the switch container without clipping.
+        // 关键修复：关闭裁剪，允许内部具有高斯模糊（MaskFilter、shadowLayer）的开关按钮的扩散边缘自由绘制不被截断！
         container.setClipChildren(false);
+        container.setClipToPadding(false);
         FrameLayout.LayoutParams switchParams = new FrameLayout.LayoutParams(dp(22), dp(22));
         switchParams.gravity = android.view.Gravity.CENTER;
         container.addView(button, switchParams);
@@ -4189,7 +3930,7 @@ public final class MainActivity extends Activity {
     private void showCurveRenameDialog(boolean targetCurve, TextView nameView) {
         String currentName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         if ("Default".equals(currentName)) {
-            Toast.makeText(this, tr("Default curve can't be renamed", "Default 曲线不能重命�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default curve can't be renamed", "Default 曲线不能重命名"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -4217,11 +3958,11 @@ public final class MainActivity extends Activity {
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(targetCurve
-                        ? tr("Rename target curve", "重命�?Target curve")
-                        : tr("Rename device curve", "重命�?Device curve")))
+                        ? tr("Rename target curve", "重命名 Target curve")
+                        : tr("Rename device curve", "重命名 Device curve")))
                 .setView(container)
                 .setNegativeButton(tr("Cancel", "取消"), null)
-                .setPositiveButton(tr("Rename", "重命�?), null)
+                .setPositiveButton(tr("Rename", "重命名"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -4246,17 +3987,17 @@ public final class MainActivity extends Activity {
         String oldName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         String nextName = rawName == null ? "" : rawName.trim();
         if (nextName.isEmpty()) {
-            Toast.makeText(this, tr("Curve name required", "需要填写曲线名�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name required", "需要填写曲线名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         if ("Default".equals(nextName)) {
-            Toast.makeText(this, tr("Default is reserved", "Default 是保留名�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default is reserved", "Default 是保留名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         boolean sameName = oldName.equals(nextName);
         boolean exists = targetCurve ? repository.hasTargetCurveName(nextName) : repository.hasDeviceCurveName(nextName);
         if (!sameName && exists) {
-            Toast.makeText(this, tr("Curve name already exists", "曲线名称已存�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name already exists", "曲线名称已存在"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -4264,7 +4005,7 @@ public final class MainActivity extends Activity {
                 ? repository.renameTargetCurve(oldName, nextName)
                 : repository.renameDeviceCurve(oldName, nextName);
         if (!renamed) {
-            Toast.makeText(this, tr("Curve rename failed", "曲线重命名失�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve rename failed", "曲线重命名失败"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -4604,7 +4345,7 @@ public final class MainActivity extends Activity {
         layout.setPadding(dp(20), dp(16), dp(20), dp(8));
 
         TextView targetLabel = new TextView(this);
-        targetLabel.setText(tr("Save to", "保存�?));
+        targetLabel.setText(tr("Save to", "保存到"));
         targetLabel.setTextSize(12);
         targetLabel.setTextColor(Color.rgb(142, 154, 168));
         targetLabel.setPadding(dp(2), 0, dp(2), dp(6));
@@ -4777,7 +4518,7 @@ public final class MainActivity extends Activity {
     private void confirmDeletePreset(String name, AlertDialog[] menuDialogHolder) {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Delete preset", "删除预设")))
-                .setMessage(tr("Delete preset \"", "删除预设�?) + name + tr("\"?", "”？"))
+                .setMessage(tr("Delete preset \"", "删除预设“") + name + tr("\"?", "”？"))
                 .setNegativeButton(tr("Cancel", "取消"), null)
                 .setPositiveButton(tr("Delete", "删除"), (d, which) -> {
                     deletePreset(name);
@@ -4821,7 +4562,7 @@ public final class MainActivity extends Activity {
     private void saveDraftToPreset(String oldTargetName, String rawName) {
         String finalName = rawName == null ? "" : rawName.trim();
         if (finalName.isEmpty()) {
-            Toast.makeText(this, tr("Preset name required", "需要填写预设名�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -4845,7 +4586,7 @@ public final class MainActivity extends Activity {
         undoStack.clear();
         redoStack.clear();
         renderAll();
-        Toast.makeText(this, tr("Preset saved", "预设已保�?), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Preset saved", "预设已保存"), Toast.LENGTH_SHORT).show();
     }
 
     private void loadPresetLive(String name) {
@@ -4892,7 +4633,7 @@ public final class MainActivity extends Activity {
                 .setPositiveButton(tr("Add", "新增"), (d, which) -> {
                     String name = input.getText().toString() == null ? "" : input.getText().toString().trim();
                     if (name.isEmpty()) {
-                        Toast.makeText(this, tr("Preset name required", "需要填写预设名�?), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     editingPreset = withCurrentCurveSettings(Preset.flat(runningPreset != null && runningPreset.enabled)).withName(name);
@@ -5133,7 +4874,8 @@ public final class MainActivity extends Activity {
             return;
         }
         peqBandVisualEnabled = new boolean[editingPreset.bands.length];
-        // 总开关打开前先由延迟点亮序列接管，这样不会先整排亮一帧再暗下去�?        peqVisualSequenceRunning = !enabled;
+        // 总开关打开前先由延迟点亮序列接管，这样不会先整排亮一帧再暗下去。
+        peqVisualSequenceRunning = !enabled;
         pendingPeqVisualIndex = 0;
         if (enabled) {
             for (int i = 0; i < editingPreset.bands.length; i++) {
@@ -5377,10 +5119,9 @@ public final class MainActivity extends Activity {
             dspBassCutoffInput.setVisibility(dspBassMode ? View.VISIBLE : View.GONE);
             dspBassCutoffInput.setEnabled(bassBoostEnabled && dspBassMode);
             String cutoffText = String.valueOf(editingPreset.dspBassCutoffHz);
-            if (!dspBassCutoffInput.hasFocus() && !cutoffText.contentEquals(dspBassCutoffInput.getText())) {
+            if (!cutoffText.contentEquals(dspBassCutoffInput.getText())) {
                 updatingUi = true;
                 dspBassCutoffInput.setText(cutoffText);
-                dspBassCutoffInput.setTag(editingPreset.dspBassCutoffHz);
                 updatingUi = false;
             }
             dspBassCutoffInput.setAlpha(dspBassMode ? 1f : 0.55f);
@@ -5576,12 +5317,10 @@ public final class MainActivity extends Activity {
         sliderParams.topMargin = dp(8);
         bassPanel.addView(bassBoostSlider, sliderParams);
 
-        dspBassCutoffInput = createDeferredIntegerInput(
-                String.valueOf(editingPreset.dspBassCutoffHz),
-                "Cutoff Hz",
-                20,
-                250,
-                value -> setEditingPreset(editingPreset.withDspBassCutoffHz(value), true));
+        dspBassCutoffInput = createNumberInput(String.valueOf(editingPreset.dspBassCutoffHz), "Cutoff Hz", value -> {
+            int cutoffHz = clamp(Math.round(value), 45, 220);
+            setEditingPreset(editingPreset.withDspBassCutoffHz(cutoffHz), true);
+        });
         dspBassCutoffInput.setTextSize(13);
         dspBassCutoffInput.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
@@ -5648,8 +5387,11 @@ public final class MainActivity extends Activity {
         title.setTranslationY(-dp(1));
         applyInactiveExtraSectionTitleStyle(title);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        // Offset the title slightly after removing the extra left padding reserve.
+        // 抵消 gradientTitleView 的左 padding(22dp) 后再额外右移 2dp，让文字视觉左缘距 panel 内容区左边 2dp，
+        // 使标题距 panel 左外边(dp18) 与右侧复选框背景距 panel 右外边(dp16) 视觉近似对称（标题侧多 2dp 留白）。
+        // title view 左移进入 panel padding 区的 20dp 正好是空白 leftPadding，裁剪不影响文字与 shimmer。
         titleParams.leftMargin = -dp(20);
+        row.addView(title, titleParams);
         return row;
     }
 
@@ -5739,7 +5481,7 @@ public final class MainActivity extends Activity {
         title.setGravity(android.view.Gravity.CENTER);
         column.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断�?
+        // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断裂
         LinearLayout placeholder = new LinearLayout(this);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(8);
@@ -5765,8 +5507,9 @@ public final class MainActivity extends Activity {
             knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value ->
                     setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
         }
-        // Tapping the knob value opens direct numeric input.
+        // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
+        LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(6);
         knobParams.bottomMargin = dp(6);
         column.addView(knob, knobParams);
@@ -5793,8 +5536,9 @@ public final class MainActivity extends Activity {
         KnobView knob = new KnobView(this);
         knob.configure(min, max, value, suffix, listener::onChanged);
         knob.setTapListener(this::showStyledKnobInputDialog);
-        // Keep the knob square so the arc fills the view consistently.
+        // 强制方形：弧形填满 view，标题紧贴弧形下方
         knob.setForceSquare(true);
+        LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(6);
         knobParams.bottomMargin = dp(6);
         column.addView(knob, knobParams);
@@ -5821,8 +5565,9 @@ public final class MainActivity extends Activity {
         return column;
     }
 
-    // Open numeric input for the knob value and write back through the normal listener path.
+    // 旋钮数字点击：弹出数值输入对话框，确认后写入 knob（触发 listener 链路）
     private void showKnobInputDialog(KnobView knob) {
+        if (knob == null) return;
         final EditText input = new EditText(this);
         input.setSingleLine(true);
         input.setText(String.valueOf(knob.getValue()));
@@ -5833,7 +5578,7 @@ public final class MainActivity extends Activity {
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setGravity(android.view.Gravity.CENTER);
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("数值输�?)
+                .setTitle("数值输入")
                 .setView(input)
                 .setPositiveButton("确定", (d, w) -> {
                     try {
@@ -6084,7 +5829,7 @@ public final class MainActivity extends Activity {
                 ringPaint.setStrokeWidth(strokeWidth);
                 ringPaint.clearShadowLayer();
                 // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
-                // 先画一层粗描边光晕底（大半�?FILL �?+ BlurMaskFilter），再画 ring 描边
+                // 先画一层粗描边光晕底（大半径 FILL 圆 + BlurMaskFilter），再画 ring 描边
                 float glowRadius = radius + dpf(0.9f);
                 dotPaint.setStyle(Paint.Style.STROKE);
                 dotPaint.setStrokeWidth(dpf(2.1f));
@@ -6223,7 +5968,7 @@ public final class MainActivity extends Activity {
 
     private View wrapCircularButton(View button, float weight, int sizeDp, int leftDp, int rightDp, int translationXDp) {
         FrameLayout container = new FrameLayout(this);
-        // 关键修复：关闭该容器的子视图裁剪，否则内部圆形按钮画出的高阶模糊霓虹光晕阴影会在 22dp �?24dp 边框外边缘直接切平，看起来十分不美观�?
+        // 关键修复：关闭该容器的子视图裁剪，否则内部圆形按钮画出的高阶模糊霓虹光晕阴影会在 22dp 或 24dp 边框外边缘直接切平，看起来十分不美观。
         container.setClipChildren(false);
         container.setClipToPadding(false);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
@@ -6602,9 +6347,9 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * BassBoost 横向推子：水平轨�?+ 左右滑动�?thumb�?
-     * 视觉风格�?GeqSliderView 一致（neon 发光、胶�?thumb、LED 指示），
-     * 但方向为水平，用于节省垂直空间�?
+     * BassBoost 横向推子：水平轨道 + 左右滑动的 thumb。
+     * 视觉风格与 GeqSliderView 一致（neon 发光、胶囊 thumb、LED 指示），
+     * 但方向为水平，用于节省垂直空间。
      */
     private final class HorizontalBassSlider extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -6710,7 +6455,7 @@ public final class MainActivity extends Activity {
             paint.setColor(Color.argb(25, 255, 255, 255));
             canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
 
-            // 2. 活动段发光（�?trackLeft �?thumb�?
+            // 2. 活动段发光（从 trackLeft 到 thumb）
             if (active) {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(4f));
@@ -6753,7 +6498,7 @@ public final class MainActivity extends Activity {
             canvas.drawRoundRect(indRect, dpf(1.5f), dpf(1.5f), paint);
             paint.clearShadowLayer();
 
-            // 5. 标签与数�?
+            // 5. 标签与数值
             paint.setStyle(Paint.Style.FILL);
             paint.setTextAlign(Paint.Align.LEFT);
             paint.setFakeBoldText(true);
@@ -6986,12 +6731,12 @@ public final class MainActivity extends Activity {
         switchView.setMinHeight(dp(30));
         switchView.setMinimumHeight(dp(30));
         switchView.setSwitchMinWidth(dp(60));
-        // 去掉开关外围的圈圈动画：清除默�?background �?stateListAnimator
+        // 去掉开关外围的圈圈动画：清除默认 background 和 stateListAnimator
         switchView.setBackground(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             switchView.setStateListAnimator(null);
         }
-        // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光�?
+        // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光）
         switchView.setThumbDrawable(switchThumbDrawable(
                 autoSwitch ? Color.rgb(170, 180, 200) : Color.rgb(190, 200, 215),
                 Color.rgb(120, 240, 220)
@@ -7071,8 +6816,8 @@ public final class MainActivity extends Activity {
                     labelAnimator.cancel();
                 }
                 labelAnimator = android.animation.ValueAnimator.ofFloat(labelProgress, target);
-                // 300ms + AccelerateDecelerateInterpolator：与系统 thumb 滑动节奏接近�?
-                // �?OFF→ON 文字过渡丝滑（auto 开关文字相同，不受影响�?
+                // 300ms + AccelerateDecelerateInterpolator：与系统 thumb 滑动节奏接近，
+                // 让 OFF→ON 文字过渡丝滑（auto 开关文字相同，不受影响）
                 labelAnimator.setDuration(300);
                 labelAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
                 labelAnimator.addUpdateListener(animation -> {
@@ -7119,8 +6864,8 @@ public final class MainActivity extends Activity {
     private Drawable switchThumbDrawable(int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            // thumb 颜色 + 柔光透明度跟随状态切换做 300ms argb 渐变�?
-            // �?track label 动画同步，消�?thumb 颜色跳变
+            // thumb 颜色 + 柔光透明度跟随状态切换做 300ms argb 渐变，
+            // 与 track label 动画同步，消除 thumb 颜色跳变
             private int currentColor = uncheckedColor;
             private boolean colorReady = false;
             private float glowAlpha = 0f;
@@ -7163,7 +6908,7 @@ public final class MainActivity extends Activity {
                 if (colorAnimator != null) {
                     colorAnimator.cancel();
                 }
-                // 颜色与柔光透明度同�?300ms 渐变，与 track 文字动画节奏一�?
+                // 颜色与柔光透明度同步 300ms 渐变，与 track 文字动画节奏一致
                 float startGlow = glowAlpha;
                 int startColor = currentColor;
                 colorAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
@@ -7607,184 +7352,12 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private final class ShapeAwareGlowImageView extends ImageView {
-        private final Paint blurPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        private Bitmap outerGlowBitmap;
-        private Bitmap innerGlowBitmap;
-        private final int[] outerGlowOffset = new int[2];
-        private final int[] innerGlowOffset = new int[2];
-        private int cachedContentWidth = -1;
-        private int cachedContentHeight = -1;
-        private int cachedDrawableHash = 0;
-        private int cachedGlowColor = Color.argb(170, 130, 255, 235);
-
-        ShapeAwareGlowImageView(Context context) {
-            super(context);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-            }
-        }
-
-        @Override
-        public void setImageDrawable(Drawable drawable) {
-            super.setImageDrawable(drawable);
-            clearGlowCache();
-        }
-
-        @Override
-        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-            super.onSizeChanged(w, h, oldw, oldh);
-            if (w != oldw || h != oldh) {
-                clearGlowCache();
-            }
-        }
-
-        @Override
-        protected void onDetachedFromWindow() {
-            clearGlowCache();
-            super.onDetachedFromWindow();
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            drawShapeGlow(canvas);
-            super.onDraw(canvas);
-        }
-
-        private void drawShapeGlow(Canvas canvas) {
-            Drawable drawable = getDrawable();
-            if (drawable == null) {
-                return;
-            }
-            int contentWidth = getWidth() - getPaddingLeft() - getPaddingRight();
-            int contentHeight = getHeight() - getPaddingTop() - getPaddingBottom();
-            if (contentWidth <= 0 || contentHeight <= 0) {
-                return;
-            }
-            ensureGlowCache(drawable, contentWidth, contentHeight);
-            if (outerGlowBitmap == null && innerGlowBitmap == null) {
-                return;
-            }
-            int drawLeft = getPaddingLeft();
-            int drawTop = getPaddingTop();
-            glowPaint.setShader(null);
-            glowPaint.setStyle(Paint.Style.FILL);
-            glowPaint.setColorFilter(new PorterDuffColorFilter(cachedGlowColor, PorterDuff.Mode.SRC_IN));
-            if (outerGlowBitmap != null) {
-                glowPaint.setAlpha(208);
-                canvas.drawBitmap(outerGlowBitmap, drawLeft + outerGlowOffset[0], drawTop + outerGlowOffset[1], glowPaint);
-            }
-            if (innerGlowBitmap != null) {
-                glowPaint.setAlpha(152);
-                canvas.drawBitmap(innerGlowBitmap, drawLeft + innerGlowOffset[0], drawTop + innerGlowOffset[1], glowPaint);
-            }
-            glowPaint.setColorFilter(null);
-        }
-
-        private void ensureGlowCache(Drawable drawable, int contentWidth, int contentHeight) {
-            int drawableHash = System.identityHashCode(drawable);
-            if (outerGlowBitmap != null
-                    && innerGlowBitmap != null
-                    && cachedContentWidth == contentWidth
-                    && cachedContentHeight == contentHeight
-                    && cachedDrawableHash == drawableHash) {
-                return;
-            }
-            clearGlowBitmaps();
-            cachedContentWidth = contentWidth;
-            cachedContentHeight = contentHeight;
-            cachedDrawableHash = drawableHash;
-
-            Bitmap rendered = Bitmap.createBitmap(contentWidth, contentHeight, Bitmap.Config.ARGB_8888);
-            Canvas bitmapCanvas = new Canvas(rendered);
-            Rect targetRect = fitCenterRect(drawable, contentWidth, contentHeight);
-            Rect previousBounds = drawable.copyBounds();
-            drawable.setBounds(targetRect.left, targetRect.top, targetRect.right, targetRect.bottom);
-            drawable.draw(bitmapCanvas);
-            drawable.setBounds(previousBounds.left, previousBounds.top, previousBounds.right, previousBounds.bottom);
-
-            cachedGlowColor = estimateGlowColor(rendered);
-
-            blurPaint.setMaskFilter(new BlurMaskFilter(dpf(5.6f), BlurMaskFilter.Blur.NORMAL));
-            outerGlowBitmap = rendered.extractAlpha(blurPaint, outerGlowOffset);
-            blurPaint.setMaskFilter(new BlurMaskFilter(dpf(2.7f), BlurMaskFilter.Blur.NORMAL));
-            innerGlowBitmap = rendered.extractAlpha(blurPaint, innerGlowOffset);
-            blurPaint.setMaskFilter(null);
-            rendered.recycle();
-        }
-
-        private Rect fitCenterRect(Drawable drawable, int contentWidth, int contentHeight) {
-            int intrinsicWidth = Math.max(1, drawable.getIntrinsicWidth());
-            int intrinsicHeight = Math.max(1, drawable.getIntrinsicHeight());
-            float scale = Math.min(contentWidth / (float) intrinsicWidth, contentHeight / (float) intrinsicHeight);
-            int scaledWidth = Math.max(1, Math.round(intrinsicWidth * scale));
-            int scaledHeight = Math.max(1, Math.round(intrinsicHeight * scale));
-            int left = (contentWidth - scaledWidth) / 2;
-            int top = (contentHeight - scaledHeight) / 2;
-            return new Rect(left, top, left + scaledWidth, top + scaledHeight);
-        }
-
-        private int estimateGlowColor(Bitmap bitmap) {
-            long sumA = 0L;
-            long sumR = 0L;
-            long sumG = 0L;
-            long sumB = 0L;
-            int width = bitmap.getWidth();
-            int height = bitmap.getHeight();
-            for (int y = 0; y < height; y++) {
-                float verticalWeight = 1f - Math.abs((y + 0.5f) / Math.max(1f, height) - 0.5f) * 1.15f;
-                for (int x = 0; x < width; x++) {
-                    int pixel = bitmap.getPixel(x, y);
-                    int alpha = Color.alpha(pixel);
-                    if (alpha < 36) {
-                        continue;
-                    }
-                    float horizontalWeight = 1f - Math.abs((x + 0.5f) / Math.max(1f, width) - 0.5f) * 1.15f;
-                    float weight = Math.max(0.18f, horizontalWeight * verticalWeight) * (alpha / 255f);
-                    long scaled = Math.max(1L, Math.round(weight * 100f));
-                    sumA += scaled;
-                    sumR += (long) Color.red(pixel) * scaled;
-                    sumG += (long) Color.green(pixel) * scaled;
-                    sumB += (long) Color.blue(pixel) * scaled;
-                }
-            }
-            if (sumA == 0L) {
-                return Color.argb(170, 130, 255, 235);
-            }
-            int red = (int) (sumR / sumA);
-            int green = (int) (sumG / sumA);
-            int blue = (int) (sumB / sumA);
-            red = (int) (red * 0.72f + 255f * 0.28f);
-            green = (int) (green * 0.72f + 255f * 0.28f);
-            blue = (int) (blue * 0.72f + 255f * 0.28f);
-            return Color.argb(176, clamp(red, 0, 255), clamp(green, 0, 255), clamp(blue, 0, 255));
-        }
-
-        private void clearGlowCache() {
-            clearGlowBitmaps();
-            cachedContentWidth = -1;
-            cachedContentHeight = -1;
-            cachedDrawableHash = 0;
-            invalidate();
-        }
-
-        private void clearGlowBitmaps() {
-            if (outerGlowBitmap != null) {
-                outerGlowBitmap.recycle();
-                outerGlowBitmap = null;
-            }
-            if (innerGlowBitmap != null) {
-                innerGlowBitmap.recycle();
-                innerGlowBitmap = null;
-            }
-        }
-    }
-
     private TextView gradientTitleView(String text) {
         TextView title = new GlowTitleTextView(this);
         title.setText(text);
-        // 关键修复：大半径模糊/光晕被截断的原因�?TextView 本身没有足够的水平边距和垂直边距�?        // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂�?        // 通过设置充足的水�?Padding (左右 16dp) 和垂�?Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
+        // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
+        // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
+        // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
         title.setPadding(dp(22), dp(5), dp(22), dp(5));
         styleGradientTitle(title);
         return title;
@@ -7982,8 +7555,10 @@ public final class MainActivity extends Activity {
             return;
         }
         final int styleVersion = bumpTextStyleVersion(view);
-        // Use software rendering for the custom glow path to avoid GPU shadow artifacts.
+        // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
+        // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
         boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             if (usesCustomGlow) {
                 // Inactive bottom tabs drop back to a hardware layer. Restore software
                 // text rendering when re-activating them so animated shimmer frames
@@ -7998,8 +7573,9 @@ public final class MainActivity extends Activity {
         applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
-        // Keep a slightly tighter fallback glow ring while preserving soft fade.
+        // 缩小一圈，但保留完整衰减空间
         view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
+        view.invalidate();
         if (view.getWidth() <= 0) {
             view.post(() -> {
                 if (!isCurrentTextStyleVersion(view, styleVersion)) {
@@ -8051,8 +7627,9 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // Rebalanced high-brightness blue-white shimmer colors.
-        int highGlowCyan = Color.rgb(150, 235, 255);  // pale bright blue-white
+        // 色阶重构：超高亮炽白冰蓝流光——去绿，浅亮蓝+超白，亮度拉满
+        int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
+        int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         float normalizedPhase = phase - (float) Math.floor(phase);
@@ -8081,8 +7658,9 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // Shared five-stop blue-white palette for status shimmer.
-        int highGlowCyan = Color.rgb(150, 235, 255);  // pale bright blue-white
+        // 状态文字统一精简5色标超炽白冰蓝色阶（去绿，浅亮蓝+超白）
+        int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
+        int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         float normalizedPhase = phase - (float) Math.floor(phase);
@@ -8112,8 +7690,10 @@ public final class MainActivity extends Activity {
         int viewWidth = Math.max(1, view.getWidth());
         CharSequence text = view.getText();
         if (text != null && text.length() > 0) {
-            // Use real text width, not padded view width, when computing shimmer span.
+            // 关键修复：计算渐变宽度时，应减去我们为了预留光晕空间所增加的 padding，
+            // 否则渐变计算会以增加了 Padding 后的总宽度为准，导致流光渐变视觉中心发生偏移。
             int textWidth = (int) Math.ceil(view.getPaint().measureText(text.toString()));
+            return Math.max(1, Math.min(viewWidth, textWidth));
         }
         return viewWidth;
     }
@@ -8239,8 +7819,9 @@ public final class MainActivity extends Activity {
         if (statusText == null) {
             return;
         }
-        // Reserve horizontal padding so the status glow is not clipped.
+        // 确保状态文本也设置左右Padding预留光晕展示，不被视图边界截断
         statusText.setPadding(dp(10), dp(4), dp(10), dp(4));
+        if (!supported) {
             unregisterShimmerView(statusText);
             statusText.setTextColor(Color.rgb(150, 158, 172));
             statusText.getPaint().clearShadowLayer();
@@ -8252,11 +7833,13 @@ public final class MainActivity extends Activity {
             statusText.setTextColor(Color.rgb(255, 100, 100));
             statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
         } else if (isEditingPresetActive()) {
-            // Live mode uses the brighter animated shimmer.
+            // Live 模式：迷人动感的青绿色至翡翠色流光
             registerShimmerView(statusText);
+            applyShimmerFrame(statusText, settingsTitleGradientWidth(statusText), currentShimmerPhaseForView(statusText));
         } else {
-            // Edit mode keeps its own animated shimmer path.
+            // Edit 模式：平稳高贵的浅白至淡黄流光
             registerShimmerView(statusText);
+            applyShimmerFrame(statusText, settingsTitleGradientWidth(statusText), currentShimmerPhaseForView(statusText));
         }
         statusText.invalidate();
     }
@@ -8297,8 +7880,10 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 绘制上一�?下一步用的圆弧箭头图标。isRedo �?true 时水平镜像得到下一步箭头�?     * 仅绘制白色描�?+ 填充主体（避免宽描边光晕在硬件加速下产生锯齿）；
-     * 通过 ColorFilter 在禁用时整体变暗�?     */
+     * 绘制上一步/下一步用的圆弧箭头图标。isRedo 为 true 时水平镜像得到下一步箭头。
+     * 仅绘制白色描边 + 填充主体（避免宽描边光晕在硬件加速下产生锯齿）；
+     * 通过 ColorFilter 在禁用时整体变暗。
+     */
     private Drawable makeCurvedArrowDrawable(boolean isRedo) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -8323,15 +7908,16 @@ public final class MainActivity extends Activity {
                 float r = sizePx * 0.40f;
                 float strokeW = dpf(1.4f);
                 arcRect.set(-r, -r, r, r);
-                // Undo arrow sweeps counter-clockwise and finishes on the upper-left tip.
+                // 上一步箭头：从 165° 逆时针扫过 300°，缺口位于左侧，箭尖收在 225°（左上）并指向左侧。
                 float startAngle = 165f;
+                float sweepAngle = -300f;
                 arcPath.reset();
                 arcPath.arcTo(arcRect, startAngle, sweepAngle);
 
                 double endRad = Math.toRadians(startAngle + sweepAngle);
                 float tipX = r * (float) Math.cos(endRad);
                 float tipY = r * (float) Math.sin(endRad);
-                // 逆时针运动在角度 θ 处的切向�?sin θ, -cos θ)
+                // 逆时针运动在角度 θ 处的切向：(sin θ, -cos θ)
                 float tanX = (float) Math.sin(endRad);
                 float tanY = -(float) Math.cos(endRad);
                 float arrowLen = r * 0.62f;
@@ -8350,8 +7936,9 @@ public final class MainActivity extends Activity {
                 paint.setStrokeCap(Paint.Cap.ROUND);
                 paint.setStrokeJoin(Paint.Join.ROUND);
 
-                // White arrow body uses stroke plus fill for crisp edges.
+                // 白色主体（描边 + 填充）
                 paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(strokeW);
                 paint.setColor(Color.WHITE);
                 canvas.drawPath(arcPath, paint);
                 paint.setStyle(Paint.Style.FILL);
@@ -8818,8 +8405,11 @@ public final class MainActivity extends Activity {
         if (tab == null || bottomTabStrip == null) {
             return 0f;
         }
-        // tab.getLeft() is already relative to the strip, so do not add strip offset again.
+        // indicator 与 strip 同为 nav(FrameLayout)子 view，leftMargin 相对 nav 内容区(已含 padding)。
+        // tab.getLeft() 已是相对 strip 的位置，直接用即可，不能再加 strip.getLeft()，
+        // 否则会多偏移一个 nav 的 padding，导致 indicator 框整体右移与 tab 不对齐。
         float buttonLeftInStrip = tab.getLeft();
+        float indicatorWidth = tabIndicatorWidthForTab(tab);
         return buttonLeftInStrip + (tab.getWidth() - indicatorWidth) / 2f;
     }
 
@@ -8827,9 +8417,10 @@ public final class MainActivity extends Activity {
         if (tab == null || tab.getWidth() <= 0) {
             return 0f;
         }
-        // 统一�?tab 宽度的固定比例，保证三个 tab �?indicator 框宽度完全一致，
-        // Use a fixed proportion of each tab width so all indicators stay aligned.
+        // 统一为 tab 宽度的固定比例，保证三个 tab 的 indicator 框宽度完全一致，
+        // 视觉对齐整齐。基本占据 1/3 位置（留少量边距）。
         return tab.getWidth() * 0.92f;
+    }
 
     private View[] mainPages() {
         return new View[]{eqPage, extraPage, settingsPage};
@@ -9199,13 +8790,15 @@ public final class MainActivity extends Activity {
                         dp(3),
                         Color.argb(85, 0, 245, 212)
                 ));
-                // 底部 Tab 流光：与所有标题共享蓝绿亮�?+ 深蓝点缀 + 白热核心的统一主题
+                // 底部 Tab 流光：与所有标题共享蓝绿亮色 + 深蓝点缀 + 白热核心的统一主题
                 applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
                         Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
                 tab.setTextColor(Color.WHITE);
-                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触�?TextView �?software
-                // Avoid shadowLayer here so tab shimmer stays on the hardware text path.
+                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
+                // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
+                // hotCore 白热核心已作视觉焦点。
                 tab.getPaint().clearShadowLayer();
+                tab.invalidate();
                 registerShimmerView(tab);
             } else {
                 GradientDrawable gd = new GradientDrawable();
@@ -9223,5 +8816,4 @@ public final class MainActivity extends Activity {
         return Math.max(min, Math.min(max, value));
     }
 }
-
 
