@@ -14,7 +14,7 @@ import android.view.View;
 final class EqCurveView extends View {
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
-    private static final float CURVE_SAMPLE_STEP_PX = 0.35f;
+    private static final float CURVE_SAMPLE_STEP_PX = 0.24f;
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
     private static final long ANIMATION_FRAME_DELAY_MS = 33L;
 
@@ -378,13 +378,13 @@ final class EqCurveView extends View {
     private float adaptiveStepPx(float left, float right, float x, float baseStepPx) {
         double hz = xToFrequency(x, left, right);
         if (hz < 120d) {
-            return Math.max(0.14f, baseStepPx * 0.35f);
+            return Math.max(0.08f, baseStepPx * 0.28f);
         }
         if (hz < 200d) {
-            return Math.max(0.18f, baseStepPx * 0.45f);
+            return Math.max(0.11f, baseStepPx * 0.38f);
         }
         if (hz < 420d) {
-            return Math.max(0.22f, baseStepPx * 0.6f);
+            return Math.max(0.16f, baseStepPx * 0.54f);
         }
         return baseStepPx;
     }
