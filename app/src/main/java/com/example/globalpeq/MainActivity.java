@@ -6403,6 +6403,20 @@ public final class MainActivity extends Activity {
         updateBottomTabIndicator(activeIndex, true);
     }
 
+    private boolean isActiveBottomTab(View view) {
+        if (view == null) {
+            return false;
+        }
+        switch (clamp(activeMainPageIndex, 0, 2)) {
+            case 0:
+                return view == eqTabButton;
+            case 1:
+                return view == extraTabButton;
+            default:
+                return view == settingsTabButton;
+        }
+    }
+
     private void updateBottomTabIndicator(int activeIndex, boolean animate) {
         if (bottomTabIndicator == null) {
             return;
