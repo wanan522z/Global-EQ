@@ -349,6 +349,8 @@ public final class MainActivity extends Activity {
         boolean loadedWasLimited = !limitedPreset.toJson().equals(loadedPreset.toJson());
         loadedPreset = limitedPreset;
         runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
+        modeVisualEnabled = runningPreset.enabled;
+        curveVisualEnabled = runningPreset.enabled;
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
         applyPresetCurveSettings(editingPreset);
