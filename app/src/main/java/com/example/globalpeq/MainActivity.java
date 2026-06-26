@@ -5416,6 +5416,11 @@ public final class MainActivity extends Activity {
         }
 
         void setGlowState(boolean enabled, int color, float radiusPx) {
+            if (glowEnabled == enabled
+                    && glowColor == color
+                    && Math.abs(glowRadiusPx - radiusPx) < 0.001f) {
+                return;
+            }
             glowEnabled = enabled;
             glowColor = color;
             glowRadiusPx = radiusPx;
@@ -5423,6 +5428,9 @@ public final class MainActivity extends Activity {
         }
 
         void clearGlowState() {
+            if (!glowEnabled) {
+                return;
+            }
             glowEnabled = false;
             invalidate();
         }
