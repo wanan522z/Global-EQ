@@ -22,6 +22,9 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 final class PlaybackCaptureEngine {
     private static final String TAG = "PlaybackCaptureEngine";
     private static final int CHANNEL_COUNT = 2;
@@ -192,6 +195,23 @@ final class PlaybackCaptureEngine {
 
     synchronized boolean hasProjection() {
         return mediaProjection != null;
+    }
+
+    synchronized Set<Integer> getOwnedAudioSessionIds() {
+        Set<Integer> sessionIds = new LinkedHashSet<>();
+        if (audioRecord != null) {
+            int recordSessionId = audioRecord.getAudioSessionId();
+            if (recordSessionId > 0) {
+                sessionIds.add(recordSessionId);
+            }
+        }
+        if (audioTrack != null) {
+            int trackSessionId = audioTrack.getAudioSessionId();
+            if (trackSessionId > 0) {
+                sessionIds.add(trackSessionId);
+            }
+        }
+        return sessionIds;
     }
 
     synchronized void stopAll() {

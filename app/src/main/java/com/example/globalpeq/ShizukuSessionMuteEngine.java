@@ -40,6 +40,7 @@ final class ShizukuSessionMuteEngine {
     private final PackageManager packageManager;
     private final PresetRepository repository;
     private final Runnable notificationCallback;
+    private final SessionIdProvider sessionIdProvider;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Object stateLock = new Object();
     private final Map<Integer, DynamicsProcessing> muteEffects = new ConcurrentHashMap<>();
@@ -63,8 +64,13 @@ final class ShizukuSessionMuteEngine {
     private volatile int currentTargetUid = -1;
     private volatile String currentTargetPackage = "";
     private volatile String currentTargetLabel = "";
+    private volatile Set<Integer> currentAppSessionIds = new LinkedHashSet<>();
     private String publishedStatus = "";
     private boolean publishedActive;
+
+    interface SessionIdProvider {
+        Set<Integer> getOwnedAudioSessionIds();
+    }
 
     private static final class SessionInfo {
         final int sessionId;
@@ -82,12 +88,16 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
-    ShizukuSessionMuteEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
+    ShizukuSessionMuteEngine(Context context,
+                             PresetRepository repository,
+                             Runnable notificationCallback,
+                             SessionIdProvider sessionIdProvider) {
         this.appContext = context.getApplicationContext();
         this.audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
         this.packageManager = appContext.getPackageManager();
         this.repository = repository;
         this.notificationCallback = notificationCallback;
+        this.sessionIdProvider = sessionIdProvider;
         publishStatus("Shizuku mute is idle.", false);
     }
 
@@ -143,6 +153,7 @@ final class ShizukuSessionMuteEngine {
             return;
         }
         try {
+            updateCurrentAppSessionIds();
             List<SessionInfo> sessions = dumpPolicySessions();
             muteOtherSessions(sessions);
             int mutedCount = muteEffects.size();
@@ -161,6 +172,16 @@ final class ShizukuSessionMuteEngine {
             handler.removeCallbacks(pollRunnable);
             handler.postDelayed(pollRunnable, delayMs);
         }
+    }
+
+    private void updateCurrentAppSessionIds() {
+        SessionIdProvider provider = sessionIdProvider;
+        if (provider == null) {
+            currentAppSessionIds = new LinkedHashSet<>();
+            return;
+        }
+        Set<Integer> sessionIds = provider.getOwnedAudioSessionIds();
+        currentAppSessionIds = sessionIds == null ? new LinkedHashSet<>() : new LinkedHashSet<>(sessionIds);
     }
 
     private List<SessionInfo> dumpPolicySessions() {
@@ -222,6 +243,9 @@ final class ShizukuSessionMuteEngine {
         for (SessionInfo session : sessions) {
             knownSessions.put(session.sessionId, session);
             if (session.uid == ownUid || appContext.getPackageName().equals(session.packageName)) {
+                continue;
+            }
+            if (currentAppSessionIds.contains(session.sessionId)) {
                 continue;
             }
             if (session.sessionId <= 0 || session.sessionId == 0) {
@@ -377,6 +401,7 @@ final class ShizukuSessionMuteEngine {
             }
         }
         knownSessions.clear();
+        currentAppSessionIds = new LinkedHashSet<>();
         currentTargetUid = -1;
         currentTargetPackage = "";
         currentTargetLabel = "";
