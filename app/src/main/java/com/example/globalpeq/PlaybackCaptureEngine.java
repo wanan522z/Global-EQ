@@ -79,7 +79,7 @@ final class PlaybackCaptureEngine {
         releaseProjectionLocked();
         try {
             mediaProjection = manager.getMediaProjection(resultCode, new Intent(data));
-        } catch (RuntimeException | SecurityException ex) {
+        } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to obtain MediaProjection token", ex);
             mediaProjection = null;
         }
@@ -252,7 +252,7 @@ final class PlaybackCaptureEngine {
             workerThread = new Thread(this::runCaptureLoop, "global-peq-capture");
             workerThread.start();
             publishStatus("Monitoring " + currentTargetLabel + " via native capture. Mute the source app.", true);
-        } catch (RuntimeException | SecurityException ex) {
+        } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to start playback capture pipeline", ex);
             stopPipelineLocked();
             publishStatus("Failed to start native capture. Re-authorize and try again.", false);
