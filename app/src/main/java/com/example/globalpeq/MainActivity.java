@@ -5743,9 +5743,9 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 色阶重构：超高亮炽白冰青流光——去绿，纯青+超白，亮度拉满
-        int highGlowCyan = Color.rgb(180, 255, 255);  // 极高亮白青
-        int iceCyan = Color.rgb(60, 245, 255);        // 极亮电光冰青蓝
+        // 色阶重构：超高亮炽白冰蓝流光——去绿，浅亮蓝+超白，亮度拉满
+        int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
+        int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         view.getPaint().setShader(new LinearGradient(
