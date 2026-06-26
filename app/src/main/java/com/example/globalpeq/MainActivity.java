@@ -3551,7 +3551,6 @@ public final class MainActivity extends Activity {
         cancelEnabledNeonSequence();
         modeVisualEnabled = false;
         curveVisualEnabled = false;
-        preparePeqVisualSequence(false);
         if (modeSpinner != null) {
             modeSpinner.animate().cancel();
             modeSpinner.setAlpha(0.68f);
@@ -3564,7 +3563,6 @@ public final class MainActivity extends Activity {
         updatePeqBandVisuals();
         uiHandler.postDelayed(enableNeonHeaderRunnable, ENABLE_NEON_HEADER_DELAY_MS);
         uiHandler.postDelayed(enableNeonCurveRunnable, ENABLE_NEON_CURVE_DELAY_MS);
-        uiHandler.postDelayed(enablePeqBandStepRunnable, ENABLE_NEON_PEQ_START_DELAY_MS);
     }
 
     private void activateEnabledNeonHeader() {
@@ -3602,7 +3600,6 @@ public final class MainActivity extends Activity {
         cancelEnabledNeonSequence();
         modeVisualEnabled = false;
         curveVisualEnabled = false;
-        preparePeqVisualSequence(false);
         if (modeSpinner != null) {
             modeSpinner.animate().cancel();
             modeSpinner.setAlpha(1f);
