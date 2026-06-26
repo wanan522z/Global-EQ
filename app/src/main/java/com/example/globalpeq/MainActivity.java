@@ -547,12 +547,26 @@ public final class MainActivity extends Activity {
 
     private void handleDetectedOutputDevice(AudioOutputDevice device) {
         repository.saveKnownDevice(device);
+        boolean sameDevice = currentDevice != null && currentDevice.key.equals(device.key);
+        if (awaitingInitialDeviceMonitorEvent) {
+            awaitingInitialDeviceMonitorEvent = false;
+            currentDevice = device;
+            repository.saveSelectedDevice(currentDevice);
+            if (!autoSwitchOutput) {
+                renderDeviceSpinner();
+                return;
+            }
+            if (sameDevice) {
+                renderDeviceSpinner();
+                return;
+            }
+        }
         if (!autoSwitchOutput) {
             renderDeviceSpinner();
             return;
         }
 
-        if (currentDevice != null && currentDevice.key.equals(device.key)) {
+        if (sameDevice) {
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             renderDeviceSpinner();
@@ -572,7 +586,7 @@ public final class MainActivity extends Activity {
         applyPresetCurveSettings(editingPreset);
         syncVirtualBassEnabledFromPreset();
         renderAll();
-        applyRunningPreset();
+        applyRunningPreset(true);
     }
 
     private LinearLayout buildContent() {
