@@ -142,6 +142,7 @@ public final class MainActivity extends Activity {
     private final java.util.Map<TextView, Integer> shimmerLastWidth = new java.util.HashMap<>();
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleActiveStates = new java.util.HashMap<>();
+    private final java.util.Map<TextView, Float> shimmerPhaseAnchors = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
     private String statusVisualStateKey = "";
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
@@ -185,8 +186,7 @@ public final class MainActivity extends Activity {
                 // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化，
                 // 导致 matrix 更新了但 glyph 不重绘（视觉不动）。
                 // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘。
-                float phase = shimmerAnimPhase * shimmerSpeedMultiplierForView(view);
-                phase -= (float) Math.floor(phase);
+                float phase = currentShimmerPhaseForView(view);
                 applyShimmerFrame(view, width, phase);
             }
             if (!shimmerTargetViews.isEmpty()) {
@@ -263,6 +263,25 @@ public final class MainActivity extends Activity {
             return TAB_SHIMMER_SPEED_MULTIPLIER;
         }
         return 1f;
+    }
+
+    private float rawGlobalShimmerPhaseForView(TextView view) {
+        float phase = shimmerAnimPhase * shimmerSpeedMultiplierForView(view);
+        return phase - (float) Math.floor(phase);
+    }
+
+    private float currentShimmerPhaseForView(TextView view) {
+        float phase = rawGlobalShimmerPhaseForView(view);
+        if (!isExtraSectionTitle(view)) {
+            return phase;
+        }
+        Float anchor = shimmerPhaseAnchors.get(view);
+        if (anchor == null) {
+            return phase;
+        }
+        float local = phase - anchor;
+        local -= (float) Math.floor(local);
+        return local;
     }
 
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
@@ -5713,9 +5732,11 @@ public final class MainActivity extends Activity {
         }
         titleActiveStates.put(view, active);
         if (active) {
+            shimmerPhaseAnchors.put(view, rawGlobalShimmerPhaseForView(view));
             styleSettingsTitleText(view);
             registerShimmerView(view);
         } else {
+            shimmerPhaseAnchors.remove(view);
             applyInactiveExtraSectionTitleStyle(view);
         }
     }
@@ -5725,6 +5746,7 @@ public final class MainActivity extends Activity {
             return;
         }
         bumpTextStyleVersion(view);
+        shimmerPhaseAnchors.remove(view);
         unregisterShimmerView(view);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && view.getLayerType() != View.LAYER_TYPE_NONE) {
@@ -5853,7 +5875,7 @@ public final class MainActivity extends Activity {
                 view.setLayerType(View.LAYER_TYPE_NONE, null);
             }
         }
-        applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), shimmerAnimPhase * shimmerSpeedMultiplierForView(view),
+        applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
         // 缩小一圈，但保留完整衰减空间
@@ -5864,7 +5886,7 @@ public final class MainActivity extends Activity {
                 if (!isCurrentTextStyleVersion(view, styleVersion)) {
                     return;
                 }
-                applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), shimmerAnimPhase * shimmerSpeedMultiplierForView(view),
+                applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                         Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
                 view.setTextColor(Color.WHITE);
                 view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
