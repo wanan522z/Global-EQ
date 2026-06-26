@@ -4233,7 +4233,7 @@ public final class MainActivity extends Activity {
         layout.setPadding(dp(20), dp(16), dp(20), dp(8));
 
         TextView targetLabel = new TextView(this);
-        targetLabel.setText("Save to");
+        targetLabel.setText(tr("Save to", "保存到"));
         targetLabel.setTextSize(12);
         targetLabel.setTextColor(Color.rgb(142, 154, 168));
         targetLabel.setPadding(dp(2), 0, dp(2), dp(6));
@@ -4258,7 +4258,7 @@ public final class MainActivity extends Activity {
         ));
 
         TextView nameLabel = new TextView(this);
-        nameLabel.setText("Preset name");
+        nameLabel.setText(tr("Preset name", "预设名称"));
         nameLabel.setTextSize(12);
         nameLabel.setTextColor(Color.rgb(142, 154, 168));
         nameLabel.setPadding(dp(2), 0, dp(2), dp(6));
@@ -4276,7 +4276,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint("Preset name");
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -4300,10 +4300,10 @@ public final class MainActivity extends Activity {
         }));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Save preset"))
+                .setCustomTitle(dialogTitleView(tr("Save preset", "保存预设")))
                 .setView(layout)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", (d, which) -> {
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Save", "保存"), (d, which) -> {
                     int selected = selectedTargetIndex[0];
                     String oldTargetName = selected <= 0 ? null : targets.get(selected);
                     saveDraftToPreset(oldTargetName, input.getText().toString());
@@ -4321,7 +4321,7 @@ public final class MainActivity extends Activity {
 
         AlertDialog[] dialogHolder = new AlertDialog[1];
         Button add = new Button(this);
-        add.setText("+ Add new preset");
+        add.setText(tr("+ Add new preset", "+ 新增预设"));
         add.setTextSize(14);
         add.setAllCaps(false);
         styleAccentButton(add, true);
@@ -4340,9 +4340,9 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Select preset"))
+                .setCustomTitle(dialogTitleView(tr("Select preset", "选择预设")))
                 .setView(scroll)
-                .setNegativeButton("Close", null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -4405,10 +4405,10 @@ public final class MainActivity extends Activity {
 
     private void confirmDeletePreset(String name, AlertDialog[] menuDialogHolder) {
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Delete preset"))
-                .setMessage("Delete preset \"" + name + "\"?")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (d, which) -> {
+                .setCustomTitle(dialogTitleView(tr("Delete preset", "删除预设")))
+                .setMessage(tr("Delete preset \"", "删除预设“") + name + tr("\"?", "”？"))
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Delete", "删除"), (d, which) -> {
                     deletePreset(name);
                     if (menuDialogHolder[0] != null) {
                         menuDialogHolder[0].dismiss();
@@ -4450,7 +4450,7 @@ public final class MainActivity extends Activity {
     private void saveDraftToPreset(String oldTargetName, String rawName) {
         String finalName = rawName == null ? "" : rawName.trim();
         if (finalName.isEmpty()) {
-            Toast.makeText(this, "Preset name required", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -4474,7 +4474,7 @@ public final class MainActivity extends Activity {
         undoStack.clear();
         redoStack.clear();
         renderAll();
-        Toast.makeText(this, "Preset saved", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Preset saved", "预设已保存"), Toast.LENGTH_SHORT).show();
     }
 
     private void loadPresetLive(String name) {
@@ -4499,7 +4499,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint("Preset name");
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -4515,13 +4515,13 @@ public final class MainActivity extends Activity {
         container.addView(input, inputParams);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Add new preset"))
+                .setCustomTitle(dialogTitleView(tr("Add new preset", "新增预设")))
                 .setView(container)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Add", (d, which) -> {
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Add", "新增"), (d, which) -> {
                     String name = input.getText().toString() == null ? "" : input.getText().toString().trim();
                     if (name.isEmpty()) {
-                        Toast.makeText(this, "Preset name required", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     editingPreset = withCurrentCurveSettings(Preset.flat(runningPreset != null && runningPreset.enabled)).withName(name);
