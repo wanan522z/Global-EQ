@@ -3619,7 +3619,9 @@ public final class MainActivity extends Activity {
     }
 
     private void showCurveGainDialog(boolean targetCurve) {
-        String title = targetCurve ? "Target curve gain" : "Device curve gain";
+        String title = targetCurve
+                ? tr("Target curve gain", "Target curve 增益")
+                : tr("Device curve gain", "Device curve 增益");
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(dp(20), dp(10), dp(20), dp(8));
@@ -3743,7 +3745,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(title))
                 .setView(layout)
-                .setNegativeButton("Close", null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialog.setOnDismissListener(d -> removeCurveGainDim());
         dialog.show();
