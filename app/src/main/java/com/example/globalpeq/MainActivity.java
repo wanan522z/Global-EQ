@@ -149,7 +149,6 @@ public final class MainActivity extends Activity {
     private static final int SHIMMER_FPS_DELAY = 66;
     private long lastShimmerTime = 0L;
     // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
-    private final java.util.Map<TextView, Integer> shimmerLastWidth = new java.util.HashMap<>();
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleVisualStates = new java.util.HashMap<>();
