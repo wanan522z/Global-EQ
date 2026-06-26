@@ -27,6 +27,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.text.Editable;
 import android.text.InputType;
@@ -1157,7 +1158,7 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
         aboutParams.topMargin = dp(16);
-        page.addView(aboutPanel, aboutParams);
+        settingsRootContent.addView(aboutPanel, aboutParams);
 
         TextView aboutTitle = gradientTitleView("About Global PEQ");
         aboutTitle.setText("About Global PEQ");
@@ -1187,7 +1188,17 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         footerParams.topMargin = dp(32);
-        page.addView(footerText, footerParams);
+        settingsRootContent.addView(footerText, footerParams);
+
+        advancedModeSettingsPage = new LinearLayout(this);
+        advancedModeSettingsPage.setOrientation(LinearLayout.VERTICAL);
+        advancedModeSettingsPage.setVisibility(View.GONE);
+        advancedModeSettingsPage.setPadding(0, 0, 0, dp(12));
+        page.addView(advancedModeSettingsPage, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+        buildAdvancedSettingsPage(advancedModeSettingsPage);
     }
 
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
