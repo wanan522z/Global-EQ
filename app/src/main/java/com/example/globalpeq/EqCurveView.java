@@ -81,43 +81,43 @@ final class EqCurveView extends View {
         frequencyTextPaint.setTextSize(17f);
         frequencyTextPaint.setTextAlign(Paint.Align.CENTER);
 
-        // Configure advanced glow layers (optimizing halo and fixing anti-aliasing)
-        // 0. New far halo: broad atmospheric bloom, closer to the title glow style
+        // Configure advanced glow layers as a wide, soft bloom:
+        // low brightness, large spread, and a gradual fade instead of neon edges.
         glowPaint0.setStyle(Paint.Style.STROKE);
         glowPaint0.setStrokeCap(Paint.Cap.ROUND);
         glowPaint0.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint0.setStrokeWidth(18f);
-        glowPaint0.setColor(Color.argb(34, 170, 120, 255));
+        glowPaint0.setStrokeWidth(28f);
+        glowPaint0.setColor(Color.argb(16, 170, 210, 255));
         glowPaint0.setAntiAlias(true);
         glowPaint0.setFilterBitmap(true);
         glowPaint0.setDither(true);
 
-        // 1. Far outer ring: larger spread, but with very soft alpha gradient transition
+        // 1. Outer haze: still broad, but slightly more visible.
         glowPaint1.setStyle(Paint.Style.STROKE);
         glowPaint1.setStrokeCap(Paint.Cap.ROUND);
         glowPaint1.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint1.setStrokeWidth(13.5f);
-        glowPaint1.setColor(Color.argb(28, 100, 245, 255));
+        glowPaint1.setStrokeWidth(20f);
+        glowPaint1.setColor(Color.argb(24, 130, 215, 255));
         glowPaint1.setAntiAlias(true);
         glowPaint1.setFilterBitmap(true);
         glowPaint1.setDither(true);
 
-        // 2. Middle ring: intermediate spread, smooth alpha
+        // 2. Mid haze: connects the bloom to the curve body without becoming a hard neon edge.
         glowPaint2.setStyle(Paint.Style.STROKE);
         glowPaint2.setStrokeCap(Paint.Cap.ROUND);
         glowPaint2.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint2.setStrokeWidth(9.5f);
-        glowPaint2.setColor(Color.argb(52, 140, 110, 255));
+        glowPaint2.setStrokeWidth(13f);
+        glowPaint2.setColor(Color.argb(30, 150, 220, 255));
         glowPaint2.setAntiAlias(true);
         glowPaint2.setFilterBitmap(true);
         glowPaint2.setDither(true);
 
-        // 3. Inner solid halo core: small glow close to the actual curve to enhance overall look
+        // 3. Near haze: a restrained inner bloom, intentionally not too bright.
         glowPaint3.setStyle(Paint.Style.STROKE);
         glowPaint3.setStrokeCap(Paint.Cap.ROUND);
         glowPaint3.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint3.setStrokeWidth(6.2f);
-        glowPaint3.setColor(Color.argb(82, 180, 235, 255));
+        glowPaint3.setStrokeWidth(8.5f);
+        glowPaint3.setColor(Color.argb(36, 190, 230, 255));
         glowPaint3.setAntiAlias(true);
         glowPaint3.setFilterBitmap(true);
         glowPaint3.setDither(true);
