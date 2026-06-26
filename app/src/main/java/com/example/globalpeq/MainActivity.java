@@ -7783,8 +7783,11 @@ public final class MainActivity extends Activity {
             android.graphics.Canvas c = new android.graphics.Canvas(src);
             android.graphics.Rect fit = fitCenter(sourceIcon, aw, ah);
             fit.offset(pad, pad);
+            // 保存并恢复宿主 ImageView 共享的 bounds，避免影响上层锐利绘制
+            android.graphics.Rect saved = new android.graphics.Rect(sourceIcon.getBounds());
             sourceIcon.setBounds(fit);
             sourceIcon.draw(c);
+            sourceIcon.setBounds(saved);
             // 2. 取出 alpha 通道，做 3 趟可分离盒式模糊（近似高斯），生成柔和光晕
             int[] px = new int[bw * bh];
             src.getPixels(px, 0, bw, 0, 0, bw, bh);
