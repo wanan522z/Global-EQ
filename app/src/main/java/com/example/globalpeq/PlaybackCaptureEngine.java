@@ -56,7 +56,7 @@ final class PlaybackCaptureEngine {
     private volatile ProcessingMode currentMode = ProcessingMode.SYSTEM_EQ;
     private volatile Preset currentPreset = Preset.flat(false);
     private volatile AdvancedModeConfig currentConfig = AdvancedModeConfig.DEFAULT;
-    private volatile int currentBassModeIndex;
+    private volatile int currentVirtualBassModeIndex;
     private volatile int currentTargetUid = -1;
     private volatile String currentTargetLabel = "";
     private volatile AudioOutputDevice currentOutputDevice = new AudioOutputDevice("none", "Output device");
@@ -128,12 +128,12 @@ final class PlaybackCaptureEngine {
     synchronized void updateProcessing(ProcessingMode mode,
                                        Preset preset,
                                        AdvancedModeConfig config,
-                                       int bassModeIndex,
+                                       int virtualBassModeIndex,
                                        AudioOutputDevice outputDevice) {
         currentMode = mode == null ? ProcessingMode.SYSTEM_EQ : mode;
         currentPreset = preset == null ? Preset.flat(false) : preset;
         currentConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
-        currentBassModeIndex = bassModeIndex;
+        currentVirtualBassModeIndex = virtualBassModeIndex;
         currentOutputDevice = outputDevice == null ? new AudioOutputDevice("none", "Output device") : outputDevice;
         currentTargetLabel = currentConfig.monitoredAppLabel.isEmpty()
                 ? currentConfig.monitoredAppPackage
@@ -446,12 +446,12 @@ final class PlaybackCaptureEngine {
             Preset effectiveDspPreset = AudioProcessingPolicy.effectiveDspPreset(
                     currentPreset,
                     currentMode,
-                    currentBassModeIndex);
+                    currentVirtualBassModeIndex);
             dspProcessor.configure(
                     effectiveDspPreset,
                     SAMPLE_RATE,
                     CHANNEL_COUNT,
-                    AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentBassModeIndex),
+                    AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentVirtualBassModeIndex),
                     currentConfig);
         }
         applyTrackVirtualBassLocked();
@@ -474,7 +474,7 @@ final class PlaybackCaptureEngine {
             releaseTrackVirtualBassLocked();
             return;
         }
-        boolean enableSystemBass = AudioProcessingPolicy.systemVirtualBassAllowed(currentBassModeIndex)
+        boolean enableSystemBass = AudioProcessingPolicy.systemVirtualBassAllowed(currentVirtualBassModeIndex)
                 && currentPreset.virtualBassAmountPercent > 0;
         if (!enableSystemBass) {
             releaseTrackVirtualBassLocked();
