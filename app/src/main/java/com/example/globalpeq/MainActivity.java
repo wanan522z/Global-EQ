@@ -5377,10 +5377,10 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 色阶重构：精简为丝滑的5阶蓝绿极高亮色阶（与 SHIMMER_BRIGHT_COLORS 统一设计：增加发光白青和冰青蓝，减少翡翠绿，超炽白）
-        int highGlowCyan = Color.rgb(100, 255, 240);  // 高发光白青
-        int iceCyan = Color.rgb(0, 235, 255);         // 电光冰青蓝
-        int superHotCore = Color.rgb(255, 255, 255);   // 超亮炽白核心
+        // 色阶重构：超高亮炽白冰青流光——去绿，纯青+超白，亮度拉满
+        int highGlowCyan = Color.rgb(180, 255, 255);  // 极高亮白青
+        int iceCyan = Color.rgb(60, 245, 255);        // 极亮电光冰青蓝
+        int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
@@ -5399,10 +5399,10 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 状态文字统一精简5色标超炽白冰青色阶
-        int highGlowCyan = Color.rgb(100, 255, 240);  // 高发光白青
-        int iceCyan = Color.rgb(0, 235, 255);         // 电光冰青蓝
-        int superHotCore = Color.rgb(255, 255, 255);   // 超亮炽白核心
+        // 状态文字统一精简5色标超炽白冰青色阶（去绿，纯青+超白）
+        int highGlowCyan = Color.rgb(180, 255, 255);  // 极高亮白青
+        int iceCyan = Color.rgb(60, 245, 255);        // 极亮电光冰青蓝
+        int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         view.getPaint().setShader(new LinearGradient(
                 0, 0, width, 0,
