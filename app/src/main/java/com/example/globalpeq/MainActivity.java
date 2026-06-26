@@ -2140,7 +2140,7 @@ public final class MainActivity extends Activity {
         }
         if (advancedMonitorAppButton != null) {
             advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
-                    ? "Choose app"
+                    ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
         if (presetSelectButton != null) {
