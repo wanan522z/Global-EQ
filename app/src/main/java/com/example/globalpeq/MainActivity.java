@@ -6142,9 +6142,8 @@ public final class MainActivity extends Activity {
             modeSpinner.invalidate();
             return;
         }
-        styleSettingsTitleText(modeSpinner);
-        shimmerLastWidth.remove(modeSpinner);
         registerShimmerView(modeSpinner);
+        applyShimmerFrame(modeSpinner, settingsTitleGradientWidth(modeSpinner), currentShimmerPhaseForView(modeSpinner));
     }
 
     private void styleCyanGlowText(TextView view) {

@@ -15,6 +15,9 @@ import android.view.View;
 final class EqCurveView extends View {
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
+    private static final double LOG_MIN_HZ = Math.log(MIN_HZ);
+    private static final double LOG_MAX_HZ = Math.log(MAX_HZ);
+    private static final double LOG_HZ_SPAN = LOG_MAX_HZ - LOG_MIN_HZ;
     private static final float CURVE_SAMPLE_STEP_PX = 0.24f;
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
     private static final long ANIMATION_FRAME_DELAY_MS = 33L;
@@ -54,6 +57,12 @@ final class EqCurveView extends View {
     private boolean glowCacheDirty = true;
     private int lastWidth = 0;
     private int lastHeight = 0;
+    private float cachedSampleLeft = Float.NaN;
+    private float cachedSampleRight = Float.NaN;
+    private float[] curveSampleXs = new float[0];
+    private double[] curveSampleHzs = new double[0];
+    private float[] refSampleXs = new float[0];
+    private double[] refSampleHzs = new double[0];
     private Bitmap glowCacheBitmap;
     private Canvas glowCacheCanvas;
     private boolean animationSuppressed;
@@ -324,10 +333,8 @@ final class EqCurveView extends View {
     }
 
     private float freqToX(int hz, float left, float right) {
-        double min = Math.log(MIN_HZ);
-        double max = Math.log(MAX_HZ);
         double value = Math.log(Math.max(MIN_HZ, Math.min(MAX_HZ, hz)));
-        return (float) (left + (value - min) * (right - left) / (max - min));
+        return (float) (left + (value - LOG_MIN_HZ) * (right - left) / LOG_HZ_SPAN);
     }
 
     private String frequencyLabel(int hz) {
@@ -339,10 +346,8 @@ final class EqCurveView extends View {
     }
 
     private double xToFrequency(float x, float left, float right) {
-        double min = Math.log(MIN_HZ);
-        double max = Math.log(MAX_HZ);
         double ratio = Math.max(0, Math.min(1, (x - left) / (right - left)));
-        return Math.exp(min + (max - min) * ratio);
+        return Math.exp(LOG_MIN_HZ + LOG_HZ_SPAN * ratio);
     }
 
     private float gainToY(float db, float top, float bottom) {
@@ -352,15 +357,16 @@ final class EqCurveView extends View {
 
     private Path referencePath(FrequencyCurve curve, float left, float right, float top, float bottom) {
         refCurvePath.reset();
-        appendSmoothedPath(refCurvePath, left, right, REF_SAMPLE_STEP_PX,
-                x -> gainToY(curve.gainAtFrequency(xToFrequency(x, left, right)), top, bottom));
+        ensureSampleCache(left, right);
+        appendCachedPath(refCurvePath, refSampleXs, refSampleHzs,
+                hz -> gainToY(curve.gainAtFrequency(hz), top, bottom));
         return refCurvePath;
     }
 
     private void buildCurvePath(Path path, float left, float right, float top, float bottom) {
         path.reset();
-        appendSmoothedPath(path, left, right, CURVE_SAMPLE_STEP_PX, x -> {
-            double hz = xToFrequency(x, left, right);
+        ensureSampleCache(left, right);
+        appendCachedPath(path, curveSampleXs, curveSampleHzs, hz -> {
             float db = deviceCurve.gainAtFrequency(hz) + PeqMath.visualGainAtFrequencyMb(hz, preset) / 100f;
             return gainToY(db, top, bottom);
         });
@@ -542,6 +548,87 @@ final class EqCurveView extends View {
         path.quadTo(prevX, prevY, right, sampler.sample(right));
     }
 
+    private void ensureSampleCache(float left, float right) {
+        if (curveSampleXs.length > 0
+                && Math.abs(cachedSampleLeft - left) < 0.001f
+                && Math.abs(cachedSampleRight - right) < 0.001f) {
+            return;
+        }
+        cachedSampleLeft = left;
+        cachedSampleRight = right;
+        curveSampleXs = buildSampleXs(left, right, CURVE_SAMPLE_STEP_PX);
+        curveSampleHzs = buildSampleHzs(curveSampleXs, left, right);
+        refSampleXs = buildSampleXs(left, right, REF_SAMPLE_STEP_PX);
+        refSampleHzs = buildSampleHzs(refSampleXs, left, right);
+    }
+
+    private float[] buildSampleXs(float left, float right, float stepPx) {
+        int estimatedCount = Math.max(2, (int) Math.ceil((right - left) / Math.max(0.08f, stepPx * 0.28f)) + 2);
+        float[] values = new float[estimatedCount];
+        int count = 0;
+        float x = left;
+        values[count++] = x;
+        while (x < right) {
+            x += adaptiveStepPx(left, right, x, stepPx);
+            if (x >= right) {
+                break;
+            }
+            if (count == values.length) {
+                float[] grown = new float[values.length * 2];
+                System.arraycopy(values, 0, grown, 0, values.length);
+                values = grown;
+            }
+            values[count++] = x;
+        }
+        if (count == values.length) {
+            float[] grown = new float[values.length + 1];
+            System.arraycopy(values, 0, grown, 0, values.length);
+            values = grown;
+        }
+        values[count++] = right;
+        float[] result = new float[count];
+        System.arraycopy(values, 0, result, 0, count);
+        return result;
+    }
+
+    private double[] buildSampleHzs(float[] sampleXs, float left, float right) {
+        double[] hzs = new double[sampleXs.length];
+        for (int i = 0; i < sampleXs.length; i++) {
+            hzs[i] = xToFrequency(sampleXs[i], left, right);
+        }
+        return hzs;
+    }
+
+    private void appendCachedPath(Path path, float[] sampleXs, double[] sampleHzs, FrequencySampler sampler) {
+        if (sampleXs.length == 0) {
+            return;
+        }
+        float y = sampler.sample(sampleHzs[0]);
+        path.moveTo(sampleXs[0], y);
+        if (sampleXs.length == 1) {
+            return;
+        }
+
+        float prevX = sampleXs[0];
+        float prevY = y;
+        boolean hasSegment = false;
+        for (int i = 1; i < sampleXs.length - 1; i++) {
+            float x = sampleXs[i];
+            float nextY = sampler.sample(sampleHzs[i]);
+            float midX = (prevX + x) * 0.5f;
+            float midY = (prevY + nextY) * 0.5f;
+            if (!hasSegment) {
+                path.lineTo(midX, midY);
+                hasSegment = true;
+            } else {
+                path.quadTo(prevX, prevY, midX, midY);
+            }
+            prevX = x;
+            prevY = nextY;
+        }
+        path.quadTo(prevX, prevY, sampleXs[sampleXs.length - 1], sampler.sample(sampleHzs[sampleHzs.length - 1]));
+    }
+
     private float adaptiveStepPx(float left, float right, float x, float baseStepPx) {
         double hz = xToFrequency(x, left, right);
         if (hz < 120d) {
@@ -558,6 +645,10 @@ final class EqCurveView extends View {
 
     private interface CurveSampler {
         float sample(float x);
+    }
+
+    private interface FrequencySampler {
+        float sample(double hz);
     }
 
 }
