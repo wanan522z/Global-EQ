@@ -1308,6 +1308,146 @@ public final class MainActivity extends Activity {
         return row;
     }
 
+    private String engineStatusText() {
+        if (!supported) {
+            return "UNSUPPORTED";
+        }
+        return processingMode == ProcessingMode.ADVANCED_DSP ? "MONITOR DSP" : "SYSTEM EQ";
+    }
+
+    private String advancedModeSummaryText() {
+        if (processingMode != ProcessingMode.ADVANCED_DSP) {
+            return "Default mode keeps the existing system EQ and virtual bass path unchanged.";
+        }
+        String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty() ? "No app selected" : advancedModeConfig.monitoredAppLabel;
+        return String.format(Locale.US,
+                "App: %s  |  %d ms  |  %d frames  |  poll %d ms",
+                appLabel,
+                advancedModeConfig.latencyMs,
+                advancedModeConfig.bufferSizeFrames,
+                advancedModeConfig.monitorIntervalMs);
+    }
+
+    private void setProcessingMode(ProcessingMode nextMode) {
+        processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
+        repository.saveProcessingMode(processingMode);
+        if (processingMode == ProcessingMode.SYSTEM_EQ) {
+            selectedBassModeIndex = 0;
+            repository.saveBassBoostModeIndex(selectedBassModeIndex);
+            if (editingPreset != null && !"Default".equals(editingPreset.reverbType)) {
+                setEditingPreset(editingPreset.withReverbType("Default"), true);
+            }
+        } else {
+            applyRunningPreset();
+        }
+        renderAll();
+    }
+
+    private void showAdvancedSettingsSubpage() {
+        if (advancedModeSettingsPage == null || settingsRootContent == null) {
+            return;
+        }
+        settingsRootContent.setVisibility(View.GONE);
+        advancedModeSettingsPage.setVisibility(View.VISIBLE);
+    }
+
+    private void hideAdvancedSettingsSubpage() {
+        if (advancedModeSettingsPage == null || settingsRootContent == null) {
+            return;
+        }
+        advancedModeSettingsPage.setVisibility(View.GONE);
+        settingsRootContent.setVisibility(View.VISIBLE);
+    }
+
+    private void updateAdvancedModeConfig(AdvancedModeConfig nextConfig) {
+        advancedModeConfig = nextConfig == null ? AdvancedModeConfig.DEFAULT : nextConfig;
+        repository.saveAdvancedModeConfig(advancedModeConfig);
+        renderAll();
+    }
+
+    private void applyAdvancedNumberInput(EditText input, IntChanged listener) {
+        if (input == null || listener == null) {
+            return;
+        }
+        try {
+            listener.onChanged(Integer.parseInt(input.getText().toString().trim()));
+        } catch (NumberFormatException ignored) {
+        }
+    }
+
+    private void showMonitoredAppChoiceDialog() {
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN, null);
+        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> activities = getPackageManager().queryIntentActivities(launcherIntent, 0);
+        List<ResolveInfo> unique = new ArrayList<>();
+        List<String> seenPackages = new ArrayList<>();
+        for (ResolveInfo info : activities) {
+            if (info.activityInfo == null || info.activityInfo.packageName == null) {
+                continue;
+            }
+            if (seenPackages.contains(info.activityInfo.packageName)) {
+                continue;
+            }
+            seenPackages.add(info.activityInfo.packageName);
+            unique.add(info);
+        }
+        unique.sort((left, right) -> {
+            CharSequence leftLabel = left.loadLabel(getPackageManager());
+            CharSequence rightLabel = right.loadLabel(getPackageManager());
+            String l = leftLabel == null ? "" : leftLabel.toString();
+            String r = rightLabel == null ? "" : rightLabel.toString();
+            return l.compareToIgnoreCase(r);
+        });
+        if (unique.isEmpty()) {
+            Toast.makeText(this, "No launchable apps found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] labels = new String[unique.size()];
+        int selected = 0;
+        for (int i = 0; i < unique.size(); i++) {
+            ResolveInfo info = unique.get(i);
+            String packageName = info.activityInfo.packageName;
+            CharSequence label = info.loadLabel(getPackageManager());
+            labels[i] = label == null ? packageName : label.toString();
+            if (packageName.equals(advancedModeConfig.monitoredAppPackage)) {
+                selected = i;
+            }
+        }
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Choose monitored app")
+                .setSingleChoiceItems(labels, selected, (d, which) -> {
+                    ResolveInfo info = unique.get(which);
+                    String packageName = info.activityInfo.packageName;
+                    CharSequence label = info.loadLabel(getPackageManager());
+                    updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(
+                            packageName,
+                            label == null ? packageName : label.toString()));
+                    d.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
+        dialog.setOnShowListener(d -> styleDialog(dialog));
+        dialog.show();
+    }
+
+    private void updateMonitoredAppIcon() {
+        if (monitoredAppIconView == null) {
+            return;
+        }
+        monitoredAppIconView.setImageDrawable(loadMonitoredAppDrawable());
+        monitoredAppIconView.setAlpha(processingMode == ProcessingMode.ADVANCED_DSP ? 1f : 0.6f);
+    }
+
+    private Drawable loadMonitoredAppDrawable() {
+        if (advancedModeConfig.monitoredAppPackage != null && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
+            try {
+                return getPackageManager().getApplicationIcon(advancedModeConfig.monitoredAppPackage);
+            } catch (PackageManager.NameNotFoundException ignored) {
+            }
+        }
+        return getDrawable(android.R.drawable.sym_def_app_icon);
+    }
+
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
         LinearLayout.LayoutParams params = width > 0 
                 ? new LinearLayout.LayoutParams(width, dp(34))
