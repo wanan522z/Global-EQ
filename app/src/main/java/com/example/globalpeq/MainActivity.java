@@ -7377,15 +7377,15 @@ public final class MainActivity extends Activity {
         }
         // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光）
         switchView.setThumbDrawable(switchThumbDrawable(
-                autoSwitch ? Color.rgb(170, 180, 200) : Color.rgb(190, 200, 215),
-                Color.rgb(120, 240, 220)
+                autoSwitch ? Color.rgb(150, 168, 198) : Color.rgb(162, 180, 208),
+                Color.rgb(104, 182, 255)
         ));
         // track 颜色：关闭时半透明白，开启时半透明青蓝（与标题流光同色系）
         switchView.setTrackDrawable(labeledSwitchTrackDrawable(
                 autoSwitch ? "AUTO" : "OFF",
                 autoSwitch ? "AUTO" : "ON",
-                autoSwitch ? Color.argb(38, 255, 255, 255) : Color.argb(45, 255, 255, 255),
-                autoSwitch ? Color.argb(85, 120, 240, 220) : Color.argb(105, 120, 240, 220)
+                autoSwitch ? Color.argb(52, 126, 152, 196) : Color.argb(60, 118, 144, 188),
+                autoSwitch ? Color.argb(112, 72, 146, 255) : Color.argb(124, 72, 154, 255)
         ));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             switchView.setSplitTrack(false);
