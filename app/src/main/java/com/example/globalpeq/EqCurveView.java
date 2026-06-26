@@ -147,7 +147,7 @@ final class EqCurveView extends View {
         glowPaint3.setStrokeCap(Paint.Cap.ROUND);
         glowPaint3.setStrokeJoin(Paint.Join.ROUND);
         glowPaint3.setStrokeWidth(8.5f);
-        glowPaint3.setColor(Color.argb(36, 190, 230, 255));
+        glowPaint3.setColor(Color.argb(20, 190, 230, 255));
         glowPaint3.setAntiAlias(true);
         glowPaint3.setFilterBitmap(true);
         glowPaint3.setDither(true);
