@@ -451,10 +451,10 @@ final class PlaybackCaptureEngine {
                     effectiveDspPreset,
                     SAMPLE_RATE,
                     CHANNEL_COUNT,
-                    AudioProcessingPolicy.dspBassAllowed(currentMode, currentBassModeIndex),
+                    AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentBassModeIndex),
                     currentConfig);
         }
-        applyTrackBassEnhanceLocked();
+        applyTrackVirtualBassLocked();
     }
 
     private AudioAttributes buildTrackAttributesForCurrentMode() {
@@ -469,15 +469,15 @@ final class PlaybackCaptureEngine {
         return builder.build();
     }
 
-    private void applyTrackBassEnhanceLocked() {
+    private void applyTrackVirtualBassLocked() {
         if (audioTrack == null) {
-            releaseTrackBassEnhanceLocked();
+            releaseTrackVirtualBassLocked();
             return;
         }
-        boolean enableSystemBass = AudioProcessingPolicy.systemBassEnhanceAllowed(currentBassModeIndex)
-                && currentPreset.bassEnhanceAmountPercent > 0;
+        boolean enableSystemBass = AudioProcessingPolicy.systemVirtualBassAllowed(currentBassModeIndex)
+                && currentPreset.virtualBassAmountPercent > 0;
         if (!enableSystemBass) {
-            releaseTrackBassEnhanceLocked();
+            releaseTrackVirtualBassLocked();
             return;
         }
         try {
@@ -485,15 +485,15 @@ final class PlaybackCaptureEngine {
                 trackBassBoost = new BassBoost(1000, audioTrack.getAudioSessionId());
             }
             trackBassBoost.setEnabled(false);
-            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, currentPreset.bassEnhanceAmountPercent * 10)));
+            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, currentPreset.virtualBassAmountPercent * 10)));
             trackBassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
-            Log.w(TAG, "Track bass enhance effect failed", ex);
-            releaseTrackBassEnhanceLocked();
+            Log.w(TAG, "Track virtual bass effect failed", ex);
+            releaseTrackVirtualBassLocked();
         }
     }
 
-    private void releaseTrackBassEnhanceLocked() {
+    private void releaseTrackVirtualBassLocked() {
         if (trackBassBoost == null) {
             return;
         }
@@ -530,7 +530,7 @@ final class PlaybackCaptureEngine {
             }
         }
 
-        releaseTrackBassEnhanceLocked();
+        releaseTrackVirtualBassLocked();
         Thread thread = workerThread;
         workerThread = null;
         if (thread != null && thread != Thread.currentThread()) {
