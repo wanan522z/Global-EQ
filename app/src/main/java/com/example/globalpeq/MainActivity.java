@@ -2122,22 +2122,54 @@ public final class MainActivity extends Activity {
 
     private List<InstalledAppEntry> loadInstalledAppEntries() {
         List<InstalledAppEntry> installed = new ArrayList<>();
-        for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
+        PackageManager pm = getPackageManager();
+        Set<String> seenPackages = new HashSet<>();
+        for (ApplicationInfo info : pm.getInstalledApplications(installedAppListFlags())) {
             if (info == null) {
                 continue;
             }
             if (getPackageName().equals(info.packageName)) {
                 continue;
             }
-            boolean selected = info.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            if (!selected && !isUserInstalledApp(info)) {
+            if (!seenPackages.add(info.packageName)) {
                 continue;
             }
-            String label = String.valueOf(getPackageManager().getApplicationLabel(info));
+            String label = normalizeInstalledAppLabel(String.valueOf(pm.getApplicationLabel(info)), info.packageName);
             installed.add(new InstalledAppEntry(info, label, info.packageName));
         }
-        installed.sort((left, right) -> left.label.compareToIgnoreCase(right.label));
+        final Collator collator = appLabelCollator();
+        installed.sort((left, right) -> {
+            int labelCompare = collator.compare(left.label, right.label);
+            if (labelCompare != 0) {
+                return labelCompare;
+            }
+            return collator.compare(left.packageName, right.packageName);
+        });
         return installed;
+    }
+
+    private int installedAppListFlags() {
+        int flags = 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            flags |= PackageManager.MATCH_DISABLED_COMPONENTS;
+            flags |= PackageManager.MATCH_DIRECT_BOOT_AWARE;
+            flags |= PackageManager.MATCH_DIRECT_BOOT_UNAWARE;
+        }
+        return flags;
+    }
+
+    private Collator appLabelCollator() {
+        Collator collator = Collator.getInstance(Locale.getDefault());
+        collator.setStrength(Collator.PRIMARY);
+        return collator;
+    }
+
+    private String normalizeInstalledAppLabel(String label, String packageName) {
+        String normalized = label == null ? "" : label.trim();
+        if (normalized.isEmpty()) {
+            return packageName == null ? "" : packageName;
+        }
+        return normalized;
     }
 
     private void rebuildInstalledAppPickerList(LinearLayout list,
