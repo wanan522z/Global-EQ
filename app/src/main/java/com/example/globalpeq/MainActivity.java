@@ -76,6 +76,7 @@ public final class MainActivity extends Activity {
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
     private static final long ENABLE_NEON_CURVE_DELAY_MS = 460L;
+    private static final long DISABLE_NEON_CURVE_DELAY_MS = 210L;
     private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 660L;
     private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 60L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
@@ -311,6 +312,7 @@ public final class MainActivity extends Activity {
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
+    private final Runnable disableNeonCurveRunnable = this::activateDisabledNeonCurve;
     private final Runnable enablePeqBandStepRunnable = this::activateNextPeqBandVisual;
     private boolean supported;
     private boolean updatingUi;
@@ -3109,6 +3111,9 @@ public final class MainActivity extends Activity {
             modeSpinner.setAlpha(0.68f);
         }
         styleModeText();
+        if (curveView != null) {
+            curveView.setVisualEnabled(false, false);
+        }
         updateEditStateLabels();
         updatePeqBandVisuals();
         uiHandler.postDelayed(enableNeonHeaderRunnable, ENABLE_NEON_HEADER_DELAY_MS);
@@ -3142,6 +3147,9 @@ public final class MainActivity extends Activity {
         }
         curveVisualEnabled = true;
         refreshCurveView();
+        if (curveView != null) {
+            curveView.setVisualEnabled(true, true);
+        }
     }
 
     private void applyDisabledEnabledVisuals() {
@@ -3157,11 +3165,19 @@ public final class MainActivity extends Activity {
         refreshCurveView();
         updateEditStateLabels();
         updatePeqBandVisuals();
+        uiHandler.postDelayed(disableNeonCurveRunnable, DISABLE_NEON_CURVE_DELAY_MS);
+    }
+
+    private void activateDisabledNeonCurve() {
+        if (curveView != null) {
+            curveView.setVisualEnabled(false, true);
+        }
     }
 
     private void cancelEnabledNeonSequence() {
         uiHandler.removeCallbacks(enableNeonHeaderRunnable);
         uiHandler.removeCallbacks(enableNeonCurveRunnable);
+        uiHandler.removeCallbacks(disableNeonCurveRunnable);
         uiHandler.removeCallbacks(enablePeqBandStepRunnable);
     }
 
