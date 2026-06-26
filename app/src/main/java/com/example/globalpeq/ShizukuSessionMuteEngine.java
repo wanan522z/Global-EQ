@@ -276,9 +276,21 @@ final class ShizukuSessionMuteEngine {
             effect.setInputGainAllChannelsTo(MUTE_GAIN_DB);
             for (int channel = 0; channel < effect.getChannelCount(); channel++) {
                 effect.setInputGainbyChannel(channel, MUTE_GAIN_DB);
+                try {
+                    DynamicsProcessing.Channel channelState = effect.getChannelByChannelIndex(channel);
+                    if (channelState != null) {
+                        channelState.setInputGain(MUTE_GAIN_DB);
+                        effect.setChannelTo(channel, channelState);
+                    }
+                } catch (RuntimeException channelEx) {
+                    Log.w(TAG, "Unable to update channel state for session " + sessionId
+                            + " channel " + channel, channelEx);
+                }
             }
             effect.setEnabled(true);
-            Log.i(TAG, "Muted foreign audio session " + sessionId);
+            Log.i(TAG, "Muted foreign audio session " + sessionId
+                    + " channels=" + effect.getChannelCount()
+                    + " gainDb=" + MUTE_GAIN_DB);
             return effect;
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to mute foreign audio session " + sessionId, ex);
