@@ -1553,6 +1553,9 @@ public final class MainActivity extends Activity {
     }
 
     private String processingModeDisplayLabel(ProcessingMode mode) {
+        if (mode == ProcessingMode.SHIZUKU_MUTE) {
+            return "Shizuku Mute";
+        }
         return mode == ProcessingMode.ADVANCED_DSP ? "Monitor DSP" : "Default";
     }
 
