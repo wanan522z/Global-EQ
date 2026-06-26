@@ -241,8 +241,7 @@ final class ShizukuSessionMuteEngine {
 
             String usage = session.usage.toUpperCase(Locale.US).trim();
             if (!usage.contains("USAGE_MEDIA")
-                    && !usage.contains("USAGE_GAME")
-                    && !usage.contains("USAGE_UNKNOWN")) {
+                    && !usage.contains("USAGE_GAME")) {
                 continue;
             }
 
