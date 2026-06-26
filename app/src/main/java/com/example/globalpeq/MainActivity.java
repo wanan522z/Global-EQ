@@ -3424,7 +3424,6 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean extraVisualsEnabled = supported && runningPreset != null && runningPreset.enabled;
         boolean bassBoostEnabled = supported && selectedBassModeIndex > 0;
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
@@ -3453,9 +3452,9 @@ public final class MainActivity extends Activity {
             bassModeButton.setText(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]);
             bassModeButton.setAlpha(1f);
         }
-        styleExtraSectionTitle(reverbTitleView, extraVisualsEnabled && reverbEnabled);
-        styleExtraSectionTitle(bassBoostTitleView, extraVisualsEnabled && bassBoostEnabled);
-        styleExtraSectionTitle(virtualBassTitleView, extraVisualsEnabled && virtualBassEnabled);
+        styleExtraSectionTitle(reverbTitleView, reverbEnabled);
+        styleExtraSectionTitle(bassBoostTitleView, bassBoostEnabled);
+        styleExtraSectionTitle(virtualBassTitleView, virtualBassEnabled);
         updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
         updateReverbControl(reverbSizeKnob, editingPreset.reverbSizePercent, reverbEnabled);
@@ -5686,6 +5685,9 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
+        if (view == reverbTitleView || view == bassBoostTitleView || view == virtualBassTitleView) {
+            active = isExtraSectionActuallyActive(view);
+        }
         Boolean previous = titleActiveStates.get(view);
         if (active && previous != null && previous) {
             return;
@@ -5711,8 +5713,23 @@ public final class MainActivity extends Activity {
         if (view != reverbTitleView && view != bassBoostTitleView && view != virtualBassTitleView) {
             return false;
         }
-        Boolean active = titleActiveStates.get(view);
-        return active == null || !active;
+        return !isExtraSectionActuallyActive(view);
+    }
+
+    private boolean isExtraSectionActuallyActive(TextView view) {
+        if (view == null || editingPreset == null) {
+            return false;
+        }
+        if (view == reverbTitleView) {
+            return supported && !"Default".equals(editingPreset.reverbType);
+        }
+        if (view == bassBoostTitleView) {
+            return supported && selectedBassModeIndex > 0;
+        }
+        if (view == virtualBassTitleView) {
+            return supported && virtualBassEnabledState;
+        }
+        return false;
     }
 
     private void registerShimmerView(TextView view) {
