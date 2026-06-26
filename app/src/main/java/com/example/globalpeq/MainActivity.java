@@ -1608,7 +1608,7 @@ public final class MainActivity extends Activity {
     }
 
     private String monitorCaptureStatusText() {
-        if (processingMode != ProcessingMode.ADVANCED_DSP) {
+        if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
             return tr(
                     "Native capture is only used by the second backend mode.",
                     "原生捕获仅在第二套后端模式下使用。");
