@@ -26,11 +26,11 @@ final class AudioProcessingPolicy {
         return bassModeAllowed(mode, bassModeIndex) ? bassModeIndex : 0;
     }
 
-    static boolean systemBassEnhanceAllowed(int bassModeIndex) {
+    static boolean systemVirtualBassAllowed(int bassModeIndex) {
         return bassModeIndex == 1;
     }
 
-    static boolean dspBassAllowed(ProcessingMode mode, int bassModeIndex) {
+    static boolean dspVirtualBassAllowed(ProcessingMode mode, int bassModeIndex) {
         return advancedModeEnabled(mode) && bassModeIndex == 2;
     }
 
@@ -54,8 +54,8 @@ final class AudioProcessingPolicy {
             return Preset.flat(preset.enabled).withName(preset.name);
         }
         Preset effective = preset.withReverbType("Default");
-        if (!systemBassEnhanceAllowed(bassModeIndex)) {
-            effective = effective.withBassEnhanceAmountPercent(0);
+        if (!systemVirtualBassAllowed(bassModeIndex)) {
+            effective = effective.withVirtualBassAmountPercent(0);
         }
         return effective;
     }
