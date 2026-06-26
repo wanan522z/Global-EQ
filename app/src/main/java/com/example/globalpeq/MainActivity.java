@@ -3771,6 +3771,10 @@ public final class MainActivity extends Activity {
     }
 
     private void applyRunningPreset() {
+        applyRunningPreset(false);
+    }
+
+    private void applyRunningPreset(boolean forceFullReset) {
         if (currentDevice == null || runningPreset == null) {
             return;
         }
@@ -3778,7 +3782,12 @@ public final class MainActivity extends Activity {
             repository.saveSelectedDevice(currentDevice);
             repository.savePreset(currentDevice, runningPreset);
             repository.saveGlobalPreset(runningPreset);
-            engine.apply(AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, selectedBassModeIndex));
+            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, selectedBassModeIndex);
+            if (forceFullReset && effectivePreset.enabled) {
+                engine.applyWithFullReset(effectivePreset);
+            } else {
+                engine.apply(effectivePreset);
+            }
             Intent service = new Intent(this, GlobalEqForegroundService.class);
             service.setAction(GlobalEqForegroundService.ACTION_APPLY);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
