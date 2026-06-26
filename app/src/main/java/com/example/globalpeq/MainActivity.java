@@ -7842,7 +7842,7 @@ public final class MainActivity extends Activity {
             for (int i = 0; i < px.length; i++) {
                 alpha[i] = (px[i] >>> 24) & 0xFF;
             }
-            int edgeK = Math.max(1, (int) Math.ceil(dpf(1.2f)));
+            int edgeK = Math.max(1, (int) Math.ceil(dpf(0.9f)));
             int[] eroded = new int[bw * bh];
             minFilterH(alpha, eroded, bw, bh, edgeK);
             minFilterV(eroded, eroded, bw, bh, edgeK);
