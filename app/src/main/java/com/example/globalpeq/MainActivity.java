@@ -199,7 +199,7 @@ public final class MainActivity extends Activity {
             }
             colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
         } else if (view == modeSpinner) {
-            boolean enabled = (runningPreset != null && runningPreset.enabled && supported);
+            boolean enabled = isModeVisualEnabled();
             colors = enabled ? SHIMMER_MODE_ON_COLORS : SHIMMER_MODE_OFF_COLORS;
         } else {
             colors = SHIMMER_BRIGHT_COLORS;
