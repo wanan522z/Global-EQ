@@ -443,7 +443,6 @@ public final class MainActivity extends Activity {
         // 解决 onCreate 中注册时 getWidth()==0 导致 shader width=1 的问题。
         if (modeSpinner != null && modeSpinner.getWidth() > 0) {
             styleSettingsTitleText(modeSpinner);
-            shimmerLastWidth.remove(modeSpinner);
             registerShimmerView(modeSpinner);
         }
         updateBottomNavSelection(activeMainPageIndex);
@@ -452,7 +451,6 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         shimmerTargetViews.clear();
-        shimmerLastWidth.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
@@ -6228,7 +6226,6 @@ public final class MainActivity extends Activity {
         }
         currentShimmerPhaseForView(view);
         shimmerTargetViews.add(view);
-        shimmerLastWidth.remove(view);
         if (shimmerTargetViews.size() == 1) {
             lastShimmerTime = 0L;
             uiHandler.postDelayed(shimmerAnimationRunnable, SHIMMER_FPS_DELAY);
@@ -6240,7 +6237,6 @@ public final class MainActivity extends Activity {
             return;
         }
         shimmerTargetViews.remove(view);
-        shimmerLastWidth.remove(view);
         if (!(view == statusText || view == modeSpinner || isExtraSectionTitle(view))) {
             clearAnimatedTextStyle(view);
         }
@@ -7049,7 +7045,6 @@ public final class MainActivity extends Activity {
                     int w = tabRef.getWidth();
                     if (w > 0) {
                         styleActiveBottomTabText(tabRef);
-                        shimmerLastWidth.remove(tabRef);
                         tabRef.invalidate();
                     }
                 });
