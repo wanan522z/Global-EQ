@@ -1109,7 +1109,15 @@ public final class MainActivity extends Activity {
     }
 
     private boolean isMainEffectivelyEnabled() {
-        return supported && runningPreset != null && runningPreset.enabled;
+        return isCurveVisualEnabled();
+    }
+
+    private boolean isModeVisualEnabled() {
+        return supported && runningPreset != null && runningPreset.enabled && modeVisualEnabled;
+    }
+
+    private boolean isCurveVisualEnabled() {
+        return supported && runningPreset != null && runningPreset.enabled && curveVisualEnabled;
     }
 
     private void refreshCurveView() {
