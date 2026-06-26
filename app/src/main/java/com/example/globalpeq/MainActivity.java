@@ -8082,18 +8082,18 @@ public final class MainActivity extends Activity {
 
             float coreRadius = Math.min(coreRect.width(), coreRect.height()) * 0.30f;
             bloomPaint.setShader(null);
-            int glowLayers = 8;
-            float maxInset = inset * 0.70f;
+            int glowLayers = 10;
+            float maxInset = inset * 0.78f;
             for (int layer = 0; layer < glowLayers; layer++) {
                 float t = glowLayers <= 1 ? 1f : layer / (float) (glowLayers - 1);
                 float logFalloff = (float) (Math.log1p((1f - t) * 7f) / Math.log(8f));
-                float tailLift = 1f - t * t * t;
-                float blendedFalloff = logFalloff * 0.55f + tailLift * 0.45f;
+                float tailLift = 1f - t * t * t * t;
+                float blendedFalloff = logFalloff * 0.35f + tailLift * 0.65f;
                 float layerInset = maxInset * t;
-                float layerRadius = coreRadius + inset * (1.08f - 0.48f * t);
-                float saturationScale = 1.02f - 0.08f * t;
-                float valueScale = 1.08f - 0.07f * t;
-                float alpha = (0.007f + 0.029f * blendedFalloff) * drawableAlpha / 255f;
+                float layerRadius = coreRadius + inset * (1.12f - 0.42f * t);
+                float saturationScale = 1.01f - 0.07f * t;
+                float valueScale = 1.07f - 0.06f * t;
+                float alpha = (0.008f + 0.030f * blendedFalloff) * drawableAlpha / 255f;
                 bloomPaint.setColor(withMonitoredAppGlowAlpha(
                         shiftMonitoredAppGlowColor(glowColor, saturationScale, valueScale),
                         alpha));
