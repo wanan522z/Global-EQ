@@ -1761,7 +1761,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showAdvancedSettingsSubpage() {
-        if (processingMode != ProcessingMode.ADVANCED_DSP
+        if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)
                 || settingsPage == null
                 || monitorSettingsPage == null
                 || bottomNavView == null) {
