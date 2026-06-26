@@ -21,6 +21,7 @@ final class PresetRepository {
     private static final String LAST_DEVICE_LABEL = "last_device_label";
     private static final String AUTO_SWITCH_OUTPUT = "auto_switch_output";
     private static final String PROCESSING_MODE = "processing_mode";
+    private static final String UI_LANGUAGE = "ui_language";
     private static final String ADVANCED_MODE_CONFIG = "advanced_mode_config";
     private static final String BASS_BOOST_MODE = "bass_boost_mode";
     private static final String NAMED_PRESETS = "named_presets";
@@ -113,6 +114,17 @@ final class PresetRepository {
         prefs.edit()
                 .putString(PROCESSING_MODE, mode == null ? ProcessingMode.SYSTEM_EQ.key : mode.key)
                 .commit();
+    }
+
+    String loadUiLanguage() {
+        String value = prefs.getString(UI_LANGUAGE, "en");
+        return "zh".equalsIgnoreCase(value) ? "zh" : "en";
+    }
+
+    void saveUiLanguage(String language) {
+        prefs.edit()
+                .putString(UI_LANGUAGE, "zh".equalsIgnoreCase(language) ? "zh" : "en")
+                .apply();
     }
 
     AdvancedModeConfig loadAdvancedModeConfig() {
