@@ -2041,86 +2041,19 @@ public final class MainActivity extends Activity {
     }
 
     private void showInstalledAppPickerDialog() {
-        if (getWindow() != null) {
-            showInstalledAppPickerDialogEnhanced();
-            return;
-        }
-        List<ApplicationInfo> installed = new ArrayList<>();
-        PackageManager pm = getPackageManager();
-        Set<String> seenPackages = new HashSet<>();
-        for (ApplicationInfo info : pm.getInstalledApplications(installedAppListFlags())) {
-            if (info == null) {
-                continue;
-            }
-            if (getPackageName().equals(info.packageName)) {
-                continue;
-            }
-            if (!seenPackages.add(info.packageName)) {
-                continue;
-            }
-            installed.add(info);
-        }
-        final Collator collator = appLabelCollator();
-        installed.sort((left, right) -> {
-            String l = normalizeInstalledAppLabel(String.valueOf(pm.getApplicationLabel(left)), left.packageName);
-            String r = normalizeInstalledAppLabel(String.valueOf(pm.getApplicationLabel(right)), right.packageName);
-            int labelCompare = collator.compare(l, r);
-            if (labelCompare != 0) {
-                return labelCompare;
-            }
-            return collator.compare(left.packageName, right.packageName);
-        });
-        if (installed.isEmpty()) {
-            Toast.makeText(this, tr("No installed apps available", "没有可用的已安装应用"), Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        AlertDialog[] dialogHolder = new AlertDialog[1];
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(12), dp(10), dp(12), dp(12));
-        for (int i = 0; i < installed.size(); i++) {
-            ApplicationInfo info = installed.get(i);
-            String packageName = info.packageName;
-            String label = String.valueOf(getPackageManager().getApplicationLabel(info));
-            boolean active = packageName.equals(advancedModeConfig.monitoredAppPackage);
-            list.addView(createMonitoredAppMenuRow(
-                    getPackageManager().getApplicationIcon(info),
-                    label,
-                    packageName,
-                    active,
-                    dialogHolder,
-                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, label))
-            ), curveMenuRowParams(i == 0 ? 0 : 6));
-        }
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(list);
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应�?)))
-                .setView(scroll)
-                .setNegativeButton(tr("Close", "关闭"), null)
-                .create();
-        dialogHolder[0] = dialog;
-        dialog.show();
-        styleDialog(dialog);
+        showInstalledAppPickerDialogEnhanced();
     }
 
     private void showInstalledAppPickerDialogEnhanced() {
-        List<InstalledAppEntry> installed = loadInstalledAppEntries();
-        if (installed.isEmpty()) {
-            Toast.makeText(this, tr("No installed apps available", "没有可用的已安装应用"), Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         AlertDialog[] dialogHolder = new AlertDialog[1];
+        final List<InstalledAppEntry>[] installedHolder = new List[]{null};
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setPadding(dp(16), dp(8), dp(16), dp(10));
 
         EditText searchInput = new EditText(this);
         searchInput.setSingleLine(true);
-        searchInput.setHint(tr("Search app or package", "搜索应用或包�?));
+        searchInput.setHint(tr("Search app or package", "搜索应用或包名"));
         searchInput.setTextSize(13);
         searchInput.setTextColor(Color.WHITE);
         searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
@@ -2182,14 +2115,6 @@ public final class MainActivity extends Activity {
             }
         });
 
-        Runnable rebuild = () -> rebuildInstalledAppPickerList(
-                list,
-                indexBar,
-                scroll,
-                installed,
-                searchInput.getText().toString(),
-                dialogHolder
-        );
         searchInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -2201,19 +2126,52 @@ public final class MainActivity extends Activity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                rebuild.run();
+                if (installedHolder[0] == null) {
+                    return;
+                }
+                rebuildInstalledAppPickerList(
+                        list,
+                        indexBar,
+                        scroll,
+                        installedHolder[0],
+                        s == null ? "" : s.toString(),
+                        dialogHolder
+                );
             }
         });
-        rebuild.run();
+        showAppListLoadingState(list, indexBar, tr("Loading installed apps...", "正在加载已安装应用..."));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应�?)))
+                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应用")))
                 .setView(shell)
                 .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
         styleDialog(dialog);
+
+        new Thread(() -> {
+            List<InstalledAppEntry> loaded = loadInstalledAppEntries();
+            uiHandler.post(() -> {
+                if (dialogHolder[0] == null || !dialogHolder[0].isShowing()) {
+                    return;
+                }
+                if (loaded.isEmpty()) {
+                    Toast.makeText(this, tr("No installed apps available", "没有可用的已安装应用"), Toast.LENGTH_SHORT).show();
+                    dialogHolder[0].dismiss();
+                    return;
+                }
+                installedHolder[0] = loaded;
+                rebuildInstalledAppPickerList(
+                        list,
+                        indexBar,
+                        scroll,
+                        loaded,
+                        searchInput.getText().toString(),
+                        dialogHolder
+                );
+            });
+        }, "global-peq-installed-apps").start();
     }
 
     private List<InstalledAppEntry> loadInstalledAppEntries() {
