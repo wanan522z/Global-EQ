@@ -5710,16 +5710,16 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean bassBoostEnabled = supported && selectedBassModeIndex > 0;
+        boolean bassEnhanceEnabled = supported && selectedBassModeIndex > 0;
         boolean dspBassMode = AudioProcessingPolicy.dspBassAllowed(processingMode, selectedBassModeIndex);
         boolean extraBassEnabled = supported && extraBassEnabledState;
         boolean reverbAllowed = supported && AudioProcessingPolicy.reverbAllowed(processingMode);
         boolean reverbEnabled = reverbAllowed && !"Default".equals(editingPreset.reverbType);
-        if (bassBoostSlider != null) {
-            bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
-            bassBoostSlider.setLabel(dspBassMode ? "Amount" : "Boost");
-            bassBoostSlider.setEnabled(bassBoostEnabled);
-            bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
+        if (bassEnhanceSlider != null) {
+            bassEnhanceSlider.setValue(editingPreset.bassEnhanceAmountPercent, false);
+            bassEnhanceSlider.setLabel(dspBassMode ? "Amount" : "Boost");
+            bassEnhanceSlider.setEnabled(bassEnhanceEnabled);
+            bassEnhanceSlider.setAlpha(bassEnhanceEnabled ? 1f : 0.55f);
         }
         if (extraBassSwitch != null) {
             updatingUi = true;
@@ -5742,7 +5742,7 @@ public final class MainActivity extends Activity {
         if (dspBassCutoffInput != null) {
             dspBassCutoffInput.setHint(dspBassMode ? "Cutoff Hz" : "Boost");
             dspBassCutoffInput.setVisibility(dspBassMode ? View.VISIBLE : View.GONE);
-            dspBassCutoffInput.setEnabled(bassBoostEnabled && dspBassMode);
+            dspBassCutoffInput.setEnabled(bassEnhanceEnabled && dspBassMode);
             String cutoffText = String.valueOf(editingPreset.dspBassCutoffHz);
             if (!dspBassCutoffInput.hasFocus() && !cutoffText.contentEquals(dspBassCutoffInput.getText())) {
                 updatingUi = true;
@@ -5753,7 +5753,7 @@ public final class MainActivity extends Activity {
             dspBassCutoffInput.setAlpha(dspBassMode ? 1f : 0.55f);
         }
         syncExtraSectionTitleVisual(reverbTitleView);
-        syncExtraSectionTitleVisual(bassBoostTitleView);
+        syncExtraSectionTitleVisual(bassEnhanceTitleView);
         syncExtraSectionTitleVisual(extraBassTitleView);
         updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
