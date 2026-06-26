@@ -197,10 +197,6 @@ public final class MainActivity extends Activity {
         if (view == null || width <= 0) {
             return;
         }
-        if (isExtraSectionTitle(view) && !isExtraSectionTitleActive(view)) {
-            applyInactiveExtraSectionTitleStyle(view);
-            return;
-        }
 
         int[] colors;
         if (view == statusText) {
@@ -211,10 +207,6 @@ public final class MainActivity extends Activity {
             colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
         } else if (view == modeSpinner) {
             if (!isModeVisualEnabled()) {
-                unregisterShimmerView(view);
-                view.getPaint().setShader(null);
-                clearGlowFromTextView(view);
-                view.invalidate();
                 return;
             }
             colors = SHIMMER_MODE_ON_COLORS;
