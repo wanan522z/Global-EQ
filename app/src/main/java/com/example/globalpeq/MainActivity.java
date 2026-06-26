@@ -3040,7 +3040,14 @@ public final class MainActivity extends Activity {
         }
         int restoreAmount = editingPreset.virtualBassAmountPercent > 0
                 ? editingPreset.virtualBassAmountPercent
-                : Math.max(1, lastVirtualBassAmountPercent);
+                : lastVirtualBassAmountPercent;
+        if (restoreAmount <= 0) {
+            virtualBassEnabledState = false;
+            updatingUi = true;
+            buttonView.setChecked(false);
+            updatingUi = false;
+            return;
+        }
         setEditingPreset(editingPreset.withVirtualBassAmountPercent(restoreAmount), true);
     }
 
@@ -3798,7 +3805,10 @@ public final class MainActivity extends Activity {
             knob.configure(60, 250, editingPreset.virtualBassCutoffHz, "Hz", value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
         } else {
             amountKnob = knob;
-            knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
+            knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value -> {
+                lastVirtualBassAmountPercent = value;
+                setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true);
+            });
         }
         // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
