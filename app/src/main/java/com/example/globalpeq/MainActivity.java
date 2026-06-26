@@ -89,6 +89,7 @@ public final class MainActivity extends Activity {
     private static final long DISABLE_NEON_CURVE_DELAY_MS = 280L;
     private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 660L;
     private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 60L;
+    private static final long ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS = 140L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
@@ -358,6 +359,7 @@ public final class MainActivity extends Activity {
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
     private final Runnable disableNeonCurveRunnable = this::activateDisabledNeonCurve;
     private final Runnable enablePeqBandStepRunnable = this::activateNextPeqBandVisual;
+    private final Runnable delayedShizukuReadyRunnable = () -> ensureShizukuModeReady(true);
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
@@ -510,6 +512,7 @@ public final class MainActivity extends Activity {
         commitPendingPeqToggle();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
         cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
@@ -566,6 +569,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(commitPeqToggleRunnable);
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
         pauseShizukuCaptureIfClosing();
@@ -5410,8 +5414,12 @@ public final class MainActivity extends Activity {
         if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
                 && applyPreset.enabled == runningPreset.enabled) {
             applyRunningPreset(applyPreset.enabled);
-            if (applyPreset.enabled && processingMode == ProcessingMode.SHIZUKU_MUTE) {
-                ensureShizukuModeReady(true);
+            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+                if (applyPreset.enabled) {
+                    scheduleDelayedShizukuReady();
+                } else {
+                    stopShizukuCaptureNow();
+                }
             }
         }
     }
@@ -5433,6 +5441,44 @@ public final class MainActivity extends Activity {
                 || !runningPreset.enabled) {
             return;
         }
+        try {
+            Intent service = new Intent(this, GlobalEqForegroundService.class);
+            service.setAction(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(service);
+            } else {
+                startService(service);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void scheduleDelayedShizukuReady() {
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        uiHandler.postDelayed(delayedShizukuReadyRunnable, computeShizukuEnableDelayMs());
+    }
+
+    private long computeShizukuEnableDelayMs() {
+        if (editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            return Math.max(ENABLE_NEON_CURVE_DELAY_MS, ENABLE_NEON_PEQ_START_DELAY_MS)
+                    + ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS;
+        }
+        int enabledBandCount = 0;
+        for (ParametricBand band : editingPreset.bands) {
+            if (band != null && band.enabled) {
+                enabledBandCount++;
+            }
+        }
+        long peqSequenceDelay = ENABLE_NEON_PEQ_START_DELAY_MS;
+        if (enabledBandCount > 1) {
+            peqSequenceDelay += (long) (enabledBandCount - 1) * ENABLE_NEON_PEQ_STEP_DELAY_MS;
+        }
+        return Math.max(ENABLE_NEON_CURVE_DELAY_MS, peqSequenceDelay)
+                + ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS;
+    }
+
+    private void stopShizukuCaptureNow() {
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         try {
             Intent service = new Intent(this, GlobalEqForegroundService.class);
             service.setAction(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU);
