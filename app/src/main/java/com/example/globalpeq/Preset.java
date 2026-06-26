@@ -67,39 +67,39 @@ final class Preset {
     }
 
     Preset withName(String nextName) {
-        return copy(nextName, mode, enabled, extraBassEnabled, pregainMb, dspBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+        return copy(nextName, mode, enabled, extraBassEnabled, pregainMb, virtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
     Preset withMode(EqMode nextMode) {
-        return copy(name, nextMode, enabled, extraBassEnabled, pregainMb, dspBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+        return copy(name, nextMode, enabled, extraBassEnabled, pregainMb, virtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
     Preset withEnabled(boolean nextEnabled) {
-        return copy(name, mode, nextEnabled, extraBassEnabled, pregainMb, dspBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+        return copy(name, mode, nextEnabled, extraBassEnabled, pregainMb, virtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
     Preset withExtraBassEnabled(boolean nextEnabled) {
-        return copy(name, mode, enabled, nextEnabled, pregainMb, dspBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+        return copy(name, mode, enabled, nextEnabled, pregainMb, virtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
     Preset withPregainMb(int nextPregainMb) {
-        return copy(name, mode, enabled, extraBassEnabled, nextPregainMb, dspBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+        return copy(name, mode, enabled, extraBassEnabled, nextPregainMb, virtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
-    Preset withDspBassCutoffHz(int nextCutoffHz) {
-        return copy(name, mode, enabled, extraBassEnabled, pregainMb, nextCutoffHz, extraBassCutoffHz, extraBassAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+    Preset withVirtualBassCutoffHz(int nextCutoffHz) {
+        return copy(name, mode, enabled, extraBassEnabled, pregainMb, nextCutoffHz, extraBassCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
     Preset withExtraBassCutoffHz(int nextCutoffHz) {
-        return copy(name, mode, enabled, extraBassEnabled, pregainMb, dspBassCutoffHz, nextCutoffHz, extraBassAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+        return copy(name, mode, enabled, extraBassEnabled, pregainMb, virtualBassCutoffHz, nextCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
     Preset withExtraBassAmountPercent(int nextAmountPercent) {
-        return copy(name, mode, enabled, extraBassEnabled, pregainMb, dspBassCutoffHz, extraBassCutoffHz, nextAmountPercent, bassEnhanceAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+        return copy(name, mode, enabled, extraBassEnabled, pregainMb, virtualBassCutoffHz, extraBassCutoffHz, nextAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
-    Preset withBassEnhanceAmountPercent(int nextPercent) {
-        return copy(name, mode, enabled, extraBassEnabled, pregainMb, dspBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, nextPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
+    Preset withVirtualBassAmountPercent(int nextPercent) {
+        return copy(name, mode, enabled, extraBassEnabled, pregainMb, virtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, nextPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands.clone(), geqGainsMb.clone());
     }
 
     Preset withReverbType(String nextType) {
