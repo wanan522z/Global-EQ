@@ -4281,16 +4281,16 @@ public final class MainActivity extends Activity {
         InputMethodManager manager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         View focused = getCurrentFocus();
         View tokenView = focused != null ? focused : view;
+        hideEqEditOverlay();
+        refreshCurvePreviewOnly();
         if (manager != null) {
-            manager.hideSoftInputFromWindow(tokenView.getWindowToken(), 0);
+            uiHandler.post(() -> manager.hideSoftInputFromWindow(tokenView.getWindowToken(), 0));
         }
         if (focused != null) {
             focused.clearFocus();
         } else if (view != null) {
             view.clearFocus();
         }
-        hideEqEditOverlay();
-        refreshCurvePreviewOnly();
     }
 
     private interface FloatChanged {
