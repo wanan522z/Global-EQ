@@ -5298,9 +5298,10 @@ public final class MainActivity extends Activity {
             dspBassCutoffInput.setVisibility(dspBassMode ? View.VISIBLE : View.GONE);
             dspBassCutoffInput.setEnabled(bassBoostEnabled && dspBassMode);
             String cutoffText = String.valueOf(editingPreset.dspBassCutoffHz);
-            if (!cutoffText.contentEquals(dspBassCutoffInput.getText())) {
+            if (!dspBassCutoffInput.hasFocus() && !cutoffText.contentEquals(dspBassCutoffInput.getText())) {
                 updatingUi = true;
                 dspBassCutoffInput.setText(cutoffText);
+                dspBassCutoffInput.setTag(editingPreset.dspBassCutoffHz);
                 updatingUi = false;
             }
             dspBassCutoffInput.setAlpha(dspBassMode ? 1f : 0.55f);
