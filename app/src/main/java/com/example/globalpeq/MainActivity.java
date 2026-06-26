@@ -846,9 +846,20 @@ public final class MainActivity extends Activity {
         modeParams.rightMargin = dp(4);
         leftCluster.addView(modeSpinner, modeParams);
 
-        monitoredAppIconView = new GlowIconImageView(this);
-        monitoredAppIconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        monitoredAppIconView.setPadding(dp(4), dp(4), dp(4), dp(4));
+        monitoredAppGlowView = new GlowHaloView(this);
+        monitoredAppGlowView.setVisibility(View.GONE);
+        monitoredAppGlowView.setOnClickListener(v -> {
+            if (processingMode == ProcessingMode.ADVANCED_DSP) {
+                showAdvancedSettingsSubpage();
+            }
+        });
+        FrameLayout.LayoutParams glowParams = new FrameLayout.LayoutParams(dp(40), dp(40));
+        glowParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+        top.addView(monitoredAppGlowView, glowParams);
+
+        monitoredAppIconView = new ImageView(this);
+        monitoredAppIconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        monitoredAppIconView.setPadding(0, 0, 0, 0);
         monitoredAppIconView.setBackground(null);
         monitoredAppIconView.setVisibility(View.GONE);
         monitoredAppIconView.setOnClickListener(v -> {
@@ -856,7 +867,7 @@ public final class MainActivity extends Activity {
                 showAdvancedSettingsSubpage();
             }
         });
-        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(30), dp(30));
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(24), dp(24));
         iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
         top.addView(monitoredAppIconView, iconParams);
 
