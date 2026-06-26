@@ -2934,7 +2934,11 @@ public final class MainActivity extends Activity {
             editingPreset = editingPreset.withEnabled(runningPreset.enabled);
             pendingEnabledPersistPreset = editingPreset;
         }
-        scheduleEnabledToggleUiRefresh();
+        if (runningPreset.enabled) {
+            startEnabledNeonSequence();
+        } else {
+            applyDisabledEnabledVisuals();
+        }
         scheduleEnabledToggleCommit();
     }
 
@@ -3033,6 +3037,85 @@ public final class MainActivity extends Activity {
         pendingEnabledUiRefresh = false;
         refreshCurveView();
         updateEditStateLabels();
+    }
+
+    private void startEnabledNeonSequence() {
+        cancelEnabledNeonSequence();
+        modeVisualEnabled = false;
+        curveVisualEnabled = false;
+        if (modeSpinner != null) {
+            modeSpinner.animate().cancel();
+            modeSpinner.setAlpha(0.68f);
+        }
+        if (curveFrameView != null) {
+            curveFrameView.animate().cancel();
+            curveFrameView.setAlpha(0.74f);
+        }
+        styleModeText();
+        refreshCurveView();
+        updateEditStateLabels();
+        uiHandler.postDelayed(enableNeonHeaderRunnable, ENABLE_NEON_HEADER_DELAY_MS);
+        uiHandler.postDelayed(enableNeonCurveRunnable, ENABLE_NEON_CURVE_DELAY_MS);
+    }
+
+    private void activateEnabledNeonHeader() {
+        if (!isAudioEnabledNow()) {
+            return;
+        }
+        modeVisualEnabled = true;
+        styleModeText();
+        if (modeSpinner != null) {
+            modeSpinner.animate().cancel();
+            modeSpinner.setAlpha(0.38f);
+            modeSpinner.animate().alpha(1f).setDuration(85).withEndAction(() -> {
+                if (modeSpinner == null || !isAudioEnabledNow()) {
+                    return;
+                }
+                modeSpinner.setAlpha(0.6f);
+                modeSpinner.animate().alpha(1f).setDuration(120).start();
+            }).start();
+        }
+        updateEditStateLabels();
+    }
+
+    private void activateEnabledNeonCurve() {
+        if (!isAudioEnabledNow()) {
+            return;
+        }
+        curveVisualEnabled = true;
+        refreshCurveView();
+        if (curveFrameView != null) {
+            curveFrameView.animate().cancel();
+            curveFrameView.setAlpha(0.82f);
+            curveFrameView.animate().alpha(1f).setDuration(140).start();
+        }
+        updateEditStateLabels();
+    }
+
+    private void applyDisabledEnabledVisuals() {
+        cancelEnabledNeonSequence();
+        modeVisualEnabled = false;
+        curveVisualEnabled = false;
+        if (modeSpinner != null) {
+            modeSpinner.animate().cancel();
+            modeSpinner.setAlpha(1f);
+        }
+        if (curveFrameView != null) {
+            curveFrameView.animate().cancel();
+            curveFrameView.setAlpha(1f);
+        }
+        styleModeText();
+        refreshCurveView();
+        updateEditStateLabels();
+    }
+
+    private void cancelEnabledNeonSequence() {
+        uiHandler.removeCallbacks(enableNeonHeaderRunnable);
+        uiHandler.removeCallbacks(enableNeonCurveRunnable);
+    }
+
+    private boolean isAudioEnabledNow() {
+        return supported && runningPreset != null && runningPreset.enabled;
     }
 
     private void selectOutputDevice(AudioOutputDevice selected) {
