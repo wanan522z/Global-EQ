@@ -126,7 +126,7 @@ public final class MainActivity extends Activity {
     private EditText dspBassCutoffInput;
     private TextView reverbTitleView;
     private TextView bassBoostTitleView;
-    private TextView virtualBassTitleView;
+    private TextView extraBassTitleView;
     private FrameLayout topControlOverlay;
     private TextView statusText;
     private TextView engineStatusValueView;
@@ -174,7 +174,7 @@ public final class MainActivity extends Activity {
     private LinearLayout bottomTabStrip;
     private Switch enabledSwitch;
     private Switch autoSwitchOutputSwitch;
-    private Switch virtualBassSwitch;
+    private Switch extraBassSwitch;
     private LinearLayout header;
     private Preset runningPreset;
     private Preset editingPreset;
@@ -381,7 +381,7 @@ public final class MainActivity extends Activity {
     private int activeEqEditField = EQ_EDIT_FIELD_FREQ;
     private boolean keyboardVisible;
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener;
-    private boolean virtualBassEnabledState;
+    private boolean extraBassEnabledState;
     private int activeMainPageIndex;
     private int selectedBassModeIndex;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
@@ -487,7 +487,7 @@ public final class MainActivity extends Activity {
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
         applyPresetCurveSettings(editingPreset);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
 
         requestRuntimePermissions();
         setContentView(buildContent());
@@ -700,7 +700,7 @@ public final class MainActivity extends Activity {
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
         applyPresetCurveSettings(editingPreset);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
         renderAll();
         applyRunningPreset(true);
     }
@@ -1631,8 +1631,8 @@ public final class MainActivity extends Activity {
     private String advancedModeSummaryText() {
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             return tr(
-                    "Default mode keeps the existing system EQ and virtual bass path unchanged.",
-                    "Default 模式会保持现有的系统 EQ 和 virtual bass 路径不变。");
+                    "Default mode keeps the existing system EQ and extra bass path unchanged.",
+                    "Default 模式会保持现有的系统 EQ 和 extra bass 路径不变。");
         }
         String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? tr("No app selected", "未选择应用")
@@ -3096,10 +3096,10 @@ public final class MainActivity extends Activity {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
         }
         if (cutoffKnob != null) {
-            cutoffKnob.setValue(editingPreset.virtualBassCutoffHz, false);
+            cutoffKnob.setValue(editingPreset.extraBassCutoffHz, false);
         }
         if (amountKnob != null) {
-            amountKnob.setValue(editingPreset.virtualBassAmountPercent, false);
+            amountKnob.setValue(editingPreset.extraBassAmountPercent, false);
         }
         renderSavedPresetSpinner();
         renderCurveButtons();
@@ -5161,7 +5161,7 @@ public final class MainActivity extends Activity {
         fallback = limitPresetForHeadroom(fallback);
         editingPreset = fallback;
         applyPresetCurveSettings(editingPreset);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
         if (deletedRunning) {
             runningPreset = editingPreset.withEnabled(runningPreset != null && runningPreset.enabled && supported);
             applyRunningPreset();
@@ -5207,7 +5207,7 @@ public final class MainActivity extends Activity {
         runningPreset = selected.withEnabled(supported);
         editingPreset = runningPreset;
         applyPresetCurveSettings(editingPreset);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
         repository.saveDraftPreset(editingPreset);
         undoStack.clear();
         redoStack.clear();
@@ -5265,7 +5265,7 @@ public final class MainActivity extends Activity {
         selected = limitPresetForHeadroom(selected);
         editingPreset = selected;
         applyPresetCurveSettings(editingPreset);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
         undoStack.clear();
         redoStack.clear();
         renderAll();
@@ -5314,20 +5314,20 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void onVirtualBassEnabledChanged(CompoundButton buttonView, boolean isChecked) {
+    private void onExtraBassEnabledChanged(CompoundButton buttonView, boolean isChecked) {
         if (updatingUi || editingPreset == null) {
             return;
         }
-        virtualBassEnabledState = isChecked;
-        setEditingPreset(editingPreset.withVirtualBassEnabled(isChecked), true);
+        extraBassEnabledState = isChecked;
+        setEditingPreset(editingPreset.withExtraBassEnabled(isChecked), true);
     }
 
-    private void syncVirtualBassEnabledFromPreset() {
+    private void syncExtraBassEnabledFromPreset() {
         if (editingPreset == null) {
-            virtualBassEnabledState = false;
+            extraBassEnabledState = false;
             return;
         }
-        virtualBassEnabledState = editingPreset.virtualBassEnabled;
+        extraBassEnabledState = editingPreset.extraBassEnabled;
     }
 
     private void applyRunningPreset() {
@@ -5573,7 +5573,7 @@ public final class MainActivity extends Activity {
         runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
         editingPreset = runningPreset;
         applyPresetCurveSettings(editingPreset);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
         undoStack.clear();
         redoStack.clear();
         renderAll();
@@ -5641,7 +5641,7 @@ public final class MainActivity extends Activity {
         }
         pushHistory(redoStack, editingPreset);
         editingPreset = undoStack.remove(undoStack.size() - 1);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
         syncRunningIfEditingPresetIsActive();
         renderAll();
     }
@@ -5654,7 +5654,7 @@ public final class MainActivity extends Activity {
         }
         pushHistory(undoStack, editingPreset);
         editingPreset = redoStack.remove(redoStack.size() - 1);
-        syncVirtualBassEnabledFromPreset();
+        syncExtraBassEnabledFromPreset();
         syncRunningIfEditingPresetIsActive();
         renderAll();
     }
@@ -5701,7 +5701,7 @@ public final class MainActivity extends Activity {
     private void updateExtraControls() {
         boolean bassBoostEnabled = supported && selectedBassModeIndex > 0;
         boolean dspBassMode = AudioProcessingPolicy.dspBassAllowed(processingMode, selectedBassModeIndex);
-        boolean extraBassEnabled = supported && virtualBassEnabledState;
+        boolean extraBassEnabled = supported && extraBassEnabledState;
         boolean reverbAllowed = supported && AudioProcessingPolicy.reverbAllowed(processingMode);
         boolean reverbEnabled = reverbAllowed && !"Default".equals(editingPreset.reverbType);
         if (bassBoostSlider != null) {
@@ -5710,15 +5710,15 @@ public final class MainActivity extends Activity {
             bassBoostSlider.setEnabled(bassBoostEnabled);
             bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
         }
-        if (virtualBassSwitch != null) {
+        if (extraBassSwitch != null) {
             updatingUi = true;
-            virtualBassSwitch.setChecked(virtualBassEnabledState);
-            virtualBassSwitch.setEnabled(supported);
-            virtualBassSwitch.setAlpha(supported ? 1f : 0.55f);
+            extraBassSwitch.setChecked(extraBassEnabledState);
+            extraBassSwitch.setEnabled(supported);
+            extraBassSwitch.setAlpha(supported ? 1f : 0.55f);
             updatingUi = false;
         }
-        updateVirtualBassControl(cutoffKnob, editingPreset.virtualBassCutoffHz, extraBassEnabled);
-        updateVirtualBassControl(amountKnob, editingPreset.virtualBassAmountPercent, extraBassEnabled);
+        updateExtraBassControl(cutoffKnob, editingPreset.extraBassCutoffHz, extraBassEnabled);
+        updateExtraBassControl(amountKnob, editingPreset.extraBassAmountPercent, extraBassEnabled);
         if (reverbTypeButton != null) {
             reverbTypeButton.setText(editingPreset.reverbType);
             reverbTypeButton.setEnabled(reverbAllowed);
@@ -5743,14 +5743,14 @@ public final class MainActivity extends Activity {
         }
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(bassBoostTitleView);
-        syncExtraSectionTitleVisual(virtualBassTitleView);
+        syncExtraSectionTitleVisual(extraBassTitleView);
         updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
         updateReverbControl(reverbSizeKnob, editingPreset.reverbSizePercent, reverbEnabled);
         updateReverbControl(reverbMixKnob, editingPreset.reverbMixPercent, reverbEnabled);
     }
 
-    private void updateVirtualBassControl(KnobView knob, int value, boolean enabled) {
+    private void updateExtraBassControl(KnobView knob, int value, boolean enabled) {
         if (knob != null) {
             knob.setEnabled(enabled);
             knob.setValue(value, false);
@@ -5950,17 +5950,17 @@ public final class MainActivity extends Activity {
         LinearLayout virtualPanel = createExtraPanelShell();
         page.addView(virtualPanel, extraPanelParams(12));
         LinearLayout virtualHeader = createExtraHeaderRow("Extra Bass");
-        virtualBassTitleView = (TextView) virtualHeader.getChildAt(0);
-        virtualBassSwitch = new Switch(this);
-        virtualBassSwitch.setText("");
-        virtualBassSwitch.setShowText(false);
-        virtualBassSwitch.setOnCheckedChangeListener(this::onVirtualBassEnabledChanged);
-        styleTopSwitch(virtualBassSwitch, false);
-        virtualHeader.addView(virtualBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
+        extraBassTitleView = (TextView) virtualHeader.getChildAt(0);
+        extraBassSwitch = new Switch(this);
+        extraBassSwitch.setText("");
+        extraBassSwitch.setShowText(false);
+        extraBassSwitch.setOnCheckedChangeListener(this::onExtraBassEnabledChanged);
+        styleTopSwitch(extraBassSwitch, false);
+        virtualHeader.addView(extraBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
         virtualPanel.addView(virtualHeader, blockParams(4));
         LinearLayout virtualKnobs = createExtraKnobRow(virtualPanel);
-        virtualKnobs.addView(createVirtualBassControl("Cutoff", true), knobColumnParams());
-        virtualKnobs.addView(createVirtualBassControl("Boost", false), knobColumnParams());
+        virtualKnobs.addView(createExtraBassControl("Cutoff", true), knobColumnParams());
+        virtualKnobs.addView(createExtraBassControl("Boost", false), knobColumnParams());
     }
 
     private LinearLayout createExtraPanelShell() {
@@ -6095,7 +6095,7 @@ public final class MainActivity extends Activity {
         return column;
     }
 
-    private LinearLayout createVirtualBassControl(String label, boolean cutoff) {
+    private LinearLayout createExtraBassControl(String label, boolean cutoff) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
@@ -6105,11 +6105,11 @@ public final class MainActivity extends Activity {
         KnobView knob = new KnobView(this);
         if (cutoff) {
             cutoffKnob = knob;
-            knob.configure(60, 250, editingPreset.virtualBassCutoffHz, "Hz", value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
+            knob.configure(60, 250, editingPreset.extraBassCutoffHz, "Hz", value -> setEditingPreset(editingPreset.withExtraBassCutoffHz(value), true));
         } else {
             amountKnob = knob;
-            knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value ->
-                    setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
+            knob.configure(0, 100, editingPreset.extraBassAmountPercent, "%", value ->
+                    setEditingPreset(editingPreset.withExtraBassAmountPercent(value), true));
         }
         // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
@@ -8219,7 +8219,7 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return false;
         }
-        return view == reverbTitleView || view == bassBoostTitleView || view == virtualBassTitleView;
+        return view == reverbTitleView || view == bassBoostTitleView || view == extraBassTitleView;
     }
 
     private boolean isExtraSectionTitleActive(TextView view) {
@@ -8234,8 +8234,8 @@ public final class MainActivity extends Activity {
         if (view == bassBoostTitleView) {
             return supported && selectedBassModeIndex > 0;
         }
-        if (view == virtualBassTitleView) {
-            return supported && virtualBassEnabledState;
+        if (view == extraBassTitleView) {
+            return supported && extraBassEnabledState;
         }
         return false;
     }
