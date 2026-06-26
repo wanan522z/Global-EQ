@@ -454,7 +454,7 @@ final class PlaybackCaptureEngine {
                     AudioProcessingPolicy.dspBassAllowed(currentMode, currentBassModeIndex),
                     currentConfig);
         }
-        applyTrackBassBoostLocked();
+        applyTrackBassEnhanceLocked();
     }
 
     private AudioAttributes buildTrackAttributesForCurrentMode() {
@@ -469,15 +469,15 @@ final class PlaybackCaptureEngine {
         return builder.build();
     }
 
-    private void applyTrackBassBoostLocked() {
+    private void applyTrackBassEnhanceLocked() {
         if (audioTrack == null) {
-            releaseTrackBassBoostLocked();
+            releaseTrackBassEnhanceLocked();
             return;
         }
-        boolean enableSystemBass = AudioProcessingPolicy.systemBassBoostAllowed(currentBassModeIndex)
+        boolean enableSystemBass = AudioProcessingPolicy.systemBassEnhanceAllowed(currentBassModeIndex)
                 && currentPreset.bassEnhanceAmountPercent > 0;
         if (!enableSystemBass) {
-            releaseTrackBassBoostLocked();
+            releaseTrackBassEnhanceLocked();
             return;
         }
         try {
@@ -488,12 +488,12 @@ final class PlaybackCaptureEngine {
             trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, currentPreset.bassEnhanceAmountPercent * 10)));
             trackBassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
-            Log.w(TAG, "Track BassBoost failed", ex);
-            releaseTrackBassBoostLocked();
+            Log.w(TAG, "Track bass enhance effect failed", ex);
+            releaseTrackBassEnhanceLocked();
         }
     }
 
-    private void releaseTrackBassBoostLocked() {
+    private void releaseTrackBassEnhanceLocked() {
         if (trackBassBoost == null) {
             return;
         }
@@ -530,7 +530,7 @@ final class PlaybackCaptureEngine {
             }
         }
 
-        releaseTrackBassBoostLocked();
+        releaseTrackBassEnhanceLocked();
         Thread thread = workerThread;
         workerThread = null;
         if (thread != null && thread != Thread.currentThread()) {

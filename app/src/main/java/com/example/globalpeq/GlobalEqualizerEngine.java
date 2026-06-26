@@ -251,7 +251,7 @@ final class GlobalEqualizerEngine {
             if (!hasActiveGain) {
                 resetBands(bandCount);
             }
-            applyBassBoost(preset);
+            applySystemBassEnhance(preset);
             lastAppliedPreset = preset;
         } catch (RuntimeException ex) {
             Log.w(TAG, "Failed to write target EQ levels", ex);
@@ -401,9 +401,9 @@ final class GlobalEqualizerEngine {
         return before != null && after != null && before.toJson().equals(after.toJson());
     }
 
-    private void applyBassBoost(Preset preset) {
+    private void applySystemBassEnhance(Preset preset) {
         if (preset.bassEnhanceAmountPercent <= 0) {
-            releaseBassBoost();
+            releaseSystemBassEnhance();
             return;
         }
 
@@ -415,12 +415,12 @@ final class GlobalEqualizerEngine {
             bassBoost.setStrength((short) Math.max(0, Math.min(1000, preset.bassEnhanceAmountPercent * 10)));
             bassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
-            Log.w(TAG, "BassBoost could not be applied", ex);
-            releaseBassBoost();
+            Log.w(TAG, "System bass enhance effect could not be applied", ex);
+            releaseSystemBassEnhance();
         }
     }
 
-    private void releaseBassBoost() {
+    private void releaseSystemBassEnhance() {
         if (bassBoost == null) {
             return;
         }
@@ -449,7 +449,7 @@ final class GlobalEqualizerEngine {
                 equalizer = null;
             }
         }
-        releaseBassBoost();
+        releaseSystemBassEnhance();
         armedWithZeroBands = false;
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
