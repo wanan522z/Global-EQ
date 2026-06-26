@@ -126,8 +126,10 @@ public final class GlobalEqForegroundService extends Service {
         } else if (ACTION_PAUSE_SHIZUKU.equals(action)) {
             startForegroundInternal(captureEngine.hasProjection());
             schedulePauseShizukuSession();
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
             updateNotification();
-            return START_STICKY;
+            return START_NOT_STICKY;
         } else {
             startForegroundInternal(captureEngine.hasProjection());
         }
