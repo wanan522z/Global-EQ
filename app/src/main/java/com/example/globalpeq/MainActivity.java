@@ -3561,6 +3561,9 @@ public final class MainActivity extends Activity {
 
     private TextView createBottomTabText(String text) {
         TextView tab = gradientTitleView(text);
+        if (tab instanceof GlowTitleTextView) {
+            ((GlowTitleTextView) tab).setAutoRegisterShimmer(false);
+        }
         tab.setText(text);
         tab.setTextSize(13);
         tab.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -3568,6 +3571,7 @@ public final class MainActivity extends Activity {
         tab.setIncludeFontPadding(false);
         tab.setSingleLine(true);
         tab.setPadding(dp(18), 0, dp(18), 0);
+        styleInactiveTabText(tab);
         return tab;
     }
 
