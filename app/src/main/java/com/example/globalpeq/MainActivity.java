@@ -3128,7 +3128,6 @@ public final class MainActivity extends Activity {
         }
         curveVisualEnabled = true;
         refreshCurveView();
-        updateEditStateLabels();
     }
 
     private void applyDisabledEnabledVisuals() {
