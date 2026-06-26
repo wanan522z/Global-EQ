@@ -8,15 +8,29 @@ final class AudioProcessingPolicy {
         return mode == ProcessingMode.SHIZUKU_MUTE;
     }
 
-    static boolean systemBassBoostAllowed(ProcessingMode mode, int bassModeIndex) {
-        return advancedModeEnabled(mode) && bassModeIndex == 1;
+    static boolean reverbAllowed(ProcessingMode mode) {
+        return advancedModeEnabled(mode);
+    }
+
+    static boolean bassModeAllowed(ProcessingMode mode, int bassModeIndex) {
+        if (bassModeIndex < 0 || bassModeIndex > 2) {
+            return false;
+        }
+        if (advancedModeEnabled(mode)) {
+            return true;
+        }
+        return bassModeIndex <= 1;
+    }
+
+    static int sanitizeBassModeIndex(ProcessingMode mode, int bassModeIndex) {
+        return bassModeAllowed(mode, bassModeIndex) ? bassModeIndex : 0;
+    }
+
+    static boolean systemBassBoostAllowed(int bassModeIndex) {
+        return bassModeIndex == 1;
     }
 
     static boolean dspBassAllowed(ProcessingMode mode, int bassModeIndex) {
-        return advancedModeEnabled(mode) && bassModeIndex == 2;
-    }
-
-    static boolean dspVirtualBassAllowed(ProcessingMode mode, int bassModeIndex) {
         return advancedModeEnabled(mode) && bassModeIndex == 2;
     }
 
@@ -26,10 +40,7 @@ final class AudioProcessingPolicy {
         }
 
         Preset effective = preset;
-        if (!dspVirtualBassAllowed(mode, bassModeIndex)) {
-            effective = effective.withVirtualBassEnabled(false);
-        }
-        if (!advancedModeEnabled(mode) || "Default".equals(effective.reverbType)) {
+        if (!reverbAllowed(mode) || "Default".equals(effective.reverbType)) {
             effective = effective.withReverbType("Default");
         }
         return effective;
@@ -43,7 +54,7 @@ final class AudioProcessingPolicy {
             return Preset.flat(preset.enabled).withName(preset.name);
         }
         Preset effective = preset.withReverbType("Default");
-        if (!systemBassBoostAllowed(mode, bassModeIndex)) {
+        if (!systemBassBoostAllowed(bassModeIndex)) {
             effective = effective.withSystemBassBoostPercent(0);
         }
         return effective;
