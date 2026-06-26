@@ -1385,6 +1385,16 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void showModeLockedDialog(String message) {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Mode locked")
+                .setMessage(message)
+                .setPositiveButton("OK", null)
+                .create();
+        dialog.setOnShowListener(d -> styleDialog(dialog));
+        dialog.show();
+    }
+
     private void showLimitedChoiceMenu(View anchor, String[] labels, int selected, ChoiceCallback callback) {
         if (anchor == null || labels == null || labels.length == 0) {
             return;
