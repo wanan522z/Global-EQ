@@ -3345,6 +3345,85 @@ public final class MainActivity extends Activity {
         return input;
     }
 
+    private EditText createDeferredIntegerInput(String value, String hint, int min, int max, IntChanged listener) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(value);
+        input.setHint(hint);
+        input.setTextSize(13);
+        input.setSelectAllOnFocus(true);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        input.setEnabled(supported);
+        try {
+            input.setTag(Integer.parseInt(value));
+        } catch (NumberFormatException ignored) {
+            input.setTag(min);
+        }
+        input.setOnEditorActionListener((view, actionId, event) -> {
+            boolean enterUp = event != null
+                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == KeyEvent.ACTION_UP;
+            if (actionId == EditorInfo.IME_ACTION_DONE
+                    || actionId == EditorInfo.IME_ACTION_NEXT
+                    || enterUp) {
+                commitDeferredIntegerInput(input, min, max, listener);
+                closeKeyboard(view);
+                view.clearFocus();
+                return true;
+            }
+            return false;
+        });
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus) {
+                commitDeferredIntegerInput(input, min, max, listener);
+            }
+        });
+
+        GradientDrawable inputBg = new GradientDrawable();
+        inputBg.setShape(GradientDrawable.RECTANGLE);
+        inputBg.setColor(Color.argb(24, 255, 255, 255));
+        inputBg.setStroke(dp(1), Color.argb(52, 255, 255, 255));
+        inputBg.setCornerRadius(dp(8));
+        input.setBackground(inputBg);
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setPadding(dp(6), dp(4), dp(6), dp(4));
+        input.setGravity(android.view.Gravity.CENTER);
+
+        return input;
+    }
+
+    private void commitDeferredIntegerInput(EditText input, int min, int max, IntChanged listener) {
+        if (input == null || listener == null || updatingUi) {
+            return;
+        }
+        Object tag = input.getTag();
+        int lastCommitted = tag instanceof Integer ? (Integer) tag : min;
+        String rawText = input.getText() == null ? "" : input.getText().toString().trim();
+        int clampedValue = lastCommitted;
+        if (!rawText.isEmpty()) {
+            try {
+                clampedValue = clamp(Integer.parseInt(rawText), min, max);
+            } catch (NumberFormatException ignored) {
+                clampedValue = lastCommitted;
+            }
+        }
+        String normalizedText = String.valueOf(clampedValue);
+        if (!normalizedText.contentEquals(input.getText())) {
+            updatingUi = true;
+            input.setText(normalizedText);
+            input.setSelection(normalizedText.length());
+            updatingUi = false;
+        }
+        if (!(tag instanceof Integer) || ((Integer) tag) != clampedValue) {
+            input.setTag(clampedValue);
+            listener.onChanged(clampedValue);
+        } else {
+            input.setTag(clampedValue);
+        }
+    }
+
     private void updateBand(int index, ParametricBand band) {
         if (editingPreset == null || index < 0 || index >= editingPreset.bands.length || band == null) {
             return;
