@@ -5928,30 +5928,30 @@ public final class MainActivity extends Activity {
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
-        LinearLayout bassHeader = createExtraHeaderRow("Bass Enhance");
-        bassEnhanceTitleView = (TextView) bassHeader.getChildAt(0);
+        LinearLayout bassHeader = createExtraHeaderRow("Virtual Bass");
+        virtualBassTitleView = (TextView) bassHeader.getChildAt(0);
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
         // UI 占位选择框，system/dsp 切换功能后续接入
         bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         bassPanel.addView(bassHeader, blockParams(4));
-        bassEnhanceSlider = new HorizontalBassSlider(this);
-        bassEnhanceSlider.configure(0, 100, editingPreset.bassEnhanceAmountPercent, "%", "Boost",
-                value -> setEditingPreset(editingPreset.withBassEnhanceAmountPercent(value), true));
+        virtualBassSlider = new HorizontalBassSlider(this);
+        virtualBassSlider.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", "Boost",
+                value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
         LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1f
         );
         sliderParams.topMargin = dp(8);
-        bassPanel.addView(bassEnhanceSlider, sliderParams);
+        bassPanel.addView(virtualBassSlider, sliderParams);
 
         dspBassCutoffInput = createDeferredIntegerInput(
-                String.valueOf(editingPreset.dspBassCutoffHz),
+                String.valueOf(editingPreset.virtualBassCutoffHz),
                 "Cutoff Hz",
                 20,
                 250,
-                value -> setEditingPreset(editingPreset.withDspBassCutoffHz(value), true));
+                value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
         dspBassCutoffInput.setTextSize(13);
         dspBassCutoffInput.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
