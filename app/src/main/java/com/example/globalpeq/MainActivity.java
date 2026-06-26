@@ -6005,6 +6005,8 @@ public final class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setClipChildren(false);
+        row.setClipToPadding(false);
         TextView title = new GlowTitleTextView(this);
         if (title instanceof GlowTitleTextView) {
             ((GlowTitleTextView) title).setAutoRegisterShimmer(false);
