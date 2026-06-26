@@ -1525,7 +1525,7 @@ public final class MainActivity extends Activity {
     }
 
     private String monitorSettingsTitleText() {
-        return tr("Monitor DSP Settings", "Monitor DSP 设置");
+        return tr("Shizuku Mode Settings", "Shizuku Mode 设置");
     }
 
     private String monitorSettingsDetailText() {
@@ -1852,7 +1852,7 @@ public final class MainActivity extends Activity {
 
     private void handleMonitorCaptureAction() {
         if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
-            Toast.makeText(this, tr("Switch to Monitor DSP mode first", "请先切换到 Monitor DSP 模式"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Switch to Shizuku Mode first", "请先切换到 Shizuku Mode 模式"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -3228,7 +3228,7 @@ public final class MainActivity extends Activity {
         showLimitedChoiceMenu(reverbTypeButton, REVERB_TYPE_LABELS, reverbTypeIndex(editingPreset.reverbType), position -> {
             String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
             if (processingMode == ProcessingMode.SYSTEM_EQ && !"Default".equals(nextType)) {
-                showModeLockedDialog("Reverb requires Monitor DSP mode.");
+                showModeLockedDialog("Reverb requires Shizuku Mode.");
                 return;
             }
             if (!nextType.equals(editingPreset.reverbType)) {
@@ -3244,7 +3244,7 @@ public final class MainActivity extends Activity {
         showLimitedChoiceMenu(bassModeButton, bassModeDisplayLabels(), selectedBassModeIndex, position -> {
             int nextIndex = clamp(position, 0, BASS_MODE_LABELS.length - 1);
             if (processingMode == ProcessingMode.SYSTEM_EQ && nextIndex != 0) {
-                showModeLockedDialog("Virtual Bass beyond Default requires Monitor DSP mode.");
+                showModeLockedDialog("Virtual Bass beyond Default requires Shizuku Mode.");
                 return;
             }
             if (selectedBassModeIndex == nextIndex) {
@@ -9554,7 +9554,7 @@ public final class MainActivity extends Activity {
 
     private void handleShizukuAccessAction() {
         if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
-            Toast.makeText(this, tr("Switch to Shizuku Mute mode first", "\u8bf7\u5148\u5207\u6362\u5230 Shizuku Mute \u6a21\u5f0f"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Switch to Shizuku Mode first", "请先切换到 Shizuku Mode 模式"), Toast.LENGTH_SHORT).show();
             return;
         }
         boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
