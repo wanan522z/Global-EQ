@@ -212,7 +212,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             colors = SHIMMER_MODE_ON_COLORS;
-        } else if (usesCustomGlow) {
+        } else {
             colors = SHIMMER_BRIGHT_COLORS;
         }
 
@@ -224,25 +224,17 @@ public final class MainActivity extends Activity {
                 Shader.TileMode.REPEAT));
         view.setTextColor(Color.WHITE);
 
-        // 关键优化：强制将正在作动流光的标题和状态文本切换为 SOFTWARE 软件绘制层。
-        // 因为 Android 硬件加速 (GPU PATH) 的 setShadowLayer 效果在大半径高斯模糊时
-        // 渲染极不均匀、出现大颗粒或完全失效，且硬件加速的像素近似合并会产生严重的阶梯型抖动和闪烁。
-        // 切换为 SOFTWARE 图层可强制调用精密的 CPU 高斯模糊算法绘制 shadowLayer，获得如烟雾般丝滑柔和、高亮饱满的霓虹光晕！
-        boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
 
-        // 光晕：大半径 shadowLayer 让 blur 圈大且柔，软件渲染下效果完美
         if (view == statusText) {
-            // GLOBAL EQ 状态标识：强冰蓝荧光光晕（去绿，偏蓝），区别于其他标题
             view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
             if (usesCustomGlow) {
                 applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
             }
         } else if (usesCustomGlow) {
-            // 其他标题：浅蓝青色光晕，大半径柔光
             applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
         } else {
             view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
