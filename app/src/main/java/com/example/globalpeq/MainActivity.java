@@ -862,7 +862,7 @@ public final class MainActivity extends Activity {
         }
         monitoredAppIconView.setVisibility(View.GONE);
         monitoredAppIconView.setOnClickListener(v -> {
-            if (processingMode == ProcessingMode.ADVANCED_DSP) {
+            if (AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
                 showAdvancedSettingsSubpage();
             }
         });
@@ -2870,7 +2870,7 @@ public final class MainActivity extends Activity {
         if (monitoredAppIconView == null) {
             return;
         }
-        boolean visible = processingMode == ProcessingMode.ADVANCED_DSP
+        boolean visible = AudioProcessingPolicy.advancedModeEnabled(processingMode)
                 && advancedModeConfig.monitoredAppPackage != null
                 && !advancedModeConfig.monitoredAppPackage.isEmpty();
         Drawable icon = visible ? loadMonitoredAppDrawable() : null;
@@ -2972,7 +2972,7 @@ public final class MainActivity extends Activity {
             styleGradientTitle(processingModeButton);
         }
         if (advancedModeDetailButton != null) {
-            advancedModeDetailButton.setVisibility(processingMode == ProcessingMode.ADVANCED_DSP ? View.VISIBLE : View.GONE);
+            advancedModeDetailButton.setVisibility(AudioProcessingPolicy.advancedModeEnabled(processingMode) ? View.VISIBLE : View.GONE);
         }
         if (advancedModeSummaryView != null) {
             advancedModeSummaryView.setText(advancedModeSummaryText());
@@ -5619,10 +5619,10 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean bassBoostEnabled = supported && processingMode == ProcessingMode.ADVANCED_DSP && selectedBassModeIndex > 0;
+        boolean bassBoostEnabled = supported && AudioProcessingPolicy.advancedModeEnabled(processingMode) && selectedBassModeIndex > 0;
         boolean dspBassMode = selectedBassModeIndex == 2;
         boolean virtualBassModeAvailable = supported
-                && processingMode == ProcessingMode.ADVANCED_DSP
+                && AudioProcessingPolicy.advancedModeEnabled(processingMode)
                 && selectedBassModeIndex == 2;
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
@@ -5640,7 +5640,7 @@ public final class MainActivity extends Activity {
         }
         updateVirtualBassControl(cutoffKnob, editingPreset.virtualBassCutoffHz, virtualBassEnabled);
         updateVirtualBassControl(amountKnob, editingPreset.virtualBassAmountPercent, virtualBassEnabled);
-        boolean reverbEnabled = supported && processingMode == ProcessingMode.ADVANCED_DSP && !"Default".equals(editingPreset.reverbType);
+        boolean reverbEnabled = supported && AudioProcessingPolicy.advancedModeEnabled(processingMode) && !"Default".equals(editingPreset.reverbType);
         if (reverbTypeButton != null) {
             reverbTypeButton.setText(editingPreset.reverbType);
             reverbTypeButton.setEnabled(supported);
