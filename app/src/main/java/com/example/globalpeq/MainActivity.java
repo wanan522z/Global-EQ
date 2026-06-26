@@ -2250,6 +2250,19 @@ public final class MainActivity extends Activity {
         return entries;
     }
 
+    private void showAppListLoadingState(LinearLayout list, LinearLayout indexBar, String message) {
+        list.removeAllViews();
+        indexBar.removeAllViews();
+        indexBar.setVisibility(View.GONE);
+
+        TextView loading = new TextView(this);
+        loading.setText(message);
+        loading.setTextSize(12);
+        loading.setTextColor(Color.rgb(170, 180, 198));
+        loading.setPadding(dp(4), dp(10), dp(4), dp(4));
+        list.addView(loading, curveMenuRowParams(0));
+    }
+
     private void rebuildMonitoredAppChoiceList(LinearLayout list,
                                                LinearLayout indexBar,
                                                ScrollView scroll,
@@ -2293,8 +2306,8 @@ public final class MainActivity extends Activity {
         if (matchCount == 0) {
             TextView empty = new TextView(this);
             empty.setText(monitoredApps.isEmpty()
-                    ? tr("No monitored apps yet. Use Add to build your own list.", "还没有监听应用，先用 Add 手动添加�?)
-                    : tr("No added apps match your search.", "没有匹配当前搜索的已添加应用�?));
+                    ? tr("No monitored apps yet. Use Add to build your own list.", "还没有监听应用，先用 Add 手动添加。")
+                    : tr("No added apps match your search.", "没有匹配当前搜索的已添加应用。"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(10), dp(4), dp(4));
