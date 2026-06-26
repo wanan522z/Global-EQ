@@ -5461,6 +5461,7 @@ public final class MainActivity extends Activity {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private final TextPaint labelPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
+        private boolean shimmerActive;
         private int glowColor = Color.argb(210, 120, 220, 255);
         private float glowRadiusPx = dpf(7.4f);
 
@@ -5483,6 +5484,11 @@ public final class MainActivity extends Activity {
 
         void clearGlowState() {
             glowEnabled = false;
+            invalidate();
+        }
+
+        void setBottomTabShimmerActive(boolean active) {
+            shimmerActive = active;
             invalidate();
         }
 
@@ -5548,8 +5554,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             labelPaint.set(getPaint());
-            boolean activeBottomTab = MainActivity.this.isActiveBottomTab(this);
-            if (activeBottomTab) {
+            if (shimmerActive) {
                 int width = Math.max(1, settingsTitleGradientWidth(this));
                 float offset = shimmerAnimPhase * width;
                 labelPaint.setShader(new LinearGradient(
@@ -5557,6 +5562,7 @@ public final class MainActivity extends Activity {
                         SHIMMER_BRIGHT_COLORS,
                         SHIMMER_POSITIONS,
                         Shader.TileMode.REPEAT));
+                labelPaint.setColor(Color.WHITE);
             } else {
                 labelPaint.setShader(null);
                 labelPaint.setColor(getCurrentTextColor());
