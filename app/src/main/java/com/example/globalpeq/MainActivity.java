@@ -5670,6 +5670,11 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean active = isExtraSectionTitleActive(view);
+        Boolean previous = titleVisualStates.get(view);
+        if (previous != null && previous == active) {
+            return;
+        }
+        titleVisualStates.put(view, active);
         if (active) {
             styleSettingsTitleText(view);
             registerShimmerView(view);
