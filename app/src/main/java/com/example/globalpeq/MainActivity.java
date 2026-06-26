@@ -1119,6 +1119,7 @@ public final class MainActivity extends Activity {
     private void renderAll() {
         updatingUi = true;
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
+        updateMonitoredAppIcon();
         if (statusText != null) {
             statusText.setText(statusLabel(hasClip));
             styleStatusText(hasClip);
@@ -1131,6 +1132,20 @@ public final class MainActivity extends Activity {
         }
         if (autoSwitchOutputSwitch != null) {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
+        }
+        if (processingModeButton != null) {
+            processingModeButton.setText(processingMode.label);
+        }
+        if (advancedModeDetailButton != null) {
+            advancedModeDetailButton.setVisibility(processingMode == ProcessingMode.ADVANCED_DSP ? View.VISIBLE : View.GONE);
+        }
+        if (advancedModeSummaryView != null) {
+            advancedModeSummaryView.setText(advancedModeSummaryText());
+        }
+        if (advancedMonitorAppButton != null) {
+            advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
+                    ? "Choose app"
+                    : advancedModeConfig.monitoredAppLabel);
         }
         if (presetSelectButton != null) {
             presetSelectButton.setText(editingPreset.name);
