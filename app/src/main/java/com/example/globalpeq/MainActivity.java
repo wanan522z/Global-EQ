@@ -459,10 +459,6 @@ public final class MainActivity extends Activity {
         processingMode = repository.loadProcessingMode();
         uiLanguage = repository.loadUiLanguage();
         advancedModeConfig = repository.loadAdvancedModeConfig();
-        selectedBassModeIndex = AudioProcessingPolicy.sanitizeVirtualBassModeIndex(
-                processingMode,
-                repository.loadVirtualBassModeIndex());
-        repository.saveVirtualBassModeIndex(selectedBassModeIndex);
         selectedDeviceCurveName = repository.loadSelectedDeviceCurveName();
         selectedTargetCurveName = repository.loadSelectedTargetCurveName();
         deviceCurveGainOffsetDb = repository.loadDeviceCurveGainOffsetDb();
@@ -487,6 +483,7 @@ public final class MainActivity extends Activity {
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
         applyPresetCurveSettings(editingPreset);
+        syncSelectedVirtualBassModeFromPreset();
         syncExtraBassEnabledFromPreset();
 
         requestRuntimePermissions();
@@ -1755,11 +1752,6 @@ public final class MainActivity extends Activity {
     private void setProcessingMode(ProcessingMode nextMode) {
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
-        int sanitizedVirtualBassModeIndex = AudioProcessingPolicy.sanitizeVirtualBassModeIndex(processingMode, selectedBassModeIndex);
-        if (sanitizedVirtualBassModeIndex != selectedBassModeIndex) {
-            selectedBassModeIndex = sanitizedVirtualBassModeIndex;
-            repository.saveVirtualBassModeIndex(selectedBassModeIndex);
-        }
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             if (monitorSettingsOpen) {
                 hideAdvancedSettingsSubpage();
@@ -3312,10 +3304,7 @@ public final class MainActivity extends Activity {
             if (selectedBassModeIndex == nextIndex) {
                 return;
             }
-            selectedBassModeIndex = nextIndex;
-            repository.saveVirtualBassModeIndex(selectedBassModeIndex);
-            updateExtraControls();
-            applyRunningPreset();
+            setEditingPreset(editingPreset.withVirtualBassModeIndex(nextIndex), true);
         });
     }
 
@@ -5339,6 +5328,14 @@ public final class MainActivity extends Activity {
         extraBassEnabledState = editingPreset.extraBassEnabled;
     }
 
+    private void syncSelectedVirtualBassModeFromPreset() {
+        if (editingPreset == null) {
+            selectedBassModeIndex = 0;
+            return;
+        }
+        selectedBassModeIndex = editingPreset.virtualBassModeIndex;
+    }
+
     private void applyRunningPreset() {
         applyRunningPreset(false);
     }
@@ -5638,6 +5635,7 @@ public final class MainActivity extends Activity {
             redoStack.clear();
         }
         editingPreset = nextPreset;
+        syncSelectedVirtualBassModeFromPreset();
         if (curveView != null) {
             refreshCurveView();
         }
@@ -5654,6 +5652,7 @@ public final class MainActivity extends Activity {
         }
         pushHistory(redoStack, editingPreset);
         editingPreset = undoStack.remove(undoStack.size() - 1);
+        syncSelectedVirtualBassModeFromPreset();
         syncExtraBassEnabledFromPreset();
         syncRunningIfEditingPresetIsActive();
         renderAll();
@@ -5667,6 +5666,7 @@ public final class MainActivity extends Activity {
         }
         pushHistory(undoStack, editingPreset);
         editingPreset = redoStack.remove(redoStack.size() - 1);
+        syncSelectedVirtualBassModeFromPreset();
         syncExtraBassEnabledFromPreset();
         syncRunningIfEditingPresetIsActive();
         renderAll();
