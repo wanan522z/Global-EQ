@@ -5912,7 +5912,6 @@ public final class MainActivity extends Activity {
         virtualKnobs.addView(createVirtualBassControl("Boost", false), knobColumnParams());
     }
 
-    private LinearLayout createExtraPanel(String titleText) {
     private LinearLayout createExtraPanelShell() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
