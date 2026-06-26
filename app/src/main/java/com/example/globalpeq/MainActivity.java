@@ -461,8 +461,8 @@ public final class MainActivity extends Activity {
         advancedModeConfig = repository.loadAdvancedModeConfig();
         selectedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(
                 processingMode,
-                repository.loadBassBoostModeIndex());
-        repository.saveBassBoostModeIndex(selectedBassModeIndex);
+                repository.loadBassEnhanceModeIndex());
+        repository.saveBassEnhanceModeIndex(selectedBassModeIndex);
         selectedDeviceCurveName = repository.loadSelectedDeviceCurveName();
         selectedTargetCurveName = repository.loadSelectedTargetCurveName();
         deviceCurveGainOffsetDb = repository.loadDeviceCurveGainOffsetDb();
