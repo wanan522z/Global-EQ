@@ -870,11 +870,6 @@ public final class MainActivity extends Activity {
         // 注意：不能再设 LAYER_TYPE_SOFTWARE——软件图层会把绘制裁剪到 View 尺寸，
         // 导致超出 36dp View 边界的光晕被切掉。新光晕用预模糊位图，无需软件渲染。
         monitoredAppIconView.setVisibility(View.GONE);
-        monitoredAppIconView.setOnClickListener(v -> {
-            if (AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
-                showAdvancedSettingsSubpage();
-            }
-        });
         FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(36), dp(36));
         iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
         top.addView(monitoredAppIconView, iconParams);
