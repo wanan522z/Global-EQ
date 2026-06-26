@@ -6872,9 +6872,9 @@ public final class MainActivity extends Activity {
     private void updateBottomNavSelectionLegacy(int activeIndex) {
         if (eqTabButton == null || extraTabButton == null || settingsTabButton == null) return;
         
-        Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        TextView[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         for (int i = 0; i < tabs.length; i++) {
-            Button tab = tabs[i];
+            TextView tab = tabs[i];
             boolean active = (i == activeIndex);
             if (active) {
                 tab.setBackground(strokeGlowRoundRectDrawable(
