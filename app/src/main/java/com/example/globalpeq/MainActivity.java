@@ -6378,6 +6378,11 @@ public final class MainActivity extends Activity {
             setValue(value, false);
         }
 
+        void setLabel(String label) {
+            this.label = label == null ? "" : label;
+            invalidate();
+        }
+
         void setValue(int nextValue, boolean notify) {
             int clamped = Math.max(min, Math.min(max, nextValue));
             if (clamped == value) {
