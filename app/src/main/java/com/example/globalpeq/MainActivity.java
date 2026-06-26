@@ -7415,14 +7415,14 @@ public final class MainActivity extends Activity {
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(checked ? checkedColor : uncheckedColor);
                 float radius = rect.height() / 2f;
-                int glowColor = checked ? Color.argb(140, 86, 164, 255) : Color.argb(72, 98, 132, 188);
+                int glowColor = checked ? Color.argb(142, 58, 196, 214) : Color.argb(72, 98, 132, 188);
                 paint.setShadowLayer(checked ? dpf(4.5f) : dpf(2.5f), 0, 0, glowColor);
                 canvas.drawRoundRect(rect, radius, radius, paint);
                 paint.clearShadowLayer();
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(128, 124, 194, 255) : Color.argb(84, 194, 220, 255));
+                paint.setColor(checked ? Color.argb(130, 112, 226, 236) : Color.argb(84, 194, 220, 255));
                 paint.setShadowLayer(checked ? dpf(3f) : dpf(1.8f), 0, 0, glowColor);
                 canvas.drawRoundRect(rect, radius, radius, paint);
                 paint.clearShadowLayer();
@@ -7433,7 +7433,7 @@ public final class MainActivity extends Activity {
                 paint.setTextAlign(Paint.Align.CENTER);
                 paint.setColor(checked ? Color.rgb(214, 235, 255) : Color.argb(136, 226, 236, 248));
                 if (checked) {
-                    paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(160, 98, 168, 255));
+                    paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(158, 72, 204, 220));
                 } else {
                     paint.clearShadowLayer();
                 }
