@@ -5364,7 +5364,9 @@ public final class MainActivity extends Activity {
         }
         // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
         // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
+        boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                && !usesCustomGlow
                 && view.getLayerType() != View.LAYER_TYPE_NONE) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
@@ -5381,7 +5383,7 @@ public final class MainActivity extends Activity {
             view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
             view.invalidate();
         });
-        if (view instanceof GlowTitleTextView) {
+        if (usesCustomGlow) {
             applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
             view.post(() -> applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f));
         }
