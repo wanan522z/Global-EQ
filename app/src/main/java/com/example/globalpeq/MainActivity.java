@@ -5925,7 +5925,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
-        LinearLayout bassHeader = createExtraHeaderRow("Bass Boost");
+        LinearLayout bassHeader = createExtraHeaderRow("Bass Enhance");
         bassEnhanceTitleView = (TextView) bassHeader.getChildAt(0);
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
