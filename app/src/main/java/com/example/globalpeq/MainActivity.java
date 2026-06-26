@@ -5778,24 +5778,28 @@ public final class MainActivity extends Activity {
         // 缩小一圈，但保留完整衰减空间
         view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
         view.invalidate();
-        view.post(() -> {
-            if (!isCurrentTextStyleVersion(view, styleVersion)) {
-                return;
-            }
-            applyTitleGradientShader(view, settingsTitleGradientWidth(view),
-                    Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
-            view.setTextColor(Color.WHITE);
-            view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
-            view.invalidate();
-        });
-        if (usesCustomGlow) {
-            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+        if (view.getWidth() <= 0) {
             view.post(() -> {
                 if (!isCurrentTextStyleVersion(view, styleVersion)) {
                     return;
                 }
-                applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+                applyTitleGradientShader(view, settingsTitleGradientWidth(view),
+                        Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
+                view.setTextColor(Color.WHITE);
+                view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
+                view.invalidate();
             });
+        }
+        if (usesCustomGlow) {
+            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+            if (view.getWidth() <= 0) {
+                view.post(() -> {
+                    if (!isCurrentTextStyleVersion(view, styleVersion)) {
+                        return;
+                    }
+                    applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+                });
+            }
         }
     }
 
