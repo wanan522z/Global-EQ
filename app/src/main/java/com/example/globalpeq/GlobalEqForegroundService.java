@@ -135,7 +135,8 @@ public final class GlobalEqForegroundService extends Service {
         ProcessingMode processingMode = repository.loadProcessingMode();
         if (!preset.enabled) {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-                // Keep the projection/session state alive so the next enable can resume immediately.
+                // Pause capture and release mute effects, but keep authorization state available.
+                schedulePauseShizukuSession();
                 updateNotification();
                 return START_STICKY;
             }
