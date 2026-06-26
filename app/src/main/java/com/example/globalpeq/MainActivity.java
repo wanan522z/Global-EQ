@@ -1890,6 +1890,49 @@ public final class MainActivity extends Activity {
         startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MONITOR_CAPTURE);
     }
 
+    private void ensureShizukuModeReady(boolean autoLaunchCapture) {
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+            return;
+        }
+        boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
+        repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
+        if (!granted) {
+            renderAll();
+            return;
+        }
+        applyRunningPreset();
+        if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
+            renderAll();
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Toast.makeText(this, "Native capture requires Android 10 or later", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            pendingMonitorCaptureAuthorization = true;
+            repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
+            renderAll();
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
+            return;
+        }
+        launchMonitorCaptureAuthorization();
+    }
+
+    private boolean shouldLaunchCaptureAuthorization() {
+        if (repository == null) {
+            return true;
+        }
+        String status = repository.loadMonitorCaptureStatus();
+        if (status == null) {
+            return true;
+        }
+        return !status.startsWith("Capture authorized")
+                && !status.startsWith("Monitoring ")
+                && !status.startsWith("Armed for ");
+    }
+
     private void showMonitoredAppChoiceDialog() {
             AlertDialog[] dialogHolder = new AlertDialog[1];
             final List<MonitoredAppListEntry>[] monitoredHolder = new List[]{null};
