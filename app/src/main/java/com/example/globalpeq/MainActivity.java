@@ -199,8 +199,14 @@ public final class MainActivity extends Activity {
             }
             colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
         } else if (view == modeSpinner) {
-            boolean enabled = isModeVisualEnabled();
-            colors = enabled ? SHIMMER_MODE_ON_COLORS : SHIMMER_MODE_OFF_COLORS;
+            if (!isModeVisualEnabled()) {
+                unregisterShimmerView(view);
+                view.getPaint().setShader(null);
+                clearGlowFromTextView(view);
+                view.invalidate();
+                return;
+            }
+            colors = SHIMMER_MODE_ON_COLORS;
         } else {
             colors = SHIMMER_BRIGHT_COLORS;
         }
@@ -276,7 +282,15 @@ public final class MainActivity extends Activity {
             } else {
                 applyStatusShimmerShader(view, width, Color.rgb(240, 248, 255), Color.rgb(180, 210, 255));
             }
-        } else if (view == eqTabButton || view == extraTabButton || view == settingsTabButton || view == modeSpinner) {
+        } else if (view == modeSpinner) {
+            if (!isModeVisualEnabled()) {
+                view.getPaint().setShader(null);
+                clearGlowFromTextView(view);
+                view.invalidate();
+                return;
+            }
+            applyTitleGradientShader(view, width, Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+        } else if (view == eqTabButton || view == extraTabButton || view == settingsTabButton) {
             applyTitleGradientShader(view, width, Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
         } else {
             applyTitleGradientShader(view, width, Color.rgb(0, 245, 212), Color.rgb(80, 220, 255), Color.rgb(180, 100, 255));
