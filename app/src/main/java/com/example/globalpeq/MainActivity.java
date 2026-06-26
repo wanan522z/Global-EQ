@@ -1903,6 +1903,9 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
+        if (granted) {
+            ShizukuCompat.grantPermissionsAndAppOps(this);
+        }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (!granted) {
             renderAll();
@@ -9628,6 +9631,9 @@ public final class MainActivity extends Activity {
         }
         boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
         String status = ShizukuCompat.describeState(this);
+        if (granted) {
+            ShizukuCompat.grantPermissionsAndAppOps(this);
+        }
         repository.saveShizukuMuteStatus(status, granted);
         if (!granted) {
             Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
@@ -9643,6 +9649,9 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean granted = grantResult == PackageManager.PERMISSION_GRANTED;
+        if (granted) {
+            ShizukuCompat.grantPermissionsAndAppOps(this);
+        }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (granted) {
             applyRunningPreset();
