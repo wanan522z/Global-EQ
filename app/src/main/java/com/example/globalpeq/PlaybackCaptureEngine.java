@@ -211,7 +211,7 @@ final class PlaybackCaptureEngine {
 
     private void startPipelineLocked() {
         stopPipelineLocked();
-        if (mediaProjection == null || currentTargetUid <= 0) {
+        if (mediaProjection == null || (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0)) {
             publishStatus("Native capture is not authorized.", false);
             return;
         }
@@ -222,12 +222,7 @@ final class PlaybackCaptureEngine {
                     .setSampleRate(SAMPLE_RATE)
                     .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
                     .build();
-            AudioPlaybackCaptureConfiguration captureConfiguration =
-                    new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                            .addMatchingUid(currentTargetUid)
-                            .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                            .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                            .build();
+            AudioPlaybackCaptureConfiguration captureConfiguration = buildCaptureConfiguration();
 
             int bytesPerFrame = CHANNEL_COUNT * 2;
             int desiredFrames = Math.max(512, currentConfig.bufferSizeFrames);
@@ -300,7 +295,7 @@ final class PlaybackCaptureEngine {
                     + " trackBufferBytes=" + trackBufferBytes
                     + " latencyMs=" + latencyMs
                     + " output=" + configuredOutputDeviceKey);
-            publishStatus("Monitoring " + currentTargetLabel + " via native capture.", true);
+            publishStatus(monitoringStatusText(), true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to start playback capture pipeline", ex);
             stopPipelineLocked();
@@ -332,7 +327,7 @@ final class PlaybackCaptureEngine {
             }
             if (read <= 0) {
                 if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs) {
-                    publishStatus("Armed for " + currentTargetLabel + " - waiting for playback.", false);
+                    publishStatus(waitingStatusText(), false);
                     signaledLive = false;
                 }
                 continue;
@@ -350,11 +345,11 @@ final class PlaybackCaptureEngine {
             if (peak > SIGNAL_THRESHOLD) {
                 lastSignalAt = SystemClock.elapsedRealtime();
                 if (!signaledLive) {
-                    publishStatus("Monitoring " + currentTargetLabel + " via native capture.", true);
+                    publishStatus(monitoringStatusText(), true);
                     signaledLive = true;
                 }
             } else if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs && signaledLive) {
-                publishStatus("Armed for " + currentTargetLabel + " - waiting for playback.", false);
+                publishStatus(waitingStatusText(), false);
                 signaledLive = false;
             }
 
