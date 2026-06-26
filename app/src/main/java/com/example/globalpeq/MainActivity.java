@@ -74,6 +74,8 @@ public final class MainActivity extends Activity {
     private static final int GEQ_COMMIT_DELAY_MS = 160;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
+    private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
+    private static final long ENABLE_NEON_CURVE_DELAY_MS = 220L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
@@ -286,6 +288,8 @@ public final class MainActivity extends Activity {
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
+    private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
+    private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
@@ -316,6 +320,8 @@ public final class MainActivity extends Activity {
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
     private boolean pendingEnabledUiRefresh;
+    private boolean modeVisualEnabled = true;
+    private boolean curveVisualEnabled = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
