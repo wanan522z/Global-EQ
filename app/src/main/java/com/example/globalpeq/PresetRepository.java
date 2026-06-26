@@ -54,7 +54,7 @@ final class PresetRepository {
     }
 
     void saveDraftPreset(Preset preset) {
-        prefs.edit().putString(DRAFT_PRESET, preset.toJson()).commit();
+        prefs.edit().putString(DRAFT_PRESET, preset.toJson()).apply();
     }
 
     Preset loadPreset(AudioOutputDevice device) {
