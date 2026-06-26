@@ -113,9 +113,13 @@ final class PlaybackCaptureEngine {
             }
         };
         mediaProjection.registerCallback(projectionCallback, mainHandler);
-        publishStatus(currentTargetLabel.isEmpty()
-                ? "Capture authorized. Choose an app to monitor."
-                : "Capture authorized for " + currentTargetLabel + ".", false);
+        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+            publishStatus("Capture authorized for system audio.", false);
+        } else {
+            publishStatus(currentTargetLabel.isEmpty()
+                    ? "Capture authorized. Choose an app to monitor."
+                    : "Capture authorized for " + currentTargetLabel + ".", false);
+        }
     }
 
     synchronized void updateProcessing(ProcessingMode mode,
@@ -131,6 +135,9 @@ final class PlaybackCaptureEngine {
         currentTargetLabel = currentConfig.monitoredAppLabel.isEmpty()
                 ? currentConfig.monitoredAppPackage
                 : currentConfig.monitoredAppLabel;
+        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+            currentTargetLabel = "system audio";
+        }
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             stopPipelineLocked();
@@ -147,19 +154,24 @@ final class PlaybackCaptureEngine {
             publishStatus("Shizuku Mode ready. Enable EQ to start capture.", false);
             return;
         }
-        if (currentConfig.monitoredAppPackage.isEmpty()) {
+        if (currentMode != ProcessingMode.SHIZUKU_MUTE
+                && currentConfig.monitoredAppPackage.isEmpty()) {
             stopPipelineLocked();
             publishStatus("Choose an app to monitor.", false);
             return;
         }
         if (mediaProjection == null) {
             stopPipelineLocked();
-            publishStatus("Authorize native capture for " + currentTargetLabel + ".", false);
+            publishStatus(currentMode == ProcessingMode.SHIZUKU_MUTE
+                    ? "Authorize native capture for system audio."
+                    : "Authorize native capture for " + currentTargetLabel + ".", false);
             return;
         }
 
-        currentTargetUid = resolveTargetUid(currentConfig.monitoredAppPackage);
-        if (currentTargetUid <= 0) {
+        currentTargetUid = currentMode == ProcessingMode.SHIZUKU_MUTE
+                ? -1
+                : resolveTargetUid(currentConfig.monitoredAppPackage);
+        if (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0) {
             stopPipelineLocked();
             publishStatus("Unable to resolve the selected app.", false);
             return;
@@ -174,7 +186,7 @@ final class PlaybackCaptureEngine {
             startPipelineLocked();
         } else {
             reconfigureEffectsLocked();
-            publishStatus("Monitoring " + currentTargetLabel + " via native capture.", true);
+            publishStatus(monitoringStatusText(), true);
         }
     }
 
