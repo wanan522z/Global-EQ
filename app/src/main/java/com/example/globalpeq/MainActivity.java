@@ -1365,7 +1365,12 @@ public final class MainActivity extends Activity {
     }
 
     private String monitorCaptureButtonText() {
-        return repository.loadMonitorCaptureActive() ? "Reauthorize capture" : "Authorize capture";
+        String status = repository.loadMonitorCaptureStatus();
+        boolean armed = repository.loadMonitorCaptureActive()
+                || status.startsWith("Capture authorized")
+                || status.startsWith("Armed for")
+                || status.startsWith("Monitoring");
+        return armed ? "Reauthorize capture" : "Authorize capture";
     }
 
     private String advancedModeSummaryText() {
