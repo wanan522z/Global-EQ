@@ -7436,6 +7436,9 @@ public final class MainActivity extends Activity {
     }
 
     private boolean shouldBlockPageSwipe(View view, float rawX, float rawY) {
+        if (monitorSettingsOpen) {
+            return true;
+        }
         View current = view;
         while (current != null) {
             if (current instanceof HorizontalBassSlider) {
@@ -7487,6 +7490,11 @@ public final class MainActivity extends Activity {
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent event) {
+            if (monitorSettingsOpen) {
+                trackSwipe = false;
+                handlingSwipe = false;
+                return false;
+            }
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     downX = event.getRawX();
@@ -7520,6 +7528,9 @@ public final class MainActivity extends Activity {
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
+            if (monitorSettingsOpen) {
+                return false;
+            }
             if (!trackSwipe && !handlingSwipe) {
                 return super.onTouchEvent(event);
             }
