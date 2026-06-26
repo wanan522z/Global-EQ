@@ -243,13 +243,13 @@ public final class MainActivity extends Activity {
     };
     // Live 模式 statusText：同亮色阶（极亮冰蓝与炽白光晕，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
-    // Edit 模式 statusText：高雅通透、极其明亮的马卡龙浅冰蓝
+    // Edit 模式 statusText：高雅通透、极其明亮的浅冰青白（去绿，偏纯青与白）
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(150, 250, 245),  // 高亮极淡冰绿
-            Color.rgb(130, 230, 255),  // 极高亮冰青蓝
+            Color.rgb(210, 250, 255),  // 极亮淡白青
+            Color.rgb(140, 235, 255),  // 极高亮冰青蓝
             Color.rgb(255, 255, 255),  // 纯白核心
-            Color.rgb(130, 230, 255),  // 极高亮冰青蓝
-            Color.rgb(150, 250, 245)   // 高亮极淡冰绿
+            Color.rgb(140, 235, 255),  // 极高亮冰青蓝
+            Color.rgb(210, 250, 255)   // 极亮淡白青
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
