@@ -915,27 +915,7 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView title = new TextView(this) {
-            @Override
-            protected void onAttachedToWindow() {
-                super.onAttachedToWindow();
-                registerShimmerView(this);
-            }
-
-            @Override
-            protected void onDetachedFromWindow() {
-                unregisterShimmerView(this);
-                super.onDetachedFromWindow();
-            }
-
-            @Override
-            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-                super.onSizeChanged(w, h, oldw, oldh);
-                if (w > 0 && h > 0) {
-                    applySettingsPageTitleShader(this, w);
-                }
-            }
-        };
+        TextView title = gradientTitleView("Engine Status");
         title.setText("Engine Status");
         title.setTextSize(18);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -995,27 +975,7 @@ public final class MainActivity extends Activity {
         aboutParams.topMargin = dp(16);
         page.addView(aboutPanel, aboutParams);
 
-        TextView aboutTitle = new TextView(this) {
-            @Override
-            protected void onAttachedToWindow() {
-                super.onAttachedToWindow();
-                registerShimmerView(this);
-            }
-
-            @Override
-            protected void onDetachedFromWindow() {
-                unregisterShimmerView(this);
-                super.onDetachedFromWindow();
-            }
-
-            @Override
-            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-                super.onSizeChanged(w, h, oldw, oldh);
-                if (w > 0 && h > 0) {
-                    applySettingsPageTitleShader(this, w);
-                }
-            }
-        };
+        TextView aboutTitle = gradientTitleView("About Global PEQ");
         aboutTitle.setText("About Global PEQ");
         aboutTitle.setTextSize(18);
         aboutTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
