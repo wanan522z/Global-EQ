@@ -514,6 +514,7 @@ public final class MainActivity extends Activity {
         cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
+        pauseShizukuCaptureIfClosing();
         deviceMonitor.stop();
         ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
         ShizukuCompat.removeStateListener(shizukuStateListener);
@@ -567,6 +568,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
+        pauseShizukuCaptureIfClosing();
         super.onDestroy();
     }
 
@@ -5431,6 +5433,25 @@ public final class MainActivity extends Activity {
             return;
         }
         ensureShizukuModeReady(true);
+    }
+
+    private void pauseShizukuCaptureIfClosing() {
+        if (!isFinishing()
+                || processingMode != ProcessingMode.SHIZUKU_MUTE
+                || runningPreset == null
+                || !runningPreset.enabled) {
+            return;
+        }
+        try {
+            Intent service = new Intent(this, GlobalEqForegroundService.class);
+            service.setAction(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(service);
+            } else {
+                startService(service);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private void refreshPendingEnabledToggleUi() {
