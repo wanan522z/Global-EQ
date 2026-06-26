@@ -1348,7 +1348,7 @@ public final class MainActivity extends Activity {
     }
 
     private String monitorCaptureButtonText() {
-        return repository.loadMonitorCaptureActive() ? "Refresh capture" : "Authorize capture";
+        return repository.loadMonitorCaptureActive() ? "Reauthorize capture" : "Authorize capture";
     }
 
     private String advancedModeSummaryText() {
