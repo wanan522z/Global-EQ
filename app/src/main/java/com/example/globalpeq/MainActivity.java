@@ -136,15 +136,12 @@ public final class MainActivity extends Activity {
     // Slow-moving shimmer does not need 60fps; throttling it cuts a large amount of
     // software text redraw cost while keeping the motion visually smooth.
     private static final int SHIMMER_FPS_DELAY = 66;
-    private float shimmerAnimPhase = 0f;
     private long lastShimmerTime = 0L;
     // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
     private final java.util.Map<TextView, Integer> shimmerLastWidth = new java.util.HashMap<>();
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
-    private final java.util.Map<TextView, Boolean> titleActiveStates = new java.util.HashMap<>();
-    private final java.util.Map<TextView, Float> shimmerPhaseAnchors = new java.util.HashMap<>();
+    private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
-    private String statusVisualStateKey = "";
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
