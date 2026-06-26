@@ -238,6 +238,22 @@ final class PresetRepository {
         deleteCurve(TARGET_CURVES, name);
     }
 
+    boolean hasDeviceCurveName(String name) {
+        return curveNameExists(DEVICE_CURVES, name, false);
+    }
+
+    boolean hasTargetCurveName(String name) {
+        return curveNameExists(TARGET_CURVES, name, true);
+    }
+
+    boolean renameDeviceCurve(String oldName, String newName) {
+        return renameCurve(DEVICE_CURVES, oldName, newName, false);
+    }
+
+    boolean renameTargetCurve(String oldName, String newName) {
+        return renameCurve(TARGET_CURVES, oldName, newName, true);
+    }
+
     FrequencyCurve loadDeviceCurve(String name) {
         return loadCurve(DEVICE_CURVES, name);
     }
@@ -348,6 +364,33 @@ final class PresetRepository {
                 .commit();
     }
 
+    private boolean renameCurve(String setKey, String oldName, String newName, boolean targetCurve) {
+        String normalizedOld = normalizeCurveName(oldName);
+        String normalizedNew = normalizeCurveName(newName);
+        if ("Default".equals(normalizedOld) || "Default".equals(normalizedNew)) {
+            return false;
+        }
+        if (curveNameMatches(normalizedOld, normalizedNew)) {
+            return true;
+        }
+        if (curveNameExists(setKey, normalizedNew, targetCurve)) {
+            return false;
+        }
+
+        FrequencyCurve sourceCurve = targetCurve ? loadTargetCurve(normalizedOld) : loadDeviceCurve(normalizedOld);
+        if (sourceCurve == null || sourceCurve.isDefault()) {
+            return false;
+        }
+
+        FrequencyCurve renamedCurve = sourceCurve.withName(normalizedNew);
+        saveCurve(setKey, renamedCurve);
+        if (!(targetCurve && isBuiltInTargetCurveName(normalizedOld))) {
+            deleteCurve(setKey, normalizedOld);
+        }
+        replaceCurveReferences(normalizedOld, normalizedNew, targetCurve);
+        return true;
+    }
+
     private FrequencyCurve loadCurve(String setKey, String name) {
         if (name == null || name.trim().isEmpty() || "Default".equals(name)) {
             return FrequencyCurve.DEFAULT;
@@ -376,6 +419,102 @@ final class PresetRepository {
         return sorted;
     }
 
+    private boolean curveNameExists(String setKey, String name, boolean targetCurve) {
+        String normalized = normalizeCurveName(name);
+        if ("Default".equals(normalized)) {
+            return true;
+        }
+        if (targetCurve && isBuiltInTargetCurveName(normalized)) {
+            return true;
+        }
+        Set<String> names = prefs.getStringSet(setKey, Collections.emptySet());
+        for (String existing : names) {
+            if (curveNameMatches(existing, normalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBuiltInTargetCurveName(String name) {
+        String normalized = normalizeCurveName(name);
+        return "JM-1".equals(normalized) || "WoodenEarsTarget".equals(normalized);
+    }
+
+    private void replaceCurveReferences(String oldName, String newName, boolean targetCurve) {
+        SharedPreferences.Editor editor = prefs.edit();
+        String selectedKey = targetCurve ? SELECTED_TARGET_CURVE : SELECTED_DEVICE_CURVE;
+        String selectedName = prefs.getString(selectedKey, "Default");
+        if (curveNameMatches(selectedName, oldName)) {
+            editor.putString(selectedKey, newName);
+        }
+
+        updateCurveReferenceForPresetKey(editor, GLOBAL_PRESET, oldName, newName, targetCurve);
+        updateCurveReferenceForPresetKey(editor, DRAFT_PRESET, oldName, newName, targetCurve);
+
+        String lastDeviceKey = prefs.getString(LAST_DEVICE_KEY, null);
+        if (lastDeviceKey != null && !lastDeviceKey.trim().isEmpty()) {
+            updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey, oldName, newName, targetCurve);
+        }
+
+        Set<String> knownDevices = prefs.getStringSet(KNOWN_DEVICES, Collections.emptySet());
+        for (String device : knownDevices) {
+            int separator = device.indexOf(DEVICE_SEPARATOR);
+            if (separator <= 0) {
+                continue;
+            }
+            updateCurveReferenceForPresetKey(editor, "preset_" + device.substring(0, separator), oldName, newName, targetCurve);
+        }
+
+        Set<String> presetNames = prefs.getStringSet(NAMED_PRESETS, Collections.emptySet());
+        for (String presetName : presetNames) {
+            updateCurveReferenceForPresetKey(editor, namedPresetKey(presetName), oldName, newName, targetCurve);
+        }
+        editor.commit();
+    }
+
+    private void updateCurveReferenceForPresetKey(SharedPreferences.Editor editor, String prefKey, String oldName, String newName, boolean targetCurve) {
+        String json = prefs.getString(prefKey, null);
+        if (json == null || json.trim().isEmpty()) {
+            return;
+        }
+        Preset preset = Preset.fromJson(json);
+        Preset updated = renameCurveReferenceInPreset(preset, oldName, newName, targetCurve);
+        if (!updated.toJson().equals(preset.toJson())) {
+            editor.putString(prefKey, updated.toJson());
+        }
+    }
+
+    private Preset renameCurveReferenceInPreset(Preset preset, String oldName, String newName, boolean targetCurve) {
+        if (preset == null) {
+            return null;
+        }
+        if (targetCurve) {
+            if (!curveNameMatches(preset.targetCurveName, oldName)) {
+                return preset;
+            }
+            return preset.withCurveSettings(
+                    preset.deviceCurveName,
+                    newName,
+                    preset.deviceCurveGainOffsetDb,
+                    preset.targetCurveGainOffsetDb,
+                    preset.deviceCurveSmoothing,
+                    preset.targetCurveSmoothing
+            );
+        }
+        if (!curveNameMatches(preset.deviceCurveName, oldName)) {
+            return preset;
+        }
+        return preset.withCurveSettings(
+                newName,
+                preset.targetCurveName,
+                preset.deviceCurveGainOffsetDb,
+                preset.targetCurveGainOffsetDb,
+                preset.deviceCurveSmoothing,
+                preset.targetCurveSmoothing
+        );
+    }
+
     private String normalizeCurveName(String name) {
         return name == null || name.trim().isEmpty() ? "Default" : name.trim();
     }
@@ -385,7 +524,15 @@ final class PresetRepository {
     }
 
     private String curveKey(String setKey, String name) {
-        return setKey + "_" + normalizeCurveName(name).toLowerCase().replaceAll("[^a-z0-9_\\-]+", "_");
+        return setKey + "_" + curveStorageName(name);
+    }
+
+    private boolean curveNameMatches(String left, String right) {
+        return curveStorageName(left).equals(curveStorageName(right));
+    }
+
+    private String curveStorageName(String name) {
+        return normalizeCurveName(name).toLowerCase().replaceAll("[^a-z0-9_\\-]+", "_");
     }
 
     private int clamp(int value, int min, int max) {
