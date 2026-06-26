@@ -237,7 +237,7 @@ public final class MainActivity extends Activity {
         if (view == statusText) {
             // GLOBAL EQ 状态标识：强冰蓝荧光光晕（去绿，偏蓝），区别于其他标题
             view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
-            if (view instanceof GlowTitleTextView || view instanceof GlowShimmerButton) {
+            if (usesCustomGlow) {
                 applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
             }
         } else {
