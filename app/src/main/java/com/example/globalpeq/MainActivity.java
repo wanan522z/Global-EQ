@@ -144,6 +144,7 @@ public final class MainActivity extends Activity {
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
+    private static final float TAB_SHIMMER_SPEED_MULTIPLIER = 4.2f;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
@@ -181,7 +182,9 @@ public final class MainActivity extends Activity {
                 // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化，
                 // 导致 matrix 更新了但 glyph 不重绘（视觉不动）。
                 // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘。
-                applyShimmerFrame(view, width, shimmerAnimPhase);
+                float phase = shimmerAnimPhase * shimmerSpeedMultiplierForView(view);
+                phase -= (float) Math.floor(phase);
+                applyShimmerFrame(view, width, phase);
             }
             if (!shimmerTargetViews.isEmpty()) {
                 uiHandler.postDelayed(this, SHIMMER_FPS_DELAY);
@@ -246,6 +249,13 @@ public final class MainActivity extends Activity {
             view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
         }
         view.invalidate();
+    }
+
+    private float shimmerSpeedMultiplierForView(TextView view) {
+        if (view == eqTabButton || view == extraTabButton || view == settingsTabButton) {
+            return TAB_SHIMMER_SPEED_MULTIPLIER;
+        }
+        return 1f;
     }
 
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
