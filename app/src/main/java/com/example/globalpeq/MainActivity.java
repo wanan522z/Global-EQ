@@ -3484,23 +3484,23 @@ public final class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        eqTabButton = createShimmerButton("EQ");
+        eqTabButton = createBottomTabText("EQ");
         normalizeBottomTab(eqTabButton);
         eqTabButton.setOnClickListener(v -> showEqPage());
         bottomTabStrip.addView(eqTabButton, bottomTabParams());
 
-        extraTabButton = createShimmerButton("EXTRA");
+        extraTabButton = createBottomTabText("EXTRA");
         normalizeBottomTab(extraTabButton);
         extraTabButton.setOnClickListener(v -> showExtraPage());
         bottomTabStrip.addView(extraTabButton, bottomTabParams());
 
-        settingsTabButton = createShimmerButton("Settings");
+        settingsTabButton = createBottomTabText("Settings");
         normalizeBottomTab(settingsTabButton);
         settingsTabButton.setOnClickListener(v -> showSettingsPage());
         bottomTabStrip.addView(settingsTabButton, bottomTabParams());
 
-        Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
-        for (Button tab : tabs) {
+        TextView[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        for (TextView tab : tabs) {
             tab.setOnTouchListener((view, event) -> {
                 switch (event.getAction()) {
                     case android.view.MotionEvent.ACTION_DOWN:
@@ -3528,16 +3528,19 @@ public final class MainActivity extends Activity {
         return params;
     }
 
-    private Button createShimmerButton(String text) {
-        Button button = new GlowShimmerButton(this);
-        button.setText(text);
-        button.setTextSize(13);
-        button.setAllCaps(false);
-        button.setPadding(dp(18), 0, dp(18), 0);
-        return button;
+    private TextView createBottomTabText(String text) {
+        TextView tab = gradientTitleView(text);
+        tab.setText(text);
+        tab.setTextSize(13);
+        tab.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        tab.setGravity(android.view.Gravity.CENTER);
+        tab.setIncludeFontPadding(false);
+        tab.setSingleLine(true);
+        tab.setPadding(dp(18), 0, dp(18), 0);
+        return tab;
     }
 
-    private void normalizeBottomTab(Button button) {
+    private void normalizeBottomTab(TextView button) {
         button.setMinWidth(0);
         button.setMinHeight(0);
         button.setMinimumWidth(0);
@@ -3546,6 +3549,8 @@ public final class MainActivity extends Activity {
         button.setGravity(android.view.Gravity.CENTER);
         button.setIncludeFontPadding(false);
         button.setBackgroundColor(Color.TRANSPARENT);
+        button.setClickable(true);
+        button.setFocusable(true);
     }
 
     private void showEqPage() {
