@@ -5923,11 +5923,13 @@ public final class MainActivity extends Activity {
         if (eqTabButton == null || extraTabButton == null || settingsTabButton == null) return;
 
         Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        activeIndex = clamp(activeIndex, 0, tabs.length - 1);
         for (int i = 0; i < tabs.length; i++) {
             Button tab = tabs[i];
             boolean active = (i == activeIndex);
             tab.setBackground(plainRoundRectDrawable(Color.TRANSPARENT, Color.TRANSPARENT, dp(12)));
             if (active) {
+                unregisterShimmerView(tab);
                 // 先用当前宽度（可能为0）设置初始 shader
                 styleSettingsTitleText(tab);
                 // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
