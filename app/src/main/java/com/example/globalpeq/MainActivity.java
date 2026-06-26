@@ -5077,8 +5077,8 @@ public final class MainActivity extends Activity {
     private final class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
-        private int glowColor = Color.argb(168, 120, 220, 255);
-        private float glowRadiusPx = dpf(5.75f);
+        private int glowColor = Color.argb(210, 120, 220, 255);
+        private float glowRadiusPx = dpf(7.4f);
 
         GlowTitleTextView(Context context) {
             super(context);
@@ -5168,8 +5168,8 @@ public final class MainActivity extends Activity {
     private final class GlowShimmerButton extends Button {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
-        private int glowColor = Color.argb(168, 120, 220, 255);
-        private float glowRadiusPx = dpf(5.75f);
+        private int glowColor = Color.argb(210, 120, 220, 255);
+        private float glowRadiusPx = dpf(7.4f);
 
         GlowShimmerButton(Context context) {
             super(context);
@@ -5250,7 +5250,7 @@ public final class MainActivity extends Activity {
         // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
         // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
         // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
-        title.setPadding(dp(18), dp(4), dp(18), dp(4));
+        title.setPadding(dp(22), dp(5), dp(22), dp(5));
         styleGradientTitle(title);
         return title;
     }
@@ -5348,8 +5348,8 @@ public final class MainActivity extends Activity {
             view.invalidate();
         });
         if (view instanceof GlowTitleTextView) {
-            applyGlowToTextView(view, Color.argb(168, 120, 220, 255), 5.75f);
-            view.post(() -> applyGlowToTextView(view, Color.argb(168, 120, 220, 255), 5.75f));
+            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+            view.post(() -> applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f));
         }
     }
 
