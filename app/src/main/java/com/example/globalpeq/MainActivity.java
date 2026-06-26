@@ -3631,6 +3631,52 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(enablePeqBandStepRunnable);
     }
 
+    private boolean isAudioEnabledNow() {
+        return supported && runningPreset != null && runningPreset.enabled;
+    }
+
+    private void preparePeqVisualSequence(boolean enabled) {
+        if (editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            peqBandVisualEnabled = new boolean[0];
+            peqVisualSequenceRunning = false;
+            pendingPeqVisualIndex = 0;
+            return;
+        }
+        peqBandVisualEnabled = new boolean[editingPreset.bands.length];
+        peqVisualSequenceRunning = enabled;
+        pendingPeqVisualIndex = 0;
+        if (enabled) {
+            for (int i = 0; i < editingPreset.bands.length; i++) {
+                peqBandVisualEnabled[i] = editingPreset.bands[i].enabled;
+            }
+            peqVisualSequenceRunning = false;
+            pendingPeqVisualIndex = editingPreset.bands.length;
+        }
+    }
+
+    private void activateNextPeqBandVisual() {
+        if (!isAudioEnabledNow() || editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            peqVisualSequenceRunning = false;
+            return;
+        }
+        if (peqBandVisualEnabled.length != editingPreset.bands.length) {
+            peqBandVisualEnabled = new boolean[editingPreset.bands.length];
+        }
+        peqVisualSequenceRunning = true;
+        while (pendingPeqVisualIndex < editingPreset.bands.length && !editingPreset.bands[pendingPeqVisualIndex].enabled) {
+            pendingPeqVisualIndex++;
+        }
+        if (pendingPeqVisualIndex >= editingPreset.bands.length) {
+            peqVisualSequenceRunning = false;
+            updatePeqBandVisuals();
+            return;
+        }
+        peqBandVisualEnabled[pendingPeqVisualIndex] = true;
+        pendingPeqVisualIndex++;
+        updatePeqBandVisuals();
+        uiHandler.postDelayed(enablePeqBandStepRunnable, ENABLE_NEON_PEQ_STEP_DELAY_MS);
+    }
+
     private void updatePeqBandVisuals() {
         if (rows == null || editingPreset == null || editingPreset.mode == EqMode.GEQ) {
             return;
