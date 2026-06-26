@@ -26,6 +26,7 @@ final class PlaybackCaptureEngine {
     private static final int CHANNEL_COUNT = 2;
     private static final int SAMPLE_RATE = 48000;
     private static final float SIGNAL_THRESHOLD = 0.0018f;
+    private static final int EQ_PLAYBACK_USAGE = AudioAttributes.USAGE_ASSISTANT;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -55,6 +56,8 @@ final class PlaybackCaptureEngine {
     private int configuredBufferFrames = -1;
     private int configuredLatencyMs = -1;
     private String configuredOutputDeviceKey = "";
+    private int savedMusicStreamVolume = -1;
+    private boolean sourceMutedForCapture;
     private String publishedStatus = "";
     private boolean publishedActive;
 
