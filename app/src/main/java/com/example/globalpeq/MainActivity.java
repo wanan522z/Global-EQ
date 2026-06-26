@@ -3499,7 +3499,12 @@ public final class MainActivity extends Activity {
         if (dspBassCutoffInput != null) {
             dspBassCutoffInput.setVisibility(selectedBassModeIndex == 2 ? View.VISIBLE : View.GONE);
             dspBassCutoffInput.setEnabled(bassBoostEnabled && selectedBassModeIndex == 2);
-            dspBassCutoffInput.setText(String.valueOf(editingPreset.dspBassCutoffHz));
+            String cutoffText = String.valueOf(editingPreset.dspBassCutoffHz);
+            if (!cutoffText.contentEquals(dspBassCutoffInput.getText())) {
+                updatingUi = true;
+                dspBassCutoffInput.setText(cutoffText);
+                updatingUi = false;
+            }
             dspBassCutoffInput.setAlpha(selectedBassModeIndex == 2 ? 1f : 0.55f);
         }
         syncExtraSectionTitleVisual(reverbTitleView);
