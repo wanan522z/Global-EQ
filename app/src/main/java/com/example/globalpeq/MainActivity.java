@@ -7508,8 +7508,6 @@ public final class MainActivity extends Activity {
     private Drawable switchThumbDrawable(int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            // thumb 颜色 + 柔光透明度跟随状态切换做 300ms argb 渐变，
-            // 与 track label 动画同步，消除 thumb 颜色跳变
             private int currentColor = uncheckedColor;
             private boolean colorReady = false;
             private float glowAlpha = 0f;
@@ -7529,18 +7527,17 @@ public final class MainActivity extends Activity {
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(currentColor);
                 if (glowAlpha > 0.01f) {
-                    // 开启时 thumb 带柔光，与流光同色系；透明度随渐变过渡
-                    paint.setShadowLayer(dpf(3f), 0, 0, Color.argb((int)(140 * glowAlpha), 120, 240, 220));
+                    paint.setShadowLayer(dpf(4f), 0, 0, Color.argb((int) (148 * glowAlpha), 92, 168, 255));
                 } else {
-                    paint.clearShadowLayer();
+                    paint.setShadowLayer(dpf(1.6f), 0, 0, Color.argb(54, 92, 130, 176));
                 }
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
                 paint.clearShadowLayer();
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                int strokeAlpha = (int)(70 + (120 - 70) * glowAlpha);
-                paint.setColor(Color.argb(strokeAlpha, 255, 255, 255));
+                int strokeAlpha = (int) (70 + (120 - 70) * glowAlpha);
+                paint.setColor(Color.argb(strokeAlpha, 238, 246, 255));
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
             }
 
@@ -7552,7 +7549,6 @@ public final class MainActivity extends Activity {
                 if (colorAnimator != null) {
                     colorAnimator.cancel();
                 }
-                // 颜色与柔光透明度同步 300ms 渐变，与 track 文字动画节奏一致
                 float startGlow = glowAlpha;
                 int startColor = currentColor;
                 colorAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
