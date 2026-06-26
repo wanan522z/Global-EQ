@@ -5726,7 +5726,8 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean virtualBassEnabled = supported && selectedBassModeIndex > 0;
+        boolean virtualBassModeAllowed = AudioProcessingPolicy.virtualBassModeAllowed(processingMode, selectedBassModeIndex);
+        boolean virtualBassEnabled = supported && virtualBassModeAllowed && selectedBassModeIndex > 0;
         boolean dspVirtualBassMode = AudioProcessingPolicy.dspVirtualBassAllowed(processingMode, selectedBassModeIndex);
         boolean extraBassEnabled = supported && extraBassEnabledState;
         boolean reverbAllowed = supported && AudioProcessingPolicy.reverbAllowed(processingMode);
