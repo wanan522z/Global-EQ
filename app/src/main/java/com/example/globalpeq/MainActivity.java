@@ -1587,8 +1587,8 @@ public final class MainActivity extends Activity {
     private String advancedModeSummaryText() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
             return tr(
-                    "Default mode keeps the existing system EQ and virtual bass path unchanged.",
-                    "Default 模式会保持现有的系统 EQ 和 virtual bass 路径不变。");
+                    "Default mode keeps the existing system EQ and bass enhancement paths unchanged.",
+                    "Default 模式会保持现有的系统 EQ 和低音增强路径不变。");
         }
         String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? tr("No app selected", "未选择应用")
