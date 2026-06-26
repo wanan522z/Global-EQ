@@ -3452,9 +3452,9 @@ public final class MainActivity extends Activity {
             bassModeButton.setText(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]);
             bassModeButton.setAlpha(1f);
         }
-        styleExtraSectionTitle(reverbTitleView, reverbEnabled);
-        styleExtraSectionTitle(bassBoostTitleView, bassBoostEnabled);
-        styleExtraSectionTitle(virtualBassTitleView, virtualBassEnabled);
+        syncExtraSectionTitleVisual(reverbTitleView);
+        syncExtraSectionTitleVisual(bassBoostTitleView);
+        syncExtraSectionTitleVisual(virtualBassTitleView);
         updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
         updateReverbControl(reverbSizeKnob, editingPreset.reverbSizePercent, reverbEnabled);
@@ -3698,7 +3698,7 @@ public final class MainActivity extends Activity {
         title.setPadding(dp(22), dp(5), dp(22), dp(5));
         // 标题视觉中心上移，与右侧复选框/开关中心点对齐
         title.setTranslationY(-dp(1));
-        styleExtraSectionTitle(title, false);
+        applyInactiveExtraSectionTitleStyle(title);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         // 抵消 gradientTitleView 的左 padding(22dp) 后再额外右移 2dp，让文字视觉左缘距 panel 内容区左边 2dp，
         // 使标题距 panel 左外边(dp18) 与右侧复选框背景距 panel 右外边(dp16) 视觉近似对称（标题侧多 2dp 留白）。
@@ -5681,15 +5681,13 @@ public final class MainActivity extends Activity {
         styleSettingsTitleText(view);
     }
 
-    private void styleExtraSectionTitle(TextView view, boolean active) {
+    private void syncExtraSectionTitleVisual(TextView view) {
         if (view == null) {
             return;
         }
-        if (view == reverbTitleView || view == bassBoostTitleView || view == virtualBassTitleView) {
-            active = isExtraSectionActuallyActive(view);
-        }
+        boolean active = isExtraSectionTitleActive(view);
         Boolean previous = titleActiveStates.get(view);
-        if (active && previous != null && previous) {
+        if (previous != null && previous == active) {
             return;
         }
         titleActiveStates.put(view, active);
@@ -5697,26 +5695,34 @@ public final class MainActivity extends Activity {
             styleSettingsTitleText(view);
             registerShimmerView(view);
         } else {
-            bumpTextStyleVersion(view);
-            unregisterShimmerView(view);
-            view.getPaint().setShader(null);
-            view.setTextColor(Color.rgb(150, 165, 185));
-            clearGlowFromTextView(view);
-            view.invalidate();
+            applyInactiveExtraSectionTitleStyle(view);
         }
     }
 
-    private boolean isInactiveExtraSectionTitle(TextView view) {
+    private void applyInactiveExtraSectionTitleStyle(TextView view) {
+        if (view == null) {
+            return;
+        }
+        bumpTextStyleVersion(view);
+        unregisterShimmerView(view);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                && view.getLayerType() != View.LAYER_TYPE_NONE) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
+        view.getPaint().setShader(null);
+        view.setTextColor(Color.rgb(150, 165, 185));
+        clearGlowFromTextView(view);
+        view.invalidate();
+    }
+
+    private boolean isExtraSectionTitle(TextView view) {
         if (view == null) {
             return false;
         }
-        if (view != reverbTitleView && view != bassBoostTitleView && view != virtualBassTitleView) {
-            return false;
-        }
-        return !isExtraSectionActuallyActive(view);
+        return view == reverbTitleView || view == bassBoostTitleView || view == virtualBassTitleView;
     }
 
-    private boolean isExtraSectionActuallyActive(TextView view) {
+    private boolean isExtraSectionTitleActive(TextView view) {
         if (view == null || editingPreset == null) {
             return false;
         }
@@ -5733,7 +5739,10 @@ public final class MainActivity extends Activity {
     }
 
     private void registerShimmerView(TextView view) {
-        if (view == null || shimmerTargetViews.contains(view) || isInactiveExtraSectionTitle(view)) {
+        if (view == null || shimmerTargetViews.contains(view)) {
+            return;
+        }
+        if (isExtraSectionTitle(view) && !isExtraSectionTitleActive(view)) {
             return;
         }
         shimmerTargetViews.add(view);
