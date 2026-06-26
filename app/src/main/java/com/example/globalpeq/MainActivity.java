@@ -2855,7 +2855,7 @@ public final class MainActivity extends Activity {
         if (topControlOverlay == null
                 || monitoredAppIconView == null
                 || modeSpinner == null
-                || enabledSwitch == null
+                || autoSwitchOutputSwitch == null
                 || monitoredAppIconView.getVisibility() != View.VISIBLE) {
             return;
         }
@@ -2863,15 +2863,15 @@ public final class MainActivity extends Activity {
             if (topControlOverlay == null
                     || monitoredAppIconView == null
                     || modeSpinner == null
-                    || enabledSwitch == null
+                    || autoSwitchOutputSwitch == null
                     || monitoredAppIconView.getVisibility() != View.VISIBLE
                     || topControlOverlay.getWidth() <= 0) {
                 return;
             }
             Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
-            Rect switchRect = new Rect(0, 0, enabledSwitch.getWidth(), enabledSwitch.getHeight());
+            Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
             topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
-            topControlOverlay.offsetDescendantRectToMyCoords(enabledSwitch, switchRect);
+            topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
             int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(22);
             int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(22);
             float titleTextRight = titleRect.left + modeSpinner.getCompoundPaddingLeft();
