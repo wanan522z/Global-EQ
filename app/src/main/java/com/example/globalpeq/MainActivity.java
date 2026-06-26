@@ -5329,8 +5329,7 @@ public final class MainActivity extends Activity {
             return;
         }
         extraBassEnabledState = isChecked;
-        setEditingPreset(editingPreset.withExtraBassEnabled(isChecked), true, false);
-        scheduleExtraBassToggleCommit();
+        setEditingPreset(editingPreset.withExtraBassEnabled(isChecked), true);
     }
 
     private void syncExtraBassEnabledFromPreset() {
@@ -5394,12 +5393,6 @@ public final class MainActivity extends Activity {
         uiHandler.postDelayed(refreshEnabledToggleUiRunnable, ENABLE_TOGGLE_UI_DELAY_MS);
     }
 
-    private void scheduleExtraBassToggleCommit() {
-        pendingExtraBassApplyPreset = runningPreset;
-        uiHandler.removeCallbacks(commitExtraBassToggleRunnable);
-        uiHandler.postDelayed(commitExtraBassToggleRunnable, EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS);
-    }
-
     private void commitPendingEnabledToggle() {
         Preset persistPreset = pendingEnabledPersistPreset;
         Preset applyPreset = pendingEnabledApplyPreset;
@@ -5414,17 +5407,6 @@ public final class MainActivity extends Activity {
             if (applyPreset.enabled && processingMode == ProcessingMode.SHIZUKU_MUTE) {
                 ensureShizukuModeReady(true);
             }
-        }
-    }
-
-    private void commitPendingExtraBassToggle() {
-        Preset applyPreset = pendingExtraBassApplyPreset;
-        pendingExtraBassApplyPreset = null;
-        if (applyPreset != null
-                && runningPreset != null
-                && applyPreset.name.equals(runningPreset.name)
-                && applyPreset.toJson().equals(runningPreset.toJson())) {
-            applyRunningPreset();
         }
     }
 
