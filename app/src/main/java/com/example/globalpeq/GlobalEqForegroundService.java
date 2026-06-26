@@ -99,7 +99,7 @@ public final class GlobalEqForegroundService extends Service {
                     repository.loadAdvancedModeConfig(),
                     bassModeIndex,
                     currentDevice,
-                    sameRoute ? CAPTURE_UPDATE_DEBOUNCE_MS : 0L);
+                    CAPTURE_UPDATE_DEBOUNCE_MS);
             updateNotification();
         });
     }
