@@ -1132,22 +1132,22 @@ public final class MainActivity extends Activity {
         panel.addView(title, engineTitleParams);
         processingModeButton = title;
 
-        TextView detail = new TextView(this);
-        detail.setText("Tap the title above to switch backend mode.");
-        detail.setTextSize(12);
-        detail.setTextColor(Color.rgb(160, 170, 190));
-        panel.addView(detail, blockParams(2));
+        settingsPanelDetailView = new TextView(this);
+        settingsPanelDetailView.setText(settingsModeDetailText());
+        settingsPanelDetailView.setTextSize(12);
+        settingsPanelDetailView.setTextColor(Color.rgb(160, 170, 190));
+        panel.addView(settingsPanelDetailView, blockParams(2));
 
         LinearLayout statusRow = new LinearLayout(this);
         statusRow.setOrientation(LinearLayout.HORIZONTAL);
         statusRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
         panel.addView(statusRow, blockParams(12));
 
-        TextView statusLabel = new TextView(this);
-        statusLabel.setText("System Processing:");
-        statusLabel.setTextSize(14);
-        statusLabel.setTextColor(Color.rgb(200, 210, 230));
-        statusRow.addView(statusLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        settingsStatusLabelView = new TextView(this);
+        settingsStatusLabelView.setText(settingsStatusLabelText());
+        settingsStatusLabelView.setTextSize(14);
+        settingsStatusLabelView.setTextColor(Color.rgb(200, 210, 230));
+        statusRow.addView(settingsStatusLabelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         engineStatusValueView = new TextView(this) {
             @Override
@@ -1184,6 +1184,11 @@ public final class MainActivity extends Activity {
         advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(advancedModeSummaryView, blockParams(4));
 
+        languageButton = createExtraChoiceButton();
+        languageButton.setText(languageButtonText());
+        languageButton.setOnClickListener(this::showLanguageChoiceMenu);
+        panel.addView(labeledSettingsRow(settingsLanguageLabelText(), languageButton), blockParams(12));
+
         LinearLayout aboutPanel = new LinearLayout(this);
         aboutPanel.setOrientation(LinearLayout.VERTICAL);
         aboutPanel.setClipChildren(false);
@@ -1198,35 +1203,35 @@ public final class MainActivity extends Activity {
         aboutParams.topMargin = dp(16);
         settingsRootContent.addView(aboutPanel, aboutParams);
 
-        TextView aboutTitle = gradientTitleView("About Global PEQ");
-        aboutTitle.setText("About Global PEQ");
-        aboutTitle.setTextSize(18);
-        aboutTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        styleGradientTitle(aboutTitle);
+        aboutTitleView = gradientTitleView(aboutTitleText());
+        aboutTitleView.setText(aboutTitleText());
+        aboutTitleView.setTextSize(18);
+        aboutTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleGradientTitle(aboutTitleView);
         LinearLayout.LayoutParams aboutTitleParams = blockParams(0);
         // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都从 panel 内容区左边开始）。
         aboutTitleParams.leftMargin = -dp(22);
-        reserveStartGlowWithoutMoving(aboutTitle, 12);
-        aboutPanel.addView(aboutTitle, aboutTitleParams);
+        reserveStartGlowWithoutMoving(aboutTitleView, 12);
+        aboutPanel.addView(aboutTitleView, aboutTitleParams);
 
-        TextView aboutText = new TextView(this);
-        aboutText.setText("Global PEQ is a low-latency, audiophile-grade Parametric Equalizer running natively on Android's high-performance audio routing engine. Enjoy tailored, professional equalization for all your playback devices.");
-        aboutText.setTextSize(13);
-        aboutText.setTextColor(Color.rgb(180, 190, 210));
-        aboutPanel.addView(aboutText, blockParams(8));
+        aboutTextView = new TextView(this);
+        aboutTextView.setText(aboutBodyText());
+        aboutTextView.setTextSize(13);
+        aboutTextView.setTextColor(Color.rgb(180, 190, 210));
+        aboutPanel.addView(aboutTextView, blockParams(8));
 
-        TextView footerText = new TextView(this);
-        footerText.setText("Version 0.1 - Powered by Gemini 3.5");
-        footerText.setTextSize(11);
-        footerText.setTextColor(Color.rgb(100, 110, 130));
-        footerText.setGravity(android.view.Gravity.CENTER);
+        footerTextView = new TextView(this);
+        footerTextView.setText(footerText());
+        footerTextView.setTextSize(11);
+        footerTextView.setTextColor(Color.rgb(100, 110, 130));
+        footerTextView.setGravity(android.view.Gravity.CENTER);
         
         LinearLayout.LayoutParams footerParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         footerParams.topMargin = dp(32);
-        settingsRootContent.addView(footerText, footerParams);
+        settingsRootContent.addView(footerTextView, footerParams);
 
     }
 
