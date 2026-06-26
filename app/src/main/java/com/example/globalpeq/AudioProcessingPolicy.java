@@ -26,7 +26,7 @@ final class AudioProcessingPolicy {
         return bassModeAllowed(mode, bassModeIndex) ? bassModeIndex : 0;
     }
 
-    static boolean systemBassBoostAllowed(int bassModeIndex) {
+    static boolean systemBassEnhanceAllowed(int bassModeIndex) {
         return bassModeIndex == 1;
     }
 
@@ -54,7 +54,7 @@ final class AudioProcessingPolicy {
             return Preset.flat(preset.enabled).withName(preset.name);
         }
         Preset effective = preset.withReverbType("Default");
-        if (!systemBassBoostAllowed(bassModeIndex)) {
+        if (!systemBassEnhanceAllowed(bassModeIndex)) {
             effective = effective.withBassEnhanceAmountPercent(0);
         }
         return effective;
