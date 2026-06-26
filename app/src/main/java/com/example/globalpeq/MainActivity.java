@@ -5687,6 +5687,7 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
+        titleVisualStates.put(view, false);
         bumpTextStyleVersion(view);
         unregisterShimmerView(view);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
@@ -5768,6 +5769,7 @@ public final class MainActivity extends Activity {
         unregisterShimmerView(view);
         shimmerViewPhases.remove(view);
         textStyleVersion.remove(view);
+        titleVisualStates.remove(view);
     }
 
     private int bumpTextStyleVersion(TextView view) {
