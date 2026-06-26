@@ -51,7 +51,7 @@ final class PcmDspProcessor {
                     preset.extraBassCutoffHz,
                     preset.extraBassEnabled ? preset.extraBassAmountPercent : 0,
                     preset.dspBassCutoffHz,
-                    enableDspBass ? preset.systemBassBoostPercent : 0);
+                    enableDspBass ? preset.bassEnhanceAmountPercent : 0);
             reverb = new AlgorithmicReverb(sampleRate, channelCount);
             reverb.configure(preset.reverbType,
                     preset.reverbDecayPercent,

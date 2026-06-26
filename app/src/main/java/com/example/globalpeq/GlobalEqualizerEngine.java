@@ -402,7 +402,7 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyBassBoost(Preset preset) {
-        if (preset.systemBassBoostPercent <= 0) {
+        if (preset.bassEnhanceAmountPercent <= 0) {
             releaseBassBoost();
             return;
         }
@@ -412,7 +412,7 @@ final class GlobalEqualizerEngine {
                 bassBoost = new BassBoost(AUDIO_EFFECT_PRIORITY, GLOBAL_AUDIO_SESSION);
             }
             bassBoost.setEnabled(false);
-            bassBoost.setStrength((short) Math.max(0, Math.min(1000, preset.systemBassBoostPercent * 10)));
+            bassBoost.setStrength((short) Math.max(0, Math.min(1000, preset.bassEnhanceAmountPercent * 10)));
             bassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "BassBoost could not be applied", ex);
