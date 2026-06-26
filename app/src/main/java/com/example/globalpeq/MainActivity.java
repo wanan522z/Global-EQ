@@ -1444,6 +1444,7 @@ public final class MainActivity extends Activity {
     private void updateAdvancedModeConfig(AdvancedModeConfig nextConfig) {
         advancedModeConfig = nextConfig == null ? AdvancedModeConfig.DEFAULT : nextConfig;
         repository.saveAdvancedModeConfig(advancedModeConfig);
+        applyRunningPreset();
         renderAll();
     }
 
