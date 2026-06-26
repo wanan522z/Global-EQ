@@ -649,6 +649,14 @@ public final class MainActivity extends Activity {
         mainPageHost.addView(settingsPage, pageHostParams());
         buildSettingsPage(settingsPage);
 
+        monitorSettingsPage = new LinearLayout(this);
+        monitorSettingsPage.setOrientation(LinearLayout.VERTICAL);
+        monitorSettingsPage.setVisibility(View.GONE);
+        monitorSettingsPage.setClipChildren(false);
+        monitorSettingsPage.setClipToPadding(false);
+        mainPageHost.addView(monitorSettingsPage, pageHostParams());
+        buildMonitorSettingsPage(monitorSettingsPage);
+
         LinearLayout controlCard = new LinearLayout(this);
         controlCard.setOrientation(LinearLayout.VERTICAL);
         controlCard.setPadding(dp(12), dp(12), dp(12), dp(12));
@@ -985,7 +993,8 @@ public final class MainActivity extends Activity {
         );
         bottomNavParams.topMargin = dp(4);
         bottomNavParams.bottomMargin = dp(16);
-        root.addView(buildBottomNav(), bottomNavParams);
+        bottomNavView = buildBottomNav();
+        root.addView(bottomNavView, bottomNavParams);
 
         return root;
     }
