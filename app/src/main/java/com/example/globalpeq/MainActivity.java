@@ -7760,28 +7760,19 @@ public final class MainActivity extends Activity {
 
         IconGlowDrawable(int glowColor) {
             this.glowColor = glowColor;
-            haloPaint.setDither(true);
-            haloPaint.setFilterBitmap(true);
+            fillPaint.setStyle(Paint.Style.FILL);
+            bloomPaint.setStyle(Paint.Style.FILL);
+            bloomPaint.setDither(true);
+            ringPaint.setStyle(Paint.Style.STROKE);
+            ringPaint.setDither(true);
         }
 
         void setIcon(Drawable icon) {
-            if (sourceIcon == icon) {
-                return;
-            }
             sourceIcon = icon;
             if (icon != null) {
                 glowColor = extractIconGlowColor(icon);
             }
-            dropHalo();
             invalidateSelf();
-        }
-
-        private void dropHalo() {
-            if (haloBitmap != null) {
-                haloBitmap.recycle();
-                haloBitmap = null;
-            }
-            cachedKey = 0;
         }
 
         @Override
