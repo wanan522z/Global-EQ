@@ -5711,6 +5711,23 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private int bumpTextStyleVersion(TextView view) {
+        if (view == null) {
+            return 0;
+        }
+        int next = textStyleVersion.containsKey(view) ? textStyleVersion.get(view) + 1 : 1;
+        textStyleVersion.put(view, next);
+        return next;
+    }
+
+    private boolean isCurrentTextStyleVersion(TextView view, int version) {
+        if (view == null) {
+            return false;
+        }
+        Integer current = textStyleVersion.get(view);
+        return current != null && current == version;
+    }
+
     private void applyGlowToTextView(TextView view, int glowColor, float glowRadiusDp) {
         if (view instanceof GlowTitleTextView) {
             ((GlowTitleTextView) view).setGlowState(true, glowColor, dpf(glowRadiusDp));
@@ -5739,6 +5756,7 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
+        final int styleVersion = bumpTextStyleVersion(view);
         // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
         // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
         boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
@@ -5754,6 +5772,9 @@ public final class MainActivity extends Activity {
         view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
         view.invalidate();
         view.post(() -> {
+            if (!isCurrentTextStyleVersion(view, styleVersion)) {
+                return;
+            }
             applyTitleGradientShader(view, settingsTitleGradientWidth(view),
                     Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
             view.setTextColor(Color.WHITE);
@@ -5762,7 +5783,12 @@ public final class MainActivity extends Activity {
         });
         if (usesCustomGlow) {
             applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
-            view.post(() -> applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f));
+            view.post(() -> {
+                if (!isCurrentTextStyleVersion(view, styleVersion)) {
+                    return;
+                }
+                applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+            });
         }
     }
 
