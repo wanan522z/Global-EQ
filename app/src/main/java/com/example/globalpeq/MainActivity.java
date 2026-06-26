@@ -3760,26 +3760,18 @@ public final class MainActivity extends Activity {
         ParametricBand band = editingPreset.bands[index];
         boolean visualActive = isPeqBandVisualEnabled(index);
         row.setAlpha(1f);
-        if (row.getChildCount() < 6) {
+        Object tag = row.getTag();
+        if (!(tag instanceof PeqBandRowHolder)) {
             return;
         }
-
-        View enableWrap = row.getChildAt(0);
-        if (enableWrap instanceof ViewGroup && ((ViewGroup) enableWrap).getChildCount() > 0) {
-            View enable = ((ViewGroup) enableWrap).getChildAt(0);
-            enable.setBackground(stateIndicatorDrawable(visualActive));
-        }
-
-        View typeView = row.getChildAt(1);
-        if (typeView instanceof TextView) {
-            TextView type = (TextView) typeView;
-            styleEqBandText(type, visualActive);
-            type.setBackground(typeCellBackground(band.type, visualActive));
-        }
-
-        applyBandInputVisual(row.getChildAt(2), visualActive);
-        applyBandInputVisual(row.getChildAt(3), visualActive);
-        applyBandInputVisual(row.getChildAt(4), visualActive);
+        PeqBandRowHolder holder = (PeqBandRowHolder) tag;
+        holder.enable.setBackground(stateIndicatorDrawable(visualActive));
+        holder.type.setText(band.type.label);
+        styleEqBandText(holder.type, visualActive);
+        holder.type.setBackground(typeCellBackground(band.type, visualActive));
+        applyBandInputVisual(holder.frequency, visualActive);
+        applyBandInputVisual(holder.gain, visualActive);
+        applyBandInputVisual(holder.q, visualActive);
     }
 
     private void applyBandInputVisual(View view, boolean visualActive) {
