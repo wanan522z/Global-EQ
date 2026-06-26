@@ -1239,7 +1239,7 @@ public final class MainActivity extends Activity {
         panel.addView(title, titleParams);
 
         TextView detail = new TextView(this);
-        detail.setText("Pick the app to monitor and tune latency-oriented parameters for the second backend.");
+        detail.setText("Pick the app to monitor, authorize native capture, and tune latency-oriented parameters for the second backend. Mute the source app when capture is live.");
         detail.setTextSize(12);
         detail.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(detail, blockParams(2));
