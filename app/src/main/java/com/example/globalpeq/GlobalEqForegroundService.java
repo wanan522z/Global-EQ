@@ -205,7 +205,7 @@ public final class GlobalEqForegroundService extends Service {
         ProcessingMode mode = repository.loadProcessingMode();
         String content;
         if (mode == ProcessingMode.SHIZUKU_MUTE) {
-            content = repository.loadMonitorCaptureActive()
+            content = repository.loadShizukuMuteActive()
                     ? repository.loadShizukuMuteStatus()
                     : repository.loadMonitorCaptureStatus();
         } else {
