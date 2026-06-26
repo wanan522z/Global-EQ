@@ -6119,11 +6119,11 @@ public final class MainActivity extends Activity {
             statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
         } else if (isEditingPresetActive()) {
             // Live 模式：迷人动感的青绿色至翡翠色流光
-            styleStatusTextShimmer(statusText, Color.rgb(0, 255, 200), Color.rgb(0, 200, 255));
+            applyShimmerFrame(statusText, settingsTitleGradientWidth(statusText), currentShimmerPhaseForView(statusText));
             registerShimmerView(statusText);
         } else {
             // Edit 模式：平稳高贵的浅白至淡黄流光
-            styleStatusTextShimmer(statusText, Color.rgb(240, 248, 255), Color.rgb(180, 210, 255));
+            applyShimmerFrame(statusText, settingsTitleGradientWidth(statusText), currentShimmerPhaseForView(statusText));
             registerShimmerView(statusText);
         }
         statusText.invalidate();
