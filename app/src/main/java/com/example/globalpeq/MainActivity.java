@@ -2915,9 +2915,7 @@ public final class MainActivity extends Activity {
             editingPreset = editingPreset.withEnabled(runningPreset.enabled);
             pendingEnabledPersistPreset = editingPreset;
         }
-        refreshCurveView();
-        updateEditStateLabels();
-        styleModeText();
+        scheduleEnabledToggleUiRefresh();
         scheduleEnabledToggleCommit();
     }
 
@@ -2989,6 +2987,12 @@ public final class MainActivity extends Activity {
         uiHandler.postDelayed(commitEnabledToggleRunnable, ENABLE_TOGGLE_COMMIT_DELAY_MS);
     }
 
+    private void scheduleEnabledToggleUiRefresh() {
+        pendingEnabledUiRefresh = true;
+        uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.postDelayed(refreshEnabledToggleUiRunnable, ENABLE_TOGGLE_UI_DELAY_MS);
+    }
+
     private void commitPendingEnabledToggle() {
         Preset persistPreset = pendingEnabledPersistPreset;
         Preset applyPreset = pendingEnabledApplyPreset;
@@ -3001,6 +3005,15 @@ public final class MainActivity extends Activity {
                 && applyPreset.enabled == runningPreset.enabled) {
             applyRunningPreset();
         }
+    }
+
+    private void refreshPendingEnabledToggleUi() {
+        if (!pendingEnabledUiRefresh) {
+            return;
+        }
+        pendingEnabledUiRefresh = false;
+        refreshCurveView();
+        updateEditStateLabels();
     }
 
     private void selectOutputDevice(AudioOutputDevice selected) {
