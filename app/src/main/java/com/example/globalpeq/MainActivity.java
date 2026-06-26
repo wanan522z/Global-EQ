@@ -2981,8 +2981,12 @@ public final class MainActivity extends Activity {
             Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
             topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
             topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
-            int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(36);
-            int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(36);
+            int iconWidth = monitoredAppIconView.getWidth() > 0
+                    ? monitoredAppIconView.getWidth()
+                    : monitoredAppIconHostSizePx();
+            int iconHeight = monitoredAppIconView.getHeight() > 0
+                    ? monitoredAppIconView.getHeight()
+                    : monitoredAppIconHostSizePx();
             float titleTextRight = titleRect.left
                     + modeSpinner.getTranslationX()
                     + modeSpinner.getCompoundPaddingLeft();
