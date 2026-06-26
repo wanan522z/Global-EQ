@@ -2205,9 +2205,10 @@ public final class MainActivity extends Activity {
             styleDimPlainText(letter);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    0,
-                    1f
+                    LinearLayout.LayoutParams.WRAP_CONTENT
             );
+            params.topMargin = dp(1);
+            params.bottomMargin = dp(1);
             indexBar.addView(letter, params);
         }
         indexBar.setOnTouchListener((view, event) -> {
