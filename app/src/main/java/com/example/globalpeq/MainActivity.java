@@ -15,7 +15,6 @@ import android.graphics.Canvas;
 import android.graphics.BlurMaskFilter;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.LinearGradient;
 import android.graphics.RadialGradient;
@@ -7471,11 +7470,19 @@ public final class MainActivity extends Activity {
 
                 float radius = rect.height() / 2f;
                 float haloInset = dpf(1.35f);
+
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(checked ? Color.argb(66, 84, 216, 224) : Color.argb(32, 116, 142, 176));
-                canvas.drawRoundRect(rect.left - haloInset, rect.top - haloInset, rect.right + haloInset, rect.bottom + haloInset,
-                        radius + haloInset, radius + haloInset, paint);
+                canvas.drawRoundRect(
+                        rect.left - haloInset,
+                        rect.top - haloInset,
+                        rect.right + haloInset,
+                        rect.bottom + haloInset,
+                        radius + haloInset,
+                        radius + haloInset,
+                        paint);
+
                 paint.setColor(checked ? checkedColor : uncheckedColor);
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
@@ -7499,26 +7506,6 @@ public final class MainActivity extends Activity {
 
             @Override
             protected boolean onStateChange(int[] state) {
-                float target = drawableStateChecked(state) ? 1f : 0f;
-                if (!labelProgressReady) {
-                    labelProgress = target;
-                    labelProgressReady = true;
-                    invalidateSelf();
-                    return true;
-                }
-                if (labelAnimator != null) {
-                    labelAnimator.cancel();
-                }
-                labelAnimator = android.animation.ValueAnimator.ofFloat(labelProgress, target);
-                // 300ms + AccelerateDecelerateInterpolator：与系统 thumb 滑动节奏接近，
-                // 让 OFF→ON 文字过渡丝滑（auto 开关文字相同，不受影响）
-                labelAnimator.setDuration(300);
-                labelAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
-                labelAnimator.addUpdateListener(animation -> {
-                    labelProgress = (float) animation.getAnimatedValue();
-                    invalidateSelf();
-                });
-                labelAnimator.start();
                 invalidateSelf();
                 return true;
             }
@@ -7558,60 +7545,30 @@ public final class MainActivity extends Activity {
     private Drawable switchThumbDrawable(int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private int currentColor = uncheckedColor;
-            private boolean colorReady = false;
-            private float glowAlpha = 0f;
-            private android.animation.ValueAnimator colorAnimator;
 
             @Override
             public void draw(Canvas canvas) {
                 Rect b = getBounds();
                 boolean checked = drawableStateChecked(getState());
-                if (!colorReady) {
-                    currentColor = checked ? checkedColor : uncheckedColor;
-                    glowAlpha = checked ? 1f : 0f;
-                    colorReady = true;
-                }
                 float radius = Math.min(b.width(), b.height()) / 2f - dpf(1f);
+                float haloRadius = radius + dpf(1.4f);
+
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(currentColor);
-                if (glowAlpha > 0.01f) {
-                    paint.setShadowLayer(dpf(4f), 0, 0, Color.argb((int) (148 * glowAlpha), 70, 200, 216));
-                } else {
-                    paint.setShadowLayer(dpf(1.6f), 0, 0, Color.argb(54, 92, 130, 176));
-                }
+                paint.setColor(checked ? Color.argb(72, 74, 214, 222) : Color.argb(34, 120, 150, 180));
+                canvas.drawCircle(b.centerX(), b.centerY(), haloRadius, paint);
+
+                paint.setColor(checked ? checkedColor : uncheckedColor);
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
-                paint.clearShadowLayer();
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                int strokeAlpha = (int) (70 + (120 - 70) * glowAlpha);
-                paint.setColor(Color.argb(strokeAlpha, 238, 246, 255));
+                paint.setColor(checked ? Color.argb(150, 244, 252, 255) : Color.argb(88, 228, 236, 248));
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
             }
 
             @Override
             protected boolean onStateChange(int[] state) {
-                boolean checked = drawableStateChecked(state);
-                int targetColor = checked ? checkedColor : uncheckedColor;
-                float targetGlow = checked ? 1f : 0f;
-                if (colorAnimator != null) {
-                    colorAnimator.cancel();
-                }
-                float startGlow = glowAlpha;
-                int startColor = currentColor;
-                colorAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
-                colorAnimator.setDuration(300);
-                colorAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
-                colorAnimator.addUpdateListener(animation -> {
-                    float t = (float) animation.getAnimatedValue();
-                    currentColor = (int) new android.animation.ArgbEvaluator()
-                            .evaluate(t, startColor, targetColor);
-                    glowAlpha = startGlow + (targetGlow - startGlow) * t;
-                    invalidateSelf();
-                });
-                colorAnimator.start();
                 invalidateSelf();
                 return true;
             }
