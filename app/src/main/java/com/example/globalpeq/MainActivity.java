@@ -240,7 +240,7 @@ public final class MainActivity extends Activity {
             if (usesCustomGlow) {
                 applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
             }
-        } else {
+        } else if (usesCustomGlow) {
             // 其他标题：浅蓝青色光晕，大半径柔光
             applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
         }
