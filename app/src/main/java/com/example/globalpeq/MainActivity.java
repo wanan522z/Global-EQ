@@ -152,10 +152,7 @@ public final class MainActivity extends Activity {
             long now = System.currentTimeMillis();
             if (lastShimmerTime > 0) {
                 float elapsed = (now - lastShimmerTime) / 1000f;
-                shimmerAnimPhase += elapsed * SHIMMER_FLOW_RATE;
-                if (shimmerAnimPhase >= 1.0f) {
-                    shimmerAnimPhase -= 1.0f;
-                }
+                advanceShimmerPhases(elapsed);
             }
             lastShimmerTime = now;
 
@@ -183,8 +180,7 @@ public final class MainActivity extends Activity {
                 // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化，
                 // 导致 matrix 更新了但 glyph 不重绘（视觉不动）。
                 // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘。
-                float phase = currentShimmerPhaseForView(view);
-                applyShimmerFrame(view, width, phase);
+                applyShimmerFrame(view, width, currentShimmerPhaseForView(view));
             }
             if (!shimmerTargetViews.isEmpty()) {
                 uiHandler.postDelayed(this, SHIMMER_FPS_DELAY);
