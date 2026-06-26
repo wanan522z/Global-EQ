@@ -216,7 +216,7 @@ public final class MainActivity extends Activity {
         // 切换为 SOFTWARE 图层可强制调用精密的 CPU 高斯模糊算法绘制 shadowLayer，获得如烟雾般丝滑柔和、高亮饱满的霓虹光晕！
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && !(view instanceof GlowTitleTextView)
-                && !(view instanceof GlowTitleTextView)
+                && !(view instanceof GlowShimmerButton)
                 && view.getLayerType() != View.LAYER_TYPE_NONE) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
