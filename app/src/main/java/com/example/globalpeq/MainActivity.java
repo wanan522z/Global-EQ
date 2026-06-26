@@ -1896,7 +1896,7 @@ public final class MainActivity extends Activity {
 
     private View createMonitoredAppAddButton(AlertDialog[] dialogHolder) {
         Button add = new Button(this);
-        add.setText("+ Add");
+        add.setText(tr("+ Add", "+ 添加"));
         add.setTextSize(14);
         add.setAllCaps(false);
         styleAccentButton(add, true);
