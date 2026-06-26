@@ -7527,7 +7527,7 @@ public final class MainActivity extends Activity {
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(currentColor);
                 if (glowAlpha > 0.01f) {
-                    paint.setShadowLayer(dpf(4f), 0, 0, Color.argb((int) (148 * glowAlpha), 92, 168, 255));
+                    paint.setShadowLayer(dpf(4f), 0, 0, Color.argb((int) (148 * glowAlpha), 70, 200, 216));
                 } else {
                     paint.setShadowLayer(dpf(1.6f), 0, 0, Color.argb(54, 92, 130, 176));
                 }
