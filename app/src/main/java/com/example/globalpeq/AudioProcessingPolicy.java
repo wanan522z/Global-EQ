@@ -22,10 +22,6 @@ final class AudioProcessingPolicy {
         return virtualBassModeIndex <= 1;
     }
 
-    static int sanitizeVirtualBassModeIndex(ProcessingMode mode, int virtualBassModeIndex) {
-        return virtualBassModeAllowed(mode, virtualBassModeIndex) ? virtualBassModeIndex : 0;
-    }
-
     static boolean systemVirtualBassAllowed(int virtualBassModeIndex) {
         return virtualBassModeIndex == 1;
     }
