@@ -3115,7 +3115,7 @@ public final class MainActivity extends Activity {
             repository.saveSelectedDevice(currentDevice);
             repository.savePreset(currentDevice, runningPreset);
             repository.saveGlobalPreset(runningPreset);
-            engine.apply(runningPreset);
+            engine.apply(AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, selectedBassModeIndex));
             Intent service = new Intent(this, GlobalEqForegroundService.class);
             service.setAction(GlobalEqForegroundService.ACTION_APPLY);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
