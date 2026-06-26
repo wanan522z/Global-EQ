@@ -458,6 +458,7 @@ public final class MainActivity extends Activity {
         commitPendingPeqToggle();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
         cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
@@ -1408,6 +1409,8 @@ public final class MainActivity extends Activity {
         monitorSettingsPage.setVisibility(View.VISIBLE);
         monitorSettingsPage.bringToFront();
         bottomNavView.setVisibility(View.GONE);
+        uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
+        uiHandler.post(monitorStatusRefreshRunnable);
         renderAll();
     }
 
@@ -1418,6 +1421,7 @@ public final class MainActivity extends Activity {
         monitorSettingsOpen = false;
         monitorSettingsPage.setVisibility(View.GONE);
         bottomNavView.setVisibility(View.VISIBLE);
+        uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
         updateBottomNavSelection(activeMainPageIndex);
         if (mainPageHost != null) {
             mainPageHost.bringToFront();
