@@ -268,8 +268,16 @@ public final class MainActivity extends Activity {
         if (elapsedSeconds <= 0f) {
             return;
         }
+        long now = System.currentTimeMillis();
         for (int i = 0; i < shimmerTargetViews.size(); i++) {
             TextView view = shimmerTargetViews.get(i);
+            Long freezeUntil = shimmerPhaseFreezeUntil.get(view);
+            if (freezeUntil != null) {
+                if (freezeUntil > now) {
+                    continue;
+                }
+                shimmerPhaseFreezeUntil.remove(view);
+            }
             float phase = currentShimmerPhaseForView(view);
             phase += elapsedSeconds * SHIMMER_FLOW_RATE * shimmerSpeedMultiplierForView(view);
             shimmerViewPhases.put(view, phase - (float) Math.floor(phase));
