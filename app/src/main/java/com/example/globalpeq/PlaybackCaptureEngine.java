@@ -325,7 +325,7 @@ final class PlaybackCaptureEngine {
             if (peak > SIGNAL_THRESHOLD) {
                 lastSignalAt = SystemClock.elapsedRealtime();
                 if (!signaledLive) {
-                    publishStatus("Monitoring " + currentTargetLabel + " via native capture.", true);
+                    publishStatus("Monitoring " + currentTargetLabel + " via native capture. Source app muted.", true);
                     signaledLive = true;
                 }
             } else if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs && signaledLive) {
