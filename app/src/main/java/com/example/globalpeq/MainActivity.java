@@ -7562,12 +7562,18 @@ public final class MainActivity extends Activity {
                 paint.setTextSize(dpf(8.5f));
                 paint.setTextAlign(Paint.Align.CENTER);
                 paint.setColor(checked ? Color.rgb(214, 235, 255) : Color.argb(136, 226, 236, 248));
+                if (checked) {
+                    paint.setShadowLayer(dpf(2.2f), 0, 0, Color.argb(110, 96, 220, 234));
+                } else {
+                    paint.setShadowLayer(dpf(1.4f), 0, 0, Color.argb(54, 150, 186, 214));
+                }
                 Paint.FontMetrics metrics = paint.getFontMetrics();
                 float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
                 float leftTextX = rect.left + rect.width() * 0.32f;
                 float rightTextX = rect.left + rect.width() * 0.68f;
                 float textX = rightTextX + (leftTextX - rightTextX) * labelProgress;
                 canvas.drawText(checked ? checkedLabel : uncheckedLabel, textX, textY, paint);
+                paint.clearShadowLayer();
                 paint.setTypeface(android.graphics.Typeface.DEFAULT);
             }
 
@@ -7646,7 +7652,8 @@ public final class MainActivity extends Activity {
                 }
                 float cx = (b.left + b.right) * 0.5f;
                 float cy = (b.top + b.bottom) * 0.5f;
-                float radius = (Math.min(b.width(), b.height()) - dpf(2f)) * 0.5f;
+                float inset = dpf(2f);
+                float radius = (Math.min(b.width(), b.height()) * 0.5f) - inset;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(currentColor);
