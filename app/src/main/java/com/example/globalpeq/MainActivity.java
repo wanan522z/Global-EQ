@@ -1435,6 +1435,21 @@ public final class MainActivity extends Activity {
         return isChineseUi() ? "中文" : "English";
     }
 
+    private String bassModeDisplayLabel(String value) {
+        if (isChineseUi() && "system".equalsIgnoreCase(value)) {
+            return "系统方案";
+        }
+        return value;
+    }
+
+    private String[] bassModeDisplayLabels() {
+        String[] labels = new String[BASS_MODE_LABELS.length];
+        for (int i = 0; i < BASS_MODE_LABELS.length; i++) {
+            labels[i] = bassModeDisplayLabel(BASS_MODE_LABELS[i]);
+        }
+        return labels;
+    }
+
     private String aboutTitleText() {
         return tr("About Global PEQ", "关于 Global PEQ");
     }
