@@ -5496,6 +5496,27 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private final class ExtraSectionTitleTextView extends GlowTitleTextView {
+        private static final int INACTIVE_TEXT_COLOR = Color.rgb(150, 165, 185);
+
+        ExtraSectionTitleTextView(Context context) {
+            super(context);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            if (!isExtraSectionTitleActive(this)) {
+                getPaint().setShader(null);
+                getPaint().clearShadowLayer();
+                if (getCurrentTextColor() != INACTIVE_TEXT_COLOR) {
+                    setTextColor(INACTIVE_TEXT_COLOR);
+                }
+                clearGlowState();
+            }
+            super.onDraw(canvas);
+        }
+    }
+
     private final class GlowShimmerButton extends Button {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private final TextPaint labelPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
