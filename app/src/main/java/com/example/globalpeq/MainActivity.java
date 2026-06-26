@@ -1692,6 +1692,12 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             advancedModeSummaryView.setText(advancedModeSummaryText());
         }
+        if (monitorCaptureButton != null) {
+            monitorCaptureButton.setText(monitorCaptureButtonText());
+        }
+        if (monitorCaptureStatusView != null) {
+            monitorCaptureStatusView.setText(monitorCaptureStatusText());
+        }
         if (advancedMonitorAppButton != null) {
             advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
                     ? "Choose app"
