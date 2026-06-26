@@ -129,6 +129,10 @@ final class ShizukuCompat {
         if (service == null || service.trim().isEmpty() || !hasPermission()) {
             return null;
         }
+        String commandDump = dumpViaCommand(service);
+        if (commandDump != null && !commandDump.trim().isEmpty()) {
+            return commandDump;
+        }
         try {
             ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
             ParcelFileDescriptor readPipe = pipe[0];
@@ -150,7 +154,7 @@ final class ShizukuCompat {
             }
         } catch (Throwable ignored) {
         }
-        return dumpViaCommand(service);
+        return null;
     }
 
     static void openManagerOrSettings(Context context) {
