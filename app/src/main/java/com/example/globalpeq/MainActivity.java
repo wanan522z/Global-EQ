@@ -253,13 +253,13 @@ public final class MainActivity extends Activity {
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
-    // modeSpinner disabled：暗调优雅灰青蓝（微亮流光，平缓静谧）
+    // modeSpinner disabled：暗调优雅灰青蓝（去绿，微亮流光，平缓静谧）
     private static final int[] SHIMMER_MODE_OFF_COLORS = {
-            Color.rgb(115, 145, 140),  // 暗灰青
-            Color.rgb(105, 140, 155),  // 暗灰蓝
-            Color.rgb(195, 215, 225),  // 优雅灰白核心
-            Color.rgb(105, 140, 155),  // 暗灰蓝
-            Color.rgb(115, 145, 140)   // 暗灰青
+            Color.rgb(120, 150, 165),  // 暗灰青蓝
+            Color.rgb(110, 145, 165),  // 暗灰蓝
+            Color.rgb(200, 220, 230),  // 优雅灰白核心
+            Color.rgb(110, 145, 165),  // 暗灰蓝
+            Color.rgb(120, 150, 165)   // 暗灰青蓝
     };
 
     private void recreateShaderForView(TextView view, int width) {

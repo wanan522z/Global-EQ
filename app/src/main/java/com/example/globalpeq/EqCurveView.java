@@ -33,6 +33,7 @@ final class EqCurveView extends View {
     private LinearGradient sweepGradient;
 
     // Dynamic sweeping light and advanced halo paints
+    private final Paint glowPaint0 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint1 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint2 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint3 = new Paint(Paint.ANTI_ALIAS_FLAG); // Inner solid halo core
@@ -81,12 +82,22 @@ final class EqCurveView extends View {
         frequencyTextPaint.setTextAlign(Paint.Align.CENTER);
 
         // Configure advanced glow layers (optimizing halo and fixing anti-aliasing)
+        // 0. New far halo: broad atmospheric bloom, closer to the title glow style
+        glowPaint0.setStyle(Paint.Style.STROKE);
+        glowPaint0.setStrokeCap(Paint.Cap.ROUND);
+        glowPaint0.setStrokeJoin(Paint.Join.ROUND);
+        glowPaint0.setStrokeWidth(18f);
+        glowPaint0.setColor(Color.argb(34, 170, 120, 255));
+        glowPaint0.setAntiAlias(true);
+        glowPaint0.setFilterBitmap(true);
+        glowPaint0.setDither(true);
+
         // 1. Far outer ring: larger spread, but with very soft alpha gradient transition
         glowPaint1.setStyle(Paint.Style.STROKE);
         glowPaint1.setStrokeCap(Paint.Cap.ROUND);
         glowPaint1.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint1.setStrokeWidth(12f);
-        glowPaint1.setColor(Color.argb(20, 0, 220, 255));
+        glowPaint1.setStrokeWidth(13.5f);
+        glowPaint1.setColor(Color.argb(28, 100, 245, 255));
         glowPaint1.setAntiAlias(true);
         glowPaint1.setFilterBitmap(true);
         glowPaint1.setDither(true);
@@ -95,8 +106,8 @@ final class EqCurveView extends View {
         glowPaint2.setStyle(Paint.Style.STROKE);
         glowPaint2.setStrokeCap(Paint.Cap.ROUND);
         glowPaint2.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint2.setStrokeWidth(8f);
-        glowPaint2.setColor(Color.argb(34, 130, 65, 255));
+        glowPaint2.setStrokeWidth(9.5f);
+        glowPaint2.setColor(Color.argb(52, 140, 110, 255));
         glowPaint2.setAntiAlias(true);
         glowPaint2.setFilterBitmap(true);
         glowPaint2.setDither(true);
@@ -105,8 +116,8 @@ final class EqCurveView extends View {
         glowPaint3.setStyle(Paint.Style.STROKE);
         glowPaint3.setStrokeCap(Paint.Cap.ROUND);
         glowPaint3.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint3.setStrokeWidth(5f);
-        glowPaint3.setColor(Color.argb(56, 0, 255, 255));
+        glowPaint3.setStrokeWidth(6.2f);
+        glowPaint3.setColor(Color.argb(82, 180, 235, 255));
         glowPaint3.setAntiAlias(true);
         glowPaint3.setFilterBitmap(true);
         glowPaint3.setDither(true);
@@ -296,6 +307,7 @@ final class EqCurveView extends View {
             }
             lastTime = now;
 
+            canvas.drawPath(curvePath, glowPaint0);
             canvas.drawPath(curvePath, glowPaint1);
             canvas.drawPath(curvePath, glowPaint2);
             canvas.drawPath(curvePath, glowPaint3);
