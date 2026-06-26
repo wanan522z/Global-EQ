@@ -316,30 +316,6 @@ public final class MainActivity extends Activity {
             Color.rgb(105, 145, 175)   // 暗灰蓝
     };
 
-    private void recreateShaderForView(TextView view, int width) {
-        if (view == null || width <= 0) return;
-        if (view == statusText) {
-            boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
-            if (!supported || hasClip) return;
-            if (isEditingPresetActive()) {
-                applyStatusShimmerShader(view, width, Color.rgb(0, 255, 200), Color.rgb(0, 200, 255));
-            } else {
-                applyStatusShimmerShader(view, width, Color.rgb(240, 248, 255), Color.rgb(180, 210, 255));
-            }
-        } else if (view == modeSpinner) {
-            if (!isModeVisualEnabled()) {
-                view.getPaint().setShader(null);
-                clearGlowFromTextView(view);
-                view.invalidate();
-                return;
-            }
-            applyTitleGradientShader(view, width, Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
-        } else if (view == eqTabButton || view == extraTabButton || view == settingsTabButton) {
-            applyTitleGradientShader(view, width, Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
-        } else {
-            applyTitleGradientShader(view, width, Color.rgb(0, 245, 212), Color.rgb(80, 220, 255), Color.rgb(180, 100, 255));
-        }
-    }
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
     private Preset pendingGeqHistorySnapshot;
