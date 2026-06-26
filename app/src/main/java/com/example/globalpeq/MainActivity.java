@@ -5465,6 +5465,16 @@ public final class MainActivity extends Activity {
         return title;
     }
 
+    private void reserveStartGlowWithoutMoving(TextView view, int extraLeftDp) {
+        if (view == null || extraLeftDp <= 0) {
+            return;
+        }
+        int extraPx = dp(extraLeftDp);
+        view.setPadding(view.getPaddingLeft() + extraPx, view.getPaddingTop(),
+                view.getPaddingRight(), view.getPaddingBottom());
+        view.setTranslationX(-extraPx);
+    }
+
     private void styleGradientTitle(TextView view) {
         styleSettingsTitleText(view);
     }
