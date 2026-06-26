@@ -120,9 +120,9 @@ public final class MainActivity extends Activity {
     private Button undoButton;
     private Button redoButton;
     private Button savePresetButton;
-    private Button eqTabButton;
-    private Button extraTabButton;
-    private Button settingsTabButton;
+    private TextView eqTabButton;
+    private TextView extraTabButton;
+    private TextView settingsTabButton;
     private View bottomTabIndicator;
     private LinearLayout bottomTabStrip;
     private Switch enabledSwitch;
