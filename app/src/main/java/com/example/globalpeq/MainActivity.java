@@ -376,6 +376,7 @@ public final class MainActivity extends Activity {
         commitPendingGeqUpdate();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
         deviceMonitor.stop();
@@ -411,6 +412,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
         super.onDestroy();
     }
