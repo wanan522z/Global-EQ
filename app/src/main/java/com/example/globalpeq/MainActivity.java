@@ -459,7 +459,7 @@ public final class MainActivity extends Activity {
         processingMode = repository.loadProcessingMode();
         uiLanguage = repository.loadUiLanguage();
         advancedModeConfig = repository.loadAdvancedModeConfig();
-        selectedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(
+        selectedBassModeIndex = AudioProcessingPolicy.sanitizeVirtualBassModeIndex(
                 processingMode,
                 repository.loadVirtualBassModeIndex());
         repository.saveVirtualBassModeIndex(selectedBassModeIndex);
@@ -1753,9 +1753,9 @@ public final class MainActivity extends Activity {
     private void setProcessingMode(ProcessingMode nextMode) {
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
-        int sanitizedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(processingMode, selectedBassModeIndex);
-        if (sanitizedBassModeIndex != selectedBassModeIndex) {
-            selectedBassModeIndex = sanitizedBassModeIndex;
+        int sanitizedVirtualBassModeIndex = AudioProcessingPolicy.sanitizeVirtualBassModeIndex(processingMode, selectedBassModeIndex);
+        if (sanitizedVirtualBassModeIndex != selectedBassModeIndex) {
+            selectedBassModeIndex = sanitizedVirtualBassModeIndex;
             repository.saveVirtualBassModeIndex(selectedBassModeIndex);
         }
         if (processingMode == ProcessingMode.SYSTEM_EQ) {

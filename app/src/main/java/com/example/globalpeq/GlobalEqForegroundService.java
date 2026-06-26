@@ -34,7 +34,7 @@ public final class GlobalEqForegroundService extends Service {
     private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
     private Preset pendingCapturePreset = Preset.flat(false);
     private AdvancedModeConfig pendingCaptureConfig = AdvancedModeConfig.DEFAULT;
-    private int pendingCaptureBassModeIndex;
+    private int pendingCaptureVirtualBassModeIndex;
     private AudioOutputDevice pendingCaptureDevice = new AudioOutputDevice("none", "Output device");
     private final Runnable applyPendingCaptureUpdateRunnable = new Runnable() {
         @Override
@@ -46,7 +46,7 @@ public final class GlobalEqForegroundService extends Service {
                     pendingCaptureMode,
                     pendingCapturePreset,
                     pendingCaptureConfig,
-                    pendingCaptureBassModeIndex,
+                    pendingCaptureVirtualBassModeIndex,
                     pendingCaptureDevice);
             shizukuMuteEngine.updateProcessing(
                     pendingCaptureMode,
@@ -96,8 +96,8 @@ public final class GlobalEqForegroundService extends Service {
             repository.saveSelectedDevice(currentDevice);
             currentPreset = repository.loadPreset(device);
             ProcessingMode processingMode = repository.loadProcessingMode();
-            int bassModeIndex = repository.loadVirtualBassModeIndex();
-            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, processingMode, bassModeIndex);
+            int virtualBassModeIndex = repository.loadVirtualBassModeIndex();
+            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, processingMode, virtualBassModeIndex);
             if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset);
             } else {
@@ -107,7 +107,7 @@ public final class GlobalEqForegroundService extends Service {
                     processingMode,
                     currentPreset,
                     repository.loadAdvancedModeConfig(),
-                    bassModeIndex,
+                    virtualBassModeIndex,
                     currentDevice,
                     CAPTURE_UPDATE_DEBOUNCE_MS);
             updateNotification();
@@ -160,16 +160,16 @@ public final class GlobalEqForegroundService extends Service {
     private Preset applySavedPreset() {
         Preset preset = refreshSavedPresetState();
         ProcessingMode processingMode = repository.loadProcessingMode();
-        int bassModeIndex = repository.loadVirtualBassModeIndex();
+        int virtualBassModeIndex = repository.loadVirtualBassModeIndex();
         engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
                 currentPreset,
                 processingMode,
-                bassModeIndex));
+                virtualBassModeIndex));
         scheduleCaptureUpdate(
                 processingMode,
                 currentPreset,
                 repository.loadAdvancedModeConfig(),
-                bassModeIndex,
+                virtualBassModeIndex,
                 currentDevice,
                 0L);
         return preset;
@@ -291,7 +291,7 @@ public final class GlobalEqForegroundService extends Service {
     private void scheduleCaptureUpdate(ProcessingMode processingMode,
                                        Preset preset,
                                        AdvancedModeConfig config,
-                                       int bassModeIndex,
+                                       int virtualBassModeIndex,
                                        AudioOutputDevice outputDevice,
                                        long delayMs) {
         Handler handler = captureControlHandler;
@@ -301,7 +301,7 @@ public final class GlobalEqForegroundService extends Service {
         pendingCaptureMode = processingMode == null ? ProcessingMode.SYSTEM_EQ : processingMode;
         pendingCapturePreset = preset == null ? Preset.flat(false) : preset;
         pendingCaptureConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
-        pendingCaptureBassModeIndex = bassModeIndex;
+        pendingCaptureVirtualBassModeIndex = virtualBassModeIndex;
         pendingCaptureDevice = outputDevice == null
                 ? new AudioOutputDevice("none", "Output device")
                 : outputDevice;
