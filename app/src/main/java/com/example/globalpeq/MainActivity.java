@@ -5693,17 +5693,10 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean active = isExtraSectionTitleActive(view);
-        Boolean previous = titleActiveStates.get(view);
-        if (active && previous != null && previous) {
-            return;
-        }
-        titleActiveStates.put(view, active);
         if (active) {
-            shimmerPhaseAnchors.put(view, rawGlobalShimmerPhaseForView(view));
             styleSettingsTitleText(view);
             registerShimmerView(view);
         } else {
-            shimmerPhaseAnchors.remove(view);
             applyInactiveExtraSectionTitleStyle(view);
         }
     }
@@ -5713,7 +5706,6 @@ public final class MainActivity extends Activity {
             return;
         }
         bumpTextStyleVersion(view);
-        shimmerPhaseAnchors.remove(view);
         unregisterShimmerView(view);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && view.getLayerType() != View.LAYER_TYPE_NONE) {
