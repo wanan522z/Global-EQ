@@ -1835,7 +1835,7 @@ public final class MainActivity extends Activity {
     }
 
     private void handleMonitorCaptureAction() {
-        if (processingMode != ProcessingMode.ADVANCED_DSP) {
+        if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
             Toast.makeText(this, tr("Switch to Monitor DSP mode first", "请先切换到 Monitor DSP 模式"), Toast.LENGTH_SHORT).show();
             return;
         }
