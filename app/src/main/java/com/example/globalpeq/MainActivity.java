@@ -3812,7 +3812,7 @@ public final class MainActivity extends Activity {
         }
         if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
                 && applyPreset.enabled == runningPreset.enabled) {
-            applyRunningPreset();
+            applyRunningPreset(applyPreset.enabled);
         }
     }
 
