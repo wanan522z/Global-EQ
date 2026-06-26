@@ -70,6 +70,8 @@ public final class MainActivity extends Activity {
     private static final int HISTORY_LIMIT = 30;
     private static final int REQUEST_IMPORT_DEVICE_CURVE = 4101;
     private static final int REQUEST_IMPORT_TARGET_CURVE = 4102;
+    private static final int REQUEST_MONITOR_CAPTURE = 4103;
+    private static final int REQUEST_MONITOR_AUDIO_PERMISSION = 4104;
     private static final int EQ_EDIT_FIELD_FREQ = 0;
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
@@ -128,6 +130,8 @@ public final class MainActivity extends Activity {
     private TextView processingModeButton;
     private TextView advancedModeDetailButton;
     private TextView advancedMonitorAppButton;
+    private TextView monitorCaptureButton;
+    private TextView monitorCaptureStatusView;
     private TextView advancedModeSummaryView;
     private LinearLayout settingsRootContent;
     private Button presetSelectButton;
@@ -371,6 +375,7 @@ public final class MainActivity extends Activity {
     private boolean peqVisualSequenceRunning;
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
+    private boolean pendingMonitorCaptureAuthorization;
     private boolean awaitingInitialDeviceMonitorEvent;
 
     private static final class PeqBandRowHolder {
