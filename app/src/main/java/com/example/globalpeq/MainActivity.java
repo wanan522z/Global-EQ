@@ -3085,6 +3085,7 @@ public final class MainActivity extends Activity {
         cancelEnabledNeonSequence();
         modeVisualEnabled = false;
         curveVisualEnabled = false;
+        preparePeqVisualSequence(false);
         if (modeSpinner != null) {
             modeSpinner.animate().cancel();
             modeSpinner.setAlpha(0.68f);
@@ -3096,8 +3097,10 @@ public final class MainActivity extends Activity {
         styleModeText();
         refreshCurveView();
         updateEditStateLabels();
+        updatePeqBandVisuals();
         uiHandler.postDelayed(enableNeonHeaderRunnable, ENABLE_NEON_HEADER_DELAY_MS);
         uiHandler.postDelayed(enableNeonCurveRunnable, ENABLE_NEON_CURVE_DELAY_MS);
+        uiHandler.postDelayed(enablePeqBandStepRunnable, ENABLE_NEON_PEQ_START_DELAY_MS);
     }
 
     private void activateEnabledNeonHeader() {
@@ -3138,6 +3141,7 @@ public final class MainActivity extends Activity {
         cancelEnabledNeonSequence();
         modeVisualEnabled = false;
         curveVisualEnabled = false;
+        preparePeqVisualSequence(false);
         if (modeSpinner != null) {
             modeSpinner.animate().cancel();
             modeSpinner.setAlpha(1f);
@@ -3149,15 +3153,111 @@ public final class MainActivity extends Activity {
         styleModeText();
         refreshCurveView();
         updateEditStateLabels();
+        updatePeqBandVisuals();
     }
 
     private void cancelEnabledNeonSequence() {
         uiHandler.removeCallbacks(enableNeonHeaderRunnable);
         uiHandler.removeCallbacks(enableNeonCurveRunnable);
+        uiHandler.removeCallbacks(enablePeqBandStepRunnable);
     }
 
     private boolean isAudioEnabledNow() {
         return supported && runningPreset != null && runningPreset.enabled;
+    }
+
+    private void preparePeqVisualSequence(boolean enabled) {
+        if (editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            peqBandVisualEnabled = new boolean[0];
+            peqVisualSequenceRunning = false;
+            pendingPeqVisualIndex = 0;
+            return;
+        }
+        peqBandVisualEnabled = new boolean[editingPreset.bands.length];
+        peqVisualSequenceRunning = enabled;
+        pendingPeqVisualIndex = 0;
+        if (enabled) {
+            for (int i = 0; i < editingPreset.bands.length; i++) {
+                peqBandVisualEnabled[i] = editingPreset.bands[i].enabled;
+            }
+            peqVisualSequenceRunning = false;
+            pendingPeqVisualIndex = editingPreset.bands.length;
+        }
+    }
+
+    private void activateNextPeqBandVisual() {
+        if (!isAudioEnabledNow() || editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            peqVisualSequenceRunning = false;
+            return;
+        }
+        if (peqBandVisualEnabled.length != editingPreset.bands.length) {
+            peqBandVisualEnabled = new boolean[editingPreset.bands.length];
+        }
+        peqVisualSequenceRunning = true;
+        while (pendingPeqVisualIndex < editingPreset.bands.length && !editingPreset.bands[pendingPeqVisualIndex].enabled) {
+            pendingPeqVisualIndex++;
+        }
+        if (pendingPeqVisualIndex >= editingPreset.bands.length) {
+            peqVisualSequenceRunning = false;
+            updatePeqBandVisuals();
+            return;
+        }
+        peqBandVisualEnabled[pendingPeqVisualIndex] = true;
+        pendingPeqVisualIndex++;
+        updatePeqBandVisuals();
+        uiHandler.postDelayed(enablePeqBandStepRunnable, ENABLE_NEON_PEQ_STEP_DELAY_MS);
+    }
+
+    private void updatePeqBandVisuals() {
+        if (rows == null || editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            return;
+        }
+        int bandCount = editingPreset.bands.length;
+        for (int i = 0; i < bandCount && i < rows.getChildCount(); i++) {
+            View child = rows.getChildAt(i);
+            if (!(child instanceof LinearLayout)) {
+                continue;
+            }
+            applyBandRowVisualState((LinearLayout) child, i);
+        }
+    }
+
+    private void applyBandRowVisualState(LinearLayout row, int index) {
+        if (row == null || editingPreset == null || index < 0 || index >= editingPreset.bands.length) {
+            return;
+        }
+        ParametricBand band = editingPreset.bands[index];
+        boolean visualActive = isPeqBandVisualEnabled(index);
+        row.setAlpha(visualActive ? 1f : 0.58f);
+        if (row.getChildCount() < 6) {
+            return;
+        }
+
+        View enableWrap = row.getChildAt(0);
+        if (enableWrap instanceof ViewGroup && ((ViewGroup) enableWrap).getChildCount() > 0) {
+            View enable = ((ViewGroup) enableWrap).getChildAt(0);
+            enable.setBackground(stateIndicatorDrawable(visualActive));
+        }
+
+        View typeView = row.getChildAt(1);
+        if (typeView instanceof TextView) {
+            TextView type = (TextView) typeView;
+            styleEqBandText(type, visualActive);
+            type.setBackground(typeCellBackground(band.type, visualActive));
+        }
+
+        applyBandInputVisual(row.getChildAt(2), visualActive);
+        applyBandInputVisual(row.getChildAt(3), visualActive);
+        applyBandInputVisual(row.getChildAt(4), visualActive);
+    }
+
+    private void applyBandInputVisual(View view, boolean visualActive) {
+        if (!(view instanceof EditText)) {
+            return;
+        }
+        EditText input = (EditText) view;
+        styleEqBandText(input, visualActive);
+        attachNumberWatermark(input, visualActive);
     }
 
     private void selectOutputDevice(AudioOutputDevice selected) {
