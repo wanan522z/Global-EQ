@@ -5680,7 +5680,7 @@ public final class MainActivity extends Activity {
         }
         titleActiveStates.put(view, active);
         if (active) {
-            styleSettingsTitleText(view);
+            applyCurrentTitleShimmerStyle(view);
             registerShimmerView(view);
         } else {
             bumpTextStyleVersion(view);
@@ -5689,6 +5689,24 @@ public final class MainActivity extends Activity {
             clearGlowFromTextView(view);
             view.invalidate();
         }
+    }
+
+    private void applyCurrentTitleShimmerStyle(TextView view) {
+        if (view == null) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                && !(view instanceof GlowTitleTextView)
+                && !(view instanceof GlowShimmerButton)
+                && view.getLayerType() != View.LAYER_TYPE_NONE) {
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
+        applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view),
+                shimmerAnimPhase * shimmerSpeedMultiplierForView(view),
+                Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
+        view.setTextColor(Color.WHITE);
+        applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+        view.invalidate();
     }
 
     private void registerShimmerView(TextView view) {
