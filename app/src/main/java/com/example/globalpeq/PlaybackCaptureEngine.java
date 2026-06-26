@@ -50,6 +50,7 @@ final class PlaybackCaptureEngine {
     private Object activeWorkerToken;
 
     private volatile boolean running;
+    private volatile ProcessingMode currentMode = ProcessingMode.SYSTEM_EQ;
     private volatile Preset currentPreset = Preset.flat(false);
     private volatile AdvancedModeConfig currentConfig = AdvancedModeConfig.DEFAULT;
     private volatile int currentBassModeIndex;
@@ -122,6 +123,7 @@ final class PlaybackCaptureEngine {
                                        AdvancedModeConfig config,
                                        int bassModeIndex,
                                        AudioOutputDevice outputDevice) {
+        currentMode = mode == null ? ProcessingMode.SYSTEM_EQ : mode;
         currentPreset = preset == null ? Preset.flat(false) : preset;
         currentConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         currentBassModeIndex = bassModeIndex;
@@ -135,7 +137,7 @@ final class PlaybackCaptureEngine {
             publishStatus("Native capture requires Android 10 or later.", false);
             return;
         }
-        if (mode != ProcessingMode.ADVANCED_DSP) {
+        if (!AudioProcessingPolicy.advancedModeEnabled(currentMode)) {
             stopPipelineLocked();
             publishStatus("Default mode active. Native capture disabled.", false);
             return;
@@ -252,10 +254,7 @@ final class PlaybackCaptureEngine {
             int trackBufferBytes = Math.max(minTrackBytes * 4, latencyFrames * bytesPerFrame * 2);
 
             AudioTrack.Builder trackBuilder = new AudioTrack.Builder()
-                    .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(EXPERIMENTAL_PLAYBACK_USAGE)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build())
+                    .setAudioAttributes(buildTrackAttributesForCurrentMode())
                     .setAudioFormat(trackFormat)
                     .setBufferSizeInBytes(trackBufferBytes)
                     .setTransferMode(AudioTrack.MODE_STREAM);
@@ -283,7 +282,7 @@ final class PlaybackCaptureEngine {
             workerThread.start();
             Log.i(TAG, "Started experimental native capture route"
                     + " target=" + currentTargetLabel
-                    + " trackUsage=ASSISTANT"
+                    + " trackUsage=" + (currentMode == ProcessingMode.SHIZUKU_MUTE ? "MEDIA" : "ASSISTANT")
                     + " stream=" + EXPERIMENTAL_PLAYBACK_STREAM
                     + " desiredFrames=" + desiredFrames
                     + " trackBufferBytes=" + trackBufferBytes
@@ -392,16 +391,28 @@ final class PlaybackCaptureEngine {
         synchronized (dspLock) {
             Preset effectiveDspPreset = AudioProcessingPolicy.effectiveDspPreset(
                     currentPreset,
-                    ProcessingMode.ADVANCED_DSP,
+                    currentMode,
                     currentBassModeIndex);
             dspProcessor.configure(
                     effectiveDspPreset,
                     SAMPLE_RATE,
                     CHANNEL_COUNT,
-                    AudioProcessingPolicy.dspBassAllowed(ProcessingMode.ADVANCED_DSP, currentBassModeIndex),
+                    AudioProcessingPolicy.dspBassAllowed(currentMode, currentBassModeIndex),
                     currentConfig);
         }
         applyTrackBassBoostLocked();
+    }
+
+    private AudioAttributes buildTrackAttributesForCurrentMode() {
+        AudioAttributes.Builder builder = new AudioAttributes.Builder();
+        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+            builder.setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
+        } else {
+            builder.setUsage(EXPERIMENTAL_PLAYBACK_USAGE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH);
+        }
+        return builder.build();
     }
 
     private void applyTrackBassBoostLocked() {
