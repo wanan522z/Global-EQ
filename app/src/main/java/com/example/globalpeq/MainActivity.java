@@ -1340,6 +1340,8 @@ public final class MainActivity extends Activity {
             repository.saveBassBoostModeIndex(selectedBassModeIndex);
             if (editingPreset != null && !"Default".equals(editingPreset.reverbType)) {
                 setEditingPreset(editingPreset.withReverbType("Default"), true);
+            } else {
+                applyRunningPreset();
             }
         } else {
             applyRunningPreset();
