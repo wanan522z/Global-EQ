@@ -123,7 +123,7 @@ public final class MainActivity extends Activity {
     private KnobView reverbMixKnob;
     private TextView reverbTypeButton;
     private TextView bassModeButton;
-    private EditText dspBassCutoffInput;
+    private EditText virtualBassCutoffInput;
     private TextView reverbTitleView;
     private TextView virtualBassTitleView;
     private TextView extraBassTitleView;
@@ -5742,18 +5742,18 @@ public final class MainActivity extends Activity {
             bassModeButton.setText(virtualBassModeDisplayLabel(VIRTUAL_BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, VIRTUAL_BASS_MODE_LABELS.length - 1)]));
             bassModeButton.setAlpha(1f);
         }
-        if (dspBassCutoffInput != null) {
-            dspBassCutoffInput.setHint(dspVirtualBassMode ? "Cutoff Hz" : "Boost");
-            dspBassCutoffInput.setVisibility(dspVirtualBassMode ? View.VISIBLE : View.GONE);
-            dspBassCutoffInput.setEnabled(virtualBassEnabled && dspVirtualBassMode);
+        if (virtualBassCutoffInput != null) {
+            virtualBassCutoffInput.setHint(dspVirtualBassMode ? "Cutoff Hz" : "Boost");
+            virtualBassCutoffInput.setVisibility(dspVirtualBassMode ? View.VISIBLE : View.GONE);
+            virtualBassCutoffInput.setEnabled(virtualBassEnabled && dspVirtualBassMode);
             String cutoffText = String.valueOf(editingPreset.virtualBassCutoffHz);
-            if (!dspBassCutoffInput.hasFocus() && !cutoffText.contentEquals(dspBassCutoffInput.getText())) {
+            if (!virtualBassCutoffInput.hasFocus() && !cutoffText.contentEquals(virtualBassCutoffInput.getText())) {
                 updatingUi = true;
-                dspBassCutoffInput.setText(cutoffText);
-                dspBassCutoffInput.setTag(editingPreset.virtualBassCutoffHz);
+                virtualBassCutoffInput.setText(cutoffText);
+                virtualBassCutoffInput.setTag(editingPreset.virtualBassCutoffHz);
                 updatingUi = false;
             }
-            dspBassCutoffInput.setAlpha(dspVirtualBassMode ? 1f : 0.55f);
+            virtualBassCutoffInput.setAlpha(dspVirtualBassMode ? 1f : 0.55f);
         }
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(virtualBassTitleView);
@@ -5946,20 +5946,20 @@ public final class MainActivity extends Activity {
         sliderParams.topMargin = dp(8);
         bassPanel.addView(virtualBassSlider, sliderParams);
 
-        dspBassCutoffInput = createDeferredIntegerInput(
+        virtualBassCutoffInput = createDeferredIntegerInput(
                 String.valueOf(editingPreset.virtualBassCutoffHz),
                 "Cutoff Hz",
                 20,
                 250,
                 value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
-        dspBassCutoffInput.setTextSize(13);
-        dspBassCutoffInput.setGravity(android.view.Gravity.CENTER);
+        virtualBassCutoffInput.setTextSize(13);
+        virtualBassCutoffInput.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(36)
         );
         cutoffParams.topMargin = dp(10);
-        bassPanel.addView(dspBassCutoffInput, cutoffParams);
+        bassPanel.addView(virtualBassCutoffInput, cutoffParams);
 
         LinearLayout extraBassPanel = createExtraPanelShell();
         page.addView(extraBassPanel, extraPanelParams(12));
