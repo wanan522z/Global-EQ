@@ -118,6 +118,10 @@ final class FrequencyCurve {
         return new FrequencyCurve(name, shifted);
     }
 
+    FrequencyCurve withName(String nextName) {
+        return new FrequencyCurve(nextName, points);
+    }
+
     String toJson() {
         JSONObject object = new JSONObject();
         JSONArray array = new JSONArray();
