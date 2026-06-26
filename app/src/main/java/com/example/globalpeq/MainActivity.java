@@ -3818,7 +3818,7 @@ public final class MainActivity extends Activity {
     private void showCurveRenameDialog(boolean targetCurve, TextView nameView) {
         String currentName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         if ("Default".equals(currentName)) {
-            Toast.makeText(this, "Default curve can't be renamed", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default curve can't be renamed", "Default 曲线不能重命名"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -3829,7 +3829,9 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(targetCurve ? "Target curve name" : "Device curve name");
+        input.setHint(targetCurve
+                ? tr("Target curve name", "Target curve 名称")
+                : tr("Device curve name", "Device curve 名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -3843,10 +3845,12 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(targetCurve ? "Rename target curve" : "Rename device curve"))
+                .setCustomTitle(dialogTitleView(targetCurve
+                        ? tr("Rename target curve", "重命名 Target curve")
+                        : tr("Rename device curve", "重命名 Device curve")))
                 .setView(container)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Rename", null)
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Rename", "重命名"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -3871,17 +3875,17 @@ public final class MainActivity extends Activity {
         String oldName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         String nextName = rawName == null ? "" : rawName.trim();
         if (nextName.isEmpty()) {
-            Toast.makeText(this, "Curve name required", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name required", "需要填写曲线名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         if ("Default".equals(nextName)) {
-            Toast.makeText(this, "Default is reserved", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default is reserved", "Default 是保留名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         boolean sameName = oldName.equals(nextName);
         boolean exists = targetCurve ? repository.hasTargetCurveName(nextName) : repository.hasDeviceCurveName(nextName);
         if (!sameName && exists) {
-            Toast.makeText(this, "Curve name already exists", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name already exists", "曲线名称已存在"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -3889,7 +3893,7 @@ public final class MainActivity extends Activity {
                 ? repository.renameTargetCurve(oldName, nextName)
                 : repository.renameDeviceCurve(oldName, nextName);
         if (!renamed) {
-            Toast.makeText(this, "Curve rename failed", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve rename failed", "曲线重命名失败"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -3905,7 +3909,7 @@ public final class MainActivity extends Activity {
             nameView.setText(nextName);
         }
         renderAll();
-        Toast.makeText(this, "Curve renamed", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Curve renamed", "曲线已重命名"), Toast.LENGTH_SHORT).show();
         return true;
     }
 
