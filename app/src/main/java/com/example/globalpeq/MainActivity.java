@@ -8238,7 +8238,9 @@ public final class MainActivity extends Activity {
                     && !"Default".equals(editingPreset.reverbType);
         }
         if (view == virtualBassTitleView) {
-            return supported && selectedBassModeIndex > 0;
+            return supported
+                    && AudioProcessingPolicy.virtualBassModeAllowed(processingMode, selectedBassModeIndex)
+                    && selectedBassModeIndex > 0;
         }
         if (view == extraBassTitleView) {
             return supported && extraBassEnabledState;
