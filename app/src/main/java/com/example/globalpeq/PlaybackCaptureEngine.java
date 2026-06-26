@@ -207,6 +207,9 @@ final class PlaybackCaptureEngine {
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
+            if (minRecordBytes <= 0) {
+                minRecordBytes = desiredFrames * bytesPerFrame * 2;
+            }
             int recordBufferBytes = Math.max(minRecordBytes, desiredFrames * bytesPerFrame * 2);
 
             audioRecord = new AudioRecord.Builder()
@@ -228,6 +231,9 @@ final class PlaybackCaptureEngine {
                     AudioFormat.CHANNEL_OUT_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
             int latencyFrames = Math.max(desiredFrames, SAMPLE_RATE * Math.max(20, currentConfig.latencyMs) / 1000);
+            if (minTrackBytes <= 0) {
+                minTrackBytes = latencyFrames * bytesPerFrame;
+            }
             int trackBufferBytes = Math.max(minTrackBytes, latencyFrames * bytesPerFrame);
 
             audioTrack = new AudioTrack.Builder()
