@@ -5468,7 +5468,7 @@ public final class MainActivity extends Activity {
 
         @Override
         protected void onDetachedFromWindow() {
-            unregisterShimmerView(this);
+            disposeShimmerView(this);
             super.onDetachedFromWindow();
         }
 
