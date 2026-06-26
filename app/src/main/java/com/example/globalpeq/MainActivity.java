@@ -3678,13 +3678,16 @@ public final class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        TextView title = gradientTitleView(titleText);
+        TextView title = new GlowTitleTextView(this);
         if (title instanceof GlowTitleTextView) {
             ((GlowTitleTextView) title).setAutoRegisterShimmer(false);
         }
         title.setText(titleText);
         title.setTextSize(16);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title.setIncludeFontPadding(false);
+        title.setSingleLine(true);
+        title.setPadding(dp(22), dp(5), dp(22), dp(5));
         // 标题视觉中心上移，与右侧复选框/开关中心点对齐
         title.setTranslationY(-dp(1));
         styleExtraSectionTitle(title, false);
