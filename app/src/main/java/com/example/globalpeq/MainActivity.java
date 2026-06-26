@@ -4566,7 +4566,7 @@ public final class MainActivity extends Activity {
         return label + " " + String.format(Locale.US, "%+.1f", offsetDb);
     }
 
-    private View circleButton(String text, boolean isActive, boolean isDanger) {
+    private View circleButton(boolean isDanger) {
         View button = new View(this);
         button.setFocusable(true);
         button.setClickable(true);
@@ -4577,9 +4577,6 @@ public final class MainActivity extends Activity {
         if (isDanger) {
             background.setColor(Color.argb(30, 255, 100, 100));
             background.setStroke(Math.round(dpf(1f)), Color.argb(100, 255, 100, 100));
-        } else if (isActive) {
-            background.setColor(Color.argb(40, 0, 255, 255));
-            background.setStroke(Math.round(dpf(1f)), Color.argb(150, 0, 255, 255));
         } else {
             background.setColor(Color.argb(20, 255, 255, 255));
             background.setStroke(Math.round(dpf(1f)), Color.argb(60, 255, 255, 255));
