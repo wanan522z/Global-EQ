@@ -5,7 +5,7 @@ final class AudioProcessingPolicy {
     }
 
     static boolean advancedModeEnabled(ProcessingMode mode) {
-        return mode == ProcessingMode.ADVANCED_DSP || mode == ProcessingMode.SHIZUKU_MUTE;
+        return mode == ProcessingMode.SHIZUKU_MUTE;
     }
 
     static boolean systemBassBoostAllowed(ProcessingMode mode, int bassModeIndex) {
