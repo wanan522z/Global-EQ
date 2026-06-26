@@ -15,6 +15,7 @@ import android.os.IBinder;
 public final class GlobalEqForegroundService extends Service {
     static final String ACTION_APPLY = "com.example.globalpeq.APPLY";
     static final String ACTION_BOOTSTRAP_CAPTURE = "com.example.globalpeq.BOOTSTRAP_CAPTURE";
+    static final String ACTION_PAUSE_SHIZUKU = "com.example.globalpeq.PAUSE_SHIZUKU";
     static final String EXTRA_CAPTURE_RESULT_CODE = "capture_result_code";
     static final String EXTRA_CAPTURE_DATA = "capture_result_data";
     private static final String CHANNEL_ID = "global_eq";
@@ -122,6 +123,11 @@ public final class GlobalEqForegroundService extends Service {
             scheduleCaptureBootstrap(
                     intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
                     intent.getParcelableExtra(EXTRA_CAPTURE_DATA));
+        } else if (ACTION_PAUSE_SHIZUKU.equals(action)) {
+            startForegroundInternal(captureEngine.hasProjection());
+            schedulePauseShizukuSession();
+            updateNotification();
+            return START_STICKY;
         } else {
             startForegroundInternal(captureEngine.hasProjection());
         }
@@ -285,6 +291,15 @@ public final class GlobalEqForegroundService extends Service {
         handler.post(() -> captureEngine.stopAll());
     }
 
+    private void scheduleCapturePauseForShizuku() {
+        Handler handler = captureControlHandler;
+        if (handler == null || captureEngine == null) {
+            return;
+        }
+        handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
+        handler.post(() -> captureEngine.pauseForShizukuIdle());
+    }
+
     private void scheduleShizukuStopAll() {
         Handler handler = captureControlHandler;
         if (handler == null || shizukuMuteEngine == null) {
@@ -292,6 +307,11 @@ public final class GlobalEqForegroundService extends Service {
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
         handler.post(() -> shizukuMuteEngine.stopAll());
+    }
+
+    private void schedulePauseShizukuSession() {
+        scheduleCapturePauseForShizuku();
+        scheduleShizukuStopAll();
     }
 
     private void scheduleCaptureUpdate(ProcessingMode processingMode,
