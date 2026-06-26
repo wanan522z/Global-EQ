@@ -1784,18 +1784,66 @@ public final class MainActivity extends Activity {
     }
 
     private void showModeLockedDialog(String message) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+
+        FrameLayout frame = new FrameLayout(this);
+        frame.setPadding(dp(24), dp(24), dp(24), dp(24));
+
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(18), dp(16), dp(18), dp(18));
+        shell.setBackground(createGlassCard(24));
+
+        TextView titleView = gradientTitleView("Mode locked");
+        titleView.setText("Mode locked");
+        titleView.setTextSize(18);
+        titleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        titleView.setPadding(0, 0, 0, dp(6));
+        styleGradientTitle(titleView);
+        shell.addView(titleView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
         TextView messageView = new TextView(this);
         messageView.setText(message);
         messageView.setTextSize(14);
         messageView.setTextColor(Color.rgb(200, 210, 230));
-        messageView.setPadding(dp(20), dp(12), dp(20), dp(4));
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Mode locked"))
-                .setView(messageView)
-                .setPositiveButton("OK", null)
-                .create();
+        messageView.setPadding(0, dp(6), 0, 0);
+        shell.addView(messageView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        Button okButton = new Button(this);
+        okButton.setText("OK");
+        styleAccentButton(okButton, true);
+        okButton.setOnClickListener(v -> dialog.dismiss());
+        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(36)
+        );
+        buttonParams.topMargin = dp(16);
+        buttonParams.gravity = android.view.Gravity.END;
+        shell.addView(okButton, buttonParams);
+
+        FrameLayout.LayoutParams shellParams = new FrameLayout.LayoutParams(
+                Math.min(getResources().getDisplayMetrics().widthPixels - dp(48), dp(360)),
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.CENTER
+        );
+        frame.addView(shell, shellParams);
+
+        dialog.setContentView(frame);
+        dialog.setCanceledOnTouchOutside(true);
+        android.view.Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setGravity(android.view.Gravity.CENTER);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        }
         dialog.show();
-        styleDialog(dialog);
     }
 
     private void showProcessingModeChoiceMenu(View anchor) {
