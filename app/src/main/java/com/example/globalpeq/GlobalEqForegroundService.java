@@ -19,6 +19,7 @@ public final class GlobalEqForegroundService extends Service {
     private AudioOutputDeviceMonitor deviceMonitor;
     private AudioOutputDevice currentDevice = new AudioOutputDevice("none", "Output device");
     private Preset currentPreset = Preset.flat(false);
+    private boolean awaitingInitialDeviceMonitorEvent;
 
     @Override
     public void onCreate() {
@@ -31,12 +32,23 @@ public final class GlobalEqForegroundService extends Service {
         if (selected != null) {
             currentDevice = selected;
         }
+        awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(device -> {
             repository.saveKnownDevice(device);
             if (!repository.loadAutoSwitchOutput()) {
                 return;
             }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
+            if (awaitingInitialDeviceMonitorEvent) {
+                awaitingInitialDeviceMonitorEvent = false;
+                currentDevice = device;
+                repository.saveSelectedDevice(currentDevice);
+                currentPreset = repository.loadPreset(device);
+                if (sameRoute) {
+                    updateNotification();
+                    return;
+                }
+            }
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             currentPreset = repository.loadPreset(device);
@@ -46,7 +58,7 @@ public final class GlobalEqForegroundService extends Service {
             if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset);
             } else {
-                engine.apply(effectivePreset);
+                engine.applyWithFullReset(effectivePreset);
             }
             updateNotification();
         });
@@ -55,7 +67,8 @@ public final class GlobalEqForegroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForeground(NOTIFICATION_ID, buildNotification());
-        Preset preset = applySavedPreset();
+        boolean applyNow = intent == null || !ACTION_APPLY.equals(intent.getAction());
+        Preset preset = applyNow ? applySavedPreset() : refreshSavedPresetState();
         if (!preset.enabled) {
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
@@ -76,15 +89,21 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     private Preset applySavedPreset() {
+        Preset preset = refreshSavedPresetState();
+        engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
+                currentPreset,
+                repository.loadProcessingMode(),
+                repository.loadBassBoostModeIndex()));
+        updateNotification();
+        return preset;
+    }
+
+    private Preset refreshSavedPresetState() {
         AudioOutputDevice selected = repository.loadSelectedDevice();
         currentDevice = selected == null ? deviceMonitor.currentOutputDevice() : selected;
         repository.saveSelectedDevice(currentDevice);
         Preset preset = repository.loadPreset(currentDevice);
         currentPreset = preset;
-        engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
-                currentPreset,
-                repository.loadProcessingMode(),
-                repository.loadBassBoostModeIndex()));
         updateNotification();
         return preset;
     }
