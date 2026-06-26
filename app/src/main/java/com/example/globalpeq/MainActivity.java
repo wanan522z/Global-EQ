@@ -1705,7 +1705,7 @@ public final class MainActivity extends Activity {
             pendingMonitorCaptureAuthorization = false;
             repository.saveMonitorCaptureStatus("Record-audio permission was denied.", false);
             renderAll();
-            Toast.makeText(this, "Record audio permission is required for native capture", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Record audio permission is required for native capture", "原生捕获需要录音权限"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (pendingMonitorCaptureAuthorization) {
@@ -1741,7 +1741,7 @@ public final class MainActivity extends Activity {
 
     private void handleMonitorCaptureAction() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
-            Toast.makeText(this, "Switch to Monitor DSP mode first", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Switch to Monitor DSP mode first", "请先切换到 Monitor DSP 模式"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -1749,7 +1749,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (advancedModeConfig.monitoredAppPackage == null || advancedModeConfig.monitoredAppPackage.isEmpty()) {
-            Toast.makeText(this, "Choose a monitored app first", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Choose a monitored app first", "请先选择要监听的应用"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
@@ -1767,11 +1767,11 @@ public final class MainActivity extends Activity {
         pendingMonitorCaptureAuthorization = false;
         repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
         renderAll();
-        Toast.makeText(this, "Android will now ask for playback-capture authorization", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 现在会请求回放捕获授权"), Toast.LENGTH_SHORT).show();
         android.media.projection.MediaProjectionManager manager =
                 (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (manager == null) {
-            Toast.makeText(this, "MediaProjection service unavailable", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 服务不可用"), Toast.LENGTH_SHORT).show();
             return;
         }
         startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MONITOR_CAPTURE);
