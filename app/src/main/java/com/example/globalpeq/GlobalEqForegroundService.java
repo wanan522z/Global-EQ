@@ -40,10 +40,13 @@ public final class GlobalEqForegroundService extends Service {
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             currentPreset = repository.loadPreset(device);
+            ProcessingMode processingMode = repository.loadProcessingMode();
+            int bassModeIndex = repository.loadBassBoostModeIndex();
+            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, processingMode, bassModeIndex);
             if (sameRoute) {
-                engine.reapplyForRouteChange(currentPreset);
+                engine.reapplyForRouteChange(effectivePreset);
             } else {
-                engine.apply(currentPreset);
+                engine.apply(effectivePreset);
             }
             updateNotification();
         });
@@ -78,7 +81,10 @@ public final class GlobalEqForegroundService extends Service {
         repository.saveSelectedDevice(currentDevice);
         Preset preset = repository.loadPreset(currentDevice);
         currentPreset = preset;
-        engine.apply(currentPreset);
+        engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
+                currentPreset,
+                repository.loadProcessingMode(),
+                repository.loadBassBoostModeIndex()));
         updateNotification();
         return preset;
     }
