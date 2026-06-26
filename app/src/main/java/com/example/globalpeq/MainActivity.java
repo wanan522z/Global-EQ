@@ -357,7 +357,6 @@ public final class MainActivity extends Activity {
     private boolean virtualBassEnabledState;
     private int activeMainPageIndex;
     private int selectedBassModeIndex;
-    private int lastVirtualBassAmountPercent = 25;
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
     private boolean pendingEnabledUiRefresh;
@@ -3031,24 +3030,7 @@ public final class MainActivity extends Activity {
             return;
         }
         virtualBassEnabledState = isChecked;
-        if (!isChecked) {
-            if (editingPreset.virtualBassAmountPercent > 0) {
-                lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
-            }
-            setEditingPreset(editingPreset.withVirtualBassAmountPercent(0), true);
-            return;
-        }
-        int restoreAmount = editingPreset.virtualBassAmountPercent > 0
-                ? editingPreset.virtualBassAmountPercent
-                : lastVirtualBassAmountPercent;
-        if (restoreAmount <= 0) {
-            virtualBassEnabledState = false;
-            updatingUi = true;
-            buttonView.setChecked(false);
-            updatingUi = false;
-            return;
-        }
-        setEditingPreset(editingPreset.withVirtualBassAmountPercent(restoreAmount), true);
+        setEditingPreset(editingPreset.withVirtualBassEnabled(isChecked), true);
     }
 
     private void syncVirtualBassEnabledFromPreset() {
@@ -3056,10 +3038,7 @@ public final class MainActivity extends Activity {
             virtualBassEnabledState = false;
             return;
         }
-        virtualBassEnabledState = editingPreset.virtualBassAmountPercent > 0;
-        if (editingPreset.virtualBassAmountPercent > 0) {
-            lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
-        }
+        virtualBassEnabledState = editingPreset.virtualBassEnabled;
     }
 
     private void applyRunningPreset() {
@@ -3434,9 +3413,6 @@ public final class MainActivity extends Activity {
             bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
         }
         boolean virtualBassEnabled = supported && virtualBassEnabledState;
-        if (editingPreset.virtualBassAmountPercent > 0) {
-            lastVirtualBassAmountPercent = editingPreset.virtualBassAmountPercent;
-        }
         if (virtualBassSwitch != null) {
             updatingUi = true;
             virtualBassSwitch.setChecked(virtualBassEnabled);
@@ -3805,10 +3781,8 @@ public final class MainActivity extends Activity {
             knob.configure(60, 250, editingPreset.virtualBassCutoffHz, "Hz", value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
         } else {
             amountKnob = knob;
-            knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value -> {
-                lastVirtualBassAmountPercent = value;
-                setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true);
-            });
+            knob.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", value ->
+                    setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
         }
         // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
