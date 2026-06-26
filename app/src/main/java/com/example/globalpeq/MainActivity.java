@@ -5926,22 +5926,22 @@ public final class MainActivity extends Activity {
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
         LinearLayout bassHeader = createExtraHeaderRow("Bass Boost");
-        bassBoostTitleView = (TextView) bassHeader.getChildAt(0);
+        bassEnhanceTitleView = (TextView) bassHeader.getChildAt(0);
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
         // UI 占位选择框，system/dsp 切换功能后续接入
         bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         bassPanel.addView(bassHeader, blockParams(4));
-        bassBoostSlider = new HorizontalBassSlider(this);
-        bassBoostSlider.configure(0, 100, editingPreset.systemBassBoostPercent, "%", "Boost",
-                value -> setEditingPreset(editingPreset.withSystemBassBoostPercent(value), true));
+        bassEnhanceSlider = new HorizontalBassSlider(this);
+        bassEnhanceSlider.configure(0, 100, editingPreset.bassEnhanceAmountPercent, "%", "Boost",
+                value -> setEditingPreset(editingPreset.withBassEnhanceAmountPercent(value), true));
         LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1f
         );
         sliderParams.topMargin = dp(8);
-        bassPanel.addView(bassBoostSlider, sliderParams);
+        bassPanel.addView(bassEnhanceSlider, sliderParams);
 
         dspBassCutoffInput = createDeferredIntegerInput(
                 String.valueOf(editingPreset.dspBassCutoffHz),
