@@ -39,7 +39,7 @@ final class Preset {
         this.enabled = enabled;
         this.virtualBassEnabled = virtualBassEnabled;
         this.pregainMb = clamp(pregainMb, -2400, 1200);
-        this.dspBassCutoffHz = clamp(dspBassCutoffHz, 45, 220);
+        this.dspBassCutoffHz = clamp(dspBassCutoffHz, 20, 250);
         this.virtualBassCutoffHz = clamp(virtualBassCutoffHz, 60, 250);
         this.virtualBassAmountPercent = clamp(virtualBassAmountPercent, 0, 100);
         this.systemBassBoostPercent = clamp(systemBassBoostPercent, 0, 100);
