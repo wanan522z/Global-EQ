@@ -5678,7 +5678,7 @@ public final class MainActivity extends Activity {
             return;
         }
         Boolean previous = titleActiveStates.get(view);
-        if (previous != null && previous == active) {
+        if (active && previous != null && previous) {
             return;
         }
         titleActiveStates.put(view, active);
@@ -5688,6 +5688,7 @@ public final class MainActivity extends Activity {
         } else {
             bumpTextStyleVersion(view);
             unregisterShimmerView(view);
+            view.getPaint().setShader(null);
             view.setTextColor(Color.rgb(150, 165, 185));
             clearGlowFromTextView(view);
             view.invalidate();
