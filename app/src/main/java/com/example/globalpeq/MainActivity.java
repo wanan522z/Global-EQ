@@ -7804,14 +7804,15 @@ public final class MainActivity extends Activity {
             }
             // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后 alpha），图标本体由上层锐利覆盖。
             // 对 alpha 做 gamma 校正（幂次 < 1）：方形图标的角部 alpha 衰减比边线快，
-            // gamma 提升可把偏暗的角部光晕拉亮，使整圈光晕均匀饱满、不露十字形。
+            // gamma 提升把偏暗的角部光晕拉亮，使整圈光晕均匀饱满、不露十字形。
+            // 角部衰减最严重，用更强的 gamma（0.45）把暗角充分提亮至接近边线亮度。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
             for (int i = 0; i < alpha.length; i++) {
                 float nf = alpha[i] / 255f;
-                int boosted = (int) (Math.pow(nf, 0.62f) * 255f + 0.5f);
+                int boosted = (int) (Math.pow(nf, 0.45f) * 255f + 0.5f);
                 if (boosted > 255) boosted = 255;
                 int a = (boosted * ga) / 255;
                 px[i] = (a << 24) | (r << 16) | (g << 8) | bl;
