@@ -8073,29 +8073,29 @@ public final class MainActivity extends Activity {
             }
 
             int inset = monitoredAppIconGlowInsetPx();
-            float bloomInset = inset * 0.18f;
+            float bloomInset = inset * 0.06f;
             glowRect.set(b.left + bloomInset, b.top + bloomInset, b.right - bloomInset, b.bottom - bloomInset);
             coreRect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
 
-            float coreRadius = Math.min(coreRect.width(), coreRect.height()) * 0.34f;
-            float glowRadius = Math.min(glowRect.width(), glowRect.height()) * 0.5f;
-            float cx = glowRect.centerX();
-            float cy = glowRect.centerY();
+            float coreRadius = Math.min(coreRect.width(), coreRect.height()) * 0.30f;
+            float outerRadius = coreRadius + inset * 1.25f;
+            float midRadius = coreRadius + inset * 0.82f;
+            float innerRadius = coreRadius + inset * 0.45f;
 
-            int outerColor = withMonitoredAppGlowAlpha(glowColor, 0.20f * drawableAlpha / 255f);
-            int midColor = withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.10f, 1.16f), 0.38f * drawableAlpha / 255f);
-            int innerColor = withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.94f, 1.08f), 0.72f * drawableAlpha / 255f);
-            bloomPaint.setShader(new RadialGradient(
-                    cx,
-                    cy,
-                    glowRadius,
-                    new int[]{innerColor, midColor, outerColor, Color.TRANSPARENT},
-                    new float[]{0f, 0.42f, 0.76f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawRoundRect(glowRect, coreRadius + inset * 0.9f, coreRadius + inset * 0.9f, bloomPaint);
+            bloomPaint.setShader(null);
+            bloomPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.06f, 1.18f), 0.16f * drawableAlpha / 255f));
+            canvas.drawRoundRect(glowRect, outerRadius, outerRadius, bloomPaint);
+
+            glowRect.inset(inset * 0.34f, inset * 0.34f);
+            bloomPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.02f, 1.12f), 0.26f * drawableAlpha / 255f));
+            canvas.drawRoundRect(glowRect, midRadius, midRadius, bloomPaint);
+
+            glowRect.inset(inset * 0.24f, inset * 0.24f);
+            bloomPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.96f, 1.06f), 0.34f * drawableAlpha / 255f));
+            canvas.drawRoundRect(glowRect, innerRadius, innerRadius, bloomPaint);
 
             fillPaint.setShader(null);
-            fillPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.28f, 1.10f), 0.16f * drawableAlpha / 255f));
+            fillPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.30f, 1.08f), 0.10f * drawableAlpha / 255f));
             canvas.drawRoundRect(coreRect, coreRadius, coreRadius, fillPaint);
 
             ringPaint.setShader(new LinearGradient(
@@ -8127,11 +8127,11 @@ public final class MainActivity extends Activity {
     }
 
     private int monitoredAppIconVisualSizePx() {
-        return dp(36);
+        return dp(24);
     }
 
     private int monitoredAppIconGlowInsetPx() {
-        return dp(8);
+        return dp(6);
     }
 
     private int monitoredAppIconHostSizePx() {
