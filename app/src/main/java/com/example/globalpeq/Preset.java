@@ -148,7 +148,7 @@ final class Preset {
                 next[j++] = bands[i];
             }
         }
-        return copy(name, mode, enabled, virtualBassEnabled, pregainMb, virtualBassCutoffHz, virtualBassAmountPercent, systemBassBoostPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, next, geqGainsMb.clone());
+        return copy(name, mode, enabled, virtualBassEnabled, pregainMb, dspBassCutoffHz, virtualBassCutoffHz, virtualBassAmountPercent, systemBassBoostPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, next, geqGainsMb.clone());
     }
 
     String toJson() {
