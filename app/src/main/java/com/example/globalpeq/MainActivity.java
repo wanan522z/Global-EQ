@@ -5713,16 +5713,16 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean bassEnhanceEnabled = supported && selectedBassModeIndex > 0;
-        boolean dspBassMode = AudioProcessingPolicy.dspBassAllowed(processingMode, selectedBassModeIndex);
+        boolean virtualBassEnabled = supported && selectedBassModeIndex > 0;
+        boolean dspVirtualBassMode = AudioProcessingPolicy.dspVirtualBassAllowed(processingMode, selectedBassModeIndex);
         boolean extraBassEnabled = supported && extraBassEnabledState;
         boolean reverbAllowed = supported && AudioProcessingPolicy.reverbAllowed(processingMode);
         boolean reverbEnabled = reverbAllowed && !"Default".equals(editingPreset.reverbType);
-        if (bassEnhanceSlider != null) {
-            bassEnhanceSlider.setValue(editingPreset.bassEnhanceAmountPercent, false);
-            bassEnhanceSlider.setLabel(dspBassMode ? "Amount" : "Boost");
-            bassEnhanceSlider.setEnabled(bassEnhanceEnabled);
-            bassEnhanceSlider.setAlpha(bassEnhanceEnabled ? 1f : 0.55f);
+        if (virtualBassSlider != null) {
+            virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
+            virtualBassSlider.setLabel(dspVirtualBassMode ? "Amount" : "Boost");
+            virtualBassSlider.setEnabled(virtualBassEnabled);
+            virtualBassSlider.setAlpha(virtualBassEnabled ? 1f : 0.55f);
         }
         if (extraBassSwitch != null) {
             updatingUi = true;
@@ -5739,24 +5739,24 @@ public final class MainActivity extends Activity {
             reverbTypeButton.setAlpha(reverbAllowed ? 1f : 0.5f);
         }
         if (bassModeButton != null) {
-            bassModeButton.setText(bassEnhanceModeDisplayLabel(BASS_ENHANCE_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_ENHANCE_MODE_LABELS.length - 1)]));
+            bassModeButton.setText(virtualBassModeDisplayLabel(VIRTUAL_BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, VIRTUAL_BASS_MODE_LABELS.length - 1)]));
             bassModeButton.setAlpha(1f);
         }
         if (dspBassCutoffInput != null) {
-            dspBassCutoffInput.setHint(dspBassMode ? "Cutoff Hz" : "Boost");
-            dspBassCutoffInput.setVisibility(dspBassMode ? View.VISIBLE : View.GONE);
-            dspBassCutoffInput.setEnabled(bassEnhanceEnabled && dspBassMode);
-            String cutoffText = String.valueOf(editingPreset.dspBassCutoffHz);
+            dspBassCutoffInput.setHint(dspVirtualBassMode ? "Cutoff Hz" : "Boost");
+            dspBassCutoffInput.setVisibility(dspVirtualBassMode ? View.VISIBLE : View.GONE);
+            dspBassCutoffInput.setEnabled(virtualBassEnabled && dspVirtualBassMode);
+            String cutoffText = String.valueOf(editingPreset.virtualBassCutoffHz);
             if (!dspBassCutoffInput.hasFocus() && !cutoffText.contentEquals(dspBassCutoffInput.getText())) {
                 updatingUi = true;
                 dspBassCutoffInput.setText(cutoffText);
-                dspBassCutoffInput.setTag(editingPreset.dspBassCutoffHz);
+                dspBassCutoffInput.setTag(editingPreset.virtualBassCutoffHz);
                 updatingUi = false;
             }
-            dspBassCutoffInput.setAlpha(dspBassMode ? 1f : 0.55f);
+            dspBassCutoffInput.setAlpha(dspVirtualBassMode ? 1f : 0.55f);
         }
         syncExtraSectionTitleVisual(reverbTitleView);
-        syncExtraSectionTitleVisual(bassEnhanceTitleView);
+        syncExtraSectionTitleVisual(virtualBassTitleView);
         syncExtraSectionTitleVisual(extraBassTitleView);
         updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
