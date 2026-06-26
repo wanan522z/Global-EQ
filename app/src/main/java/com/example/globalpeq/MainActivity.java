@@ -1244,6 +1244,17 @@ public final class MainActivity extends Activity {
         detail.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(detail, blockParams(2));
 
+        monitorCaptureButton = createExtraChoiceButton();
+        monitorCaptureButton.setText(monitorCaptureButtonText());
+        monitorCaptureButton.setOnClickListener(v -> handleMonitorCaptureAction());
+        panel.addView(labeledSettingsRow("Native capture", monitorCaptureButton), blockParams(12));
+
+        monitorCaptureStatusView = new TextView(this);
+        monitorCaptureStatusView.setText(monitorCaptureStatusText());
+        monitorCaptureStatusView.setTextSize(12);
+        monitorCaptureStatusView.setTextColor(Color.rgb(180, 190, 210));
+        panel.addView(monitorCaptureStatusView, blockParams(4));
+
         advancedMonitorAppButton = createExtraChoiceButton();
         advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? "Choose app"
