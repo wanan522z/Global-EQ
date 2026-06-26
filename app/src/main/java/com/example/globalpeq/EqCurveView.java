@@ -34,8 +34,11 @@ final class EqCurveView extends View {
 
     // Dynamic sweeping light and advanced halo paints
     private final Paint glowPaint0 = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint glowPaint0b = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint1 = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint glowPaint1b = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint2 = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint glowPaint2b = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint3 = new Paint(Paint.ANTI_ALIAS_FLAG); // Inner solid halo core
     private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint edgePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -92,6 +95,15 @@ final class EqCurveView extends View {
         glowPaint0.setFilterBitmap(true);
         glowPaint0.setDither(true);
 
+        glowPaint0b.setStyle(Paint.Style.STROKE);
+        glowPaint0b.setStrokeCap(Paint.Cap.ROUND);
+        glowPaint0b.setStrokeJoin(Paint.Join.ROUND);
+        glowPaint0b.setStrokeWidth(24f);
+        glowPaint0b.setColor(Color.argb(20, 150, 212, 255));
+        glowPaint0b.setAntiAlias(true);
+        glowPaint0b.setFilterBitmap(true);
+        glowPaint0b.setDither(true);
+
         // 1. Outer haze: still broad, but slightly more visible.
         glowPaint1.setStyle(Paint.Style.STROKE);
         glowPaint1.setStrokeCap(Paint.Cap.ROUND);
@@ -102,6 +114,15 @@ final class EqCurveView extends View {
         glowPaint1.setFilterBitmap(true);
         glowPaint1.setDither(true);
 
+        glowPaint1b.setStyle(Paint.Style.STROKE);
+        glowPaint1b.setStrokeCap(Paint.Cap.ROUND);
+        glowPaint1b.setStrokeJoin(Paint.Join.ROUND);
+        glowPaint1b.setStrokeWidth(16.5f);
+        glowPaint1b.setColor(Color.argb(27, 142, 218, 255));
+        glowPaint1b.setAntiAlias(true);
+        glowPaint1b.setFilterBitmap(true);
+        glowPaint1b.setDither(true);
+
         // 2. Mid haze: connects the bloom to the curve body without becoming a hard neon edge.
         glowPaint2.setStyle(Paint.Style.STROKE);
         glowPaint2.setStrokeCap(Paint.Cap.ROUND);
@@ -111,6 +132,15 @@ final class EqCurveView extends View {
         glowPaint2.setAntiAlias(true);
         glowPaint2.setFilterBitmap(true);
         glowPaint2.setDither(true);
+
+        glowPaint2b.setStyle(Paint.Style.STROKE);
+        glowPaint2b.setStrokeCap(Paint.Cap.ROUND);
+        glowPaint2b.setStrokeJoin(Paint.Join.ROUND);
+        glowPaint2b.setStrokeWidth(10.5f);
+        glowPaint2b.setColor(Color.argb(33, 168, 224, 255));
+        glowPaint2b.setAntiAlias(true);
+        glowPaint2b.setFilterBitmap(true);
+        glowPaint2b.setDither(true);
 
         // 3. Near haze: a restrained inner bloom, intentionally not too bright.
         glowPaint3.setStyle(Paint.Style.STROKE);
@@ -308,8 +338,11 @@ final class EqCurveView extends View {
             lastTime = now;
 
             canvas.drawPath(curvePath, glowPaint0);
+            canvas.drawPath(curvePath, glowPaint0b);
             canvas.drawPath(curvePath, glowPaint1);
+            canvas.drawPath(curvePath, glowPaint1b);
             canvas.drawPath(curvePath, glowPaint2);
+            canvas.drawPath(curvePath, glowPaint2b);
             canvas.drawPath(curvePath, glowPaint3);
 
             if (sweepGradient == null) {
