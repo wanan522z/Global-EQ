@@ -94,7 +94,6 @@ public final class GlobalEqForegroundService extends Service {
                 currentPreset,
                 repository.loadProcessingMode(),
                 repository.loadBassBoostModeIndex()));
-        updateNotification();
         return preset;
     }
 
