@@ -76,6 +76,8 @@ public final class MainActivity extends Activity {
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
     private static final long ENABLE_NEON_CURVE_DELAY_MS = 220L;
+    private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 320L;
+    private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 200L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
@@ -304,6 +306,7 @@ public final class MainActivity extends Activity {
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
+    private final Runnable enablePeqBandStepRunnable = this::activateNextPeqBandVisual;
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
@@ -336,6 +339,9 @@ public final class MainActivity extends Activity {
     private boolean pendingEnabledUiRefresh;
     private boolean modeVisualEnabled = true;
     private boolean curveVisualEnabled = true;
+    private boolean[] peqBandVisualEnabled = new boolean[0];
+    private boolean peqVisualSequenceRunning;
+    private int pendingPeqVisualIndex;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
