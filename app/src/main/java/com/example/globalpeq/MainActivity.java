@@ -3684,7 +3684,7 @@ public final class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        TextView title = new ExtraSectionTitleTextView(this);
+        TextView title = new GlowTitleTextView(this);
         if (title instanceof GlowTitleTextView) {
             ((GlowTitleTextView) title).setAutoRegisterShimmer(false);
         }
