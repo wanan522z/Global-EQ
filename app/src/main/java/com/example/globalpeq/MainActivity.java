@@ -6246,7 +6246,6 @@ public final class MainActivity extends Activity {
             }
         }
         currentShimmerPhaseForView(view);
-        shimmerPhaseFreezeUntil.put(view, System.currentTimeMillis() + SHIMMER_ACTIVATION_FREEZE_MS);
         shimmerTargetViews.add(view);
         shimmerLastWidth.remove(view);
         if (shimmerTargetViews.size() == 1) {
@@ -6261,10 +6260,9 @@ public final class MainActivity extends Activity {
         }
         shimmerTargetViews.remove(view);
         shimmerLastWidth.remove(view);
-        shimmerPhaseFreezeUntil.remove(view);
-        view.getPaint().setShader(null);
-        clearGlowFromTextView(view);
-        view.invalidate();
+        if (!(view == statusText || view == modeSpinner || isExtraSectionTitle(view))) {
+            clearAnimatedTextStyle(view);
+        }
         if (shimmerTargetViews.isEmpty()) {
             uiHandler.removeCallbacks(shimmerAnimationRunnable);
         }
@@ -6276,9 +6274,9 @@ public final class MainActivity extends Activity {
         }
         unregisterShimmerView(view);
         shimmerViewPhases.remove(view);
-        shimmerPhaseFreezeUntil.remove(view);
         textStyleVersion.remove(view);
         titleVisualStates.remove(view);
+        clearAnimatedTextStyle(view);
     }
 
     private int bumpTextStyleVersion(TextView view) {
