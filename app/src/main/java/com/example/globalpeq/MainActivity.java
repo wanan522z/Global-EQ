@@ -1480,11 +1480,15 @@ public final class MainActivity extends Activity {
         boolean visible = processingMode == ProcessingMode.ADVANCED_DSP
                 && advancedModeConfig.monitoredAppPackage != null
                 && !advancedModeConfig.monitoredAppPackage.isEmpty();
-        monitoredAppIconView.setVisibility(visible ? View.VISIBLE : View.GONE);
-        if (visible) {
-            monitoredAppIconView.setImageDrawable(loadMonitoredAppDrawable());
-            monitoredAppIconView.setAlpha(1f);
+        Drawable icon = visible ? loadMonitoredAppDrawable() : null;
+        if (!visible || icon == null) {
+            monitoredAppIconView.setImageDrawable(null);
+            monitoredAppIconView.setVisibility(View.GONE);
+            return;
         }
+        monitoredAppIconView.setImageDrawable(icon);
+        monitoredAppIconView.setAlpha(1f);
+        monitoredAppIconView.setVisibility(View.VISIBLE);
     }
 
     private Drawable loadMonitoredAppDrawable() {
@@ -1527,7 +1531,8 @@ public final class MainActivity extends Activity {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         }
         if (processingModeButton != null) {
-            processingModeButton.setText(processingMode.label);
+            processingModeButton.setText(processingModeTitleText());
+            styleGradientTitle(processingModeButton);
         }
         if (advancedModeDetailButton != null) {
             advancedModeDetailButton.setVisibility(processingMode == ProcessingMode.ADVANCED_DSP ? View.VISIBLE : View.GONE);
