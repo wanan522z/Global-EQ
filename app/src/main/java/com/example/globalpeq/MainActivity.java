@@ -2309,10 +2309,7 @@ public final class MainActivity extends Activity {
     }
 
     private void setBandFromEqOverlay(int index, ParametricBand band) {
-        if (editingPreset == null || index < 0 || index >= editingPreset.bands.length) {
-            return;
-        }
-        setEditingPreset(editingPreset.withBand(index, band), true);
+        updateBand(index, band);
     }
 
     private void hideEqEditOverlay() {
