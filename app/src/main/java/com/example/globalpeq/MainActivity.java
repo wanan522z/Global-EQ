@@ -437,6 +437,10 @@ public final class MainActivity extends Activity {
         processingMode = repository.loadProcessingMode();
         advancedModeConfig = repository.loadAdvancedModeConfig();
         selectedBassModeIndex = repository.loadBassBoostModeIndex();
+        if (processingMode == ProcessingMode.SYSTEM_EQ && selectedBassModeIndex != 0) {
+            selectedBassModeIndex = 0;
+            repository.saveBassBoostModeIndex(0);
+        }
         selectedDeviceCurveName = repository.loadSelectedDeviceCurveName();
         selectedTargetCurveName = repository.loadSelectedTargetCurveName();
         deviceCurveGainOffsetDb = repository.loadDeviceCurveGainOffsetDb();
