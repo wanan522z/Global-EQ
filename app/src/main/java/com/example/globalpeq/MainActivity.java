@@ -76,6 +76,7 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_IMPORT_TARGET_CURVE = 4102;
     private static final int REQUEST_MONITOR_CAPTURE = 4103;
     private static final int REQUEST_MONITOR_AUDIO_PERMISSION = 4104;
+    private static final int REQUEST_SHIZUKU_PERMISSION = 4105;
     private static final int EQ_EDIT_FIELD_FREQ = 0;
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
@@ -142,6 +143,8 @@ public final class MainActivity extends Activity {
     private TextView advancedMonitorAppButton;
     private TextView monitorCaptureButton;
     private TextView monitorCaptureStatusView;
+    private TextView shizukuAccessButton;
+    private TextView shizukuAccessStatusView;
     private TextView advancedModeSummaryView;
     private TextView languageLabelView;
     private TextView languageButton;
@@ -152,6 +155,7 @@ public final class MainActivity extends Activity {
     private TextView monitorSettingsTitleView;
     private TextView monitorSettingsDetailView;
     private TextView monitorCaptureLabelView;
+    private TextView shizukuAccessLabelView;
     private TextView monitoredAppLabelView;
     private TextView latencyLabelView;
     private TextView bufferLabelView;
