@@ -8080,15 +8080,16 @@ public final class MainActivity extends Activity {
 
             float coreRadius = Math.min(coreRect.width(), coreRect.height()) * 0.30f;
             bloomPaint.setShader(null);
-            int glowLayers = 6;
-            float maxInset = inset * 0.62f;
+            int glowLayers = 8;
+            float maxInset = inset * 0.70f;
             for (int layer = 0; layer < glowLayers; layer++) {
                 float t = glowLayers <= 1 ? 1f : layer / (float) (glowLayers - 1);
+                float eased = 1f - t;
                 float layerInset = maxInset * t;
-                float layerRadius = coreRadius + inset * (1.18f - 0.62f * t);
-                float saturationScale = 1.04f - 0.10f * t;
-                float valueScale = 1.12f - 0.08f * t;
-                float alpha = (0.028f + 0.035f * (1f - t) * (1f - t)) * drawableAlpha / 255f;
+                float layerRadius = coreRadius + inset * (1.08f - 0.48f * t);
+                float saturationScale = 1.02f - 0.08f * t;
+                float valueScale = 1.08f - 0.07f * t;
+                float alpha = (0.010f + 0.030f * eased) * drawableAlpha / 255f;
                 bloomPaint.setColor(withMonitoredAppGlowAlpha(
                         shiftMonitoredAppGlowColor(glowColor, saturationScale, valueScale),
                         alpha));
@@ -8103,7 +8104,7 @@ public final class MainActivity extends Activity {
             }
 
             fillPaint.setShader(null);
-            fillPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.22f, 1.04f), 0.022f * drawableAlpha / 255f));
+            fillPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.20f, 1.03f), 0.012f * drawableAlpha / 255f));
             canvas.drawRoundRect(coreRect, coreRadius, coreRadius, fillPaint);
 
             ringPaint.setShader(new LinearGradient(
@@ -8111,10 +8112,10 @@ public final class MainActivity extends Activity {
                     coreRect.top,
                     coreRect.right,
                     coreRect.bottom,
-                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.06f, 1.12f), 0.14f * drawableAlpha / 255f),
-                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.92f, 1.00f), 0.055f * drawableAlpha / 255f),
+                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.04f, 1.10f), 0.08f * drawableAlpha / 255f),
+                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.94f, 1.00f), 0.028f * drawableAlpha / 255f),
                     Shader.TileMode.CLAMP));
-            ringPaint.setStrokeWidth(dpf(0.9f));
+            ringPaint.setStrokeWidth(dpf(0.8f));
             canvas.drawRoundRect(coreRect, coreRadius, coreRadius, ringPaint);
         }
 
