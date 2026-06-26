@@ -7588,7 +7588,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            if (view instanceof GlowTitleTextView || view instanceof GlowShimmerButton) {
+            if (view instanceof GlowTitleTextView) {
                 if (view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
                     view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
                 }
@@ -7607,7 +7607,7 @@ public final class MainActivity extends Activity {
         bumpTextStyleVersion(view);
         unregisterShimmerView(view);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                && (view instanceof GlowTitleTextView || view instanceof GlowShimmerButton)
+                && (view instanceof GlowTitleTextView)
                 && view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
@@ -7711,20 +7711,12 @@ public final class MainActivity extends Activity {
             view.getPaint().clearShadowLayer();
             return;
         }
-        if (view instanceof GlowShimmerButton) {
-            ((GlowShimmerButton) view).setGlowState(true, glowColor, dpf(glowRadiusDp));
-            view.getPaint().clearShadowLayer();
-            return;
-        }
         view.getPaint().setShadowLayer(dpf(glowRadiusDp), 0, 0, glowColor);
     }
 
     private void clearGlowFromTextView(TextView view) {
         if (view instanceof GlowTitleTextView) {
             ((GlowTitleTextView) view).clearGlowState();
-        }
-        if (view instanceof GlowShimmerButton) {
-            ((GlowShimmerButton) view).clearGlowState();
         }
         view.getPaint().clearShadowLayer();
     }
@@ -7745,7 +7737,7 @@ public final class MainActivity extends Activity {
         final int styleVersion = bumpTextStyleVersion(view);
         // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
         // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
-        boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
+        boolean usesCustomGlow = view instanceof GlowTitleTextView;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             if (usesCustomGlow) {
                 // Inactive bottom tabs drop back to a hardware layer. Restore software
@@ -7793,12 +7785,11 @@ public final class MainActivity extends Activity {
         applyAnimatedStatusShimmerShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view), baseColorStart, baseColorEnd);
         view.setTextColor(Color.WHITE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                && !(view instanceof GlowTitleTextView)
-                && !(view instanceof GlowShimmerButton)) {
+                && !(view instanceof GlowTitleTextView)) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
         view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
-        if (view instanceof GlowTitleTextView || view instanceof GlowShimmerButton) {
+        if (view instanceof GlowTitleTextView) {
             applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
         }
         view.invalidate();
