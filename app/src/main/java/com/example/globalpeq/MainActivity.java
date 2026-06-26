@@ -74,6 +74,7 @@ public final class MainActivity extends Activity {
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
     private static final int GEQ_COMMIT_DELAY_MS = 160;
+    private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
@@ -323,7 +324,9 @@ public final class MainActivity extends Activity {
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
     private Preset pendingGeqHistorySnapshot;
+    private Preset pendingPeqToggleHistorySnapshot;
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
+    private final Runnable commitPeqToggleRunnable = this::commitPendingPeqToggle;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
@@ -366,6 +369,14 @@ public final class MainActivity extends Activity {
     private boolean[] peqBandVisualEnabled = new boolean[0];
     private boolean peqVisualSequenceRunning;
     private int pendingPeqVisualIndex;
+
+    private static final class PeqBandRowHolder {
+        View enable;
+        TextView type;
+        EditText frequency;
+        EditText gain;
+        EditText q;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
