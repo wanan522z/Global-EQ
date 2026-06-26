@@ -61,7 +61,11 @@ public final class GlobalEqForegroundService extends Service {
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
         captureEngine = new PlaybackCaptureEngine(this, repository, this::updateNotification);
-        shizukuMuteEngine = new ShizukuSessionMuteEngine(this, repository, this::updateNotification);
+        shizukuMuteEngine = new ShizukuSessionMuteEngine(
+                this,
+                repository,
+                this::updateNotification,
+                () -> captureEngine == null ? java.util.Collections.emptySet() : captureEngine.getOwnedAudioSessionIds());
         captureControlThread = new HandlerThread("global-peq-capture-control");
         captureControlThread.start();
         captureControlHandler = new Handler(captureControlThread.getLooper());
