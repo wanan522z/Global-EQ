@@ -3299,7 +3299,7 @@ public final class MainActivity extends Activity {
         }
         showLimitedChoiceMenu(bassModeButton, virtualBassModeDisplayLabels(), selectedBassModeIndex, position -> {
             int nextIndex = clamp(position, 0, VIRTUAL_BASS_MODE_LABELS.length - 1);
-            if (!AudioProcessingPolicy.bassModeAllowed(processingMode, nextIndex)) {
+            if (!AudioProcessingPolicy.virtualBassModeAllowed(processingMode, nextIndex)) {
                 showModeLockedDialog("DSP bass requires Shizuku Mode.");
                 return;
             }
