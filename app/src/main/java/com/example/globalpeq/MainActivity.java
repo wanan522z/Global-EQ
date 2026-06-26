@@ -1048,7 +1048,7 @@ public final class MainActivity extends Activity {
         statusLabel.setTextColor(Color.rgb(200, 210, 230));
         statusRow.addView(statusLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView statusVal = new TextView(this) {
+        engineStatusValueView = new TextView(this) {
             @Override
             protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
@@ -1065,12 +1065,44 @@ public final class MainActivity extends Activity {
                 }
             }
         };
-        statusVal.setText(supported ? "ACTIVE" : "UNSUPPORTED");
-        statusVal.setTextSize(14);
-        statusVal.setTextColor(supported ? Color.rgb(0, 255, 255) : Color.rgb(255, 100, 100));
-        statusVal.postInvalidate();
-        statusVal.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        statusRow.addView(statusVal, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        engineStatusValueView.setText(engineStatusText());
+        engineStatusValueView.setTextSize(14);
+        engineStatusValueView.setTextColor(supported ? Color.rgb(0, 255, 255) : Color.rgb(255, 100, 100));
+        engineStatusValueView.postInvalidate();
+        engineStatusValueView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        statusRow.addView(engineStatusValueView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout modeRow = new LinearLayout(this);
+        modeRow.setOrientation(LinearLayout.HORIZONTAL);
+        modeRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        panel.addView(modeRow, blockParams(4));
+
+        TextView modeLabel = new TextView(this);
+        modeLabel.setText("Processing mode");
+        modeLabel.setTextSize(14);
+        modeLabel.setTextColor(Color.rgb(200, 210, 230));
+        modeRow.addView(modeLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        processingModeButton = createExtraChoiceButton();
+        processingModeButton.setText(processingMode.label);
+        processingModeButton.setOnClickListener(v -> showLimitedChoiceMenu(processingModeButton, ProcessingMode.labels(), processingMode.ordinal(), position -> {
+            ProcessingMode nextMode = ProcessingMode.values()[clamp(position, 0, ProcessingMode.values().length - 1)];
+            if (processingMode != nextMode) {
+                setProcessingMode(nextMode);
+            }
+        }));
+        modeRow.addView(processingModeButton, new LinearLayout.LayoutParams(dp(152), dp(30)));
+
+        advancedModeDetailButton = createExtraChoiceButton();
+        advancedModeDetailButton.setText("Monitor DSP Settings");
+        advancedModeDetailButton.setOnClickListener(v -> showAdvancedSettingsSubpage());
+        panel.addView(advancedModeDetailButton, blockParams(12));
+
+        advancedModeSummaryView = new TextView(this);
+        advancedModeSummaryView.setText(advancedModeSummaryText());
+        advancedModeSummaryView.setTextSize(12);
+        advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
+        panel.addView(advancedModeSummaryView, blockParams(4));
 
         LinearLayout aboutPanel = new LinearLayout(this);
         aboutPanel.setOrientation(LinearLayout.VERTICAL);
