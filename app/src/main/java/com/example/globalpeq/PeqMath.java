@@ -131,7 +131,7 @@ final class PeqMath {
     }
 
     private static int virtualBassGainAtHzMb(double frequencyHz, Preset preset) {
-        if (frequencyHz <= 0 || preset == null || preset.virtualBassAmountPercent <= 0) {
+        if (frequencyHz <= 0 || preset == null || !preset.virtualBassEnabled || preset.virtualBassAmountPercent <= 0) {
             return 0;
         }
 
