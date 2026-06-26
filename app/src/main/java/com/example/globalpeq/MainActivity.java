@@ -984,7 +984,10 @@ public final class MainActivity extends Activity {
         aboutTitle.setTextSize(18);
         aboutTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(aboutTitle);
-        aboutPanel.addView(aboutTitle, blockParams(0));
+        LinearLayout.LayoutParams aboutTitleParams = blockParams(0);
+        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都从 panel 内容区左边开始）。
+        aboutTitleParams.leftMargin = -dp(22);
+        aboutPanel.addView(aboutTitle, aboutTitleParams);
 
         TextView aboutText = new TextView(this);
         aboutText.setText("Global PEQ is a low-latency, audiophile-grade Parametric Equalizer running natively on Android's high-performance audio routing engine. Enjoy tailored, professional equalization for all your playback devices.");
