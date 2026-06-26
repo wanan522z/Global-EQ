@@ -6358,22 +6358,17 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < tabs.length; i++) {
             Button tab = tabs[i];
             boolean active = (i == activeIndex);
-            tab.setBackground(plainRoundRectDrawable(Color.TRANSPARENT, Color.TRANSPARENT, dp(12)));
+            tab.setBackgroundColor(Color.TRANSPARENT);
             if (active) {
                 unregisterShimmerView(tab);
-                // 先用当前宽度（可能为0）设置初始 shader
-                styleSettingsTitleText(tab);
-                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
-                // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
-                // hotCore 白热核心已作视觉焦点。
+                styleActiveBottomTabText(tab);
                 tab.invalidate();
                 registerShimmerView(tab);
-                // 布局完成后重新应用正确宽度的 shader（解决 weight 布局下 getWidth()==0 的问题）
                 final Button tabRef = tab;
                 tab.post(() -> {
                     int w = tabRef.getWidth();
                     if (w > 0) {
-                        styleSettingsTitleText(tabRef);
+                        styleActiveBottomTabText(tabRef);
                         shimmerLastWidth.remove(tabRef);
                         tabRef.invalidate();
                     }
