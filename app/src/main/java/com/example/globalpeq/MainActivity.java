@@ -437,6 +437,20 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private static final class MonitoredAppListEntry {
+        final String label;
+        final String packageName;
+        final String normalizedLabel;
+        final String normalizedPackage;
+
+        MonitoredAppListEntry(String label, String packageName) {
+            this.label = label == null ? "" : label;
+            this.packageName = packageName == null ? "" : packageName;
+            this.normalizedLabel = this.label.toLowerCase(Locale.US);
+            this.normalizedPackage = this.packageName.toLowerCase(Locale.US);
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
