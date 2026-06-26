@@ -1827,14 +1827,14 @@ public final class MainActivity extends Activity {
     }
 
     private void showMonitoredAppChoiceDialog() {
-        List<MonitoredAppListEntry> monitoredApps = loadMonitoredAppChoiceEntries();
         AlertDialog[] dialogHolder = new AlertDialog[1];
+        final List<MonitoredAppListEntry>[] monitoredHolder = new List[]{null};
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setPadding(dp(8), dp(8), dp(8), dp(8));
 
         EditText searchInput = new EditText(this);
-        searchInput.setHint(tr("Search added apps", "���������Ӧ��"));
+        searchInput.setHint(tr("Search added apps", "搜索已添加应用"));
         searchInput.setSingleLine(true);
         searchInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         styleAdvancedInput(searchInput);
@@ -1893,14 +1893,6 @@ public final class MainActivity extends Activity {
             }
         });
 
-        Runnable rebuild = () -> rebuildMonitoredAppChoiceList(
-                list,
-                indexBar,
-                scroll,
-                monitoredApps,
-                searchInput.getText().toString(),
-                dialogHolder
-        );
         searchInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -1912,10 +1904,20 @@ public final class MainActivity extends Activity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                rebuild.run();
+                if (monitoredHolder[0] == null) {
+                    return;
+                }
+                rebuildMonitoredAppChoiceList(
+                        list,
+                        indexBar,
+                        scroll,
+                        monitoredHolder[0],
+                        s == null ? "" : s.toString(),
+                        dialogHolder
+                );
             }
         });
-        rebuild.run();
+        showAppListLoadingState(list, indexBar, tr("Loading added apps...", "正在加载已添加应用..."));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
@@ -1925,6 +1927,24 @@ public final class MainActivity extends Activity {
         dialogHolder[0] = dialog;
         dialog.show();
         styleDialog(dialog);
+
+        new Thread(() -> {
+            List<MonitoredAppListEntry> loaded = loadMonitoredAppChoiceEntries();
+            uiHandler.post(() -> {
+                if (dialogHolder[0] == null || !dialogHolder[0].isShowing()) {
+                    return;
+                }
+                monitoredHolder[0] = loaded;
+                rebuildMonitoredAppChoiceList(
+                        list,
+                        indexBar,
+                        scroll,
+                        loaded,
+                        searchInput.getText().toString(),
+                        dialogHolder
+                );
+            });
+        }, "global-peq-monitored-apps").start();
     }
     private List<ResolveInfo> loadSuggestedMonitoredApps() {
         List<ResolveInfo> launchable = loadLaunchableActivities();
