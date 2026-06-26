@@ -5025,7 +5025,7 @@ public final class MainActivity extends Activity {
             reverbTypeButton.setAlpha(supported ? 1f : 0.5f);
         }
         if (bassModeButton != null) {
-            bassModeButton.setText(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]);
+            bassModeButton.setText(bassModeDisplayLabel(BASS_MODE_LABELS[clamp(selectedBassModeIndex, 0, BASS_MODE_LABELS.length - 1)]));
             bassModeButton.setAlpha(1f);
         }
         if (dspBassCutoffInput != null) {
