@@ -5851,6 +5851,25 @@ public final class MainActivity extends Activity {
         view.invalidate();
     }
 
+    private void styleActiveBottomTabText(TextView view) {
+        if (view == null) {
+            return;
+        }
+        applyTitleGradientShader(view, settingsTitleGradientWidth(view),
+                Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+        view.setTextColor(Color.WHITE);
+        clearGlowFromTextView(view);
+        applyGlowToTextView(view, Color.argb(176, 0, 245, 212), 5.4f);
+        view.invalidate();
+        view.post(() -> {
+            applyTitleGradientShader(view, settingsTitleGradientWidth(view),
+                    Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
+            view.setTextColor(Color.WHITE);
+            applyGlowToTextView(view, Color.argb(176, 0, 245, 212), 5.4f);
+            view.invalidate();
+        });
+    }
+
     private void styleDimPlainText(TextView view) {
         view.getPaint().setShader(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
