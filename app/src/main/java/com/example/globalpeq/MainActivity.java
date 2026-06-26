@@ -8760,46 +8760,10 @@ public final class MainActivity extends Activity {
 
     private void applyIconGlowColor(Drawable icon) {
         Drawable bg = monitoredAppIconView.getBackground();
-        if (!(bg instanceof IconGlowDrawable) || icon == null) {
+        if (!(bg instanceof IconGlowDrawable)) {
             return;
         }
-        int width = icon.getIntrinsicWidth();
-        int height = icon.getIntrinsicHeight();
-        if (width <= 0 || height <= 0) {
-            width = 64;
-            height = 64;
-        }
-        try {
-            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888);
-            android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
-            icon.setBounds(0, 0, width, height);
-            icon.draw(canvas);
-            long sumR = 0, sumG = 0, sumB = 0, count = 0;
-            int sampleStride = Math.max(1, Math.min(width, height) / 16);
-            for (int y = 0; y < height; y += sampleStride) {
-                for (int x = 0; x < width; x += sampleStride) {
-                    int pixel = bmp.getPixel(x, y);
-                    int a = (pixel >>> 24) & 0xFF;
-                    if (a < 100) {
-                        continue;
-                    }
-                    sumR += (pixel >> 16) & 0xFF;
-                    sumG += (pixel >> 8) & 0xFF;
-                    sumB += pixel & 0xFF;
-                    count++;
-                }
-            }
-            bmp.recycle();
-            if (count == 0) {
-                return;
-            }
-            int avgR = (int) (sumR / count);
-            int avgG = (int) (sumG / count);
-            int avgB = (int) (sumB / count);
-            int glowColor = Color.argb(205, avgR, avgG, avgB);
-            ((IconGlowDrawable) bg).updateGlowColor(glowColor);
-        } catch (Exception ignored) {
-        }
+        ((IconGlowDrawable) bg).setIcon(icon);
     }
 
     private void styleButton(Button button, boolean isPrimary, boolean isEnabled) {
