@@ -2668,7 +2668,7 @@ public final class MainActivity extends Activity {
         if (bassModeButton == null) {
             return;
         }
-        showLimitedChoiceMenu(bassModeButton, BASS_MODE_LABELS, selectedBassModeIndex, position -> {
+        showLimitedChoiceMenu(bassModeButton, bassModeDisplayLabels(), selectedBassModeIndex, position -> {
             int nextIndex = clamp(position, 0, BASS_MODE_LABELS.length - 1);
             if (processingMode == ProcessingMode.SYSTEM_EQ && nextIndex != 0) {
                 showModeLockedDialog("BassBoost beyond Default requires Monitor DSP mode.");
