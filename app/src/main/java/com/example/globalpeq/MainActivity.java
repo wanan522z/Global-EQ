@@ -199,6 +199,7 @@ public final class MainActivity extends Activity {
             return;
         }
 
+        boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
         int[] colors;
         if (view == statusText) {
             boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
@@ -227,6 +228,7 @@ public final class MainActivity extends Activity {
         // 因为 Android 硬件加速 (GPU PATH) 的 setShadowLayer 效果在大半径高斯模糊时
         // 渲染极不均匀、出现大颗粒或完全失效，且硬件加速的像素近似合并会产生严重的阶梯型抖动和闪烁。
         // 切换为 SOFTWARE 图层可强制调用精密的 CPU 高斯模糊算法绘制 shadowLayer，获得如烟雾般丝滑柔和、高亮饱满的霓虹光晕！
+        boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
         boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
