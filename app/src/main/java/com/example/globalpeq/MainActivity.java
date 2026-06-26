@@ -397,6 +397,8 @@ public final class MainActivity extends Activity {
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
+    private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
+    private final ShizukuCompat.PermissionResultListener shizukuPermissionResultListener = this::handleShizukuPermissionResult;
     private final Runnable monitorStatusRefreshRunnable = new Runnable() {
         @Override
         public void run() {
