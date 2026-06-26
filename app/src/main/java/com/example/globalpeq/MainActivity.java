@@ -7436,20 +7436,25 @@ public final class MainActivity extends Activity {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final android.graphics.RectF rect = new android.graphics.RectF();
-            private final Paint.FontMetrics fontMetrics = new Paint.FontMetrics();
+            private android.animation.ValueAnimator labelAnimator;
+            private float labelProgress;
+            private boolean labelProgressReady;
 
             @Override
             public void draw(Canvas canvas) {
                 Rect b = getBounds();
                 boolean checked = drawableStateChecked(getState());
+                if (!labelProgressReady) {
+                    labelProgress = checked ? 1f : 0f;
+                    labelProgressReady = true;
+                }
                 rect.set(b.left, b.top + dpf(2f), b.right, b.bottom - dpf(2f));
 
                 float radius = rect.height() / 2f;
-                float haloInset = dpf(1.35f);
-
+                float haloInset = checked ? dpf(1.15f) : dpf(0.85f);
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(checked ? Color.argb(66, 84, 216, 224) : Color.argb(32, 116, 142, 176));
+                paint.setColor(checked ? Color.argb(52, 72, 192, 214) : Color.argb(24, 110, 136, 170));
                 canvas.drawRoundRect(
                         rect.left - haloInset,
                         rect.top - haloInset,
@@ -7464,7 +7469,7 @@ public final class MainActivity extends Activity {
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(138, 160, 240, 244) : Color.argb(88, 184, 210, 236));
+                paint.setColor(checked ? Color.argb(116, 160, 240, 244) : Color.argb(84, 194, 220, 255));
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 paint.setStyle(Paint.Style.FILL);
@@ -7472,16 +7477,35 @@ public final class MainActivity extends Activity {
                 paint.setTextSize(dpf(8.5f));
                 paint.setTextAlign(Paint.Align.CENTER);
                 paint.setColor(checked ? Color.rgb(214, 235, 255) : Color.argb(136, 226, 236, 248));
-                paint.getFontMetrics(fontMetrics);
-                float textY = rect.centerY() - (fontMetrics.ascent + fontMetrics.descent) / 2f + dpf(4f);
+                Paint.FontMetrics metrics = paint.getFontMetrics();
+                float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
                 float leftTextX = rect.left + rect.width() * 0.32f;
                 float rightTextX = rect.left + rect.width() * 0.68f;
-                canvas.drawText(checked ? checkedLabel : uncheckedLabel, checked ? rightTextX : leftTextX, textY, paint);
+                float textX = rightTextX + (leftTextX - rightTextX) * labelProgress;
+                canvas.drawText(checked ? checkedLabel : uncheckedLabel, textX, textY, paint);
                 paint.setTypeface(android.graphics.Typeface.DEFAULT);
             }
 
             @Override
             protected boolean onStateChange(int[] state) {
+                float target = drawableStateChecked(state) ? 1f : 0f;
+                if (!labelProgressReady) {
+                    labelProgress = target;
+                    labelProgressReady = true;
+                    invalidateSelf();
+                    return true;
+                }
+                if (labelAnimator != null) {
+                    labelAnimator.cancel();
+                }
+                labelAnimator = android.animation.ValueAnimator.ofFloat(labelProgress, target);
+                labelAnimator.setDuration(300);
+                labelAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+                labelAnimator.addUpdateListener(animation -> {
+                    labelProgress = (float) animation.getAnimatedValue();
+                    invalidateSelf();
+                });
+                labelAnimator.start();
                 invalidateSelf();
                 return true;
             }
@@ -7521,30 +7545,58 @@ public final class MainActivity extends Activity {
     private Drawable switchThumbDrawable(int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private int currentColor = uncheckedColor;
+            private boolean colorReady = false;
+            private float glowAlpha = 0f;
+            private android.animation.ValueAnimator colorAnimator;
 
             @Override
             public void draw(Canvas canvas) {
                 Rect b = getBounds();
                 boolean checked = drawableStateChecked(getState());
+                if (!colorReady) {
+                    currentColor = checked ? checkedColor : uncheckedColor;
+                    glowAlpha = checked ? 1f : 0f;
+                    colorReady = true;
+                }
                 float radius = Math.min(b.width(), b.height()) / 2f - dpf(1f);
-                float haloRadius = radius + dpf(1.4f);
-
+                float haloRadius = radius + dpf(0.8f) + dpf(0.7f) * glowAlpha;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(checked ? Color.argb(72, 74, 214, 222) : Color.argb(34, 120, 150, 180));
+                paint.setColor(Color.argb((int) (26 + 54 * glowAlpha), 86, 196, 214));
                 canvas.drawCircle(b.centerX(), b.centerY(), haloRadius, paint);
 
-                paint.setColor(checked ? checkedColor : uncheckedColor);
+                paint.setColor(currentColor);
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(150, 244, 252, 255) : Color.argb(88, 228, 236, 248));
+                int strokeAlpha = (int) (78 + (126 - 78) * glowAlpha);
+                paint.setColor(Color.argb(strokeAlpha, 238, 246, 255));
                 canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
             }
 
             @Override
             protected boolean onStateChange(int[] state) {
+                boolean checked = drawableStateChecked(state);
+                int targetColor = checked ? checkedColor : uncheckedColor;
+                float targetGlow = checked ? 1f : 0f;
+                if (colorAnimator != null) {
+                    colorAnimator.cancel();
+                }
+                float startGlow = glowAlpha;
+                int startColor = currentColor;
+                colorAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
+                colorAnimator.setDuration(300);
+                colorAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+                colorAnimator.addUpdateListener(animation -> {
+                    float t = (float) animation.getAnimatedValue();
+                    currentColor = (int) new android.animation.ArgbEvaluator()
+                            .evaluate(t, startColor, targetColor);
+                    glowAlpha = startGlow + (targetGlow - startGlow) * t;
+                    invalidateSelf();
+                });
+                colorAnimator.start();
                 invalidateSelf();
                 return true;
             }
