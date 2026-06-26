@@ -1509,6 +1509,7 @@ public final class MainActivity extends Activity {
         pendingMonitorCaptureAuthorization = false;
         repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
         renderAll();
+        Toast.makeText(this, "Android will now ask for playback-capture authorization", Toast.LENGTH_SHORT).show();
         android.media.projection.MediaProjectionManager manager =
                 (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (manager == null) {
