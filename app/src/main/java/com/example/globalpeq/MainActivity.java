@@ -2478,19 +2478,44 @@ public final class MainActivity extends Activity {
                     || topControlOverlay.getWidth() <= 0) {
                 return;
             }
-            Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
             Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
-            topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
             topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
             int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(22);
             int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(22);
-            float centerX = (titleRect.right + switchRect.left) * 0.5f;
+            float titleRight = textRightInAncestor(modeSpinner, topControlOverlay);
+            float centerX = (titleRight + switchRect.left) * 0.5f;
             float x = centerX - iconWidth / 2f;
             x = Math.max(0f, Math.min(x, topControlOverlay.getWidth() - iconWidth));
             float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
             monitoredAppIconView.setY(y);
         });
+    }
+
+    private float textRightInAncestor(TextView view, ViewGroup ancestor) {
+        if (view == null || ancestor == null) {
+            return 0f;
+        }
+        Rect viewRect = new Rect(0, 0, view.getWidth(), view.getHeight());
+        ancestor.offsetDescendantRectToMyCoords(view, viewRect);
+        Layout layout = view.getLayout();
+        CharSequence text = view.getText();
+        if (layout == null || text == null || text.length() == 0) {
+            return viewRect.right;
+        }
+        int availableWidth = view.getWidth() - view.getCompoundPaddingLeft() - view.getCompoundPaddingRight();
+        float layoutLeft = viewRect.left + view.getCompoundPaddingLeft();
+        int absoluteGravity = Gravity.getAbsoluteGravity(view.getGravity(), view.getLayoutDirection()) & Gravity.HORIZONTAL_GRAVITY_MASK;
+        if (absoluteGravity == Gravity.CENTER_HORIZONTAL) {
+            layoutLeft += Math.max(0, availableWidth - layout.getWidth()) * 0.5f;
+        } else if (absoluteGravity == Gravity.RIGHT) {
+            layoutLeft += Math.max(0, availableWidth - layout.getWidth());
+        }
+        float maxLineRight = 0f;
+        for (int line = 0; line < layout.getLineCount(); line++) {
+            maxLineRight = Math.max(maxLineRight, layout.getLineRight(line));
+        }
+        return layoutLeft + maxLineRight;
     }
 
     private Drawable loadMonitoredAppDrawable() {
