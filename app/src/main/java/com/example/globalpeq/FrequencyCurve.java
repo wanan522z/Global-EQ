@@ -17,9 +17,15 @@ final class FrequencyCurve {
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
     private static final int SMOOTH_POINTS_PER_OCTAVE = 96;
+    private static final double LOG2_MIN_HZ = log2(MIN_HZ);
+    private static final double LOG2_MAX_HZ = log2(MAX_HZ);
 
     final String name;
     final List<Point> points;
+    private final double[] pointLogHz;
+    private final float[] pointGainsDb;
+    private final double pointLogStart;
+    private final double pointLogSpan;
 
     FrequencyCurve(String name, List<Point> points) {
         this.name = name == null || name.trim().isEmpty() ? "Imported" : name.trim();
@@ -33,6 +39,16 @@ final class FrequencyCurve {
         }
         sorted.sort((left, right) -> Integer.compare(left.frequencyHz, right.frequencyHz));
         this.points = Collections.unmodifiableList(sorted);
+        int count = sorted.size();
+        pointLogHz = new double[count];
+        pointGainsDb = new float[count];
+        for (int i = 0; i < count; i++) {
+            Point point = sorted.get(i);
+            pointLogHz[i] = log2(point.frequencyHz);
+            pointGainsDb[i] = point.gainDb;
+        }
+        pointLogStart = count == 0 ? LOG2_MIN_HZ : pointLogHz[0];
+        pointLogSpan = count <= 1 ? 0d : pointLogHz[count - 1] - pointLogStart;
     }
 
     boolean isDefault() {
@@ -44,29 +60,43 @@ final class FrequencyCurve {
     }
 
     float gainAtFrequency(double frequencyHz) {
-        if (points.isEmpty() || frequencyHz <= 0) {
+        int count = pointGainsDb.length;
+        if (count == 0 || frequencyHz <= 0) {
             return 0f;
         }
         if (frequencyHz <= points.get(0).frequencyHz) {
-            return points.get(0).gainDb;
+            return pointGainsDb[0];
         }
-        int last = points.size() - 1;
+        int last = count - 1;
         if (frequencyHz >= points.get(last).frequencyHz) {
-            return points.get(last).gainDb;
+            return pointGainsDb[last];
         }
 
         double logHz = log2(frequencyHz);
-        for (int i = 0; i < last; i++) {
-            Point left = points.get(i);
-            Point right = points.get(i + 1);
-            if (frequencyHz >= left.frequencyHz && frequencyHz <= right.frequencyHz) {
-                double leftLog = log2(left.frequencyHz);
-                double rightLog = log2(right.frequencyHz);
-                double t = (logHz - leftLog) / (rightLog - leftLog);
-                return (float) (left.gainDb + (right.gainDb - left.gainDb) * t);
-            }
+        if (pointLogSpan <= 0d) {
+            return pointGainsDb[0];
         }
-        return 0f;
+        int index = (int) ((logHz - pointLogStart) * (last / pointLogSpan));
+        if (index < 0) {
+            index = 0;
+        } else if (index >= last) {
+            index = last - 1;
+        }
+
+        while (index > 0 && logHz < pointLogHz[index]) {
+            index--;
+        }
+        while (index < last - 1 && logHz > pointLogHz[index + 1]) {
+            index++;
+        }
+
+        double leftLog = pointLogHz[index];
+        double rightLog = pointLogHz[index + 1];
+        if (rightLog <= leftLog) {
+            return pointGainsDb[index];
+        }
+        double t = (logHz - leftLog) / (rightLog - leftLog);
+        return (float) (pointGainsDb[index] + (pointGainsDb[index + 1] - pointGainsDb[index]) * t);
     }
 
     FrequencyCurve normalizedAtHz(int frequencyHz) {
@@ -242,8 +272,8 @@ final class FrequencyCurve {
         List<Point> resampled = new ArrayList<>();
         int minHz = MIN_HZ;
         int maxHz = MAX_HZ;
-        double start = log2(minHz);
-        double end = log2(maxHz);
+        double start = LOG2_MIN_HZ;
+        double end = LOG2_MAX_HZ;
         int count = Math.max(points.size(), (int) Math.ceil((end - start) * SMOOTH_POINTS_PER_OCTAVE) + 1);
         int lastHz = -1;
         for (int i = 0; i < count; i++) {
