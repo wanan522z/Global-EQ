@@ -2,8 +2,7 @@ package com.example.globalpeq;
 
 enum ProcessingMode {
     SYSTEM_EQ("SYSTEM_EQ", "Default"),
-    ADVANCED_DSP("ADVANCED_DSP", "Monitor DSP"),
-    SHIZUKU_MUTE("SHIZUKU_MUTE", "Shizuku Mute");
+    SHIZUKU_MUTE("SHIZUKU_MUTE", "Shizuku Mode");
 
     final String key;
     final String label;
@@ -15,6 +14,9 @@ enum ProcessingMode {
 
     static ProcessingMode fromKey(String key) {
         if (key != null) {
+            if ("ADVANCED_DSP".equalsIgnoreCase(key) || "Monitor DSP".equalsIgnoreCase(key)) {
+                return SHIZUKU_MUTE;
+            }
             for (ProcessingMode mode : values()) {
                 if (mode.key.equalsIgnoreCase(key) || mode.label.equalsIgnoreCase(key)) {
                     return mode;
