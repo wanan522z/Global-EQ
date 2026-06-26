@@ -2992,6 +2992,17 @@ public final class MainActivity extends Activity {
         if (monitorCaptureStatusView != null) {
             monitorCaptureStatusView.setText(monitorCaptureStatusText());
         }
+        if (shizukuAccessButton != null) {
+            shizukuAccessButton.setText(shizukuAccessButtonText());
+            shizukuAccessButton.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuAccessStatusView != null) {
+            shizukuAccessStatusView.setText(shizukuAccessStatusText());
+            shizukuAccessStatusView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuAccessLabelView != null) {
+            shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
         if (advancedMonitorAppButton != null) {
             advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
                     ? chooseAppText()
