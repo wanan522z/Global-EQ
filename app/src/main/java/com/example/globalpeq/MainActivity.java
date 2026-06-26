@@ -425,6 +425,7 @@ public final class MainActivity extends Activity {
         supported = true;
         autoSwitchOutput = repository.loadAutoSwitchOutput();
         processingMode = repository.loadProcessingMode();
+        uiLanguage = repository.loadUiLanguage();
         advancedModeConfig = repository.loadAdvancedModeConfig();
         selectedBassModeIndex = repository.loadBassBoostModeIndex();
         if (processingMode == ProcessingMode.SYSTEM_EQ && selectedBassModeIndex != 0) {
