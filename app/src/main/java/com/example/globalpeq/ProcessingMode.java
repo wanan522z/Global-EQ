@@ -2,7 +2,8 @@ package com.example.globalpeq;
 
 enum ProcessingMode {
     SYSTEM_EQ("SYSTEM_EQ", "Default"),
-    ADVANCED_DSP("ADVANCED_DSP", "Monitor DSP");
+    ADVANCED_DSP("ADVANCED_DSP", "Monitor DSP"),
+    SHIZUKU_MUTE("SHIZUKU_MUTE", "Shizuku Mute");
 
     final String key;
     final String label;
