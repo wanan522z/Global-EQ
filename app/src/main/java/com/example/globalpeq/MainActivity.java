@@ -1343,6 +1343,18 @@ public final class MainActivity extends Activity {
         monitorCaptureStatusView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(monitorCaptureStatusView, blockParams(4));
 
+        shizukuAccessButton = createExtraChoiceButton();
+        shizukuAccessButton.setText(shizukuAccessButtonText());
+        styleMonitorActionButton(shizukuAccessButton, 168);
+        shizukuAccessButton.setOnClickListener(v -> handleShizukuAccessAction());
+        panel.addView(labeledSettingsRow(shizukuAccessLabelText(), shizukuAccessButton), blockParams(12));
+
+        shizukuAccessStatusView = new TextView(this);
+        shizukuAccessStatusView.setText(shizukuAccessStatusText());
+        shizukuAccessStatusView.setTextSize(12);
+        shizukuAccessStatusView.setTextColor(Color.rgb(180, 190, 210));
+        panel.addView(shizukuAccessStatusView, blockParams(4));
+
         advancedMonitorAppButton = createExtraChoiceButton();
         advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? chooseAppText()
