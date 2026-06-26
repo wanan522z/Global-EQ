@@ -3092,8 +3092,8 @@ public final class MainActivity extends Activity {
         if (pregainInput != null) {
             pregainInput.setText(formatDecimal(editingPreset.pregainMb / 100f));
         }
-        if (bassBoostSlider != null) {
-            bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
+        if (bassEnhanceSlider != null) {
+            bassEnhanceSlider.setValue(editingPreset.bassEnhanceAmountPercent, false);
         }
         if (cutoffKnob != null) {
             cutoffKnob.setValue(editingPreset.extraBassCutoffHz, false);
