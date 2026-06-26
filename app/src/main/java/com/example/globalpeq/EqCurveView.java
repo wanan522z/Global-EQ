@@ -1,6 +1,7 @@
 package com.example.globalpeq;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -49,8 +50,12 @@ final class EqCurveView extends View {
 
     // Performance cache indicators
     private boolean pathDirty = true;
+    private boolean glowCacheDirty = true;
     private int lastWidth = 0;
     private int lastHeight = 0;
+    private Bitmap glowCacheBitmap;
+    private Canvas glowCacheCanvas;
+    private boolean animationSuppressed;
 
     private Preset preset = Preset.flat(false);
     private FrequencyCurve deviceCurve = FrequencyCurve.DEFAULT;
@@ -171,6 +176,7 @@ final class EqCurveView extends View {
     void setPreset(Preset preset) {
         this.preset = preset == null ? Preset.flat(false) : preset;
         this.pathDirty = true;
+        this.glowCacheDirty = true;
         postInvalidateOnAnimation();
     }
 
@@ -178,6 +184,7 @@ final class EqCurveView extends View {
         this.deviceCurve = deviceCurve == null ? FrequencyCurve.DEFAULT : deviceCurve;
         this.targetCurve = targetCurve == null ? FrequencyCurve.DEFAULT : targetCurve;
         this.pathDirty = true;
+        this.glowCacheDirty = true;
         postInvalidateOnAnimation();
     }
 
@@ -188,6 +195,19 @@ final class EqCurveView extends View {
         }
         this.maxDb = next;
         this.pathDirty = true;
+        this.glowCacheDirty = true;
+        postInvalidateOnAnimation();
+    }
+
+    void setAnimationSuppressed(boolean suppressed) {
+        if (animationSuppressed == suppressed) {
+            return;
+        }
+        animationSuppressed = suppressed;
+        if (suppressed) {
+            lastTime = 0L;
+            lastInvalidateAt = 0L;
+        }
         postInvalidateOnAnimation();
     }
 
@@ -237,6 +257,7 @@ final class EqCurveView extends View {
             }
 
             pathDirty = false;
+            glowCacheDirty = true;
             lastWidth = width;
             lastHeight = height;
         }
@@ -248,7 +269,7 @@ final class EqCurveView extends View {
         canvas.drawText("-" + maxDb, left, bottom - 6f, textPaint);
 
         // Keep running the animation loop smoothly if enabled
-        if (preset.enabled) {
+        if (preset.enabled && !animationSuppressed) {
             long now = System.currentTimeMillis();
             if (now - lastInvalidateAt >= ANIMATION_FRAME_DELAY_MS) {
                 lastInvalidateAt = now;
@@ -310,40 +331,20 @@ final class EqCurveView extends View {
             referencePaint.setPathEffect(null);
         }
 
-        curvePaint.setStrokeWidth(5f);
-        curvePaint.setDither(true);
         if (preset.enabled) {
-            curvePaint.setColor(Color.argb(35, 0, 255, 255));
-        } else {
-            curvePaint.setColor(Color.argb(18, 130, 140, 150));
-        }
-        canvas.drawPath(curvePath, curvePaint);
-
-        if (preset.enabled) {
-            edgePaint.setColor(Color.argb(105, 130, 245, 255));
-        } else {
-            edgePaint.setColor(Color.argb(58, 150, 160, 172));
-        }
-        canvas.drawPath(curvePath, edgePaint);
-
-        if (preset.enabled) {
+            ensureGlowCache(getWidth(), getHeight(), left, right);
+            if (glowCacheBitmap != null && !glowCacheBitmap.isRecycled()) {
+                canvas.drawBitmap(glowCacheBitmap, 0f, 0f, null);
+            }
             long now = System.currentTimeMillis();
-            if (lastTime > 0) {
+            if (!animationSuppressed && lastTime > 0) {
                 float elapsed = (now - lastTime) / 1000f;
                 sweepPhase += elapsed * 0.25f;
                 if (sweepPhase > 1.0f) {
                     sweepPhase -= 1.0f;
                 }
             }
-            lastTime = now;
-
-            canvas.drawPath(curvePath, glowPaint0);
-            canvas.drawPath(curvePath, glowPaint0b);
-            canvas.drawPath(curvePath, glowPaint1);
-            canvas.drawPath(curvePath, glowPaint1b);
-            canvas.drawPath(curvePath, glowPaint2);
-            canvas.drawPath(curvePath, glowPaint2b);
-            canvas.drawPath(curvePath, glowPaint3);
+            lastTime = animationSuppressed ? 0L : now;
 
             if (sweepGradient == null) {
                 sweepGradient = new LinearGradient(
@@ -363,14 +364,23 @@ final class EqCurveView extends View {
                 sweepPaint.setShader(sweepGradient);
             }
 
-            sweepMatrix.reset();
-            float totalWidth = right - left;
-            sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
-            sweepGradient.setLocalMatrix(sweepMatrix);
-            canvas.drawPath(curvePath, sweepPaint);
+            if (!animationSuppressed) {
+                sweepMatrix.reset();
+                float totalWidth = right - left;
+                sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
+                sweepGradient.setLocalMatrix(sweepMatrix);
+                canvas.drawPath(curvePath, sweepPaint);
+            }
         } else {
             lastTime = 0;
             lastInvalidateAt = 0L;
+            curvePaint.setStrokeWidth(5f);
+            curvePaint.setDither(true);
+            curvePaint.setColor(Color.argb(18, 130, 140, 150));
+            canvas.drawPath(curvePath, curvePaint);
+
+            edgePaint.setColor(Color.argb(58, 150, 160, 172));
+            canvas.drawPath(curvePath, edgePaint);
         }
 
         curvePaint.setStrokeWidth(3.2f);
@@ -380,6 +390,44 @@ final class EqCurveView extends View {
             curvePaint.setColor(Color.rgb(130, 140, 150));
         }
         canvas.drawPath(curvePath, curvePaint);
+    }
+
+    private void ensureGlowCache(int width, int height, float left, float right) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        if (glowCacheBitmap == null
+                || glowCacheBitmap.getWidth() != width
+                || glowCacheBitmap.getHeight() != height) {
+            if (glowCacheBitmap != null) {
+                glowCacheBitmap.recycle();
+            }
+            glowCacheBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            glowCacheCanvas = new Canvas(glowCacheBitmap);
+            glowCacheDirty = true;
+        }
+        if (!glowCacheDirty || glowCacheCanvas == null) {
+            return;
+        }
+        glowCacheBitmap.eraseColor(Color.TRANSPARENT);
+
+        curvePaint.setStrokeWidth(5f);
+        curvePaint.setDither(true);
+        curvePaint.setColor(Color.argb(35, 0, 255, 255));
+        glowCacheCanvas.drawPath(curvePath, curvePaint);
+
+        edgePaint.setColor(Color.argb(105, 130, 245, 255));
+        glowCacheCanvas.drawPath(curvePath, edgePaint);
+
+        glowCacheCanvas.drawPath(curvePath, glowPaint0);
+        glowCacheCanvas.drawPath(curvePath, glowPaint0b);
+        glowCacheCanvas.drawPath(curvePath, glowPaint1);
+        glowCacheCanvas.drawPath(curvePath, glowPaint1b);
+        glowCacheCanvas.drawPath(curvePath, glowPaint2);
+        glowCacheCanvas.drawPath(curvePath, glowPaint2b);
+        glowCacheCanvas.drawPath(curvePath, glowPaint3);
+
+        glowCacheDirty = false;
     }
 
     private void appendSmoothedPath(Path path, float left, float right, float stepPx, CurveSampler sampler) {
