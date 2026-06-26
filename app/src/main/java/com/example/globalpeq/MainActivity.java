@@ -226,6 +226,7 @@ public final class MainActivity extends Activity {
     // 每帧调用：根�?view 类型 + 状态选色阶，�?phase 偏移 baked 进渐变坐标�?    // 恢复原始状态判定（isEditingPresetActive / runningPreset.enabled），
     // Apply shimmer colors per state while keeping the offset baked into shader coordinates.
     private void applyShimmerFrame(TextView view, int width, float phase) {
+        if (view == null || width <= 0) {
             return;
         }
 
