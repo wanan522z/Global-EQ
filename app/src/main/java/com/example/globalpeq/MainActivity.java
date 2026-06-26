@@ -1287,19 +1287,25 @@ public final class MainActivity extends Activity {
     }
 
     private void showAdvancedSettingsSubpage() {
-        if (advancedModeSettingsPage == null || settingsRootContent == null) {
+        if (monitorSettingsPage == null || bottomNavView == null) {
             return;
         }
-        settingsRootContent.setVisibility(View.GONE);
-        advancedModeSettingsPage.setVisibility(View.VISIBLE);
+        monitorSettingsOpen = true;
+        monitorSettingsPage.setVisibility(View.VISIBLE);
+        monitorSettingsPage.bringToFront();
+        bottomNavView.setVisibility(View.GONE);
     }
 
     private void hideAdvancedSettingsSubpage() {
-        if (advancedModeSettingsPage == null || settingsRootContent == null) {
+        if (monitorSettingsPage == null || bottomNavView == null) {
             return;
         }
-        advancedModeSettingsPage.setVisibility(View.GONE);
-        settingsRootContent.setVisibility(View.VISIBLE);
+        monitorSettingsOpen = false;
+        monitorSettingsPage.setVisibility(View.GONE);
+        bottomNavView.setVisibility(View.VISIBLE);
+        if (mainPageHost != null) {
+            mainPageHost.bringToFront();
+        }
     }
 
     private void updateAdvancedModeConfig(AdvancedModeConfig nextConfig) {
