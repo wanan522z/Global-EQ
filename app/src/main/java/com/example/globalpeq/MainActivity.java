@@ -7804,7 +7804,7 @@ public final class MainActivity extends Activity {
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
             final float baseGain = 0.62f;    // 整体亮度系数（<1 降亮度）
-            final float gamma = 0.7f;        // 温和暗部提亮（修角部偏暗）
+            final float gamma = 1.0f;        // 不提亮：保留模糊本来的快速衰减，避免外环被撑厚成一大坨
             final float fadeSharp = 6f;      // 尾端软乘子的指数：越大吻接区间越长越柔
             for (int i = 0; i < alpha.length; i++) {
                 float nf = alpha[i] / 255f;
