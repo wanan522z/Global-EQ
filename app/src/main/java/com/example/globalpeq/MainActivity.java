@@ -5358,7 +5358,7 @@ public final class MainActivity extends Activity {
             repository.saveSelectedDevice(currentDevice);
             repository.savePreset(currentDevice, runningPreset);
             repository.saveGlobalPreset(runningPreset);
-            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, selectedBassModeIndex);
+            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, runningPreset.virtualBassModeIndex);
             if (forceFullReset && effectivePreset.enabled) {
                 engine.applyWithFullReset(effectivePreset);
             } else {
