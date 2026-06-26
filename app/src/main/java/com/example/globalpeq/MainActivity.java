@@ -1174,7 +1174,7 @@ public final class MainActivity extends Activity {
         statusRow.addView(engineStatusValueView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         advancedModeDetailButton = createExtraChoiceButton();
-        advancedModeDetailButton.setText("Monitor DSP Settings");
+        advancedModeDetailButton.setText(monitorSettingsTitleText());
         styleMonitorActionButton(advancedModeDetailButton, 0);
         advancedModeDetailButton.setOnClickListener(v -> showAdvancedSettingsSubpage());
         panel.addView(advancedModeDetailButton, blockParams(12));
