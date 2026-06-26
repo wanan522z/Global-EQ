@@ -371,6 +371,7 @@ public final class MainActivity extends Activity {
     private boolean peqVisualSequenceRunning;
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
+    private boolean awaitingInitialDeviceMonitorEvent;
 
     private static final class PeqBandRowHolder {
         View enable;
@@ -432,6 +433,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
+        awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
     }
 
