@@ -7933,20 +7933,17 @@ public final class MainActivity extends Activity {
             }
             bmp.recycle();
             if (count == 0) {
-                return Color.argb(215, 120, 220, 255);
+                return Color.argb(172, 120, 220, 255);
             }
             int r = (int) (sumR / count);
             int g = (int) (sumG / count);
             int b = (int) (sumB / count);
-            int max = Math.max(r, Math.max(g, b));
-            if (max > 0) {
-                r = r * 255 / max;
-                g = g * 255 / max;
-                b = b * 255 / max;
-            }
-            return Color.argb(215, r, g, b);
+            r = clamp((int) (r * 0.88f + 28f), 0, 255);
+            g = clamp((int) (g * 0.90f + 26f), 0, 255);
+            b = clamp((int) (b * 0.86f + 18f), 0, 255);
+            return Color.argb(172, r, g, b);
         } catch (Exception ignored) {
-            return Color.argb(215, 120, 220, 255);
+            return Color.argb(172, 120, 220, 255);
         }
     }
 
