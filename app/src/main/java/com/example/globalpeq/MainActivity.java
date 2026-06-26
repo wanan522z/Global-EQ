@@ -141,6 +141,7 @@ public final class MainActivity extends Activity {
     // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
     private final java.util.Map<TextView, Integer> shimmerLastWidth = new java.util.HashMap<>();
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
+    private final java.util.Map<TextView, Boolean> titleActiveStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
@@ -5674,6 +5675,11 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
+        Boolean previous = titleActiveStates.get(view);
+        if (previous != null && previous == active) {
+            return;
+        }
+        titleActiveStates.put(view, active);
         if (active) {
             styleSettingsTitleText(view);
             registerShimmerView(view);
@@ -6022,7 +6028,13 @@ public final class MainActivity extends Activity {
         if (modeSpinner == null) {
             return;
         }
-        if (!isModeVisualEnabled()) {
+        boolean active = isModeVisualEnabled();
+        Boolean previous = titleActiveStates.get(modeSpinner);
+        if (previous != null && previous == active) {
+            return;
+        }
+        titleActiveStates.put(modeSpinner, active);
+        if (!active) {
             unregisterShimmerView(modeSpinner);
             modeSpinner.getPaint().setShader(null);
             modeSpinner.setTextColor(Color.rgb(122, 145, 160));
