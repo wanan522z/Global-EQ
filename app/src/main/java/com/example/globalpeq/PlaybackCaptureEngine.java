@@ -420,7 +420,8 @@ final class PlaybackCaptureEngine {
             releaseTrackBassBoostLocked();
             return;
         }
-        boolean enableSystemBass = currentBassModeIndex == 1 && currentPreset.systemBassBoostPercent > 0;
+        boolean enableSystemBass = AudioProcessingPolicy.systemBassBoostAllowed(currentBassModeIndex)
+                && currentPreset.systemBassBoostPercent > 0;
         if (!enableSystemBass) {
             releaseTrackBassBoostLocked();
             return;
