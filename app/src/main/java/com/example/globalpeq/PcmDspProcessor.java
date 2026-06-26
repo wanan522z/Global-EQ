@@ -11,6 +11,7 @@ final class PcmDspProcessor {
     private VirtualBass virtualBass = new VirtualBass(48000, 2);
     private HarmonicBassEnhancer harmonicBass = new HarmonicBassEnhancer(48000, 2);
     private AlgorithmicReverb reverb = new AlgorithmicReverb(48000, 2);
+    private LookaheadLimiter limiter = new LookaheadLimiter(48000, 2);
 
     void configure(Preset preset, int nextSampleRate, int nextChannelCount) {
         configure(preset, nextSampleRate, nextChannelCount, false, AdvancedModeConfig.DEFAULT);
@@ -46,6 +47,8 @@ final class PcmDspProcessor {
                     preset.reverbSizePercent,
                     preset.reverbMixPercent,
                     safeConfig.wetMixPercent);
+            limiter = new LookaheadLimiter(sampleRate, channelCount);
+            limiter.configure(safeConfig.lookaheadMs, safeConfig.latencyMs);
         }
     }
 
@@ -64,6 +67,7 @@ final class PcmDspProcessor {
         }
         harmonicBass.process(samples, sampleCount, channelCount);
         reverb.process(samples, sampleCount, channelCount);
+        limiter.process(samples, sampleCount, channelCount);
     }
 
     private static float dbToLinear(float db) {
@@ -396,6 +400,100 @@ final class PcmDspProcessor {
             if ("Room".equals(type)) return 0.22f;
             if ("Studio".equals(type)) return 0.28f;
             return 0.2f;
+        }
+    }
+
+    private static final class LookaheadLimiter {
+        private static final float CEILING = 0.985f;
+
+        private final int sampleRate;
+        private final int channelCount;
+        private float[] delayBuffer;
+        private int writeFrame;
+        private int delayFrames;
+        private int primedFrames;
+        private float envelope;
+        private float gain = 1f;
+        private float attackCoeff = 0.5f;
+        private float releaseCoeff = 0.995f;
+
+        LookaheadLimiter(int sampleRate, int channelCount) {
+            this.sampleRate = sampleRate;
+            this.channelCount = channelCount;
+            configure(0, 20);
+        }
+
+        void configure(int lookaheadMs, int latencyMs) {
+            delayFrames = Math.max(0, Math.min(sampleRate / 8, lookaheadMs * sampleRate / 1000));
+            int latencyFrames = Math.max(delayFrames + 1, Math.min(sampleRate / 2, latencyMs * sampleRate / 1000));
+            int bufferFrames = Math.max(delayFrames + 1, latencyFrames + 8);
+            delayBuffer = new float[Math.max(channelCount, bufferFrames * channelCount)];
+            writeFrame = 0;
+            primedFrames = 0;
+            envelope = 0f;
+            gain = 1f;
+            float attackSeconds = Math.max(0.0015f, Math.max(0.001f, lookaheadMs / 1000f) * 0.35f);
+            float releaseSeconds = Math.max(0.045f, Math.max(0.02f, latencyMs / 1000f) * 0.65f);
+            attackCoeff = (float) Math.exp(-1.0 / (sampleRate * attackSeconds));
+            releaseCoeff = (float) Math.exp(-1.0 / (sampleRate * releaseSeconds));
+        }
+
+        void process(float[] samples, int sampleCount, int channelCount) {
+            if (samples == null || sampleCount <= 0) {
+                return;
+            }
+            if (delayFrames <= 0 || delayBuffer == null) {
+                softClip(samples, sampleCount);
+                return;
+            }
+
+            int frames = sampleCount / channelCount;
+            int bufferFrames = Math.max(1, delayBuffer.length / this.channelCount);
+            for (int frame = 0; frame < frames; frame++) {
+                float peak = 0f;
+                int frameOffset = frame * channelCount;
+                for (int channel = 0; channel < channelCount; channel++) {
+                    peak = Math.max(peak, Math.abs(samples[frameOffset + channel]));
+                }
+
+                if (peak > envelope) {
+                    envelope = peak + attackCoeff * (envelope - peak);
+                } else {
+                    envelope = peak + releaseCoeff * (envelope - peak);
+                }
+                float targetGain = envelope > CEILING ? CEILING / Math.max(CEILING, envelope) : 1f;
+                gain += 0.35f * (targetGain - gain);
+
+                int readFrame = writeFrame - delayFrames;
+                if (readFrame < 0) {
+                    readFrame += bufferFrames;
+                }
+                for (int channel = 0; channel < channelCount; channel++) {
+                    int writeIndex = writeFrame * this.channelCount + channel;
+                    float dry = samples[frameOffset + channel];
+                    float delayed = primedFrames >= delayFrames
+                            ? delayBuffer[readFrame * this.channelCount + channel]
+                            : dry;
+                    delayBuffer[writeIndex] = dry;
+                    samples[frameOffset + channel] = clampSample(delayed * gain);
+                }
+
+                writeFrame++;
+                primedFrames++;
+                if (writeFrame >= bufferFrames) {
+                    writeFrame = 0;
+                }
+            }
+        }
+
+        private void softClip(float[] samples, int sampleCount) {
+            for (int i = 0; i < sampleCount; i++) {
+                samples[i] = clampSample((float) Math.tanh(samples[i] * 0.92f));
+            }
+        }
+
+        private float clampSample(float sample) {
+            return Math.max(-1f, Math.min(1f, sample));
         }
     }
 
