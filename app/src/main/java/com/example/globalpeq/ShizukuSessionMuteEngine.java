@@ -3,7 +3,6 @@ package com.example.globalpeq;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.AudioPlaybackConfiguration;
 import android.media.audiofx.AudioEffect;
@@ -16,7 +15,6 @@ import android.os.Process;
 import android.util.Log;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -63,6 +61,7 @@ final class ShizukuSessionMuteEngine {
     private volatile Preset currentPreset = Preset.flat(false);
     private volatile AdvancedModeConfig currentConfig = AdvancedModeConfig.DEFAULT;
     private volatile int currentTargetUid = -1;
+    private volatile String currentTargetPackage = "";
     private volatile String currentTargetLabel = "";
     private String publishedStatus = "";
     private boolean publishedActive;
@@ -96,8 +95,9 @@ final class ShizukuSessionMuteEngine {
         currentMode = mode == null ? ProcessingMode.SYSTEM_EQ : mode;
         currentPreset = preset == null ? Preset.flat(false) : preset;
         currentConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        currentTargetPackage = currentConfig.monitoredAppPackage == null ? "" : currentConfig.monitoredAppPackage.trim();
         currentTargetLabel = currentConfig.monitoredAppLabel.isEmpty()
-                ? currentConfig.monitoredAppPackage
+                ? currentTargetPackage
                 : currentConfig.monitoredAppLabel;
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
@@ -127,7 +127,7 @@ final class ShizukuSessionMuteEngine {
             return;
         }
 
-        currentTargetUid = resolveTargetUid(currentConfig.monitoredAppPackage);
+        currentTargetUid = resolveTargetUid(currentTargetPackage);
         if (currentTargetUid <= 0) {
             stopPollingLocked();
             publishStatus("Unable to resolve the selected app.", false);
@@ -186,27 +186,10 @@ final class ShizukuSessionMuteEngine {
 
     private List<SessionInfo> parseAudioConfigurations(String output) {
         List<SessionInfo> sessions = new ArrayList<>();
-        List<Matcher> matchers = new ArrayList<>();
-
-        Matcher matcher = SESSION_REGEX.matcher(output);
-        while (matcher.find()) {
-            matchers.add(matcher.toMatchResult().pattern().matcher(matcher.group(0)));
+        collectSessionsWithPattern(output, SESSION_REGEX, sessions);
+        if (sessions.isEmpty()) {
+            collectSessionsWithPattern(output, SESSION_REGEX_33, sessions);
         }
-        if (matchers.isEmpty()) {
-            Matcher matcher33 = SESSION_REGEX_33.matcher(output);
-            while (matcher33.find()) {
-                matchers.add(matcher33.toMatchResult().pattern().matcher(matcher33.group(0)));
-            }
-        }
-
-        if (matchers.isEmpty()) {
-            collectSessionsWithPattern(output, SESSION_REGEX, sessions);
-            if (sessions.isEmpty()) {
-                collectSessionsWithPattern(output, SESSION_REGEX_33, sessions);
-            }
-            return sessions;
-        }
-
         return sessions;
     }
 
@@ -255,6 +238,10 @@ final class ShizukuSessionMuteEngine {
                 continue;
             }
             if (session.sessionId <= 0 || session.sessionId == 0) {
+                continue;
+            }
+            if (session.uid != currentTargetUid
+                    && !currentTargetPackage.equals(session.packageName)) {
                 continue;
             }
             String usage = session.usage.toUpperCase(Locale.US).trim();
@@ -408,6 +395,7 @@ final class ShizukuSessionMuteEngine {
         }
         knownSessions.clear();
         currentTargetUid = -1;
+        currentTargetPackage = "";
     }
 
     private void releaseEffectLocked(Integer sessionId) {
