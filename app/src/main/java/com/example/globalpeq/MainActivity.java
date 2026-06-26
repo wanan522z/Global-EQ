@@ -1794,7 +1794,9 @@ public final class MainActivity extends Activity {
         }
         if (suggested.isEmpty()) {
             TextView empty = new TextView(this);
-            empty.setText("No suggested media apps were detected. Use Add to pick any installed app.");
+            empty.setText(tr(
+                    "No suggested media apps were detected. Use Add to pick any installed app.",
+                    "没有检测到推荐的媒体应用。可以通过 Add 选择任意已安装应用。"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -1804,9 +1806,9 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Choose monitored app"))
+                .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
                 .setView(scroll)
-                .setNegativeButton("Close", null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -1928,7 +1930,7 @@ public final class MainActivity extends Activity {
             return l.compareToIgnoreCase(r);
         });
         if (installed.isEmpty()) {
-            Toast.makeText(this, "No installed apps available", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No installed apps available", "没有可用的已安装应用"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -1954,9 +1956,9 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Add installed app"))
+                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应用")))
                 .setView(scroll)
-                .setNegativeButton("Close", null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -1977,8 +1979,8 @@ public final class MainActivity extends Activity {
         Drawable icon = getResources().getDrawable(android.R.drawable.ic_menu_close_clear_cancel);
         return createMonitoredAppMenuRow(
                 icon,
-                "No monitored app",
-                "Disable app-targeted monitor routing",
+                tr("No monitored app", "不监听应用"),
+                tr("Disable app-targeted monitor routing", "关闭面向指定应用的监听路由"),
                 active,
                 dialogHolder,
                 () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp("", ""))
