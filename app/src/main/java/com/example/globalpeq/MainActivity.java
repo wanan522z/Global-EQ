@@ -1034,15 +1034,17 @@ public final class MainActivity extends Activity {
         title.setTextSize(18);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(title);
+        title.setOnClickListener(this::showProcessingModeChoiceMenu);
         LinearLayout.LayoutParams engineTitleParams = blockParams(0);
         // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都从 panel 内容区左边开始）。
         // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，shadow 半径 5.5dp 仍落在 panel 16dp padding 内，不裁剪。
         engineTitleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(title, 12);
         panel.addView(title, engineTitleParams);
+        processingModeButton = title;
 
         TextView detail = new TextView(this);
-        detail.setText("Displays the real-time status of your Global PEQ processor.");
+        detail.setText("Tap the title above to switch backend mode.");
         detail.setTextSize(12);
         detail.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(detail, blockParams(2));
