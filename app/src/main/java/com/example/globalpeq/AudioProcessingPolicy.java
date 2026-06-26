@@ -12,29 +12,29 @@ final class AudioProcessingPolicy {
         return advancedModeEnabled(mode);
     }
 
-    static boolean bassModeAllowed(ProcessingMode mode, int bassModeIndex) {
-        if (bassModeIndex < 0 || bassModeIndex > 2) {
+    static boolean virtualBassModeAllowed(ProcessingMode mode, int virtualBassModeIndex) {
+        if (virtualBassModeIndex < 0 || virtualBassModeIndex > 2) {
             return false;
         }
         if (advancedModeEnabled(mode)) {
             return true;
         }
-        return bassModeIndex <= 1;
+        return virtualBassModeIndex <= 1;
     }
 
-    static int sanitizeBassModeIndex(ProcessingMode mode, int bassModeIndex) {
-        return bassModeAllowed(mode, bassModeIndex) ? bassModeIndex : 0;
+    static int sanitizeVirtualBassModeIndex(ProcessingMode mode, int virtualBassModeIndex) {
+        return virtualBassModeAllowed(mode, virtualBassModeIndex) ? virtualBassModeIndex : 0;
     }
 
-    static boolean systemVirtualBassAllowed(int bassModeIndex) {
-        return bassModeIndex == 1;
+    static boolean systemVirtualBassAllowed(int virtualBassModeIndex) {
+        return virtualBassModeIndex == 1;
     }
 
-    static boolean dspVirtualBassAllowed(ProcessingMode mode, int bassModeIndex) {
-        return advancedModeEnabled(mode) && bassModeIndex == 2;
+    static boolean dspVirtualBassAllowed(ProcessingMode mode, int virtualBassModeIndex) {
+        return advancedModeEnabled(mode) && virtualBassModeIndex == 2;
     }
 
-    static Preset effectiveDspPreset(Preset preset, ProcessingMode mode, int bassModeIndex) {
+    static Preset effectiveDspPreset(Preset preset, ProcessingMode mode, int virtualBassModeIndex) {
         if (preset == null) {
             return null;
         }
@@ -46,7 +46,7 @@ final class AudioProcessingPolicy {
         return effective;
     }
 
-    static Preset effectiveSystemPreset(Preset preset, ProcessingMode mode, int bassModeIndex) {
+    static Preset effectiveSystemPreset(Preset preset, ProcessingMode mode, int virtualBassModeIndex) {
         if (preset == null) {
             return null;
         }
@@ -54,7 +54,7 @@ final class AudioProcessingPolicy {
             return Preset.flat(preset.enabled).withName(preset.name);
         }
         Preset effective = preset.withReverbType("Default");
-        if (!systemVirtualBassAllowed(bassModeIndex)) {
+        if (!systemVirtualBassAllowed(virtualBassModeIndex)) {
             effective = effective.withVirtualBassAmountPercent(0);
         }
         return effective;
