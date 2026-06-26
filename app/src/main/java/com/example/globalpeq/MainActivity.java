@@ -242,7 +242,7 @@ public final class MainActivity extends Activity {
             }
         } else {
             // 其他标题：浅蓝青色光晕，大半径柔光
-            view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
+            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
         }
         view.invalidate();
     }
