@@ -135,10 +135,11 @@ public final class GlobalEqForegroundService extends Service {
         ProcessingMode processingMode = repository.loadProcessingMode();
         if (!preset.enabled) {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-                // Pause capture and release mute effects, but keep authorization state available.
                 schedulePauseShizukuSession();
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
                 updateNotification();
-                return START_STICKY;
+                return START_NOT_STICKY;
             }
             scheduleCaptureStopAll();
             scheduleShizukuStopAll();
@@ -292,15 +293,6 @@ public final class GlobalEqForegroundService extends Service {
         handler.post(() -> captureEngine.stopAll());
     }
 
-    private void scheduleCapturePauseForShizuku() {
-        Handler handler = captureControlHandler;
-        if (handler == null || captureEngine == null) {
-            return;
-        }
-        handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
-        handler.post(() -> captureEngine.pauseForShizukuIdle());
-    }
-
     private void scheduleShizukuStopAll() {
         Handler handler = captureControlHandler;
         if (handler == null || shizukuMuteEngine == null) {
@@ -311,7 +303,7 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     private void schedulePauseShizukuSession() {
-        scheduleCapturePauseForShizuku();
+        scheduleCaptureStopAll();
         scheduleShizukuStopAll();
     }
 
