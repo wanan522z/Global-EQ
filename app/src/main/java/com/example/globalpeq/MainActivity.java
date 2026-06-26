@@ -102,6 +102,7 @@ public final class MainActivity extends Activity {
     private LinearLayout eqPage;
     private LinearLayout extraPage;
     private LinearLayout settingsPage;
+    private LinearLayout monitorSettingsPage;
     private MainPageHost mainPageHost;
     private LinearLayout rows;
     private KnobView cutoffKnob;
@@ -120,6 +121,7 @@ public final class MainActivity extends Activity {
     private TextView statusText;
     private TextView engineStatusValueView;
     private ImageView monitoredAppIconView;
+    private View bottomNavView;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
     private TextView modeSpinner;
@@ -128,7 +130,6 @@ public final class MainActivity extends Activity {
     private TextView advancedMonitorAppButton;
     private TextView advancedModeSummaryView;
     private LinearLayout settingsRootContent;
-    private LinearLayout advancedModeSettingsPage;
     private Button presetSelectButton;
     private Button undoButton;
     private Button redoButton;
@@ -369,6 +370,7 @@ public final class MainActivity extends Activity {
     private boolean[] peqBandVisualEnabled = new boolean[0];
     private boolean peqVisualSequenceRunning;
     private int pendingPeqVisualIndex;
+    private boolean monitorSettingsOpen;
 
     private static final class PeqBandRowHolder {
         View enable;
