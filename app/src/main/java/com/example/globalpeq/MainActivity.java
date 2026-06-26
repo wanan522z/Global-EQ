@@ -7779,7 +7779,11 @@ public final class MainActivity extends Activity {
             sourceIcon.setBounds(fit);
             sourceIcon.draw(c);
             sourceIcon.setBounds(saved);
-            // 2. 取出 alpha 通道，做 3 趟可分离盒式模糊（近似高斯），生成柔和光晕
+            // 2. 形态学边缘提取：图标是实心矩形，直接着色会把整块填成实心色块。
+            //    先腐蚀（min 滤波）得到缩小的 alpha，再 edge = alpha - 腐蚀alpha：
+            //    图标内部 edge=0（不发光）、只在图标轮廓一圈 edge>0、外部 edge=0。
+            //    对这"轮廓环"做高斯模糊，得到与标题文字光晕同源的轮廓光晕，
+            //    而不是一坨实心色块；图标本体由上层 ImageView 锐利覆盖。
             int[] px = new int[bw * bh];
             src.getPixels(px, 0, bw, 0, 0, bw, bh);
             src.recycle();
@@ -7787,27 +7791,33 @@ public final class MainActivity extends Activity {
             for (int i = 0; i < px.length; i++) {
                 alpha[i] = (px[i] >>> 24) & 0xFF;
             }
+            int edgeK = Math.max(1, (int) Math.ceil(dpf(1.2f)));
+            int[] eroded = new int[bw * bh];
+            minFilterH(alpha, eroded, bw, bh, edgeK);
+            minFilterV(eroded, eroded, bw, bh, edgeK);
+            int[] edge = new int[bw * bh];
+            for (int i = 0; i < alpha.length; i++) {
+                int e = alpha[i] - eroded[i];
+                edge[i] = e < 0 ? 0 : e;
+            }
+            // 对轮廓环做 3 趟可分离盒式模糊（近似高斯），向外柔和扩散成光晕
             int[] tmp = new int[bw * bh];
             for (int p = 0; p < 3; p++) {
-                boxBlurH(alpha, tmp, bw, bh, blurPx);
-                boxBlurV(tmp, alpha, bw, bh, blurPx);
+                boxBlurH(edge, tmp, bw, bh, blurPx);
+                boxBlurV(tmp, edge, bw, bh, blurPx);
             }
-            // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后 alpha），图标本体由上层锐利覆盖。
-            // 亮度曲线：tail = a * M(a)，a = nf^gamma 为模糊后归一化 alpha（随距离
-            // 自然快速衰减，是"光晕只在图标周围晕开"的关键）。M(a) 是全程 C∞ 光滑
-            // 软乘子：中高 alpha 区 M≈1（tail≈a，忠实保留模糊的衰减形状，不会把外圈
-            // 抬亮成一大圈）；尾端 M→0 且一阶导趋 0（轻柔吻接到 0、不生硬截断）。
-            //   M(a) = 1 - (1-a)^p   单调，M(0)=0, M(1)=1，全段无穷阶导存在，无任何
-            //   分段 junction；调 p 大 → 尾端吻接区间更长更柔。
+            // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后轮廓 alpha），图标本体由上层锐利覆盖。
+            //    gamma=1.0 不提亮，保留模糊本身的快速衰减；尾端用 C∞ 软乘子
+            //    M(a)=1-(1-a)^p 平滑吻接到 0，中高 alpha 区 M≈1 忠实保留衰减形状。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
             final float baseGain = 0.62f;    // 整体亮度系数（<1 降亮度）
-            final float gamma = 1.0f;        // 不提亮：保留模糊本来的快速衰减，避免外环被撑厚成一大坨
+            final float gamma = 1.0f;        // 不提亮：保留模糊本来的快速衰减
             final float fadeSharp = 6f;      // 尾端软乘子的指数：越大吻接区间越长越柔
-            for (int i = 0; i < alpha.length; i++) {
-                float nf = alpha[i] / 255f;
+            for (int i = 0; i < edge.length; i++) {
+                float nf = edge[i] / 255f;
                 float a = (float) Math.pow(nf, gamma);
                 // 软乘子 M = 1 - (1-a)^p，全程 C∞ 单条函数，无分段无折点
                 float m = 1f - (float) Math.pow(1f - a, fadeSharp);
