@@ -18,7 +18,7 @@ final class EqCurveView extends View {
     private static final float CURVE_SAMPLE_STEP_PX = 0.24f;
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
     private static final long ANIMATION_FRAME_DELAY_MS = 33L;
-    private static final long VISUAL_FADE_DURATION_MS = 190L;
+    private static final long VISUAL_FADE_DURATION_MS = 280L;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
