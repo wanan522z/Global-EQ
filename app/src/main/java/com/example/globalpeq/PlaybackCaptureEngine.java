@@ -247,10 +247,11 @@ final class PlaybackCaptureEngine {
             }
             int trackBufferBytes = Math.max(minTrackBytes * 2, latencyFrames * bytesPerFrame * 2);
 
+            muteSourceStreamLocked();
             audioTrack = new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .setUsage(EQ_PLAYBACK_USAGE)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                             .build())
                     .setAudioFormat(trackFormat)
                     .setBufferSizeInBytes(trackBufferBytes)
@@ -274,7 +275,7 @@ final class PlaybackCaptureEngine {
             activeWorkerToken = workerToken;
             workerThread = new Thread(() -> runCaptureLoop(workerToken), "global-peq-capture");
             workerThread.start();
-            publishStatus("Monitoring " + currentTargetLabel + " via native capture.", true);
+            publishStatus("Monitoring " + currentTargetLabel + " via native capture. Source app muted.", true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to start playback capture pipeline", ex);
             stopPipelineLocked();
