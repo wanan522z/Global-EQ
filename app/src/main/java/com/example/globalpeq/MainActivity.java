@@ -5339,6 +5339,10 @@ public final class MainActivity extends Activity {
             return;
         }
         try {
+            Preset persistedRunningPreset = withCurrentCurveSettings(runningPreset);
+            if (persistedRunningPreset != null) {
+                runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
+            }
             repository.saveSelectedDevice(currentDevice);
             repository.savePreset(currentDevice, runningPreset);
             repository.saveGlobalPreset(runningPreset);
@@ -5660,9 +5664,16 @@ public final class MainActivity extends Activity {
     }
 
     private void persistEditingPreset() {
-        repository.saveDraftPreset(editingPreset);
-        if (isNamedPreset(editingPreset.name)) {
-            repository.saveNamedPreset(editingPreset);
+        Preset persistedPreset = withCurrentCurveSettings(editingPreset);
+        if (persistedPreset == null) {
+            return;
+        }
+        if (!persistedPreset.toJson().equals(editingPreset.toJson())) {
+            editingPreset = persistedPreset;
+        }
+        repository.saveDraftPreset(persistedPreset);
+        if (isNamedPreset(persistedPreset.name)) {
+            repository.saveNamedPreset(persistedPreset);
         }
     }
 
