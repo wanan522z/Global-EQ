@@ -7439,11 +7439,8 @@ public final class MainActivity extends Activity {
     private Drawable labeledSwitchTrackDrawable(String uncheckedLabel, String checkedLabel, int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Path clipPath = new Path();
             private final android.graphics.RectF rect = new android.graphics.RectF();
-            private android.animation.ValueAnimator labelAnimator;
-            private float labelProgress;
-            private boolean labelProgressReady;
+            private final Paint.FontMetrics fontMetrics = new Paint.FontMetrics();
 
             @Override
             public void draw(Canvas canvas) {
