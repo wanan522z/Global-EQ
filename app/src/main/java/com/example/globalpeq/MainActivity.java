@@ -27,8 +27,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
-import android.util.Log;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.Layout;
@@ -69,7 +67,6 @@ import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    private static final String SHIMMER_DEBUG_TAG = "GlobalPEQShimmer";
     private static final int HISTORY_LIMIT = 30;
     private static final int REQUEST_IMPORT_DEVICE_CURVE = 4101;
     private static final int REQUEST_IMPORT_TARGET_CURVE = 4102;
@@ -155,14 +152,12 @@ public final class MainActivity extends Activity {
     private final java.util.Map<TextView, Integer> shimmerLastWidth = new java.util.HashMap<>();
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
-    private final java.util.Map<TextView, Long> shimmerPhaseFreezeUntil = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleVisualStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
     private static final float TAB_SHIMMER_SPEED_MULTIPLIER = 4.2f;
-    private static final long SHIMMER_ACTIVATION_FREEZE_MS = 180L;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
