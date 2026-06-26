@@ -1257,7 +1257,7 @@ public final class MainActivity extends Activity {
         panel.addView(title, titleParams);
 
         TextView detail = new TextView(this);
-        detail.setText("Pick the app to monitor, authorize native capture, and tune latency-oriented parameters for the second backend. Mute the source app when capture is live.");
+        detail.setText("Pick the target app, authorize Android playback capture, and tune latency-oriented parameters for the second backend. If capture is live, mute the source app to avoid doubling.");
         detail.setTextSize(12);
         detail.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(detail, blockParams(2));
@@ -1265,7 +1265,7 @@ public final class MainActivity extends Activity {
         monitorCaptureButton = createExtraChoiceButton();
         monitorCaptureButton.setText(monitorCaptureButtonText());
         monitorCaptureButton.setOnClickListener(v -> handleMonitorCaptureAction());
-        panel.addView(labeledSettingsRow("Native capture", monitorCaptureButton), blockParams(12));
+        panel.addView(labeledSettingsRow("Capture auth", monitorCaptureButton), blockParams(12));
 
         monitorCaptureStatusView = new TextView(this);
         monitorCaptureStatusView.setText(monitorCaptureStatusText());
