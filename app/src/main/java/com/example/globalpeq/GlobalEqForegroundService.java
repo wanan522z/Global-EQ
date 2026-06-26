@@ -86,8 +86,7 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             startForegroundInternal(captureEngine.hasProjection());
         }
-        boolean applyNow = intent == null || !ACTION_APPLY.equals(intent.getAction());
-        Preset preset = applyNow ? applySavedPreset() : refreshSavedPresetState();
+        Preset preset = applySavedPreset();
         if (!preset.enabled) {
             captureEngine.stopAll();
             stopForeground(STOP_FOREGROUND_REMOVE);
