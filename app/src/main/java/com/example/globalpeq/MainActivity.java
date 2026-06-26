@@ -5765,9 +5765,9 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 状态文字统一精简5色标超炽白冰青色阶（去绿，纯青+超白）
-        int highGlowCyan = Color.rgb(180, 255, 255);  // 极高亮白青
-        int iceCyan = Color.rgb(60, 245, 255);        // 极亮电光冰青蓝
+        // 状态文字统一精简5色标超炽白冰蓝色阶（去绿，浅亮蓝+超白）
+        int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
+        int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         view.getPaint().setShader(new LinearGradient(
