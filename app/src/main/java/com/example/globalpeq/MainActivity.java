@@ -1145,6 +1145,22 @@ public final class MainActivity extends Activity {
         return supported && runningPreset != null && runningPreset.enabled && curveVisualEnabled;
     }
 
+    private boolean isPeqBandVisualEnabled(int index) {
+        if (editingPreset == null || index < 0 || index >= editingPreset.bands.length) {
+            return false;
+        }
+        if (!supported || runningPreset == null || !runningPreset.enabled) {
+            return false;
+        }
+        if (!editingPreset.bands[index].enabled) {
+            return false;
+        }
+        if (peqVisualSequenceRunning && index < peqBandVisualEnabled.length) {
+            return peqBandVisualEnabled[index];
+        }
+        return true;
+    }
+
     private void refreshCurveView() {
         if (curveView == null) {
             return;
