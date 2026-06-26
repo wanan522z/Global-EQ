@@ -998,6 +998,13 @@ public final class MainActivity extends Activity {
 
     private void buildSettingsPage(LinearLayout page) {
         page.setPadding(0, dp(16), 0, 0);
+
+        settingsRootContent = new LinearLayout(this);
+        settingsRootContent.setOrientation(LinearLayout.VERTICAL);
+        page.addView(settingsRootContent, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
         
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
@@ -1005,7 +1012,7 @@ public final class MainActivity extends Activity {
         panel.setClipToPadding(false);
         panel.setPadding(dp(16), dp(16), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
-        page.addView(panel, new LinearLayout.LayoutParams(
+        settingsRootContent.addView(panel, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
