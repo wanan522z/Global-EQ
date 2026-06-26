@@ -1512,6 +1512,9 @@ public final class MainActivity extends Activity {
         if (!editingPreset.bands[index].enabled) {
             return false;
         }
+        if (peqVisualSequenceRunning && peqBandVisualEnabled.length == editingPreset.bands.length) {
+            return peqBandVisualEnabled[index];
+        }
         return true;
     }
 
