@@ -148,6 +148,7 @@ public final class MainActivity extends Activity {
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
     private static final float TAB_SHIMMER_SPEED_MULTIPLIER = 4.2f;
+    private static final long SHIMMER_ACTIVATION_FREEZE_MS = 180L;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
         @Override
         public void run() {
