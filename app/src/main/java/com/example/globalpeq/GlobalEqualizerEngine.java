@@ -29,6 +29,11 @@ final class GlobalEqualizerEngine {
     private long lastControlRearmElapsedMs;
     private long lastRouteReapplyElapsedMs;
 
+    private enum ApplyStrategy {
+        AUTO,
+        FORCE_FULL_RESET
+    }
+
     boolean start() {
         if (equalizer != null) {
             return true;
@@ -55,6 +60,14 @@ final class GlobalEqualizerEngine {
     }
 
     void apply(Preset preset) {
+        applyInternal(preset, ApplyStrategy.AUTO);
+    }
+
+    void applyWithFullReset(Preset preset) {
+        applyInternal(preset, ApplyStrategy.FORCE_FULL_RESET);
+    }
+
+    private void applyInternal(Preset preset, ApplyStrategy strategy) {
         applyGeneration++;
         if (preset == null || !start()) {
             return;
@@ -68,24 +81,18 @@ final class GlobalEqualizerEngine {
 
         pendingPreset = preset;
         try {
-            if (shouldStageThroughZero(preset)) {
+            if (canSkipApply(preset, strategy)) {
+                lastAppliedPreset = preset;
+                return;
+            }
+            if (strategy == ApplyStrategy.FORCE_FULL_RESET || shouldStageThroughZero(preset)) {
                 armWithZeroBands();
-                int generation = applyGeneration;
-                handler.postDelayed(() -> {
-                    if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
-                        applyTargetLevels(pendingPreset);
-                    }
-                }, ARM_DELAY_MS);
+                scheduleTargetApply();
                 return;
             }
             if (shouldStageRaisedBands(preset)) {
                 armRaisedBands(lastAppliedPreset, preset);
-                int generation = applyGeneration;
-                handler.postDelayed(() -> {
-                    if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
-                        applyTargetLevels(pendingPreset);
-                    }
-                }, ARM_DELAY_MS);
+                scheduleTargetApply();
                 return;
             }
             applyTargetLevels(preset);
@@ -103,12 +110,7 @@ final class GlobalEqualizerEngine {
         pendingPreset = preset;
         try {
             armWithZeroBands();
-            int generation = applyGeneration;
-            handler.postDelayed(() -> {
-                if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
-                    applyTargetLevels(pendingPreset);
-                }
-            }, ARM_DELAY_MS);
+            scheduleTargetApply();
         } catch (RuntimeException ex) {
             Log.w(TAG, "Failed to staged reapply global preset", ex);
         }
@@ -207,6 +209,15 @@ final class GlobalEqualizerEngine {
         armedWithZeroBands = true;
     }
 
+    private void scheduleTargetApply() {
+        int generation = applyGeneration;
+        handler.postDelayed(() -> {
+            if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
+                applyTargetLevels(pendingPreset);
+            }
+        }, ARM_DELAY_MS);
+    }
+
     private void armRaisedBands(Preset before, Preset after) {
         if (equalizer == null || before == null || after == null) {
             return;
@@ -282,6 +293,20 @@ final class GlobalEqualizerEngine {
             return false;
         }
         return hasRaisedPositiveEqGain(lastAppliedPreset, preset);
+    }
+
+    private boolean canSkipApply(Preset preset, ApplyStrategy strategy) {
+        if (strategy != ApplyStrategy.AUTO || equalizer == null || preset == null || lastAppliedPreset == null) {
+            return false;
+        }
+        try {
+            if (!equalizer.getEnabled()) {
+                return false;
+            }
+        } catch (RuntimeException ex) {
+            return false;
+        }
+        return samePresetState(lastAppliedPreset, preset);
     }
 
     private boolean hasAnyEqGain(Preset preset) {
@@ -370,6 +395,10 @@ final class GlobalEqualizerEngine {
         } catch (RuntimeException ex) {
             return 0;
         }
+    }
+
+    private boolean samePresetState(Preset before, Preset after) {
+        return before != null && after != null && before.toJson().equals(after.toJson());
     }
 
     private void applyBassBoost(Preset preset) {
