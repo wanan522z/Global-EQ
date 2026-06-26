@@ -1880,6 +1880,31 @@ public final class MainActivity extends Activity {
         return suggested;
     }
 
+    private void rebuildSuggestedMonitoredAppList(LinearLayout list,
+                                                  List<ResolveInfo> suggested,
+                                                  AlertDialog[] dialogHolder) {
+        list.removeAllViews();
+        list.addView(createMonitoredAppAddButton(dialogHolder), curveMenuRowParams(0));
+        boolean clearActive = advancedModeConfig.monitoredAppPackage == null
+                || advancedModeConfig.monitoredAppPackage.isEmpty();
+        list.addView(createMonitoredAppClearRow(clearActive, dialogHolder), curveMenuRowParams(6));
+        for (int i = 0; i < suggested.size(); i++) {
+            ResolveInfo info = suggested.get(i);
+            boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(6));
+        }
+        if (suggested.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(tr(
+                    "No suggested media apps were detected. Use Add to pick any installed app.",
+                    "没有检测到推荐的媒体应用。可以通过 Add 选择任意已安装应用。"));
+            empty.setTextSize(12);
+            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setPadding(dp(4), dp(8), dp(4), dp(4));
+            list.addView(empty, curveMenuRowParams(6));
+        }
+    }
+
     private List<ResolveInfo> loadLaunchableActivities() {
         Intent launcherIntent = new Intent(Intent.ACTION_MAIN, null);
         launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -2128,6 +2153,29 @@ public final class MainActivity extends Activity {
             return packageName == null ? "" : packageName;
         }
         return normalized;
+    }
+
+    private void showLinearLoadingState(LinearLayout list, String message) {
+        list.removeAllViews();
+        TextView loading = new TextView(this);
+        loading.setText(message);
+        loading.setTextSize(12);
+        loading.setTextColor(Color.rgb(170, 180, 198));
+        loading.setPadding(dp(4), dp(8), dp(4), dp(4));
+        list.addView(loading, curveMenuRowParams(0));
+    }
+
+    private void showIndexedLoadingState(LinearLayout list, LinearLayout indexBar, String message) {
+        list.removeAllViews();
+        indexBar.removeAllViews();
+        indexBar.setVisibility(View.GONE);
+
+        TextView loading = new TextView(this);
+        loading.setText(message);
+        loading.setTextSize(12);
+        loading.setTextColor(Color.rgb(170, 180, 198));
+        loading.setPadding(dp(4), dp(8), dp(4), dp(4));
+        list.addView(loading, curveMenuRowParams(0));
     }
 
     private void rebuildInstalledAppPickerList(LinearLayout list,
