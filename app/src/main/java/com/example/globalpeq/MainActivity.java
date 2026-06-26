@@ -5088,8 +5088,10 @@ public final class MainActivity extends Activity {
 
     private void updateExtraControls() {
         boolean bassBoostEnabled = supported && processingMode == ProcessingMode.ADVANCED_DSP && selectedBassModeIndex > 0;
+        boolean dspBassMode = selectedBassModeIndex == 2;
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
+            bassBoostSlider.setLabel(dspBassMode ? "Amount" : "Boost");
             bassBoostSlider.setEnabled(bassBoostEnabled);
             bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
         }
@@ -5113,15 +5115,16 @@ public final class MainActivity extends Activity {
             bassModeButton.setAlpha(1f);
         }
         if (dspBassCutoffInput != null) {
-            dspBassCutoffInput.setVisibility(selectedBassModeIndex == 2 ? View.VISIBLE : View.GONE);
-            dspBassCutoffInput.setEnabled(bassBoostEnabled && selectedBassModeIndex == 2);
+            dspBassCutoffInput.setHint(dspBassMode ? "Cutoff Hz" : "Boost");
+            dspBassCutoffInput.setVisibility(dspBassMode ? View.VISIBLE : View.GONE);
+            dspBassCutoffInput.setEnabled(bassBoostEnabled && dspBassMode);
             String cutoffText = String.valueOf(editingPreset.dspBassCutoffHz);
             if (!cutoffText.contentEquals(dspBassCutoffInput.getText())) {
                 updatingUi = true;
                 dspBassCutoffInput.setText(cutoffText);
                 updatingUi = false;
             }
-            dspBassCutoffInput.setAlpha(selectedBassModeIndex == 2 ? 1f : 0.55f);
+            dspBassCutoffInput.setAlpha(dspBassMode ? 1f : 0.55f);
         }
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(bassBoostTitleView);
