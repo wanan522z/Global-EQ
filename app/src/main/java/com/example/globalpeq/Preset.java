@@ -15,10 +15,10 @@ final class Preset {
     final boolean enabled;
     final boolean extraBassEnabled;
     final int pregainMb;
-    final int dspBassCutoffHz;
+    final int virtualBassCutoffHz;
     final int extraBassCutoffHz;
     final int extraBassAmountPercent;
-    final int bassEnhanceAmountPercent;
+    final int virtualBassAmountPercent;
     final String reverbType;
     final int reverbDecayPercent;
     final int reverbPredelayMs;
@@ -33,16 +33,16 @@ final class Preset {
     final ParametricBand[] bands;
     final int[] geqGainsMb;
 
-    Preset(String name, EqMode mode, boolean enabled, boolean extraBassEnabled, int pregainMb, int dspBassCutoffHz, int extraBassCutoffHz, int extraBassAmountPercent, int bassEnhanceAmountPercent, String reverbType, int reverbDecayPercent, int reverbPredelayMs, int reverbSizePercent, int reverbMixPercent, String deviceCurveName, String targetCurveName, float deviceCurveGainOffsetDb, float targetCurveGainOffsetDb, String deviceCurveSmoothing, String targetCurveSmoothing, ParametricBand[] bands, int[] geqGainsMb) {
+    Preset(String name, EqMode mode, boolean enabled, boolean extraBassEnabled, int pregainMb, int virtualBassCutoffHz, int extraBassCutoffHz, int extraBassAmountPercent, int virtualBassAmountPercent, String reverbType, int reverbDecayPercent, int reverbPredelayMs, int reverbSizePercent, int reverbMixPercent, String deviceCurveName, String targetCurveName, float deviceCurveGainOffsetDb, float targetCurveGainOffsetDb, String deviceCurveSmoothing, String targetCurveSmoothing, ParametricBand[] bands, int[] geqGainsMb) {
         this.name = name == null || name.trim().isEmpty() ? "Default" : name.trim();
         this.mode = mode == null ? EqMode.PEQ : mode;
         this.enabled = enabled;
         this.extraBassEnabled = extraBassEnabled;
         this.pregainMb = clamp(pregainMb, -2400, 1200);
-        this.dspBassCutoffHz = clamp(dspBassCutoffHz, 20, 250);
+        this.virtualBassCutoffHz = clamp(virtualBassCutoffHz, 20, 250);
         this.extraBassCutoffHz = clamp(extraBassCutoffHz, 60, 250);
         this.extraBassAmountPercent = clamp(extraBassAmountPercent, 0, 100);
-        this.bassEnhanceAmountPercent = clamp(bassEnhanceAmountPercent, 0, 100);
+        this.virtualBassAmountPercent = clamp(virtualBassAmountPercent, 0, 100);
         this.reverbType = normalizeReverbType(reverbType);
         this.reverbDecayPercent = clamp(reverbDecayPercent, 0, 100);
         this.reverbPredelayMs = clamp(reverbPredelayMs, 0, 250);
