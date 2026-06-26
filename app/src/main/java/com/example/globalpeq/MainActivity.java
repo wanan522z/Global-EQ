@@ -5770,7 +5770,7 @@ public final class MainActivity extends Activity {
                 && view.getLayerType() != View.LAYER_TYPE_NONE) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
-        applyTitleGradientShader(view, settingsTitleGradientWidth(view),
+        applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), shimmerAnimPhase * shimmerSpeedMultiplierForView(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
         // 缩小一圈，但保留完整衰减空间
@@ -5781,7 +5781,7 @@ public final class MainActivity extends Activity {
                 if (!isCurrentTextStyleVersion(view, styleVersion)) {
                     return;
                 }
-                applyTitleGradientShader(view, settingsTitleGradientWidth(view),
+                applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), shimmerAnimPhase * shimmerSpeedMultiplierForView(view),
                         Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
                 view.setTextColor(Color.WHITE);
                 view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
@@ -5802,7 +5802,7 @@ public final class MainActivity extends Activity {
     }
 
     private void styleStatusTextShimmer(TextView view, int baseColorStart, int baseColorEnd) {
-        applyStatusShimmerShader(view, settingsTitleGradientWidth(view), baseColorStart, baseColorEnd);
+        applyAnimatedStatusShimmerShader(view, settingsTitleGradientWidth(view), shimmerAnimPhase, baseColorStart, baseColorEnd);
         view.setTextColor(Color.WHITE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
                 && !(view instanceof GlowTitleTextView)
@@ -5820,13 +5820,22 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
+        applyAnimatedTitleGradientShader(view, width, 0f, startColor, midColor, endColor);
+    }
+
+    private void applyAnimatedTitleGradientShader(TextView view, int width, float phase, int startColor, int midColor, int endColor) {
+        if (width <= 0) {
+            return;
+        }
         // 色阶重构：超高亮炽白冰蓝流光——去绿，浅亮蓝+超白，亮度拉满
         int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
         int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
+        float normalizedPhase = phase - (float) Math.floor(phase);
+        float offset = normalizedPhase * width;
         view.getPaint().setShader(new LinearGradient(
-                0, 0, width, 0,
+                offset, 0, width + offset, 0,
                 new int[]{
                         highGlowCyan,
                         iceCyan,
@@ -5842,13 +5851,22 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
+        applyAnimatedStatusShimmerShader(view, width, 0f, startColor, endColor);
+    }
+
+    private void applyAnimatedStatusShimmerShader(TextView view, int width, float phase, int startColor, int endColor) {
+        if (width <= 0) {
+            return;
+        }
         // 状态文字统一精简5色标超炽白冰蓝色阶（去绿，浅亮蓝+超白）
         int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
         int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
+        float normalizedPhase = phase - (float) Math.floor(phase);
+        float offset = normalizedPhase * width;
         view.getPaint().setShader(new LinearGradient(
-                0, 0, width, 0,
+                offset, 0, width + offset, 0,
                 new int[]{
                         highGlowCyan,
                         iceCyan,
