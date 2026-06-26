@@ -5789,10 +5789,17 @@ public final class MainActivity extends Activity {
         // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
         // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
         boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                && !usesCustomGlow
-                && view.getLayerType() != View.LAYER_TYPE_NONE) {
-            view.setLayerType(View.LAYER_TYPE_NONE, null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            if (usesCustomGlow) {
+                // Inactive bottom tabs drop back to a hardware layer. Restore software
+                // text rendering when re-activating them so animated shimmer frames
+                // repaint correctly instead of being flattened by glyph caching.
+                if (view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
+                    view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+                }
+            } else if (view.getLayerType() != View.LAYER_TYPE_NONE) {
+                view.setLayerType(View.LAYER_TYPE_NONE, null);
+            }
         }
         applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), shimmerAnimPhase * shimmerSpeedMultiplierForView(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
