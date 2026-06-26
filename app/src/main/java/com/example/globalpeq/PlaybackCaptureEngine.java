@@ -144,7 +144,7 @@ final class PlaybackCaptureEngine {
         }
         if (preset == null || !preset.enabled) {
             stopPipelineLocked();
-            publishStatus("Monitor DSP ready. Enable EQ to start capture.", false);
+            publishStatus("Shizuku Mode ready. Enable EQ to start capture.", false);
             return;
         }
         if (currentConfig.monitoredAppPackage.isEmpty()) {
@@ -282,7 +282,7 @@ final class PlaybackCaptureEngine {
             workerThread.start();
             Log.i(TAG, "Started experimental native capture route"
                     + " target=" + currentTargetLabel
-                    + " trackUsage=" + (currentMode == ProcessingMode.SHIZUKU_MUTE ? "MEDIA" : "ASSISTANT")
+                    + " trackUsage=MEDIA"
                     + " stream=" + EXPERIMENTAL_PLAYBACK_STREAM
                     + " desiredFrames=" + desiredFrames
                     + " trackBufferBytes=" + trackBufferBytes
