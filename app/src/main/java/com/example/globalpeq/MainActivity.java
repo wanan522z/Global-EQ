@@ -654,6 +654,8 @@ public final class MainActivity extends Activity {
         monitorSettingsPage.setVisibility(View.GONE);
         monitorSettingsPage.setClipChildren(false);
         monitorSettingsPage.setClipToPadding(false);
+        monitorSettingsPage.setBackgroundColor(Color.rgb(18, 18, 25));
+        monitorSettingsPage.setClickable(true);
         mainPageHost.addView(monitorSettingsPage, pageHostParams());
         buildMonitorSettingsPage(monitorSettingsPage);
 
@@ -681,6 +683,7 @@ public final class MainActivity extends Activity {
         modeSpinner.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
         modeSpinner.setSingleLine(true);
         modeSpinner.setIncludeFontPadding(false);
+        modeSpinner.setEllipsize(android.text.TextUtils.TruncateAt.END);
         modeSpinner.setPadding(0, 0, dp(6), 0);
         reserveStartGlowWithoutMoving(modeSpinner, 16);
         modeSpinner.setMinWidth(0);
@@ -698,13 +701,23 @@ public final class MainActivity extends Activity {
                 }
             });
         });
-        LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
+        LinearLayout leftCluster = new LinearLayout(this);
+        leftCluster.setOrientation(LinearLayout.HORIZONTAL);
+        leftCluster.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        top.addView(leftCluster, new LinearLayout.LayoutParams(
+                0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(34)
+                1f
+        ));
+
+        LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
+                0,
+                dp(34),
+                1f
         );
         modeParams.leftMargin = dp(6);
-        modeParams.rightMargin = dp(12);
-        top.addView(modeSpinner, modeParams);
+        modeParams.rightMargin = dp(4);
+        leftCluster.addView(modeSpinner, modeParams);
 
         monitoredAppIconView = new ImageView(this);
         monitoredAppIconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -717,16 +730,9 @@ public final class MainActivity extends Activity {
             }
         });
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(22), dp(22));
-        iconParams.leftMargin = dp(2);
-        iconParams.rightMargin = dp(6);
-        top.addView(monitoredAppIconView, iconParams);
-
-        View switchSpacer = new View(this);
-        top.addView(switchSpacer, new LinearLayout.LayoutParams(
-                0,
-                1,
-                1f
-        ));
+        iconParams.leftMargin = dp(4);
+        iconParams.rightMargin = dp(8);
+        leftCluster.addView(monitoredAppIconView, iconParams);
 
         enabledSwitch = new Switch(this);
         enabledSwitch.setText("");
