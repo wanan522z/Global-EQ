@@ -70,7 +70,8 @@ public final class GlobalEqForegroundService extends Service {
                     processingMode,
                     currentPreset,
                     repository.loadAdvancedModeConfig(),
-                    bassModeIndex);
+                    bassModeIndex,
+                    currentDevice);
             updateNotification();
         });
     }
@@ -120,7 +121,8 @@ public final class GlobalEqForegroundService extends Service {
                 processingMode,
                 currentPreset,
                 repository.loadAdvancedModeConfig(),
-                bassModeIndex);
+                bassModeIndex,
+                currentDevice);
         return preset;
     }
 

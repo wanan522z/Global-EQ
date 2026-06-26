@@ -129,6 +129,7 @@ public final class MainActivity extends Activity {
     private FrameLayout topControlOverlay;
     private TextView statusText;
     private TextView engineStatusValueView;
+    private TextView engineStatusTitleView;
     private ImageView monitoredAppIconView;
     private View bottomNavView;
     private Spinner deviceSpinner;
@@ -231,7 +232,6 @@ public final class MainActivity extends Activity {
     // 不同状态用不同色阶，但都用 baked offset 方式（不用 setLocalMatrix）。
     private void applyShimmerFrame(TextView view, int width, float phase) {
         if (view == null || width <= 0) {
-            return;
         }
 
         boolean usesCustomGlow = view instanceof GlowTitleTextView;
@@ -532,6 +532,18 @@ public final class MainActivity extends Activity {
             registerShimmerView(modeSpinner);
         }
         updateBottomNavSelection(activeMainPageIndex);
+        
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (event != null && event.getAction() == MotionEvent.ACTION_DOWN) {
+            View focused = getCurrentFocus();
+            if (shouldDismissKeyboardOnTouch(focused, event)) {
+                closeKeyboard(focused);
+            }
+        }
+        return super.dispatchTouchEvent(event);
     }
 
     @Override
@@ -565,6 +577,9 @@ public final class MainActivity extends Activity {
             boolean visibleNow = hiddenHeight > rootHeight * 0.15f;
             if (keyboardVisible && !visibleNow && activeEqEditOverlay != null) {
                 hideEqEditOverlay();
+            }
+            if (keyboardVisible && !visibleNow) {
+                clearEditingFocusAfterKeyboardDismiss();
             }
             keyboardVisible = visibleNow;
         };
@@ -660,12 +675,6 @@ public final class MainActivity extends Activity {
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             renderDeviceSpinner();
-            if (runningPreset != null && runningPreset.enabled) {
-                engine.reapplyForRouteChange(AudioProcessingPolicy.effectiveSystemPreset(
-                        runningPreset,
-                        processingMode,
-                        selectedBassModeIndex));
-            }
             return;
         }
 
@@ -761,9 +770,10 @@ public final class MainActivity extends Activity {
         monitorSettingsPage = new LinearLayout(this);
         monitorSettingsPage.setOrientation(LinearLayout.VERTICAL);
         monitorSettingsPage.setVisibility(View.GONE);
+        monitorSettingsPage.setPadding(0, dp(16), 0, 0);
         monitorSettingsPage.setClipChildren(false);
         monitorSettingsPage.setClipToPadding(false);
-        monitorSettingsPage.setBackgroundColor(Color.rgb(18, 18, 25));
+        monitorSettingsPage.setBackgroundColor(Color.TRANSPARENT);
         monitorSettingsPage.setClickable(true);
         mainPageHost.addView(monitorSettingsPage, pageHostParams());
         buildMonitorSettingsPage(monitorSettingsPage);
@@ -1157,14 +1167,13 @@ public final class MainActivity extends Activity {
         title.setTextSize(18);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(title);
-        title.setOnClickListener(this::showProcessingModeChoiceMenu);
         LinearLayout.LayoutParams engineTitleParams = blockParams(0);
         // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都从 panel 内容区左边开始）。
         // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，shadow 半径 5.5dp 仍落在 panel 16dp padding 内，不裁剪。
         engineTitleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(title, 12);
         panel.addView(title, engineTitleParams);
-        processingModeButton = title;
+        engineStatusTitleView = title;
 
         settingsPanelDetailView = new TextView(this);
         settingsPanelDetailView.setText(settingsModeDetailText());
@@ -1183,29 +1192,15 @@ public final class MainActivity extends Activity {
         settingsStatusLabelView.setTextColor(Color.rgb(200, 210, 230));
         statusRow.addView(settingsStatusLabelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        engineStatusValueView = new TextView(this) {
-            @Override
-            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-                super.onSizeChanged(w, h, oldw, oldh);
-                if (w > 0 && h > 0 && supported) {
-                    getPaint().setShader(new LinearGradient(
-                            0, 0, w, 0,
-                            new int[]{Color.rgb(0, 255, 255), Color.rgb(120, 200, 255)},
-                            null, Shader.TileMode.CLAMP));
-                } else if (w > 0 && h > 0) {
-                    getPaint().setShader(new LinearGradient(
-                            0, 0, w, 0,
-                            new int[]{Color.rgb(255, 100, 100), Color.rgb(255, 160, 160)},
-                            null, Shader.TileMode.CLAMP));
-                }
-            }
-        };
+        engineStatusValueView = new GlowTitleTextView(this);
         engineStatusValueView.setText(engineStatusText());
         engineStatusValueView.setTextSize(14);
-        engineStatusValueView.setTextColor(supported ? Color.rgb(0, 255, 255) : Color.rgb(255, 100, 100));
-        engineStatusValueView.postInvalidate();
         engineStatusValueView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        engineStatusValueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        engineStatusValueView.setOnClickListener(this::showProcessingModeChoiceMenu);
+        styleGradientTitle(engineStatusValueView);
         statusRow.addView(engineStatusValueView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        processingModeButton = engineStatusValueView;
 
         advancedModeDetailButton = createExtraChoiceButton();
         advancedModeDetailButton.setText(monitorSettingsTitleText());
@@ -1437,9 +1432,14 @@ public final class MainActivity extends Activity {
     }
 
     private String settingsModeDetailText() {
+        return isChineseUi()
+                ? "\u4f7f\u7528\u4e0b\u65b9\u201c\u7cfb\u7edf\u5904\u7406\u201d\u53f3\u4fa7\u63a7\u4ef6\u5207\u6362\u5f15\u64ce\u6a21\u5f0f\u3002"
+                : "Use the System Processing control below to switch backend mode.";
+        /*
         return tr(
-                "Tap the title above to switch backend mode.",
+                "Use the System Processing control below to switch backend mode.",
                 "点击上方标题即可切换后端模式。");
+        */
     }
 
     private String settingsStatusLabelText() {
@@ -1480,7 +1480,7 @@ public final class MainActivity extends Activity {
     }
 
     private String footerText() {
-        return tr("Version 0.1 - Powered by Gemini 3.5", "版本 0.1 - Powered by Gemini 3.5");
+        return tr("Version 1 - Powered by WanAn522z", "Version 1 - Powered by WanAn522z");
     }
 
     private String monitorSettingsTitleText() {
@@ -1533,7 +1533,10 @@ public final class MainActivity extends Activity {
     }
 
     private String processingModeTitleText() {
+        return isChineseUi() ? "\u5f15\u64ce\u72b6\u6001" : "Engine Status";
+        /*
         return tr("Engine Status · ", "引擎状态 · ") + processingModeDisplayLabel(processingMode);
+        */
     }
 
     private String translateMonitorCaptureStatus(String status) {
@@ -1630,12 +1633,17 @@ public final class MainActivity extends Activity {
         if (settingsStatusLabelView != null) {
             settingsStatusLabelView.setText(settingsStatusLabelText());
         }
+        if (engineStatusTitleView != null) {
+            engineStatusTitleView.setText(processingModeTitleText());
+            styleGradientTitle(engineStatusTitleView);
+        }
         if (processingModeButton != null) {
-            processingModeButton.setText(processingModeTitleText());
+            processingModeButton.setText(engineStatusText());
             styleGradientTitle(processingModeButton);
         }
         if (engineStatusValueView != null) {
             engineStatusValueView.setText(engineStatusText());
+            styleGradientTitle(engineStatusValueView);
         }
         if (advancedModeDetailButton != null) {
             advancedModeDetailButton.setText(monitorSettingsTitleText());
@@ -1720,11 +1728,13 @@ public final class MainActivity extends Activity {
 
     private void showAdvancedSettingsSubpage() {
         if (processingMode != ProcessingMode.ADVANCED_DSP
+                || settingsPage == null
                 || monitorSettingsPage == null
                 || bottomNavView == null) {
             return;
         }
         monitorSettingsOpen = true;
+        settingsPage.setVisibility(View.GONE);
         monitorSettingsPage.setVisibility(View.VISIBLE);
         monitorSettingsPage.bringToFront();
         bottomNavView.setVisibility(View.GONE);
@@ -1734,11 +1744,12 @@ public final class MainActivity extends Activity {
     }
 
     private void hideAdvancedSettingsSubpage() {
-        if (monitorSettingsPage == null || bottomNavView == null) {
+        if (settingsPage == null || monitorSettingsPage == null || bottomNavView == null) {
             return;
         }
         monitorSettingsOpen = false;
         monitorSettingsPage.setVisibility(View.GONE);
+        settingsPage.setVisibility(View.VISIBLE);
         bottomNavView.setVisibility(View.VISIBLE);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
         updateBottomNavSelection(activeMainPageIndex);
@@ -1828,7 +1839,6 @@ public final class MainActivity extends Activity {
     }
 
     private void showMonitoredAppChoiceDialog() {
-        {
             AlertDialog[] dialogHolder = new AlertDialog[1];
             final List<MonitoredAppListEntry>[] monitoredHolder = new List[]{null};
             LinearLayout shell = new LinearLayout(this);
@@ -1951,34 +1961,15 @@ public final class MainActivity extends Activity {
                     );
                 });
             }, "global-peq-monitored-apps").start();
-            return;
-        }
-        AlertDialog[] dialogHolder = new AlertDialog[1];
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(12), dp(10), dp(12), dp(12));
+        /*
         showLinearLoadingState(list, tr("Loading monitored apps...", "正在加载监听应用..."));
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
                 .setView(scroll)
                 .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
-        dialogHolder[0] = dialog;
-        dialog.show();
-        styleDialog(dialog);
-
-        new Thread(() -> {
-            List<ResolveInfo> suggested = loadSuggestedMonitoredApps();
-            uiHandler.post(() -> {
-                if (dialogHolder[0] == null || !dialogHolder[0].isShowing()) {
-                    return;
-                }
-                rebuildSuggestedMonitoredAppList(list, suggested, dialogHolder);
-            });
-        }, "global-peq-suggested-apps").start();
+        */
     }
 
     private List<ResolveInfo> loadSuggestedMonitoredApps() {
@@ -2253,6 +2244,13 @@ public final class MainActivity extends Activity {
         }
         final Collator collator = appLabelCollator();
         installed.sort((left, right) -> {
+            int sectionCompare = compareAlphabetSections(
+                    alphabetKeyForApp(left.label, left.packageName),
+                    alphabetKeyForApp(right.label, right.packageName)
+            );
+            if (sectionCompare != 0) {
+                return sectionCompare;
+            }
             int labelCompare = collator.compare(left.label, right.label);
             if (labelCompare != 0) {
                 return labelCompare;
@@ -2288,19 +2286,32 @@ public final class MainActivity extends Activity {
 
     private List<MonitoredAppListEntry> loadMonitoredAppChoiceEntries() {
         List<MonitoredAppListEntry> entries = new ArrayList<>();
+        Set<String> seenPackages = new HashSet<>();
+        for (MonitoredAppListEntry entry : loadPreferredMonitoredAppEntries()) {
+            addMonitoredAppChoiceEntry(entries, seenPackages, entry.label, entry.packageName);
+        }
         if (advancedModeConfig.monitoredApps != null) {
             for (AdvancedModeConfig.MonitoredAppItem item : advancedModeConfig.monitoredApps) {
                 if (item == null || item.packageName == null || item.packageName.trim().isEmpty()) {
                     continue;
                 }
-                entries.add(new MonitoredAppListEntry(
+                addMonitoredAppChoiceEntry(
+                        entries,
+                        seenPackages,
                         normalizeInstalledAppLabel(item.label, item.packageName),
                         item.packageName
-                ));
+                );
             }
         }
         final Collator collator = appLabelCollator();
         entries.sort((left, right) -> {
+            int sectionCompare = compareAlphabetSections(
+                    alphabetKeyForApp(left.label, left.packageName),
+                    alphabetKeyForApp(right.label, right.packageName)
+            );
+            if (sectionCompare != 0) {
+                return sectionCompare;
+            }
             int labelCompare = collator.compare(left.label, right.label);
             if (labelCompare != 0) {
                 return labelCompare;
@@ -2332,7 +2343,7 @@ public final class MainActivity extends Activity {
             if (!matchesMonitoredAppQuery(entry, normalizedQuery)) {
                 continue;
             }
-            String section = alphabetKeyForLabel(entry.label);
+            String section = alphabetKeyForApp(entry.label, entry.packageName);
             if (!section.equals(lastSection)) {
                 View header = createInstalledAppSectionHeader(section);
                 list.addView(header, curveMenuRowParams(matchCount == 0 ? 10 : 10));
@@ -2429,7 +2440,7 @@ public final class MainActivity extends Activity {
             if (!matchesInstalledAppQuery(entry, normalizedQuery)) {
                 continue;
             }
-            String section = alphabetKeyForLabel(entry.label);
+            String section = alphabetKeyForApp(entry.label, entry.packageName);
             if (!section.equals(lastSection)) {
                 View header = createInstalledAppSectionHeader(section);
                 list.addView(header, curveMenuRowParams(matchCount == 0 ? 0 : 10));
@@ -2475,16 +2486,178 @@ public final class MainActivity extends Activity {
         return entry.normalizedLabel.contains(query) || entry.normalizedPackage.contains(query);
     }
 
+    private List<MonitoredAppListEntry> loadPreferredMonitoredAppEntries() {
+        List<MonitoredAppListEntry> entries = new ArrayList<>();
+        Set<String> seenPackages = new HashSet<>();
+        for (ResolveInfo info : loadLaunchableActivities()) {
+            if (info == null || info.activityInfo == null) {
+                continue;
+            }
+            String packageName = info.activityInfo.packageName == null ? "" : info.activityInfo.packageName;
+            String label = normalizeInstalledAppLabel(String.valueOf(info.loadLabel(getPackageManager())), packageName);
+            if (!isPreferredMonitoredApp(label, packageName)) {
+                continue;
+            }
+            addMonitoredAppChoiceEntry(entries, seenPackages, label, packageName);
+        }
+        return entries;
+    }
+
+    private void addMonitoredAppChoiceEntry(List<MonitoredAppListEntry> entries,
+                                            Set<String> seenPackages,
+                                            String label,
+                                            String packageName) {
+        if (packageName == null) {
+            return;
+        }
+        String normalizedPackage = packageName.trim();
+        if (normalizedPackage.isEmpty() || !seenPackages.add(normalizedPackage)) {
+            return;
+        }
+        entries.add(new MonitoredAppListEntry(
+                normalizeInstalledAppLabel(label, normalizedPackage),
+                normalizedPackage
+        ));
+    }
+
+    private boolean isPreferredMonitoredApp(String label, String packageName) {
+        return preferredAppInitial(label, packageName) != null;
+    }
+
+    private String alphabetKeyForApp(String label, String packageName) {
+        String preferred = preferredAppInitial(label, packageName);
+        if (preferred != null) {
+            return preferred;
+        }
+        String letter = firstLatinLetter(label);
+        if (letter != null) {
+            return letter;
+        }
+        letter = packageMeaningfulInitial(packageName);
+        if (letter != null) {
+            return letter;
+        }
+        return "#";
+    }
+
+    private String preferredAppInitial(String label, String packageName) {
+        return preferredAppInitialSafe(label, packageName);
+    }
+
+    /*
+        String normalizedLabel = label == null ? "" : label.trim().toLowerCase(Locale.US);
+        String normalizedPackage = packageName == null ? "" : packageName.trim().toLowerCase(Locale.US);
+        if (normalizedLabel.contains("网易云") || normalizedPackage.contains("cloudmusic")) {
+            return "N";
+        }
+        if (normalizedLabel.contains("qq音乐") || normalizedPackage.contains("qqmusic")) {
+            return "Q";
+        }
+        if (normalizedLabel.contains("汽水音乐")
+                || normalizedPackage.contains("luna.music")
+                || normalizedPackage.contains("qishui")) {
+            return "Q";
+        }
+        if (normalizedLabel.contains("apple music") || normalizedPackage.contains("apple.android.music")) {
+            return "A";
+        }
+        if (normalizedLabel.contains("spotify") || normalizedPackage.contains("spotify.music")) {
+            return "S";
+        }
+        if (normalizedLabel.contains("soundcloud") || normalizedPackage.contains("soundcloud.android")) {
+            return "S";
+        }
+        return null;
+    }
+
+    */
+
+    private String preferredAppInitialSafe(String label, String packageName) {
+        String normalizedLabel = label == null ? "" : label.trim().toLowerCase(Locale.US);
+        String normalizedPackage = packageName == null ? "" : packageName.trim().toLowerCase(Locale.US);
+        if (normalizedLabel.contains("\u7f51\u6613\u4e91") || normalizedPackage.contains("cloudmusic")) {
+            return "N";
+        }
+        if (normalizedLabel.contains("qq\u97f3\u4e50") || normalizedPackage.contains("qqmusic")) {
+            return "Q";
+        }
+        if (normalizedLabel.contains("\u6c7d\u6c34\u97f3\u4e50")
+                || normalizedPackage.contains("luna.music")
+                || normalizedPackage.contains("qishui")) {
+            return "Q";
+        }
+        if (normalizedLabel.contains("apple music") || normalizedPackage.contains("apple.android.music")) {
+            return "A";
+        }
+        if (normalizedLabel.contains("spotify") || normalizedPackage.contains("spotify.music")) {
+            return "S";
+        }
+        if (normalizedLabel.contains("soundcloud") || normalizedPackage.contains("soundcloud.android")) {
+            return "S";
+        }
+        return null;
+    }
+
+    private String firstLatinLetter(String text) {
+        if (text == null) {
+            return null;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char ch = Character.toUpperCase(text.charAt(i));
+            if (ch >= 'A' && ch <= 'Z') {
+                return String.valueOf(ch);
+            }
+        }
+        return null;
+    }
+
+    private String packageMeaningfulInitial(String packageName) {
+        if (packageName == null) {
+            return null;
+        }
+        String[] parts = packageName.trim().split("\\.");
+        for (String rawPart : parts) {
+            if (rawPart == null) {
+                continue;
+            }
+            String part = rawPart.trim();
+            if (part.isEmpty()) {
+                continue;
+            }
+            String lower = part.toLowerCase(Locale.US);
+            if ("com".equals(lower)
+                    || "cn".equals(lower)
+                    || "net".equals(lower)
+                    || "org".equals(lower)
+                    || "android".equals(lower)
+                    || "app".equals(lower)) {
+                continue;
+            }
+            String letter = firstLatinLetter(part);
+            if (letter != null) {
+                return letter;
+            }
+        }
+        return null;
+    }
+
+    private int compareAlphabetSections(String left, String right) {
+        String safeLeft = left == null || left.isEmpty() ? "#" : left;
+        String safeRight = right == null || right.isEmpty() ? "#" : right;
+        if (safeLeft.equals(safeRight)) {
+            return 0;
+        }
+        if ("#".equals(safeLeft)) {
+            return 1;
+        }
+        if ("#".equals(safeRight)) {
+            return -1;
+        }
+        return safeLeft.compareTo(safeRight);
+    }
+
     private String alphabetKeyForLabel(String label) {
-        if (label == null) {
-            return "#";
-        }
-        String trimmed = label.trim();
-        if (trimmed.isEmpty()) {
-            return "#";
-        }
-        char first = Character.toUpperCase(trimmed.charAt(0));
-        return first >= 'A' && first <= 'Z' ? String.valueOf(first) : "#";
+        return alphabetKeyForApp(label, null);
     }
 
     private TextView createInstalledAppSectionHeader(String section) {
@@ -2747,6 +2920,7 @@ public final class MainActivity extends Activity {
         }
         if (engineStatusValueView != null) {
             engineStatusValueView.setText(engineStatusText());
+            styleGradientTitle(engineStatusValueView);
         }
         renderDeviceSpinner();
         if (modeSpinner != null) {
@@ -2757,7 +2931,7 @@ public final class MainActivity extends Activity {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         }
         if (processingModeButton != null) {
-            processingModeButton.setText(processingModeTitleText());
+            processingModeButton.setText(engineStatusText());
             styleGradientTitle(processingModeButton);
         }
         if (advancedModeDetailButton != null) {
@@ -3009,9 +3183,13 @@ public final class MainActivity extends Activity {
                 showModeLockedDialog("Virtual Bass beyond Default requires Monitor DSP mode.");
                 return;
             }
+            if (selectedBassModeIndex == nextIndex) {
+                return;
+            }
             selectedBassModeIndex = nextIndex;
             repository.saveBassBoostModeIndex(selectedBassModeIndex);
             updateExtraControls();
+            applyRunningPreset();
         });
     }
 
@@ -5406,17 +5584,21 @@ public final class MainActivity extends Activity {
     private void updateExtraControls() {
         boolean bassBoostEnabled = supported && processingMode == ProcessingMode.ADVANCED_DSP && selectedBassModeIndex > 0;
         boolean dspBassMode = selectedBassModeIndex == 2;
+        boolean virtualBassModeAvailable = supported
+                && processingMode == ProcessingMode.ADVANCED_DSP
+                && selectedBassModeIndex == 2;
         if (bassBoostSlider != null) {
             bassBoostSlider.setValue(editingPreset.systemBassBoostPercent, false);
             bassBoostSlider.setLabel(dspBassMode ? "Amount" : "Boost");
             bassBoostSlider.setEnabled(bassBoostEnabled);
             bassBoostSlider.setAlpha(bassBoostEnabled ? 1f : 0.55f);
         }
-        boolean virtualBassEnabled = supported && virtualBassEnabledState;
+        boolean virtualBassEnabled = virtualBassModeAvailable && virtualBassEnabledState;
         if (virtualBassSwitch != null) {
             updatingUi = true;
             virtualBassSwitch.setChecked(virtualBassEnabled);
-            virtualBassSwitch.setEnabled(supported);
+            virtualBassSwitch.setEnabled(virtualBassModeAvailable);
+            virtualBassSwitch.setAlpha(virtualBassModeAvailable ? 1f : 0.55f);
             updatingUi = false;
         }
         updateVirtualBassControl(cutoffKnob, editingPreset.virtualBassCutoffHz, virtualBassEnabled);
@@ -6334,6 +6516,33 @@ public final class MainActivity extends Activity {
         } else if (view != null) {
             view.clearFocus();
         }
+    }
+
+    private void clearEditingFocusAfterKeyboardDismiss() {
+        View focused = getCurrentFocus();
+        if (focused instanceof EditText) {
+            focused.clearFocus();
+        }
+    }
+
+    private boolean shouldDismissKeyboardOnTouch(View focused, MotionEvent event) {
+        if (!(focused instanceof EditText) || event == null) {
+            return false;
+        }
+        return isTouchOutsideView(focused, event);
+    }
+
+    private boolean isTouchOutsideView(View view, MotionEvent event) {
+        if (view == null || event == null) {
+            return false;
+        }
+        Rect bounds = new Rect();
+        if (!view.getGlobalVisibleRect(bounds)) {
+            return false;
+        }
+        int rawX = Math.round(event.getRawX());
+        int rawY = Math.round(event.getRawY());
+        return !bounds.contains(rawX, rawY);
     }
 
     private interface FloatChanged {

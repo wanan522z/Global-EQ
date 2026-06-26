@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.media.AudioDeviceInfo;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioPlaybackCaptureConfiguration;
@@ -46,10 +47,12 @@ final class PlaybackCaptureEngine {
     private volatile int currentBassModeIndex;
     private volatile int currentTargetUid = -1;
     private volatile String currentTargetLabel = "";
+    private volatile AudioOutputDevice currentOutputDevice = new AudioOutputDevice("none", "Output device");
 
     private int configuredTargetUid = -1;
     private int configuredBufferFrames = -1;
     private int configuredLatencyMs = -1;
+    private String configuredOutputDeviceKey = "";
 
     private String publishedStatus = "";
     private boolean publishedActive;
@@ -109,10 +112,12 @@ final class PlaybackCaptureEngine {
     synchronized void updateProcessing(ProcessingMode mode,
                                        Preset preset,
                                        AdvancedModeConfig config,
-                                       int bassModeIndex) {
+                                       int bassModeIndex,
+                                       AudioOutputDevice outputDevice) {
         currentPreset = preset == null ? Preset.flat(false) : preset;
         currentConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         currentBassModeIndex = bassModeIndex;
+        currentOutputDevice = outputDevice == null ? new AudioOutputDevice("none", "Output device") : outputDevice;
         currentTargetLabel = currentConfig.monitoredAppLabel.isEmpty()
                 ? currentConfig.monitoredAppPackage
                 : currentConfig.monitoredAppLabel;
@@ -153,7 +158,8 @@ final class PlaybackCaptureEngine {
         boolean requiresRestart = !running
                 || configuredTargetUid != currentTargetUid
                 || configuredBufferFrames != currentConfig.bufferSizeFrames
-                || configuredLatencyMs != currentConfig.latencyMs;
+                || configuredLatencyMs != currentConfig.latencyMs
+                || !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
         if (requiresRestart) {
             startPipelineLocked();
         } else {
@@ -248,10 +254,12 @@ final class PlaybackCaptureEngine {
             if (audioTrack.getState() != AudioTrack.STATE_INITIALIZED) {
                 throw new IllegalStateException("AudioTrack failed to initialize");
             }
+            bindTrackToPreferredOutputLocked(audioTrack);
 
             configuredTargetUid = currentTargetUid;
             configuredBufferFrames = currentConfig.bufferSizeFrames;
             configuredLatencyMs = currentConfig.latencyMs;
+            configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
             running = true;
             reconfigureEffectsLocked();
 
@@ -349,8 +357,12 @@ final class PlaybackCaptureEngine {
 
     private void reconfigureEffectsLocked() {
         synchronized (dspLock) {
-            dspProcessor.configure(
+            Preset effectiveDspPreset = AudioProcessingPolicy.effectiveDspPreset(
                     currentPreset,
+                    ProcessingMode.ADVANCED_DSP,
+                    currentBassModeIndex);
+            dspProcessor.configure(
+                    effectiveDspPreset,
                     SAMPLE_RATE,
                     CHANNEL_COUNT,
                     AudioProcessingPolicy.dspBassAllowed(ProcessingMode.ADVANCED_DSP, currentBassModeIndex),
@@ -446,6 +458,66 @@ final class PlaybackCaptureEngine {
         configuredTargetUid = -1;
         configuredBufferFrames = -1;
         configuredLatencyMs = -1;
+        configuredOutputDeviceKey = "";
+    }
+
+    private void bindTrackToPreferredOutputLocked(AudioTrack track) {
+        if (track == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return;
+        }
+        AudioDeviceInfo preferredDevice = resolvePreferredOutputDeviceInfo();
+        if (preferredDevice == null) {
+            return;
+        }
+        try {
+            boolean applied = track.setPreferredDevice(preferredDevice);
+            if (!applied) {
+                Log.w(TAG, "AudioTrack preferred device was rejected: " + preferredDevice.getId());
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to bind AudioTrack to preferred output device", ex);
+        }
+    }
+
+    private AudioDeviceInfo resolvePreferredOutputDeviceInfo() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return null;
+        }
+        String desiredKey = safeDeviceKey(currentOutputDevice);
+        if (desiredKey.isEmpty() || "none".equals(desiredKey)) {
+            return null;
+        }
+        android.media.AudioManager audioManager =
+                (android.media.AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager == null) {
+            return null;
+        }
+        AudioDeviceInfo[] devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS);
+        for (AudioDeviceInfo device : devices) {
+            if (device == null || !device.isSink()) {
+                continue;
+            }
+            if (desiredKey.equals(describeOutputDeviceKey(device))) {
+                return device;
+            }
+        }
+        return null;
+    }
+
+    private String describeOutputDeviceKey(AudioDeviceInfo device) {
+        if (device == null) {
+            return "none";
+        }
+        CharSequence productName = device.getProductName();
+        String product = productName == null ? "" : productName.toString().trim();
+        String keyProduct = product.isEmpty()
+                ? "default"
+                : product.toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]+", "_");
+        return device.getType() + ":" + keyProduct;
+    }
+
+    private String safeDeviceKey(AudioOutputDevice outputDevice) {
+        return outputDevice == null || outputDevice.key == null ? "" : outputDevice.key;
     }
 
     private void releaseProjectionLocked() {
