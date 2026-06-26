@@ -451,6 +451,7 @@ final class PlaybackCaptureEngine {
         }
 
         releaseTrackBassBoostLocked();
+        restoreSourceStreamLocked();
         Thread thread = workerThread;
         workerThread = null;
         if (thread != null && thread != Thread.currentThread()) {
