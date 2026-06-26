@@ -7793,37 +7793,25 @@ public final class MainActivity extends Activity {
                 boxBlurV(tmp, alpha, bw, bh, blurPx);
             }
             // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后 alpha），图标本体由上层锐利覆盖。
-            // 亮度处理：
-            //   1) gamma<1 提亮角部，消除方形图标角部比边线暗的十字形瑕疵；
-            //   2) 整体乘 baseGain 降低亮度，避免过亮；
-            //   3) 尾端用 smoothstep 软乘子：tail = a * S(a)，S 在 0 处导数为 0（轻柔
-            //      吻合到 0，不死板截断）、在 fadeBand 处导数为 0 平滑接回恒等（a>=band
-            //      时 S=1，tail=a 不变中高调）。全程 C1 连续，无可见折点，光晕由暗到
-            //      消失呈自然指数式衰减，丝滑融入背景。
-            //   fadeBand 取较大值：从更早的高亮度处就开始平滑收尾，让"吻接到 0"的
-            //   过渡区间更长，光晕尾端拖得更柔、更缓、更自然。
+            // 整条亮度曲线用单条 C∞ 平滑函数，杜绝任何分段折点：
+            //   f(nf) = smootherstep( nf^gamma )
+            //   - mild gamma(0.7) 温和提亮暗部，修方形图标角部偏暗；
+            //   - smootherstep(6t⁵-15t⁴+10t³) 在 [0,1] 两端一阶/二阶导皆 0，与 gamma
+            //     复合后全程 C2+ 连续；
+            //   - 无分段、无 junction：中等亮度→较暗→消失整段过渡完全平滑，看不到折点；
+            //   - 尾端导数趋 0，轻柔吻接到 0；中高亮度区接近恒等，保持中心明亮。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
             final float baseGain = 0.62f;    // 整体亮度系数（<1 降亮度）
-            final float fadeBand = 0.34f;    // 尾端软衰减带宽（归一化 alpha）：拉长过渡区间
-            final float invBand = 1f / fadeBand;
+            final float gamma = 0.7f;        // 温和暗部提亮（修角部偏暗）
             for (int i = 0; i < alpha.length; i++) {
                 float nf = alpha[i] / 255f;
-                float a = (float) Math.pow(nf, 0.45f);
-                // smoothstep 软乘子：低 alpha 区平滑压到 0，高于带宽回归恒等
-                float s;
-                if (a >= fadeBand) {
-                    s = 1f;
-                } else if (a <= 0f) {
-                    s = 0f;
-                } else {
-                    float t = a * invBand;
-                    s = t * t * (3f - 2f * t);  // smoothstep：两端导数皆为 0
-                }
-                float tail = a * s;
-                int out = (int) (tail * ga * baseGain + 0.5f);
+                float t = (float) Math.pow(nf, gamma);
+                // smootherstep: 6t⁵ - 15t⁴ + 10t³，两端一阶/二阶导皆为 0
+                float s = t * t * t * (t * (t * 6f - 15f) + 10f);
+                int out = (int) (s * ga * baseGain * 255f + 0.5f);
                 if (out > 255) out = 255;
                 if (out < 0) out = 0;
                 px[i] = (out << 24) | (r << 16) | (g << 8) | bl;
