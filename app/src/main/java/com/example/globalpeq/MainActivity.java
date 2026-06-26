@@ -5922,6 +5922,7 @@ public final class MainActivity extends Activity {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
         view.setTextColor(Color.argb(140, 255, 255, 255));
+        clearGlowFromTextView(view);
         view.getPaint().clearShadowLayer();
         view.invalidate();
     }
