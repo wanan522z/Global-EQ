@@ -5833,10 +5833,6 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
-        if (isExtraSectionTitle(view) && !isExtraSectionTitleActive(view)) {
-            applyInactiveExtraSectionTitleStyle(view);
-            return;
-        }
         final int styleVersion = bumpTextStyleVersion(view);
         // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
         // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
