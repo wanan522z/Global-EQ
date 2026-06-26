@@ -245,33 +245,33 @@ public final class MainActivity extends Activity {
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
 
-    // 亮色阶：超高亮炽白冰青流光——彻底压掉绿色成分，提升纯青与超白核心占比，整体发光亮度直接拉满！
+    // 亮色阶：超高亮炽白冰蓝流光——压掉绿色、加大浅亮蓝与超白核心占比，整体发光亮度直接拉满！
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(180, 255, 255),  // 极高亮白青 (G==B，无绿色偏移，亮度更高的发光白青)
-            Color.rgb(60, 245, 255),   // 极亮电光冰青蓝 (B>G，纯净冰青，零绿色)
+            Color.rgb(150, 235, 255),  // 浅亮蓝白 (B>G，偏蓝的发光白)
+            Color.rgb(50, 210, 255),   // 极亮电光冰蓝 (B>>G，纯净冰蓝，零绿色)
             Color.rgb(255, 255, 255),  // 纯白超炽亮核心 (Super HotCore White)
-            Color.rgb(60, 245, 255),   // 极亮电光冰青蓝
-            Color.rgb(180, 255, 255)   // 极高亮白青
+            Color.rgb(50, 210, 255),   // 极亮电光冰蓝
+            Color.rgb(150, 235, 255)   // 浅亮蓝白
     };
     // Live 模式 statusText：同亮色阶（极亮冰蓝与炽白光晕，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
-    // Edit 模式 statusText：高雅通透、极其明亮的浅冰青白（去绿，偏纯青与白）
+    // Edit 模式 statusText：高雅通透、极其明亮的浅冰蓝白（去绿，偏蓝与白）
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(210, 250, 255),  // 极亮淡白青
-            Color.rgb(140, 235, 255),  // 极高亮冰青蓝
+            Color.rgb(180, 230, 255),  // 极亮淡蓝白
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
             Color.rgb(255, 255, 255),  // 纯白核心
-            Color.rgb(140, 235, 255),  // 极高亮冰青蓝
-            Color.rgb(210, 250, 255)   // 极亮淡白青
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
+            Color.rgb(180, 230, 255)   // 极亮淡蓝白
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
-    // modeSpinner disabled：暗调优雅灰青蓝（去绿，微亮流光，平缓静谧）
+    // modeSpinner disabled：暗调优雅灰蓝（去绿，偏蓝，微亮流光，平缓静谧）
     private static final int[] SHIMMER_MODE_OFF_COLORS = {
-            Color.rgb(120, 150, 165),  // 暗灰青蓝
-            Color.rgb(110, 145, 165),  // 暗灰蓝
-            Color.rgb(200, 220, 230),  // 优雅灰白核心
-            Color.rgb(110, 145, 165),  // 暗灰蓝
-            Color.rgb(120, 150, 165)   // 暗灰青蓝
+            Color.rgb(105, 145, 175),  // 暗灰蓝
+            Color.rgb(95, 140, 175),   // 暗灰冰蓝
+            Color.rgb(190, 215, 235),  // 优雅灰白蓝核心
+            Color.rgb(95, 140, 175),   // 暗灰冰蓝
+            Color.rgb(105, 145, 175)   // 暗灰蓝
     };
 
     private void recreateShaderForView(TextView view, int width) {
