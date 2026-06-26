@@ -2690,7 +2690,7 @@ public final class MainActivity extends Activity {
         if (topControlOverlay == null
                 || monitoredAppIconView == null
                 || modeSpinner == null
-                || autoSwitchOutputSwitch == null
+                || enabledSwitch == null
                 || monitoredAppIconView.getVisibility() != View.VISIBLE) {
             return;
         }
@@ -2698,7 +2698,7 @@ public final class MainActivity extends Activity {
             if (topControlOverlay == null
                     || monitoredAppIconView == null
                     || modeSpinner == null
-                    || autoSwitchOutputSwitch == null
+                    || enabledSwitch == null
                     || monitoredAppIconView.getVisibility() != View.VISIBLE
                     || topControlOverlay.getWidth() <= 0) {
                 return;
@@ -2706,10 +2706,17 @@ public final class MainActivity extends Activity {
             Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
             Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
             topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
-            topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
+            topControlOverlay.offsetDescendantRectToMyCoords(enabledSwitch, switchRect);
             int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(22);
             int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(22);
-            float centerX = (titleRect.right + switchRect.left) * 0.5f;
+            float titleTextRight = titleRect.left + modeSpinner.getCompoundPaddingLeft();
+            Layout titleLayout = modeSpinner.getLayout();
+            if (titleLayout != null && titleLayout.getLineCount() > 0) {
+                titleTextRight += titleLayout.getLineRight(0);
+            } else {
+                titleTextRight = titleRect.right;
+            }
+            float centerX = (titleTextRight + switchRect.left) * 0.5f;
             float x = centerX - iconWidth / 2f;
             x = Math.max(0f, Math.min(x, topControlOverlay.getWidth() - iconWidth));
             float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);

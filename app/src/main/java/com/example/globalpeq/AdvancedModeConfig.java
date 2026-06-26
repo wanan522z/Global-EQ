@@ -102,6 +102,7 @@ final class AdvancedModeConfig {
                 apps.put(app);
             }
             object.put("monitoredApps", apps);
+            object.put("manualMonitoredApps", apps);
         } catch (JSONException ignored) {
             return "{}";
         }
@@ -122,7 +123,7 @@ final class AdvancedModeConfig {
                     object.optInt("monitorIntervalMs", DEFAULT.monitorIntervalMs),
                     object.optInt("lookaheadMs", DEFAULT.lookaheadMs),
                     object.optInt("wetMixPercent", DEFAULT.wetMixPercent),
-                    parseApps(object.optJSONArray("monitoredApps"))
+                    parseApps(object.optJSONArray("manualMonitoredApps"))
             );
         } catch (JSONException ignored) {
             return DEFAULT;
