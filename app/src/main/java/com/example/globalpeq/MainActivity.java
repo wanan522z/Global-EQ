@@ -415,8 +415,8 @@ public final class MainActivity extends Activity {
             shimmerLastWidth.remove(modeSpinner);
             registerShimmerView(modeSpinner);
         }
-        Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
-        for (Button tab : tabs) {
+        TextView[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
+        for (TextView tab : tabs) {
             if (tab != null && tab.getWidth() > 0 && tab.getPaint().getShader() != null) {
                 styleActiveBottomTabText(tab);
                 shimmerLastWidth.remove(tab);
