@@ -1926,6 +1926,10 @@ public final class MainActivity extends Activity {
     }
 
     private void showInstalledAppPickerDialog() {
+        if (getWindow() != null) {
+            showInstalledAppPickerDialogEnhanced();
+            return;
+        }
         List<ApplicationInfo> installed = new ArrayList<>();
         for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
             if (info == null) {
