@@ -845,9 +845,9 @@ public final class MainActivity extends Activity {
         modeParams.rightMargin = dp(4);
         leftCluster.addView(modeSpinner, modeParams);
 
-        monitoredAppIconView = new ImageView(this);
+        monitoredAppIconView = new GlowIconImageView(this);
         monitoredAppIconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        monitoredAppIconView.setPadding(0, 0, 0, 0);
+        monitoredAppIconView.setPadding(dp(4), dp(4), dp(4), dp(4));
         monitoredAppIconView.setBackground(null);
         monitoredAppIconView.setVisibility(View.GONE);
         monitoredAppIconView.setOnClickListener(v -> {
@@ -855,7 +855,7 @@ public final class MainActivity extends Activity {
                 showAdvancedSettingsSubpage();
             }
         });
-        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(22), dp(22));
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(30), dp(30));
         iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
         top.addView(monitoredAppIconView, iconParams);
 
