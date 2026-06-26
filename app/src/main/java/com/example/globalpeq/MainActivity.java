@@ -2451,7 +2451,7 @@ public final class MainActivity extends Activity {
                     entry.packageName,
                     active,
                     dialogHolder,
-                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(entry.packageName, entry.label))
+                    () -> updateAdvancedModeConfig(advancedModeConfig.withAddedMonitoredApp(entry.packageName, entry.label))
             ), curveMenuRowParams(4));
             matchCount++;
         }
