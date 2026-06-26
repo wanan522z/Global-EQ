@@ -7947,6 +7947,40 @@ public final class MainActivity extends Activity {
         }
     }
 
+    // 最小值滤波（腐蚀）：用于形态学边缘提取，把实心图标内部吃掉只留轮廓
+    private void minFilterH(int[] src, int[] dst, int w, int h, int r) {
+        for (int y = 0; y < h; y++) {
+            int row = y * w;
+            for (int x = 0; x < w; x++) {
+                int mn = 255;
+                for (int k = -r; k <= r; k++) {
+                    int xx = x + k;
+                    if (xx < 0) xx = 0;
+                    else if (xx >= w) xx = w - 1;
+                    int v = src[row + xx];
+                    if (v < mn) mn = v;
+                }
+                dst[row + x] = mn;
+            }
+        }
+    }
+
+    private void minFilterV(int[] src, int[] dst, int w, int h, int r) {
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                int mn = 255;
+                for (int k = -r; k <= r; k++) {
+                    int yy = y + k;
+                    if (yy < 0) yy = 0;
+                    else if (yy >= h) yy = h - 1;
+                    int v = src[yy * w + x];
+                    if (v < mn) mn = v;
+                }
+                dst[y * w + x] = mn;
+            }
+        }
+    }
+
     private class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
