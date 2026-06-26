@@ -5335,6 +5335,7 @@ public final class MainActivity extends Activity {
 
     private final class GlowShimmerButton extends Button {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+        private final TextPaint labelPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         private boolean glowEnabled = true;
         private int glowColor = Color.argb(210, 120, 220, 255);
         private float glowRadiusPx = dpf(7.4f);
@@ -5363,9 +5364,14 @@ public final class MainActivity extends Activity {
 
         @Override
         protected void onDraw(Canvas canvas) {
-            getPaint().clearShadowLayer();
+            Drawable background = getBackground();
+            if (background != null) {
+                background.setState(getDrawableState());
+                background.setBounds(0, 0, getWidth(), getHeight());
+                background.draw(canvas);
+            }
             drawButtonGlow(canvas);
-            super.onDraw(canvas);
+            drawButtonLabel(canvas);
         }
 
         private void drawButtonGlow(Canvas canvas) {
@@ -5409,6 +5415,42 @@ public final class MainActivity extends Activity {
             }
             canvas.restoreToCount(save);
             glowPaint.setMaskFilter(null);
+        }
+
+        private void drawButtonLabel(Canvas canvas) {
+            Layout layout = getLayout();
+            CharSequence text = getText();
+            if (layout == null || text == null || text.length() == 0) {
+                return;
+            }
+            labelPaint.set(getPaint());
+            labelPaint.setMaskFilter(null);
+
+            String content = text.toString();
+            int availableWidth = getWidth() - getCompoundPaddingLeft() - getCompoundPaddingRight();
+            int availableHeight = getHeight() - getExtendedPaddingTop() - getExtendedPaddingBottom();
+            float layoutLeft = getCompoundPaddingLeft();
+            float layoutTop = getExtendedPaddingTop();
+            int absoluteGravity = Gravity.getAbsoluteGravity(getGravity(), getLayoutDirection()) & Gravity.HORIZONTAL_GRAVITY_MASK;
+            if (absoluteGravity == Gravity.CENTER_HORIZONTAL) {
+                layoutLeft += Math.max(0, availableWidth - layout.getWidth()) * 0.5f;
+            } else if (absoluteGravity == Gravity.RIGHT) {
+                layoutLeft += Math.max(0, availableWidth - layout.getWidth());
+            }
+            int verticalGravity = getGravity() & Gravity.VERTICAL_GRAVITY_MASK;
+            if (verticalGravity == Gravity.CENTER_VERTICAL) {
+                layoutTop += Math.max(0, availableHeight - layout.getHeight()) * 0.5f;
+            } else if (verticalGravity == Gravity.BOTTOM) {
+                layoutTop += Math.max(0, availableHeight - layout.getHeight());
+            }
+            int save = canvas.save();
+            canvas.translate(layoutLeft, layoutTop);
+            for (int line = 0; line < layout.getLineCount(); line++) {
+                int start = layout.getLineStart(line);
+                int end = layout.getLineEnd(line);
+                canvas.drawText(content, start, end, layout.getLineLeft(line), layout.getLineBaseline(line), labelPaint);
+            }
+            canvas.restoreToCount(save);
         }
     }
 
