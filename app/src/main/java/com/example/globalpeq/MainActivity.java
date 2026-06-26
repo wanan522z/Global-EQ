@@ -5728,6 +5728,14 @@ public final class MainActivity extends Activity {
         if (modeSpinner == null) {
             return;
         }
+        if (!isModeVisualEnabled()) {
+            unregisterShimmerView(modeSpinner);
+            modeSpinner.getPaint().setShader(null);
+            modeSpinner.setTextColor(Color.rgb(122, 145, 160));
+            clearGlowFromTextView(modeSpinner);
+            modeSpinner.invalidate();
+            return;
+        }
         styleSettingsTitleText(modeSpinner);
         shimmerLastWidth.remove(modeSpinner);
         registerShimmerView(modeSpinner);
