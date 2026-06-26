@@ -204,9 +204,7 @@ public final class GlobalEqForegroundService extends Service {
         String state = currentPreset.enabled ? "Global PEQ on" : "Global PEQ off";
         ProcessingMode mode = repository.loadProcessingMode();
         String content;
-        if (mode == ProcessingMode.ADVANCED_DSP) {
-            content = repository.loadMonitorCaptureStatus();
-        } else if (mode == ProcessingMode.SHIZUKU_MUTE) {
+        if (mode == ProcessingMode.SHIZUKU_MUTE) {
             content = repository.loadMonitorCaptureActive()
                     ? repository.loadShizukuMuteStatus()
                     : repository.loadMonitorCaptureStatus();
