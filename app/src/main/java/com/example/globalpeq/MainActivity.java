@@ -2050,18 +2050,18 @@ public final class MainActivity extends Activity {
         LinearLayout indexBar = new LinearLayout(this);
         indexBar.setOrientation(LinearLayout.VERTICAL);
         indexBar.setGravity(android.view.Gravity.CENTER);
-        indexBar.setPadding(dp(2), dp(10), dp(2), dp(10));
+        indexBar.setPadding(dp(1), dp(6), dp(1), dp(6));
         indexBar.setBackground(plainRoundRectDrawable(
                 Color.argb(20, 255, 255, 255),
                 Color.argb(35, 255, 255, 255),
-                dp(10)
+                dp(8)
         ));
         FrameLayout.LayoutParams indexParams = new FrameLayout.LayoutParams(
-                dp(18),
+                dp(16),
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL
         );
-        indexParams.rightMargin = dp(2);
+        indexParams.rightMargin = dp(1);
         content.addView(indexBar, indexParams);
         content.post(() -> {
             ViewGroup.LayoutParams rawParams = indexBar.getLayoutParams();
@@ -2069,7 +2069,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) rawParams;
-            int targetHeight = Math.max(dp(180), Math.round(content.getHeight() * 0.8f));
+            int targetHeight = Math.max(dp(220), Math.round(content.getHeight() * 0.8f));
             if (lp.height != targetHeight) {
                 lp.height = targetHeight;
                 indexBar.setLayoutParams(lp);
@@ -2226,17 +2226,17 @@ public final class MainActivity extends Activity {
         for (String section : sections) {
             TextView letter = new TextView(this);
             letter.setText(section);
-            letter.setTextSize(10.5f);
+            letter.setTextSize(9.5f);
             letter.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             letter.setGravity(android.view.Gravity.CENTER);
             letter.setIncludeFontPadding(false);
+            letter.setMaxLines(1);
             styleDimPlainText(letter);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+                    0,
+                    1f
             );
-            params.topMargin = dp(1);
-            params.bottomMargin = dp(1);
             indexBar.addView(letter, params);
         }
         indexBar.setOnTouchListener((view, event) -> {
