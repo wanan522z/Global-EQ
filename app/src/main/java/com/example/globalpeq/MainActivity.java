@@ -3491,7 +3491,6 @@ public final class MainActivity extends Activity {
         if (updatingUi || editingPreset == null) {
             return;
         }
-        logShimmerEvent("onVirtualBassEnabledChanged", virtualBassTitleView, "checked=" + isChecked);
         virtualBassEnabledState = isChecked;
         setEditingPreset(editingPreset.withVirtualBassEnabled(isChecked), true);
     }
