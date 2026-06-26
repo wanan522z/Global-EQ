@@ -418,7 +418,7 @@ public final class MainActivity extends Activity {
         Button[] tabs = {eqTabButton, extraTabButton, settingsTabButton};
         for (Button tab : tabs) {
             if (tab != null && tab.getWidth() > 0 && tab.getPaint().getShader() != null) {
-                styleSettingsTitleText(tab);
+                styleActiveBottomTabText(tab);
                 shimmerLastWidth.remove(tab);
                 registerShimmerView(tab);
             }
