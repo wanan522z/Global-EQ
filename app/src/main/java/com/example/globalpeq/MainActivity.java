@@ -5358,7 +5358,7 @@ public final class MainActivity extends Activity {
             repository.saveSelectedDevice(currentDevice);
             repository.savePreset(currentDevice, runningPreset);
             repository.saveGlobalPreset(runningPreset);
-            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, selectedBassModeIndex);
+            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, runningPreset.virtualBassModeIndex);
             if (forceFullReset && effectivePreset.enabled) {
                 engine.applyWithFullReset(effectivePreset);
             } else {
@@ -5726,7 +5726,8 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExtraControls() {
-        boolean virtualBassEnabled = supported && selectedBassModeIndex > 0;
+        boolean virtualBassModeAllowed = AudioProcessingPolicy.virtualBassModeAllowed(processingMode, selectedBassModeIndex);
+        boolean virtualBassEnabled = supported && virtualBassModeAllowed && selectedBassModeIndex > 0;
         boolean dspVirtualBassMode = AudioProcessingPolicy.dspVirtualBassAllowed(processingMode, selectedBassModeIndex);
         boolean extraBassEnabled = supported && extraBassEnabledState;
         boolean reverbAllowed = supported && AudioProcessingPolicy.reverbAllowed(processingMode);
@@ -8430,7 +8431,9 @@ public final class MainActivity extends Activity {
                     && !"Default".equals(editingPreset.reverbType);
         }
         if (view == virtualBassTitleView) {
-            return supported && selectedBassModeIndex > 0;
+            return supported
+                    && AudioProcessingPolicy.virtualBassModeAllowed(processingMode, selectedBassModeIndex)
+                    && selectedBassModeIndex > 0;
         }
         if (view == extraBassTitleView) {
             return supported && extraBassEnabledState;

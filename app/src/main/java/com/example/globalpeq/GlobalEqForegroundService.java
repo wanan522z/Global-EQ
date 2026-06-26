@@ -96,7 +96,7 @@ public final class GlobalEqForegroundService extends Service {
             repository.saveSelectedDevice(currentDevice);
             currentPreset = repository.loadPreset(device);
             ProcessingMode processingMode = repository.loadProcessingMode();
-            int virtualBassModeIndex = repository.loadVirtualBassModeIndex();
+            int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, processingMode, virtualBassModeIndex);
             if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset);
@@ -160,7 +160,7 @@ public final class GlobalEqForegroundService extends Service {
     private Preset applySavedPreset() {
         Preset preset = refreshSavedPresetState();
         ProcessingMode processingMode = repository.loadProcessingMode();
-        int virtualBassModeIndex = repository.loadVirtualBassModeIndex();
+        int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
         engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
                 currentPreset,
                 processingMode,
@@ -265,7 +265,7 @@ public final class GlobalEqForegroundService extends Service {
                     repository.loadProcessingMode(),
                     currentPreset,
                     repository.loadAdvancedModeConfig(),
-                    repository.loadVirtualBassModeIndex(),
+                    currentPreset.virtualBassModeIndex,
                     currentDevice);
         });
     }
