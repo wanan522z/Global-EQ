@@ -3560,7 +3560,6 @@ public final class MainActivity extends Activity {
 
     private void startEnabledNeonSequence() {
         cancelEnabledNeonSequence();
-        logShimmerEvent("startEnabledNeonSequence", modeSpinner, "runningEnabled=" + isAudioEnabledNow());
         modeVisualEnabled = false;
         curveVisualEnabled = false;
         preparePeqVisualSequence(false);
@@ -3583,7 +3582,6 @@ public final class MainActivity extends Activity {
         if (!isAudioEnabledNow()) {
             return;
         }
-        logShimmerEvent("activateEnabledNeonHeader", modeSpinner, "runningEnabled=" + isAudioEnabledNow());
         modeVisualEnabled = true;
         styleModeText();
         if (modeSpinner != null) {
@@ -3613,7 +3611,6 @@ public final class MainActivity extends Activity {
 
     private void applyDisabledEnabledVisuals() {
         cancelEnabledNeonSequence();
-        logShimmerEvent("applyDisabledEnabledVisuals", modeSpinner, "runningEnabled=" + isAudioEnabledNow());
         modeVisualEnabled = false;
         curveVisualEnabled = false;
         preparePeqVisualSequence(false);
