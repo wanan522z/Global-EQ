@@ -28,6 +28,7 @@ final class PlaybackCaptureEngine {
     private final Context appContext;
     private final PackageManager packageManager;
     private final PresetRepository repository;
+    private final Runnable notificationCallback;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Object dspLock = new Object();
     private final PcmDspProcessor dspProcessor = new PcmDspProcessor();
@@ -53,10 +54,11 @@ final class PlaybackCaptureEngine {
     private String publishedStatus = "";
     private boolean publishedActive;
 
-    PlaybackCaptureEngine(Context context, PresetRepository repository) {
+    PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
         this.appContext = context.getApplicationContext();
         this.packageManager = appContext.getPackageManager();
         this.repository = repository;
+        this.notificationCallback = notificationCallback;
         publishStatus("Native capture is idle.", false);
     }
 
@@ -470,5 +472,8 @@ final class PlaybackCaptureEngine {
         publishedStatus = nextStatus;
         publishedActive = active;
         repository.saveMonitorCaptureStatus(nextStatus, active);
+        if (notificationCallback != null) {
+            mainHandler.post(notificationCallback);
+        }
     }
 }
