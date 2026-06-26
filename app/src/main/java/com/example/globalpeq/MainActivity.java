@@ -1175,6 +1175,7 @@ public final class MainActivity extends Activity {
 
         advancedModeDetailButton = createExtraChoiceButton();
         advancedModeDetailButton.setText("Monitor DSP Settings");
+        styleMonitorActionButton(advancedModeDetailButton, 0);
         advancedModeDetailButton.setOnClickListener(v -> showAdvancedSettingsSubpage());
         panel.addView(advancedModeDetailButton, blockParams(12));
 
@@ -1267,17 +1268,12 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView backButton = createExtraChoiceButton();
-        backButton.setText("Back");
-        backButton.setOnClickListener(v -> hideAdvancedSettingsSubpage());
-        panel.addView(backButton, blockParams(0));
-
         TextView title = gradientTitleView("Monitor DSP Settings");
         title.setText("Monitor DSP Settings");
         title.setTextSize(18);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(title);
-        LinearLayout.LayoutParams titleParams = blockParams(10);
+        LinearLayout.LayoutParams titleParams = blockParams(0);
         titleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(title, 12);
         panel.addView(title, titleParams);
@@ -1290,6 +1286,7 @@ public final class MainActivity extends Activity {
 
         monitorCaptureButton = createExtraChoiceButton();
         monitorCaptureButton.setText(monitorCaptureButtonText());
+        styleMonitorActionButton(monitorCaptureButton, 152);
         monitorCaptureButton.setOnClickListener(v -> handleMonitorCaptureAction());
         panel.addView(labeledSettingsRow("Capture auth", monitorCaptureButton), blockParams(12));
 
@@ -1303,6 +1300,7 @@ public final class MainActivity extends Activity {
         advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? "Choose app"
                 : advancedModeConfig.monitoredAppLabel);
+        styleMonitorActionButton(advancedMonitorAppButton, 188);
         advancedMonitorAppButton.setOnClickListener(v -> showMonitoredAppChoiceDialog());
         panel.addView(labeledSettingsRow("Monitored app", advancedMonitorAppButton), blockParams(12));
 
@@ -4769,6 +4767,21 @@ public final class MainActivity extends Activity {
             return false;
         });
         return button;
+    }
+
+    private void styleMonitorActionButton(TextView button, int minWidthDp) {
+        if (button == null) {
+            return;
+        }
+        button.setTextSize(15);
+        button.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        button.setMinHeight(dp(42));
+        button.setMinimumHeight(dp(42));
+        if (minWidthDp > 0) {
+            button.setMinWidth(dp(minWidthDp));
+            button.setMinimumWidth(dp(minWidthDp));
+        }
+        button.setPadding(dp(18), dp(10), dp(18), dp(10));
     }
 
     private LinearLayout.LayoutParams extraPanelParams(int topMarginDp) {
