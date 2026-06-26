@@ -862,9 +862,9 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setPadding(iconPad, iconPad, iconPad, iconPad);
         monitoredAppIconView.setBackground(iconGlowDrawable(Color.argb(205, 120, 220, 255)));
         monitoredAppIconView.setClipToOutline(false);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            monitoredAppIconView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        }
+        monitoredAppIconView.setClipChildren(false);
+        // 注意：不能再设 LAYER_TYPE_SOFTWARE——软件图层会把绘制裁剪到 View 尺寸，
+        // 导致超出 36dp View 边界的光晕被切掉。新光晕用预模糊位图，无需软件渲染。
         monitoredAppIconView.setVisibility(View.GONE);
         monitoredAppIconView.setOnClickListener(v -> {
             if (AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
