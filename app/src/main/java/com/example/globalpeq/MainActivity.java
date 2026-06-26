@@ -517,6 +517,26 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_MONITOR_CAPTURE) {
+            pendingMonitorCaptureAuthorization = false;
+            if (resultCode != RESULT_OK || data == null) {
+                repository.saveMonitorCaptureStatus("Capture authorization was cancelled.", false);
+                renderAll();
+                return;
+            }
+            repository.saveMonitorCaptureStatus("Starting native capture...", false);
+            renderAll();
+            Intent service = new Intent(this, GlobalEqForegroundService.class);
+            service.setAction(GlobalEqForegroundService.ACTION_BOOTSTRAP_CAPTURE);
+            service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_RESULT_CODE, resultCode);
+            service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_DATA, new Intent(data));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(service);
+            } else {
+                startService(service);
+            }
+            return;
+        }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
             return;
         }
@@ -1362,6 +1382,23 @@ public final class MainActivity extends Activity {
         updateBottomNavSelection(activeMainPageIndex);
         if (mainPageHost != null) {
             mainPageHost.bringToFront();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_MONITOR_AUDIO_PERMISSION) {
+            return;
+        }
+        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        if (!granted) {
+            pendingMonitorCaptureAuthorization = false;
+            Toast.makeText(this, "Record audio permission is required for native capture", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (pendingMonitorCaptureAuthorization) {
+            launchMonitorCaptureAuthorization();
         }
     }
 
