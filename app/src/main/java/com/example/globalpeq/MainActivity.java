@@ -1416,6 +1416,8 @@ public final class MainActivity extends Activity {
         boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         if (!granted) {
             pendingMonitorCaptureAuthorization = false;
+            repository.saveMonitorCaptureStatus("Record-audio permission was denied.", false);
+            renderAll();
             Toast.makeText(this, "Record audio permission is required for native capture", Toast.LENGTH_SHORT).show();
             return;
         }
