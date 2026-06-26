@@ -1201,6 +1201,113 @@ public final class MainActivity extends Activity {
         buildAdvancedSettingsPage(advancedModeSettingsPage);
     }
 
+    private void buildAdvancedSettingsPage(LinearLayout page) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setClipChildren(false);
+        panel.setClipToPadding(false);
+        panel.setPadding(dp(16), dp(16), dp(16), dp(16));
+        panel.setBackground(createGlassCard(35));
+        page.addView(panel, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView backButton = createExtraChoiceButton();
+        backButton.setText("Back");
+        backButton.setOnClickListener(v -> hideAdvancedSettingsSubpage());
+        panel.addView(backButton, blockParams(0));
+
+        TextView title = gradientTitleView("Monitor DSP Settings");
+        title.setText("Monitor DSP Settings");
+        title.setTextSize(18);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleGradientTitle(title);
+        LinearLayout.LayoutParams titleParams = blockParams(10);
+        titleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(title, 12);
+        panel.addView(title, titleParams);
+
+        TextView detail = new TextView(this);
+        detail.setText("Pick the app to monitor and tune latency-oriented parameters for the second backend.");
+        detail.setTextSize(12);
+        detail.setTextColor(Color.rgb(160, 170, 190));
+        panel.addView(detail, blockParams(2));
+
+        advancedMonitorAppButton = createExtraChoiceButton();
+        advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
+                ? "Choose app"
+                : advancedModeConfig.monitoredAppLabel);
+        advancedMonitorAppButton.setOnClickListener(v -> showMonitoredAppChoiceDialog());
+        panel.addView(labeledSettingsRow("Monitored app", advancedMonitorAppButton), blockParams(12));
+
+        panel.addView(createAdvancedNumberRow("Latency (ms)", String.valueOf(advancedModeConfig.latencyMs), "20-400", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withLatencyMs(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow("Buffer (frames)", String.valueOf(advancedModeConfig.bufferSizeFrames), "128-4096", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withBufferSizeFrames(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow("Poll interval (ms)", String.valueOf(advancedModeConfig.monitorIntervalMs), "100-5000", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withMonitorIntervalMs(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow("Lookahead (ms)", String.valueOf(advancedModeConfig.lookaheadMs), "0-120", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withLookaheadMs(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow("DSP wet mix (%)", String.valueOf(advancedModeConfig.wetMixPercent), "0-100", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withWetMixPercent(value))), blockParams(6));
+    }
+
+    private View labeledSettingsRow(String labelText, View trailingView) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView label = new TextView(this);
+        label.setText(labelText);
+        label.setTextSize(14);
+        label.setTextColor(Color.rgb(200, 210, 230));
+        row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(trailingView);
+        return row;
+    }
+
+    private View createAdvancedNumberRow(String labelText, String valueText, String hint, IntChanged listener) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView label = new TextView(this);
+        label.setText(labelText);
+        label.setTextSize(14);
+        label.setTextColor(Color.rgb(200, 210, 230));
+        row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(valueText);
+        input.setHint(hint);
+        input.setTextSize(13);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setGravity(android.view.Gravity.CENTER);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        input.setBackground(createFieldBackground(12, 35, 8));
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setOnEditorActionListener((view, actionId, event) -> {
+            boolean enterUp = event != null
+                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == KeyEvent.ACTION_UP;
+            if (actionId == EditorInfo.IME_ACTION_DONE || enterUp) {
+                applyAdvancedNumberInput(input, listener);
+                closeKeyboard(view);
+                return true;
+            }
+            return false;
+        });
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus) {
+                applyAdvancedNumberInput(input, listener);
+            }
+        });
+        row.addView(input, new LinearLayout.LayoutParams(dp(132), dp(36)));
+        return row;
+    }
+
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
         LinearLayout.LayoutParams params = width > 0 
                 ? new LinearLayout.LayoutParams(width, dp(34))
