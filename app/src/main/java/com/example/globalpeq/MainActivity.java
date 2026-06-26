@@ -6086,15 +6086,6 @@ public final class MainActivity extends Activity {
 
 
         // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断裂
-        LinearLayout placeholder = new LinearLayout(this);
-        LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = dp(8);
-        knobParams.bottomMargin = dp(8);
-        column.addView(placeholder, knobParams);
-
-        return column;
-    }
-
     private LinearLayout createExtraBassControl(String label, boolean cutoff) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
