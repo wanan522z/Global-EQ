@@ -126,7 +126,13 @@ public final class GlobalEqForegroundService extends Service {
             startForegroundInternal(captureEngine.hasProjection());
         }
         Preset preset = applySavedPreset();
+        ProcessingMode processingMode = repository.loadProcessingMode();
         if (!preset.enabled) {
+            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+                // Keep the projection/session state alive so the next enable can resume immediately.
+                updateNotification();
+                return START_STICKY;
+            }
             scheduleCaptureStopAll();
             scheduleShizukuStopAll();
             stopForeground(STOP_FOREGROUND_REMOVE);
