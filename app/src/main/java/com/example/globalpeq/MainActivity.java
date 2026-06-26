@@ -4017,7 +4017,7 @@ public final class MainActivity extends Activity {
         undoStack.clear();
         redoStack.clear();
         renderAll();
-        applyRunningPreset();
+        applyRunningPreset(true);
     }
 
     private void renderSavedPresetSpinner() {
