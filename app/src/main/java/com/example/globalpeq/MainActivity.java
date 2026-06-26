@@ -7744,9 +7744,7 @@ public final class MainActivity extends Activity {
         };
     }
 
-    // 鍥炬爣鍏夋檿锛氫互鍥炬爣鑷韩 alpha 涓鸿挋鐗堝仛楂樻柉澶栧彂鍏夛紝瑙嗚涓?GlowTitleTextView
-    // 鐨勬爣棰樺厜鏅曞悓婧愶紙妯＄硦鍚庣殑鍓奖 + 鍙栬壊锛夛紝鍥炬爣鏈綋鐢?ImageView 閿愬埄缁樺埗鍦ㄤ笂灞傦紝
-    // 淇濇寔娓呮櫚搴︺€傚厜鏅曞彧鍦ㄥ浘鏍?/ 灏哄鍙樺寲鏃堕噸寤猴紝閬垮厤姣忓抚 GC銆?
+    // App icon glow that samples the icon color and renders a soft layered bloom behind it.
     private class IconGlowDrawable extends Drawable {
         private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint bloomPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
