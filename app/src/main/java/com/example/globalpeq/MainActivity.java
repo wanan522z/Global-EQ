@@ -461,8 +461,8 @@ public final class MainActivity extends Activity {
         advancedModeConfig = repository.loadAdvancedModeConfig();
         selectedBassModeIndex = AudioProcessingPolicy.sanitizeBassModeIndex(
                 processingMode,
-                repository.loadBassEnhanceModeIndex());
-        repository.saveBassEnhanceModeIndex(selectedBassModeIndex);
+                repository.loadVirtualBassModeIndex());
+        repository.saveVirtualBassModeIndex(selectedBassModeIndex);
         selectedDeviceCurveName = repository.loadSelectedDeviceCurveName();
         selectedTargetCurveName = repository.loadSelectedTargetCurveName();
         deviceCurveGainOffsetDb = repository.loadDeviceCurveGainOffsetDb();
@@ -1489,17 +1489,17 @@ public final class MainActivity extends Activity {
         return isChineseUi() ? "中文" : "English";
     }
 
-    private String bassEnhanceModeDisplayLabel(String value) {
+    private String virtualBassModeDisplayLabel(String value) {
         if (isChineseUi() && "system".equalsIgnoreCase(value)) {
             return "系统方案";
         }
         return value;
     }
 
-    private String[] bassEnhanceModeDisplayLabels() {
-        String[] labels = new String[BASS_ENHANCE_MODE_LABELS.length];
-        for (int i = 0; i < BASS_ENHANCE_MODE_LABELS.length; i++) {
-            labels[i] = bassEnhanceModeDisplayLabel(BASS_ENHANCE_MODE_LABELS[i]);
+    private String[] virtualBassModeDisplayLabels() {
+        String[] labels = new String[VIRTUAL_BASS_MODE_LABELS.length];
+        for (int i = 0; i < VIRTUAL_BASS_MODE_LABELS.length; i++) {
+            labels[i] = virtualBassModeDisplayLabel(VIRTUAL_BASS_MODE_LABELS[i]);
         }
         return labels;
     }
