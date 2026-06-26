@@ -5188,6 +5188,7 @@ public final class MainActivity extends Activity {
         }
 
         editingPreset = savedPreset;
+        syncSelectedVirtualBassModeFromPreset();
         repository.saveDraftPreset(editingPreset);
         if (updatesRunningPreset) {
             runningPreset = editingPreset.withEnabled(runningPreset.enabled && supported);
@@ -5205,6 +5206,7 @@ public final class MainActivity extends Activity {
         runningPreset = selected.withEnabled(supported);
         editingPreset = runningPreset;
         applyPresetCurveSettings(editingPreset);
+        syncSelectedVirtualBassModeFromPreset();
         syncExtraBassEnabledFromPreset();
         repository.saveDraftPreset(editingPreset);
         undoStack.clear();
@@ -5247,6 +5249,7 @@ public final class MainActivity extends Activity {
                         return;
                     }
                     editingPreset = withCurrentCurveSettings(Preset.flat(runningPreset != null && runningPreset.enabled)).withName(name);
+                    syncSelectedVirtualBassModeFromPreset();
                     repository.saveNamedPreset(editingPreset);
                     undoStack.clear();
                     redoStack.clear();
@@ -5263,6 +5266,7 @@ public final class MainActivity extends Activity {
         selected = limitPresetForHeadroom(selected);
         editingPreset = selected;
         applyPresetCurveSettings(editingPreset);
+        syncSelectedVirtualBassModeFromPreset();
         syncExtraBassEnabledFromPreset();
         undoStack.clear();
         redoStack.clear();
