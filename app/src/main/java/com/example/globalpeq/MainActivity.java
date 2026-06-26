@@ -1717,6 +1717,15 @@ public final class MainActivity extends Activity {
         if (monitorCaptureStatusView != null) {
             monitorCaptureStatusView.setText(monitorCaptureStatusText());
         }
+        if (shizukuAccessLabelView != null) {
+            shizukuAccessLabelView.setText(shizukuAccessLabelText());
+        }
+        if (shizukuAccessButton != null) {
+            shizukuAccessButton.setText(shizukuAccessButtonText());
+        }
+        if (shizukuAccessStatusView != null) {
+            shizukuAccessStatusView.setText(shizukuAccessStatusText());
+        }
         if (monitoredAppLabelView != null) {
             monitoredAppLabelView.setText(monitoredAppLabelText());
         }
