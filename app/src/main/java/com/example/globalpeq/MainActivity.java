@@ -2294,6 +2294,109 @@ public final class MainActivity extends Activity {
         return normalized;
     }
 
+    private List<MonitoredAppListEntry> loadMonitoredAppChoiceEntries() {
+        List<MonitoredAppListEntry> entries = new ArrayList<>();
+        if (advancedModeConfig.monitoredApps != null) {
+            for (AdvancedModeConfig.MonitoredAppItem item : advancedModeConfig.monitoredApps) {
+                if (item == null || item.packageName == null || item.packageName.trim().isEmpty()) {
+                    continue;
+                }
+                entries.add(new MonitoredAppListEntry(
+                        normalizeInstalledAppLabel(item.label, item.packageName),
+                        item.packageName
+                ));
+            }
+        }
+        final Collator collator = appLabelCollator();
+        entries.sort((left, right) -> {
+            int labelCompare = collator.compare(left.label, right.label);
+            if (labelCompare != 0) {
+                return labelCompare;
+            }
+            return collator.compare(left.packageName, right.packageName);
+        });
+        return entries;
+    }
+
+    private void rebuildMonitoredAppChoiceList(LinearLayout list,
+                                               LinearLayout indexBar,
+                                               ScrollView scroll,
+                                               List<MonitoredAppListEntry> monitoredApps,
+                                               String query,
+                                               AlertDialog[] dialogHolder) {
+        list.removeAllViews();
+        indexBar.removeAllViews();
+
+        list.addView(createMonitoredAppAddButton(dialogHolder), curveMenuRowParams(0));
+        boolean clearActive = advancedModeConfig.monitoredAppPackage == null
+                || advancedModeConfig.monitoredAppPackage.isEmpty();
+        list.addView(createMonitoredAppClearRow(clearActive, dialogHolder), curveMenuRowParams(6));
+
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.US);
+        java.util.LinkedHashMap<String, View> sectionAnchors = new java.util.LinkedHashMap<>();
+        int matchCount = 0;
+        String lastSection = null;
+        for (MonitoredAppListEntry entry : monitoredApps) {
+            if (!matchesMonitoredAppQuery(entry, normalizedQuery)) {
+                continue;
+            }
+            String section = alphabetKeyForLabel(entry.label);
+            if (!section.equals(lastSection)) {
+                View header = createInstalledAppSectionHeader(section);
+                list.addView(header, curveMenuRowParams(matchCount == 0 ? 10 : 10));
+                sectionAnchors.put(section, header);
+                lastSection = section;
+            }
+            boolean active = entry.packageName.equals(advancedModeConfig.monitoredAppPackage);
+            list.addView(createMonitoredAppMenuRow(
+                    loadApplicationIconOrFallback(entry.packageName),
+                    entry.label,
+                    entry.packageName,
+                    active,
+                    dialogHolder,
+                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(entry.packageName, entry.label))
+            ), curveMenuRowParams(4));
+            matchCount++;
+        }
+
+        if (matchCount == 0) {
+            TextView empty = new TextView(this);
+            empty.setText(monitoredApps.isEmpty()
+                    ? tr("No monitored apps yet. Use Add to build your own list.", "还没有监听应用，先用 Add 手动添加。")
+                    : tr("No added apps match your search.", "没有匹配当前搜索的已添加应用。"));
+            empty.setTextSize(12);
+            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setPadding(dp(4), dp(8), dp(4), dp(4));
+            list.addView(empty, curveMenuRowParams(10));
+            indexBar.setVisibility(View.GONE);
+            scroll.post(() -> scroll.scrollTo(0, 0));
+            return;
+        }
+
+        indexBar.setVisibility(View.VISIBLE);
+        populateInstalledAppIndexBar(indexBar, new ArrayList<>(sectionAnchors.keySet()), sectionAnchors, scroll);
+        scroll.post(() -> scroll.scrollTo(0, 0));
+    }
+
+    private boolean matchesMonitoredAppQuery(MonitoredAppListEntry entry, String normalizedQuery) {
+        if (entry == null) {
+            return false;
+        }
+        if (normalizedQuery == null || normalizedQuery.isEmpty()) {
+            return true;
+        }
+        return entry.normalizedLabel.contains(normalizedQuery)
+                || entry.normalizedPackage.contains(normalizedQuery);
+    }
+
+    private Drawable loadApplicationIconOrFallback(String packageName) {
+        try {
+            return getPackageManager().getApplicationIcon(packageName);
+        } catch (Exception ignored) {
+            return getResources().getDrawable(android.R.drawable.sym_def_app_icon);
+        }
+    }
+
     private void showLinearLoadingState(LinearLayout list, String message) {
         list.removeAllViews();
         TextView loading = new TextView(this);
@@ -5255,9 +5358,10 @@ public final class MainActivity extends Activity {
             dspBassCutoffInput.setVisibility(dspBassMode ? View.VISIBLE : View.GONE);
             dspBassCutoffInput.setEnabled(bassBoostEnabled && dspBassMode);
             String cutoffText = String.valueOf(editingPreset.dspBassCutoffHz);
-            if (!cutoffText.contentEquals(dspBassCutoffInput.getText())) {
+            if (!dspBassCutoffInput.hasFocus() && !cutoffText.contentEquals(dspBassCutoffInput.getText())) {
                 updatingUi = true;
                 dspBassCutoffInput.setText(cutoffText);
+                dspBassCutoffInput.setTag(editingPreset.dspBassCutoffHz);
                 updatingUi = false;
             }
             dspBassCutoffInput.setAlpha(dspBassMode ? 1f : 0.55f);
