@@ -251,7 +251,7 @@ final class GlobalEqualizerEngine {
             if (!hasActiveGain) {
                 resetBands(bandCount);
             }
-            applySystemBassEnhance(preset);
+            applySystemVirtualBass(preset);
             lastAppliedPreset = preset;
         } catch (RuntimeException ex) {
             Log.w(TAG, "Failed to write target EQ levels", ex);
@@ -401,9 +401,9 @@ final class GlobalEqualizerEngine {
         return before != null && after != null && before.toJson().equals(after.toJson());
     }
 
-    private void applySystemBassEnhance(Preset preset) {
-        if (preset.bassEnhanceAmountPercent <= 0) {
-            releaseSystemBassEnhance();
+    private void applySystemVirtualBass(Preset preset) {
+        if (preset.virtualBassAmountPercent <= 0) {
+            releaseSystemVirtualBass();
             return;
         }
 
@@ -412,15 +412,15 @@ final class GlobalEqualizerEngine {
                 bassBoost = new BassBoost(AUDIO_EFFECT_PRIORITY, GLOBAL_AUDIO_SESSION);
             }
             bassBoost.setEnabled(false);
-            bassBoost.setStrength((short) Math.max(0, Math.min(1000, preset.bassEnhanceAmountPercent * 10)));
+            bassBoost.setStrength((short) Math.max(0, Math.min(1000, preset.virtualBassAmountPercent * 10)));
             bassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
-            Log.w(TAG, "System bass enhance effect could not be applied", ex);
-            releaseSystemBassEnhance();
+            Log.w(TAG, "System virtual bass effect could not be applied", ex);
+            releaseSystemVirtualBass();
         }
     }
 
-    private void releaseSystemBassEnhance() {
+    private void releaseSystemVirtualBass() {
         if (bassBoost == null) {
             return;
         }
@@ -449,7 +449,7 @@ final class GlobalEqualizerEngine {
                 equalizer = null;
             }
         }
-        releaseSystemBassEnhance();
+        releaseSystemVirtualBass();
         armedWithZeroBands = false;
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;

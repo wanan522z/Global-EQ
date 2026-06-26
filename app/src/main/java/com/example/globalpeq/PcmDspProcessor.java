@@ -50,8 +50,8 @@ final class PcmDspProcessor {
             psychoacousticBass.configure(
                     preset.extraBassCutoffHz,
                     preset.extraBassEnabled ? preset.extraBassAmountPercent : 0,
-                    preset.dspBassCutoffHz,
-                    enableDspBass ? preset.bassEnhanceAmountPercent : 0);
+                    preset.virtualBassCutoffHz,
+                    enableDspBass ? preset.virtualBassAmountPercent : 0);
             reverb = new AlgorithmicReverb(sampleRate, channelCount);
             reverb.configure(preset.reverbType,
                     preset.reverbDecayPercent,
