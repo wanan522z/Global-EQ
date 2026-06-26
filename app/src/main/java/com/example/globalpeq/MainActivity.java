@@ -3704,7 +3704,8 @@ public final class MainActivity extends Activity {
             return;
         }
         peqBandVisualEnabled = new boolean[editingPreset.bands.length];
-        peqVisualSequenceRunning = enabled;
+        // 总开关打开前先由延迟点亮序列接管，这样不会先整排亮一帧再暗下去。
+        peqVisualSequenceRunning = !enabled;
         pendingPeqVisualIndex = 0;
         if (enabled) {
             for (int i = 0; i < editingPreset.bands.length; i++) {
