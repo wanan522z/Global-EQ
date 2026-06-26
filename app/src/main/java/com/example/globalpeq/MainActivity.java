@@ -3411,7 +3411,7 @@ public final class MainActivity extends Activity {
         items.add("Default");
         List<String> imported = repository.loadDeviceCurveNames();
         items.addAll(imported);
-        showCurveMenu("Device curve", items, which -> {
+        showCurveMenu(tr("Device curve", "Device curve"), items, which -> {
             String item = items.get(which);
             if (which == 0) {
                 openCurveImport(REQUEST_IMPORT_DEVICE_CURVE);
@@ -3444,7 +3444,7 @@ public final class MainActivity extends Activity {
         items.add("WoodenEarsTarget");
         List<String> imported = repository.loadTargetCurveNames();
         items.addAll(imported);
-        showCurveMenu("Target curve", items, which -> {
+        showCurveMenu(tr("Target curve", "Target curve"), items, which -> {
             String item = items.get(which);
             if (which == 0) {
                 openCurveImport(REQUEST_IMPORT_TARGET_CURVE);
