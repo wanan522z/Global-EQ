@@ -7749,12 +7749,14 @@ public final class MainActivity extends Activity {
     // 的标题光晕同源（模糊后的剪影 + 取色），图标本体由 ImageView 锐利绘制在上层，
     // 保持清晰度。光晕只在图标 / 尺寸变化时重建，避免每帧 GC。
     private class IconGlowDrawable extends Drawable {
-        private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final android.graphics.RectF dstRect = new android.graphics.RectF();
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint bloomPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF glowRect = new android.graphics.RectF();
+        private final android.graphics.RectF coreRect = new android.graphics.RectF();
         private Drawable sourceIcon;
         private int glowColor;
-        private android.graphics.Bitmap haloBitmap;
-        private int cachedKey = 0;
+        private int drawableAlpha = 255;
 
         IconGlowDrawable(int glowColor) {
             this.glowColor = glowColor;
