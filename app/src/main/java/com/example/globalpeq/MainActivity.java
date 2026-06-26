@@ -91,6 +91,8 @@ public final class MainActivity extends Activity {
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
     private static final String[] BASS_MODE_LABELS = {"Default", "system", "dsp"};
+    private static final String UI_LANGUAGE_EN = "en";
+    private static final String UI_LANGUAGE_ZH = "zh";
 
     private PresetRepository repository;
     private GlobalEqualizerEngine engine;
@@ -129,11 +131,28 @@ public final class MainActivity extends Activity {
     private Spinner savedPresetSpinner;
     private TextView modeSpinner;
     private TextView processingModeButton;
+    private TextView settingsPanelDetailView;
+    private TextView settingsStatusLabelView;
     private TextView advancedModeDetailButton;
     private TextView advancedMonitorAppButton;
     private TextView monitorCaptureButton;
     private TextView monitorCaptureStatusView;
     private TextView advancedModeSummaryView;
+    private TextView languageLabelView;
+    private TextView languageButton;
+    private TextView aboutTitleView;
+    private TextView aboutTextView;
+    private TextView footerTextView;
+    private TextView monitorSettingsBackButton;
+    private TextView monitorSettingsTitleView;
+    private TextView monitorSettingsDetailView;
+    private TextView monitorCaptureLabelView;
+    private TextView monitoredAppLabelView;
+    private TextView latencyLabelView;
+    private TextView bufferLabelView;
+    private TextView pollIntervalLabelView;
+    private TextView lookaheadLabelView;
+    private TextView wetMixLabelView;
     private LinearLayout settingsRootContent;
     private Button presetSelectButton;
     private Button undoButton;
