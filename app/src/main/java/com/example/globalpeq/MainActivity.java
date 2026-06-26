@@ -3689,7 +3689,7 @@ public final class MainActivity extends Activity {
         }
         ParametricBand band = editingPreset.bands[index];
         boolean visualActive = isPeqBandVisualEnabled(index);
-        row.setAlpha(visualActive ? 1f : 0.58f);
+        row.setAlpha(1f);
         if (row.getChildCount() < 6) {
             return;
         }
