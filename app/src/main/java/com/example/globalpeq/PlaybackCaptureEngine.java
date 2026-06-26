@@ -189,7 +189,6 @@ final class PlaybackCaptureEngine {
             startPipelineLocked();
         } else {
             reconfigureEffectsLocked();
-            publishStatus(monitoringStatusText(), true);
         }
     }
 
@@ -351,7 +350,7 @@ final class PlaybackCaptureEngine {
                     + " trackBufferBytes=" + trackBufferBytes
                     + " latencyMs=" + latencyMs
                     + " output=" + configuredOutputDeviceKey);
-            publishStatus(monitoringStatusText(), true);
+            publishStatus(waitingStatusText(), false);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to start playback capture pipeline", ex);
             stopPipelineLocked();
