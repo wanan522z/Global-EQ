@@ -1396,10 +1396,13 @@ public final class MainActivity extends Activity {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(12), dp(10), dp(12), dp(12));
+        boolean clearActive = advancedModeConfig.monitoredAppPackage == null
+                || advancedModeConfig.monitoredAppPackage.isEmpty();
+        list.addView(createMonitoredAppClearRow(clearActive, dialogHolder), curveMenuRowParams(0));
         for (int i = 0; i < unique.size(); i++) {
             ResolveInfo info = unique.get(i);
             boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(i == 0 ? 0 : 6));
+            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(6));
         }
 
         ScrollView scroll = new ScrollView(this);
@@ -1414,7 +1417,39 @@ public final class MainActivity extends Activity {
         styleDialog(dialog);
     }
 
+    private View createMonitoredAppClearRow(boolean active, AlertDialog[] dialogHolder) {
+        Drawable icon = getResources().getDrawable(android.R.drawable.ic_menu_close_clear_cancel);
+        return createMonitoredAppMenuRow(
+                icon,
+                "No monitored app",
+                "Disable app-targeted monitor routing",
+                active,
+                dialogHolder,
+                () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp("", ""))
+        );
+    }
+
     private View createMonitoredAppMenuRow(ResolveInfo info, boolean active, AlertDialog[] dialogHolder) {
+        Drawable icon = info.loadIcon(getPackageManager());
+        String packageName = info.activityInfo.packageName;
+        CharSequence label = info.loadLabel(getPackageManager());
+        String titleText = label == null ? packageName : label.toString();
+        return createMonitoredAppMenuRow(
+                icon,
+                titleText,
+                packageName,
+                active,
+                dialogHolder,
+                () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, titleText))
+        );
+    }
+
+    private View createMonitoredAppMenuRow(Drawable iconDrawable,
+                                           String titleText,
+                                           String subtitleText,
+                                           boolean active,
+                                           AlertDialog[] dialogHolder,
+                                           Runnable selected) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -1424,8 +1459,9 @@ public final class MainActivity extends Activity {
                 : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
 
         ImageView icon = new ImageView(this);
-        icon.setImageDrawable(info.loadIcon(getPackageManager()));
-        row.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+        icon.setImageDrawable(iconDrawable);
+        icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        row.addView(icon, new LinearLayout.LayoutParams(dp(24), dp(24)));
 
         LinearLayout textColumn = new LinearLayout(this);
         textColumn.setOrientation(LinearLayout.VERTICAL);
@@ -1433,14 +1469,11 @@ public final class MainActivity extends Activity {
         textParams.leftMargin = dp(10);
         row.addView(textColumn, textParams);
 
-        String packageName = info.activityInfo.packageName;
-        CharSequence label = info.loadLabel(getPackageManager());
-        String titleText = label == null ? packageName : label.toString();
-
         TextView title = new TextView(this);
         title.setText(titleText);
-        title.setTextSize(14);
+        title.setTextSize(15);
         title.setSingleLine(true);
+        title.setIncludeFontPadding(false);
         if (active) {
             styleCyanGlowText(title);
         } else {
@@ -1452,9 +1485,10 @@ public final class MainActivity extends Activity {
         ));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(packageName);
-        subtitle.setTextSize(11);
+        subtitle.setText(subtitleText);
+        subtitle.setTextSize(11.5f);
         subtitle.setSingleLine(true);
+        subtitle.setIncludeFontPadding(false);
         styleDimPlainText(subtitle);
         textColumn.addView(subtitle, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -1465,7 +1499,9 @@ public final class MainActivity extends Activity {
             if (dialogHolder[0] != null) {
                 dialogHolder[0].dismiss();
             }
-            updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, titleText));
+            if (selected != null) {
+                selected.run();
+            }
         };
         row.setOnClickListener(v -> select.run());
         title.setOnClickListener(v -> select.run());
