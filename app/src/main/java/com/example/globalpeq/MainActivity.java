@@ -7813,12 +7813,14 @@ public final class MainActivity extends Activity {
             //      吻合到 0，不死板截断）、在 fadeBand 处导数为 0 平滑接回恒等（a>=band
             //      时 S=1，tail=a 不变中高调）。全程 C1 连续，无可见折点，光晕由暗到
             //      消失呈自然指数式衰减，丝滑融入背景。
+            //   fadeBand 取较大值：从更早的高亮度处就开始平滑收尾，让"吻接到 0"的
+            //   过渡区间更长，光晕尾端拖得更柔、更缓、更自然。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
             final float baseGain = 0.62f;    // 整体亮度系数（<1 降亮度）
-            final float fadeBand = 0.16f;    // 尾端软衰减带宽（归一化 alpha）
+            final float fadeBand = 0.34f;    // 尾端软衰减带宽（归一化 alpha）：拉长过渡区间
             final float invBand = 1f / fadeBand;
             for (int i = 0; i < alpha.length; i++) {
                 float nf = alpha[i] / 255f;
