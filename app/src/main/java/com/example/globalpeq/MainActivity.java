@@ -2444,6 +2444,39 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setImageDrawable(icon);
         monitoredAppIconView.setAlpha(1f);
         monitoredAppIconView.setVisibility(View.VISIBLE);
+        updateMonitoredAppIconPosition();
+    }
+
+    private void updateMonitoredAppIconPosition() {
+        if (topControlOverlay == null
+                || monitoredAppIconView == null
+                || modeSpinner == null
+                || autoSwitchOutputSwitch == null
+                || monitoredAppIconView.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        topControlOverlay.post(() -> {
+            if (topControlOverlay == null
+                    || monitoredAppIconView == null
+                    || modeSpinner == null
+                    || autoSwitchOutputSwitch == null
+                    || monitoredAppIconView.getVisibility() != View.VISIBLE
+                    || topControlOverlay.getWidth() <= 0) {
+                return;
+            }
+            Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
+            Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
+            topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
+            topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
+            int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(22);
+            int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(22);
+            float centerX = (titleRect.right + switchRect.left) * 0.5f;
+            float x = centerX - iconWidth / 2f;
+            x = Math.max(0f, Math.min(x, topControlOverlay.getWidth() - iconWidth));
+            float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
+            monitoredAppIconView.setX(x);
+            monitoredAppIconView.setY(y);
+        });
     }
 
     private Drawable loadMonitoredAppDrawable() {
