@@ -1,4 +1,4 @@
-﻿package com.example.globalpeq;
+package com.example.globalpeq;
 
 import org.json.JSONException;
 import org.json.JSONObject;
