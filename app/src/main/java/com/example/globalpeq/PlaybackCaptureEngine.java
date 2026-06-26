@@ -26,7 +26,6 @@ final class PlaybackCaptureEngine {
     private static final int CHANNEL_COUNT = 2;
     private static final int SAMPLE_RATE = 48000;
     private static final float SIGNAL_THRESHOLD = 0.0018f;
-    private static final int EQ_PLAYBACK_USAGE = AudioAttributes.USAGE_ASSISTANT;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -56,8 +55,6 @@ final class PlaybackCaptureEngine {
     private int configuredBufferFrames = -1;
     private int configuredLatencyMs = -1;
     private String configuredOutputDeviceKey = "";
-    private int savedMusicStreamVolume = -1;
-    private boolean sourceMutedForCapture;
     private String publishedStatus = "";
     private boolean publishedActive;
 
@@ -247,11 +244,10 @@ final class PlaybackCaptureEngine {
             }
             int trackBufferBytes = Math.max(minTrackBytes * 2, latencyFrames * bytesPerFrame * 2);
 
-            muteSourceStreamLocked();
             audioTrack = new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(EQ_PLAYBACK_USAGE)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                             .build())
                     .setAudioFormat(trackFormat)
                     .setBufferSizeInBytes(trackBufferBytes)
@@ -275,7 +271,7 @@ final class PlaybackCaptureEngine {
             activeWorkerToken = workerToken;
             workerThread = new Thread(() -> runCaptureLoop(workerToken), "global-peq-capture");
             workerThread.start();
-            publishStatus("Monitoring " + currentTargetLabel + " via native capture. Source app muted.", true);
+            publishStatus("Monitoring " + currentTargetLabel + " via native capture.", true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to start playback capture pipeline", ex);
             stopPipelineLocked();
@@ -325,7 +321,7 @@ final class PlaybackCaptureEngine {
             if (peak > SIGNAL_THRESHOLD) {
                 lastSignalAt = SystemClock.elapsedRealtime();
                 if (!signaledLive) {
-                    publishStatus("Monitoring " + currentTargetLabel + " via native capture. Source app muted.", true);
+                    publishStatus("Monitoring " + currentTargetLabel + " via native capture.", true);
                     signaledLive = true;
                 }
             } else if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs && signaledLive) {
@@ -451,7 +447,6 @@ final class PlaybackCaptureEngine {
         }
 
         releaseTrackBassBoostLocked();
-        restoreSourceStreamLocked();
         Thread thread = workerThread;
         workerThread = null;
         if (thread != null && thread != Thread.currentThread()) {
@@ -480,42 +475,6 @@ final class PlaybackCaptureEngine {
         configuredBufferFrames = -1;
         configuredLatencyMs = -1;
         configuredOutputDeviceKey = "";
-    }
-
-    private void muteSourceStreamLocked() {
-        if (audioManager == null || sourceMutedForCapture) {
-            return;
-        }
-        try {
-            savedMusicStreamVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);
-            sourceMutedForCapture = true;
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to mute source app stream for capture playback", ex);
-            savedMusicStreamVolume = -1;
-            sourceMutedForCapture = false;
-        }
-    }
-
-    private void restoreSourceStreamLocked() {
-        if (audioManager == null || !sourceMutedForCapture) {
-            return;
-        }
-        try {
-            if (savedMusicStreamVolume >= 0) {
-                int musicMax = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-                audioManager.setStreamVolume(
-                        AudioManager.STREAM_MUSIC,
-                        Math.max(0, Math.min(savedMusicStreamVolume, musicMax)),
-                        0
-                );
-            }
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to restore source app stream after capture playback", ex);
-        } finally {
-            savedMusicStreamVolume = -1;
-            sourceMutedForCapture = false;
-        }
     }
 
     private void bindTrackToPreferredOutputLocked(AudioTrack track) {
