@@ -9557,6 +9557,31 @@ public final class MainActivity extends Activity {
         renderAll();
     }
 
+    private void handleShizukuPermissionResult(int requestCode, int grantResult) {
+        if (requestCode != REQUEST_SHIZUKU_PERMISSION || repository == null) {
+            return;
+        }
+        boolean granted = grantResult == PackageManager.PERMISSION_GRANTED;
+        repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
+        if (granted) {
+            applyRunningPreset();
+            Toast.makeText(this, tr("Shizuku access granted", "Shizuku \u6388\u6743\u5df2\u6210\u529f"), Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, tr("Shizuku access was denied", "Shizuku \u6388\u6743\u88ab\u62d2\u7edd"), Toast.LENGTH_SHORT).show();
+        }
+        renderAll();
+    }
+
+    private void handleShizukuStateChanged() {
+        if (repository == null) {
+            return;
+        }
+        repository.saveShizukuMuteStatus(
+                ShizukuCompat.describeState(this),
+                ShizukuCompat.hasPermission());
+        uiHandler.post(this::renderAll);
+    }
+
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
