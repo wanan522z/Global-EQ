@@ -12,12 +12,15 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Canvas;
+import android.graphics.Bitmap;
 import android.graphics.BlurMaskFilter;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.LinearGradient;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
@@ -127,7 +130,6 @@ public final class MainActivity extends Activity {
     private TextView bassBoostTitleView;
     private TextView virtualBassTitleView;
     private FrameLayout topControlOverlay;
-    private View monitoredAppGlowView;
     private TextView statusText;
     private TextView engineStatusValueView;
     private ImageView monitoredAppIconView;
@@ -828,18 +830,7 @@ public final class MainActivity extends Activity {
         modeParams.rightMargin = dp(4);
         leftCluster.addView(modeSpinner, modeParams);
 
-        monitoredAppGlowView = new GlowHaloView(this);
-        monitoredAppGlowView.setVisibility(View.GONE);
-        monitoredAppGlowView.setOnClickListener(v -> {
-            if (processingMode == ProcessingMode.ADVANCED_DSP) {
-                showAdvancedSettingsSubpage();
-            }
-        });
-        FrameLayout.LayoutParams glowParams = new FrameLayout.LayoutParams(dp(40), dp(40));
-        glowParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
-        top.addView(monitoredAppGlowView, glowParams);
-
-        monitoredAppIconView = new ImageView(this);
+        monitoredAppIconView = new ShapeAwareGlowImageView(this);
         monitoredAppIconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
         monitoredAppIconView.setPadding(0, 0, 0, 0);
         monitoredAppIconView.setBackground(null);
@@ -2601,9 +2592,6 @@ public final class MainActivity extends Activity {
                 && !advancedModeConfig.monitoredAppPackage.isEmpty();
         Drawable icon = visible ? loadMonitoredAppDrawable() : null;
         if (!visible || icon == null) {
-            if (monitoredAppGlowView != null) {
-                monitoredAppGlowView.setVisibility(View.GONE);
-            }
             monitoredAppIconView.setImageDrawable(null);
             monitoredAppIconView.setVisibility(View.GONE);
             return;
@@ -2611,9 +2599,6 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setImageDrawable(icon);
         monitoredAppIconView.setAlpha(1f);
         monitoredAppIconView.setVisibility(View.VISIBLE);
-        if (monitoredAppGlowView != null) {
-            monitoredAppGlowView.setVisibility(View.VISIBLE);
-        }
         updateMonitoredAppIconPosition();
     }
 
@@ -2628,7 +2613,6 @@ public final class MainActivity extends Activity {
         topControlOverlay.post(() -> {
             if (topControlOverlay == null
                     || monitoredAppIconView == null
-                    || monitoredAppGlowView == null
                     || modeSpinner == null
                     || autoSwitchOutputSwitch == null
                     || monitoredAppIconView.getVisibility() != View.VISIBLE
@@ -2637,8 +2621,8 @@ public final class MainActivity extends Activity {
             }
             Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
             topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
-            int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(22);
-            int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(22);
+            int iconWidth = monitoredAppIconView.getWidth() > 0 ? monitoredAppIconView.getWidth() : dp(24);
+            int iconHeight = monitoredAppIconView.getHeight() > 0 ? monitoredAppIconView.getHeight() : dp(24);
             float titleRight = textRightInAncestor(modeSpinner, topControlOverlay);
             float centerX = (titleRight + switchRect.left) * 0.5f;
             float x = centerX - iconWidth / 2f;
@@ -2646,10 +2630,6 @@ public final class MainActivity extends Activity {
             float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
             monitoredAppIconView.setY(y);
-            float glowWidth = monitoredAppGlowView.getWidth() > 0 ? monitoredAppGlowView.getWidth() : dp(40);
-            float glowHeight = monitoredAppGlowView.getHeight() > 0 ? monitoredAppGlowView.getHeight() : dp(40);
-            monitoredAppGlowView.setX(centerX - glowWidth / 2f);
-            monitoredAppGlowView.setY(Math.max(0f, (topControlOverlay.getHeight() - glowHeight) * 0.5f));
         });
     }
 
@@ -7544,10 +7524,19 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private final class GlowHaloView extends View {
-        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final class ShapeAwareGlowImageView extends ImageView {
+        private final Paint blurPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private Bitmap outerGlowBitmap;
+        private Bitmap innerGlowBitmap;
+        private final int[] outerGlowOffset = new int[2];
+        private final int[] innerGlowOffset = new int[2];
+        private int cachedContentWidth = -1;
+        private int cachedContentHeight = -1;
+        private int cachedDrawableHash = 0;
+        private int cachedGlowColor = Color.argb(170, 130, 255, 235);
 
-        GlowHaloView(Context context) {
+        ShapeAwareGlowImageView(Context context) {
             super(context);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
                 setLayerType(View.LAYER_TYPE_SOFTWARE, null);
@@ -7555,32 +7544,157 @@ public final class MainActivity extends Activity {
         }
 
         @Override
+        public void setImageDrawable(Drawable drawable) {
+            super.setImageDrawable(drawable);
+            clearGlowCache();
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            if (w != oldw || h != oldh) {
+                clearGlowCache();
+            }
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            clearGlowCache();
+            super.onDetachedFromWindow();
+        }
+
+        @Override
         protected void onDraw(Canvas canvas) {
-            float width = getWidth();
-            float height = getHeight();
-            if (width <= 0f || height <= 0f) {
+            drawShapeGlow(canvas);
+            super.onDraw(canvas);
+        }
+
+        private void drawShapeGlow(Canvas canvas) {
+            Drawable drawable = getDrawable();
+            if (drawable == null) {
                 return;
             }
-            float cx = width * 0.5f;
-            float cy = height * 0.5f;
-            float outerRadius = Math.min(width, height) * 0.34f;
-            int outerColor = Color.argb(235, 110, 255, 236);
-            int innerColor = Color.argb(255, 180, 255, 245);
-
+            int contentWidth = getWidth() - getPaddingLeft() - getPaddingRight();
+            int contentHeight = getHeight() - getPaddingTop() - getPaddingBottom();
+            if (contentWidth <= 0 || contentHeight <= 0) {
+                return;
+            }
+            ensureGlowCache(drawable, contentWidth, contentHeight);
+            if (outerGlowBitmap == null && innerGlowBitmap == null) {
+                return;
+            }
+            int drawLeft = getPaddingLeft();
+            int drawTop = getPaddingTop();
             glowPaint.setShader(null);
             glowPaint.setStyle(Paint.Style.FILL);
-            glowPaint.setColor(outerColor);
-            glowPaint.setMaskFilter(new BlurMaskFilter(dpf(10.5f), BlurMaskFilter.Blur.NORMAL));
-            canvas.drawCircle(cx, cy, outerRadius, glowPaint);
+            glowPaint.setColorFilter(new PorterDuffColorFilter(cachedGlowColor, PorterDuff.Mode.SRC_IN));
+            if (outerGlowBitmap != null) {
+                glowPaint.setAlpha(208);
+                canvas.drawBitmap(outerGlowBitmap, drawLeft + outerGlowOffset[0], drawTop + outerGlowOffset[1], glowPaint);
+            }
+            if (innerGlowBitmap != null) {
+                glowPaint.setAlpha(152);
+                canvas.drawBitmap(innerGlowBitmap, drawLeft + innerGlowOffset[0], drawTop + innerGlowOffset[1], glowPaint);
+            }
+            glowPaint.setColorFilter(null);
+        }
 
-            glowPaint.setColor(Color.argb(215, 90, 255, 230));
-            glowPaint.setMaskFilter(new BlurMaskFilter(dpf(6.2f), BlurMaskFilter.Blur.NORMAL));
-            canvas.drawCircle(cx, cy, outerRadius * 0.72f, glowPaint);
+        private void ensureGlowCache(Drawable drawable, int contentWidth, int contentHeight) {
+            int drawableHash = System.identityHashCode(drawable);
+            if (outerGlowBitmap != null
+                    && innerGlowBitmap != null
+                    && cachedContentWidth == contentWidth
+                    && cachedContentHeight == contentHeight
+                    && cachedDrawableHash == drawableHash) {
+                return;
+            }
+            clearGlowBitmaps();
+            cachedContentWidth = contentWidth;
+            cachedContentHeight = contentHeight;
+            cachedDrawableHash = drawableHash;
 
-            glowPaint.setColor(innerColor);
-            glowPaint.setMaskFilter(new BlurMaskFilter(dpf(2.8f), BlurMaskFilter.Blur.NORMAL));
-            canvas.drawCircle(cx, cy, outerRadius * 0.36f, glowPaint);
-            glowPaint.setMaskFilter(null);
+            Bitmap rendered = Bitmap.createBitmap(contentWidth, contentHeight, Bitmap.Config.ARGB_8888);
+            Canvas bitmapCanvas = new Canvas(rendered);
+            Rect targetRect = fitCenterRect(drawable, contentWidth, contentHeight);
+            Rect previousBounds = drawable.copyBounds();
+            drawable.setBounds(targetRect.left, targetRect.top, targetRect.right, targetRect.bottom);
+            drawable.draw(bitmapCanvas);
+            drawable.setBounds(previousBounds.left, previousBounds.top, previousBounds.right, previousBounds.bottom);
+
+            cachedGlowColor = estimateGlowColor(rendered);
+
+            blurPaint.setMaskFilter(new BlurMaskFilter(dpf(5.6f), BlurMaskFilter.Blur.NORMAL));
+            outerGlowBitmap = rendered.extractAlpha(blurPaint, outerGlowOffset);
+            blurPaint.setMaskFilter(new BlurMaskFilter(dpf(2.7f), BlurMaskFilter.Blur.NORMAL));
+            innerGlowBitmap = rendered.extractAlpha(blurPaint, innerGlowOffset);
+            blurPaint.setMaskFilter(null);
+            rendered.recycle();
+        }
+
+        private Rect fitCenterRect(Drawable drawable, int contentWidth, int contentHeight) {
+            int intrinsicWidth = Math.max(1, drawable.getIntrinsicWidth());
+            int intrinsicHeight = Math.max(1, drawable.getIntrinsicHeight());
+            float scale = Math.min(contentWidth / (float) intrinsicWidth, contentHeight / (float) intrinsicHeight);
+            int scaledWidth = Math.max(1, Math.round(intrinsicWidth * scale));
+            int scaledHeight = Math.max(1, Math.round(intrinsicHeight * scale));
+            int left = (contentWidth - scaledWidth) / 2;
+            int top = (contentHeight - scaledHeight) / 2;
+            return new Rect(left, top, left + scaledWidth, top + scaledHeight);
+        }
+
+        private int estimateGlowColor(Bitmap bitmap) {
+            long sumA = 0L;
+            long sumR = 0L;
+            long sumG = 0L;
+            long sumB = 0L;
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            for (int y = 0; y < height; y++) {
+                float verticalWeight = 1f - Math.abs((y + 0.5f) / Math.max(1f, height) - 0.5f) * 1.15f;
+                for (int x = 0; x < width; x++) {
+                    int pixel = bitmap.getPixel(x, y);
+                    int alpha = Color.alpha(pixel);
+                    if (alpha < 36) {
+                        continue;
+                    }
+                    float horizontalWeight = 1f - Math.abs((x + 0.5f) / Math.max(1f, width) - 0.5f) * 1.15f;
+                    float weight = Math.max(0.18f, horizontalWeight * verticalWeight) * (alpha / 255f);
+                    long scaled = Math.max(1L, Math.round(weight * 100f));
+                    sumA += scaled;
+                    sumR += (long) Color.red(pixel) * scaled;
+                    sumG += (long) Color.green(pixel) * scaled;
+                    sumB += (long) Color.blue(pixel) * scaled;
+                }
+            }
+            if (sumA == 0L) {
+                return Color.argb(170, 130, 255, 235);
+            }
+            int red = (int) (sumR / sumA);
+            int green = (int) (sumG / sumA);
+            int blue = (int) (sumB / sumA);
+            red = (int) (red * 0.72f + 255f * 0.28f);
+            green = (int) (green * 0.72f + 255f * 0.28f);
+            blue = (int) (blue * 0.72f + 255f * 0.28f);
+            return Color.argb(176, clamp(red, 0, 255), clamp(green, 0, 255), clamp(blue, 0, 255));
+        }
+
+        private void clearGlowCache() {
+            clearGlowBitmaps();
+            cachedContentWidth = -1;
+            cachedContentHeight = -1;
+            cachedDrawableHash = 0;
+            invalidate();
+        }
+
+        private void clearGlowBitmaps() {
+            if (outerGlowBitmap != null) {
+                outerGlowBitmap.recycle();
+                outerGlowBitmap = null;
+            }
+            if (innerGlowBitmap != null) {
+                innerGlowBitmap.recycle();
+                innerGlowBitmap = null;
+            }
         }
     }
 
