@@ -9318,6 +9318,57 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private String shizukuAccessLabelText() {
+        return tr("Shizuku access", "Shizuku \u6388\u6743");
+    }
+
+    private String shizukuAccessButtonText() {
+        return ShizukuCompat.hasPermission()
+                ? tr("Refresh Shizuku", "\u5237\u65b0 Shizuku")
+                : tr("Authorize Shizuku", "\u6388\u6743 Shizuku");
+    }
+
+    private String shizukuAccessStatusText() {
+        String status = repository == null ? "Shizuku mute is idle." : repository.loadShizukuMuteStatus();
+        if (!isChineseUi()) {
+            return status;
+        }
+        if ("Shizuku mute is idle.".equals(status)) return "Shizuku \u9759\u97f3\u7a7a\u95f2\u4e2d\u3002";
+        if ("Shizuku mute requires Android 9 or later.".equals(status)) return "Shizuku \u9759\u97f3\u9700\u8981 Android 9 \u6216\u66f4\u9ad8\u7248\u672c\u3002";
+        if ("Shizuku mute ready. Enable EQ to start.".equals(status)) return "Shizuku \u9759\u97f3\u5df2\u5c31\u7eea\uff0c\u5f00\u542f EQ \u540e\u542f\u52a8\u3002";
+        if ("Install Shizuku first.".equals(status)) return "\u8bf7\u5148\u5b89\u88c5 Shizuku\u3002";
+        if ("Start the Shizuku service first.".equals(status)) return "\u8bf7\u5148\u542f\u52a8 Shizuku \u670d\u52a1\u3002";
+        if ("Authorize Shizuku for session mute.".equals(status)) return "\u8bf7\u5148\u6388\u6743 Shizuku\uff0c\u4ee5\u9759\u97f3\u5176\u4ed6 App \u7684 session\u3002";
+        if ("Shizuku is ready.".equals(status)) return "Shizuku \u5df2\u5c31\u7eea\u3002";
+        if ("Unable to resolve the selected app.".equals(status)) return "\u65e0\u6cd5\u89e3\u6790\u5f53\u524d\u9009\u62e9\u7684 App\u3002";
+        if (status.startsWith("Waiting for ") && status.endsWith(" sessions.")) {
+            return "\u6b63\u5728\u7b49\u5f85 " + status.substring("Waiting for ".length(), status.length() - " sessions.".length()) + " \u7684\u64ad\u653e session\u3002";
+        }
+        if (status.startsWith("Muted ") && status.endsWith(".")) {
+            return "\u5df2\u4e3a " + status.substring("Muted ".length(), status.length() - 1) + " \u6267\u884c\u9759\u97f3\u3002";
+        }
+        if ("Shizuku mute poll failed. Re-open Shizuku and try again.".equals(status)) {
+            return "Shizuku \u8f6e\u8be2\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u6253\u5f00 Shizuku \u540e\u518d\u8bd5\u3002";
+        }
+        return status;
+    }
+
+    private void handleShizukuAccessAction() {
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+            Toast.makeText(this, tr("Switch to Shizuku Mute mode first", "\u8bf7\u5148\u5207\u6362\u5230 Shizuku Mute \u6a21\u5f0f"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
+        String status = ShizukuCompat.describeState(this);
+        repository.saveShizukuMuteStatus(status, granted);
+        if (!granted) {
+            Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
+        } else {
+            applyRunningPreset();
+        }
+        renderAll();
+    }
+
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
