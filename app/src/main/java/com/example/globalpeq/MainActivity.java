@@ -1203,6 +1203,7 @@ public final class MainActivity extends Activity {
 
         languageButton = createExtraChoiceButton();
         languageButton.setText(languageButtonText());
+        styleMonitorActionButton(languageButton, 132);
         languageButton.setOnClickListener(this::showLanguageChoiceMenu);
         panel.addView(labeledSettingsRow(settingsLanguageLabelText(), languageButton), blockParams(12));
 
