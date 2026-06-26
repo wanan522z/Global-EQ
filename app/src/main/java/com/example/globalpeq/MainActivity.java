@@ -324,7 +324,9 @@ public final class MainActivity extends Activity {
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
     private Preset pendingGeqHistorySnapshot;
+    private Preset pendingPeqHistorySnapshot;
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
+    private final Runnable commitPeqUpdateRunnable = this::commitPendingPeqUpdate;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
@@ -1649,7 +1651,7 @@ public final class MainActivity extends Activity {
     }
 
     private void updateBand(int index, ParametricBand band) {
-        setEditingPreset(editingPreset.withBand(index, band), true);
+        updatePeqBand(index, band);
     }
 
     private void updateGeqBand(int index, int gainMb) {
@@ -1685,6 +1687,47 @@ public final class MainActivity extends Activity {
         redoStack.clear();
         pendingGeqHistorySnapshot = null;
         syncRunningIfEditingPresetIsActive();
+        updateEditStateLabels();
+    }
+
+    private void updatePeqBand(int index, ParametricBand band) {
+        if (editingPreset == null || index < 0 || index >= editingPreset.bands.length || band == null) {
+            return;
+        }
+        ParametricBand current = editingPreset.bands[index];
+        if (current.type == band.type
+                && current.enabled == band.enabled
+                && current.frequencyHz == band.frequencyHz
+                && current.gainMb == band.gainMb
+                && current.qHundred == band.qHundred) {
+            return;
+        }
+        if (pendingPeqHistorySnapshot == null) {
+            pendingPeqHistorySnapshot = editingPreset;
+        }
+        editingPreset = editingPreset.withBand(index, band);
+        if (curveView != null) {
+            refreshCurveView();
+        }
+        syncRunningIfEditingPresetIsActive();
+        updateEditStateLabels();
+        schedulePeqCommit();
+    }
+
+    private void schedulePeqCommit() {
+        uiHandler.removeCallbacks(commitPeqUpdateRunnable);
+        uiHandler.postDelayed(commitPeqUpdateRunnable, GEQ_COMMIT_DELAY_MS);
+    }
+
+    private void commitPendingPeqUpdate() {
+        uiHandler.removeCallbacks(commitPeqUpdateRunnable);
+        if (pendingPeqHistorySnapshot == null) {
+            return;
+        }
+        pushHistory(undoStack, pendingPeqHistorySnapshot);
+        redoStack.clear();
+        pendingPeqHistorySnapshot = null;
+        updateExtraControls();
         updateEditStateLabels();
     }
 
@@ -1886,10 +1929,7 @@ public final class MainActivity extends Activity {
     }
 
     private void setBandFromEqOverlay(int index, ParametricBand band) {
-        if (editingPreset == null || index < 0 || index >= editingPreset.bands.length) {
-            return;
-        }
-        setEditingPreset(editingPreset.withBand(index, band), true);
+        updatePeqBand(index, band);
     }
 
     private void hideEqEditOverlay() {
@@ -3323,6 +3363,9 @@ public final class MainActivity extends Activity {
         if (pendingGeqHistorySnapshot != null) {
             commitPendingGeqUpdate();
         }
+        if (pendingPeqHistorySnapshot != null) {
+            commitPendingPeqUpdate();
+        }
         if (nextPreset.toJson().equals(editingPreset.toJson())) {
             return;
         }
@@ -3341,6 +3384,7 @@ public final class MainActivity extends Activity {
 
     private void undoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqUpdate();
         if (undoStack.isEmpty()) {
             return;
         }
@@ -3353,6 +3397,7 @@ public final class MainActivity extends Activity {
 
     private void redoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqUpdate();
         if (redoStack.isEmpty()) {
             return;
         }
