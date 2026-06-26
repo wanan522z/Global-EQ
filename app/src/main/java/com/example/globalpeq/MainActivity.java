@@ -1895,7 +1895,6 @@ public final class MainActivity extends Activity {
         holder.enable = circleButton(false);
         holder.enable.setOnClickListener(v -> {
             updateBand(index, editingPreset.bands[index].withEnabled(!editingPreset.bands[index].enabled));
-            updatePeqBandVisuals();
         });
         row.addView(wrapCircularButton(holder.enable, 0.35f, 22, 0, 3, -1));
 
