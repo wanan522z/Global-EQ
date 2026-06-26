@@ -5693,7 +5693,7 @@ public final class MainActivity extends Activity {
         }
         boolean active = isExtraSectionTitleActive(view);
         Boolean previous = titleActiveStates.get(view);
-        if (previous != null && previous == active) {
+        if (active && previous != null && previous) {
             return;
         }
         titleActiveStates.put(view, active);
@@ -5816,6 +5816,10 @@ public final class MainActivity extends Activity {
 
     private void styleSettingsTitleText(TextView view) {
         if (view == null) {
+            return;
+        }
+        if (isExtraSectionTitle(view) && !isExtraSectionTitleActive(view)) {
+            applyInactiveExtraSectionTitleStyle(view);
             return;
         }
         final int styleVersion = bumpTextStyleVersion(view);
