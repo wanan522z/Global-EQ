@@ -571,7 +571,10 @@ public final class MainActivity extends Activity {
             repository.saveSelectedDevice(currentDevice);
             renderDeviceSpinner();
             if (runningPreset != null && runningPreset.enabled) {
-                engine.reapplyForRouteChange(runningPreset);
+                engine.reapplyForRouteChange(AudioProcessingPolicy.effectiveSystemPreset(
+                        runningPreset,
+                        processingMode,
+                        selectedBassModeIndex));
             }
             return;
         }
