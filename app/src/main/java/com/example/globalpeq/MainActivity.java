@@ -436,6 +436,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStop() {
         commitPendingGeqUpdate();
+        commitPendingPeqToggle();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
         cancelEnabledNeonSequence();
@@ -463,6 +464,7 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         shimmerTargetViews.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
+        uiHandler.removeCallbacks(commitPeqToggleRunnable);
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
         cancelEnabledNeonSequence();
