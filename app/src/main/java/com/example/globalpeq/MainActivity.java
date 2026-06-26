@@ -7460,9 +7460,10 @@ public final class MainActivity extends Activity {
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
                 if (checked) {
-                    float outerGlow = dpf(2.3f);
-                    float innerGlow = dpf(1.3f);
-                    paint.setColor(Color.argb(22, 84, 212, 228));
+                    float outerGlow = dpf(2.4f);
+                    float midGlow = dpf(1.5f);
+                    float innerGlow = dpf(0.8f);
+                    paint.setColor(Color.argb(16, 84, 212, 228));
                     canvas.drawRoundRect(
                             rect.left - outerGlow,
                             rect.top - outerGlow,
@@ -7471,7 +7472,16 @@ public final class MainActivity extends Activity {
                             radius + outerGlow,
                             radius + outerGlow,
                             paint);
-                    paint.setColor(Color.argb(36, 84, 212, 228));
+                    paint.setColor(Color.argb(28, 84, 212, 228));
+                    canvas.drawRoundRect(
+                            rect.left - midGlow,
+                            rect.top - midGlow,
+                            rect.right + midGlow,
+                            rect.bottom + midGlow,
+                            radius + midGlow,
+                            radius + midGlow,
+                            paint);
+                    paint.setColor(Color.argb(40, 84, 212, 228));
                     canvas.drawRoundRect(
                             rect.left - innerGlow,
                             rect.top - innerGlow,
@@ -7482,7 +7492,7 @@ public final class MainActivity extends Activity {
                             paint);
                 } else {
                     float offGlow = dpf(0.9f);
-                    paint.setColor(Color.argb(14, 116, 142, 176));
+                    paint.setColor(Color.argb(10, 116, 142, 176));
                     canvas.drawRoundRect(
                             rect.left - offGlow,
                             rect.top - offGlow,
@@ -7591,15 +7601,8 @@ public final class MainActivity extends Activity {
                 float cx = (b.left + b.right) * 0.5f;
                 float cy = (b.top + b.bottom) * 0.5f;
                 float radius = (Math.min(b.width(), b.height()) - dpf(2f)) * 0.5f;
-                float outerHaloRadius = radius + dpf(1.9f) + dpf(0.8f) * glowAlpha;
-                float innerHaloRadius = radius + dpf(1.0f) + dpf(0.45f) * glowAlpha;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.argb((int) (12 + 34 * glowAlpha), 86, 206, 222));
-                canvas.drawCircle(cx, cy, outerHaloRadius, paint);
-                paint.setColor(Color.argb((int) (20 + 52 * glowAlpha), 94, 214, 228));
-                canvas.drawCircle(cx, cy, innerHaloRadius, paint);
-
                 paint.setColor(currentColor);
                 canvas.drawCircle(cx, cy, radius, paint);
 
