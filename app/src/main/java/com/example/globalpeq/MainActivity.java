@@ -233,8 +233,8 @@ public final class MainActivity extends Activity {
 
         // 光晕：大半径 shadowLayer 让 blur 圈大且柔，软件渲染下效果完美
         if (view == statusText) {
-            // GLOBAL EQ 状态标识：强青色荧光光晕（去绿，纯青白），区别于其他标题
-            view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(200, 80, 240, 255));
+            // GLOBAL EQ 状态标识：强冰蓝荧光光晕（去绿，偏蓝），区别于其他标题
+            view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(200, 60, 215, 255));
         } else {
             // 其他标题：浅蓝青色光晕，大半径柔光
             view.getPaint().setShadowLayer(dpf(7f), 0, 0, Color.argb(155, 120, 220, 255));
