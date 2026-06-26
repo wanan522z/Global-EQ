@@ -94,7 +94,7 @@ public final class MainActivity extends Activity {
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
-    private static final String[] BASS_ENHANCE_MODE_LABELS = {"Default", "System", "DSP"};
+    private static final String[] VIRTUAL_BASS_MODE_LABELS = {"Default", "System", "DSP"};
     private static final String UI_LANGUAGE_EN = "en";
     private static final String UI_LANGUAGE_ZH = "zh";
 
@@ -116,7 +116,7 @@ public final class MainActivity extends Activity {
     private LinearLayout rows;
     private KnobView cutoffKnob;
     private KnobView amountKnob;
-    private HorizontalBassSlider bassEnhanceSlider;
+    private HorizontalBassSlider virtualBassSlider;
     private KnobView reverbDecayKnob;
     private KnobView reverbPredelayKnob;
     private KnobView reverbSizeKnob;
@@ -125,7 +125,7 @@ public final class MainActivity extends Activity {
     private TextView bassModeButton;
     private EditText dspBassCutoffInput;
     private TextView reverbTitleView;
-    private TextView bassEnhanceTitleView;
+    private TextView virtualBassTitleView;
     private TextView extraBassTitleView;
     private FrameLayout topControlOverlay;
     private TextView statusText;
