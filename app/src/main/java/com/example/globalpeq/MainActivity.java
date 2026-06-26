@@ -437,6 +437,20 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private static final class MonitoredAppListEntry {
+        final String label;
+        final String packageName;
+        final String normalizedLabel;
+        final String normalizedPackage;
+
+        MonitoredAppListEntry(String label, String packageName) {
+            this.label = label == null ? "" : label;
+            this.packageName = packageName == null ? "" : packageName;
+            this.normalizedLabel = this.label.toLowerCase(Locale.US);
+            this.normalizedPackage = this.packageName.toLowerCase(Locale.US);
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -7349,6 +7363,63 @@ public final class MainActivity extends Activity {
                 canvas.drawText(content, start, end, layout.getLineLeft(line), layout.getLineBaseline(line), labelPaint);
             }
             canvas.restoreToCount(save);
+        }
+    }
+
+    private final class GlowIconImageView extends ImageView {
+        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private boolean glowEnabled = true;
+        private int glowColor = Color.argb(188, 0, 245, 212);
+        private float glowRadiusPx = dpf(5.25f);
+
+        GlowIconImageView(Context context) {
+            super(context);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            }
+        }
+
+        void setGlowState(boolean enabled, int color, float radiusPx) {
+            glowEnabled = enabled;
+            glowColor = color;
+            glowRadiusPx = radiusPx;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            drawIconGlow(canvas);
+            super.onDraw(canvas);
+        }
+
+        private void drawIconGlow(Canvas canvas) {
+            if (!glowEnabled || glowRadiusPx <= 0f || Color.alpha(glowColor) <= 0 || getDrawable() == null) {
+                return;
+            }
+            float contentLeft = getPaddingLeft();
+            float contentTop = getPaddingTop();
+            float contentRight = getWidth() - getPaddingRight();
+            float contentBottom = getHeight() - getPaddingBottom();
+            float contentWidth = Math.max(0f, contentRight - contentLeft);
+            float contentHeight = Math.max(0f, contentBottom - contentTop);
+            if (contentWidth <= 0f || contentHeight <= 0f) {
+                return;
+            }
+            float cx = contentLeft + contentWidth * 0.5f;
+            float cy = contentTop + contentHeight * 0.5f;
+            float radius = Math.min(contentWidth, contentHeight) * 0.36f;
+
+            glowPaint.setShader(null);
+            glowPaint.setStyle(Paint.Style.FILL);
+            glowPaint.setColor(glowColor);
+            glowPaint.setMaskFilter(new BlurMaskFilter(glowRadiusPx, BlurMaskFilter.Blur.NORMAL));
+            canvas.drawCircle(cx, cy, radius, glowPaint);
+
+            glowPaint.setColor(Color.argb(Math.min(255, (int) (Color.alpha(glowColor) * 0.6f)),
+                    Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)));
+            glowPaint.setMaskFilter(new BlurMaskFilter(glowRadiusPx * 0.55f, BlurMaskFilter.Blur.NORMAL));
+            canvas.drawCircle(cx, cy, radius * 0.7f, glowPaint);
+            glowPaint.setMaskFilter(null);
         }
     }
 
