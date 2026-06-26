@@ -234,7 +234,7 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        boolean usesCustomGlow = view instanceof GlowTitleTextView || view instanceof GlowShimmerButton;
+        boolean usesCustomGlow = view instanceof GlowTitleTextView;
         int[] colors;
         if (view == statusText) {
             boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
