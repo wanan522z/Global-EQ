@@ -385,6 +385,7 @@ public final class MainActivity extends Activity {
     private int activeMainPageIndex;
     private int selectedBassModeIndex;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
+    private String uiLanguage = UI_LANGUAGE_EN;
     private AdvancedModeConfig advancedModeConfig = AdvancedModeConfig.DEFAULT;
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
