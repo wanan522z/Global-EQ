@@ -865,8 +865,7 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setPadding(iconPad, iconPad, iconPad, iconPad);
         monitoredAppIconView.setBackground(iconGlowDrawable(Color.argb(178, 120, 220, 255)));
         monitoredAppIconView.setClipToOutline(false);
-        // 娉ㄦ剰锛氫笉鑳藉啀璁?LAYER_TYPE_SOFTWARE鈥斺€旇蒋浠跺浘灞備細鎶婄粯鍒惰鍓埌 View 灏哄锛?
-        // 瀵艰嚧瓒呭嚭 36dp View 杈圭晫鐨勫厜鏅曡鍒囨帀銆傛柊鍏夋檿鐢ㄩ妯＄硦浣嶅浘锛屾棤闇€杞欢娓叉煋銆?
+        // Reserve extra host space for the glow so the icon can stay 36dp without clipping the bloom.
         monitoredAppIconView.setVisibility(View.GONE);
         FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
                 monitoredAppIconHostSizePx(),
