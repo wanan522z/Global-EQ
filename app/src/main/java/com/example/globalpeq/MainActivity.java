@@ -1329,6 +1329,17 @@ public final class MainActivity extends Activity {
         return "Engine Status · " + processingMode.label;
     }
 
+    private String monitorCaptureStatusText() {
+        if (processingMode != ProcessingMode.ADVANCED_DSP) {
+            return "Native capture is only used by the second backend mode.";
+        }
+        return repository.loadMonitorCaptureStatus();
+    }
+
+    private String monitorCaptureButtonText() {
+        return repository.loadMonitorCaptureActive() ? "Refresh capture" : "Authorize capture";
+    }
+
     private String advancedModeSummaryText() {
         if (processingMode != ProcessingMode.ADVANCED_DSP) {
             return "Default mode keeps the existing system EQ and virtual bass path unchanged.";
@@ -1425,6 +1436,39 @@ public final class MainActivity extends Activity {
             listener.onChanged(Integer.parseInt(input.getText().toString().trim()));
         } catch (NumberFormatException ignored) {
         }
+    }
+
+    private void handleMonitorCaptureAction() {
+        if (processingMode != ProcessingMode.ADVANCED_DSP) {
+            Toast.makeText(this, "Switch to Monitor DSP mode first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Toast.makeText(this, "Native capture requires Android 10 or later", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (advancedModeConfig.monitoredAppPackage == null || advancedModeConfig.monitoredAppPackage.isEmpty()) {
+            Toast.makeText(this, "Choose a monitored app first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            pendingMonitorCaptureAuthorization = true;
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
+            return;
+        }
+        launchMonitorCaptureAuthorization();
+    }
+
+    private void launchMonitorCaptureAuthorization() {
+        pendingMonitorCaptureAuthorization = false;
+        android.media.projection.MediaProjectionManager manager =
+                (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        if (manager == null) {
+            Toast.makeText(this, "MediaProjection service unavailable", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MONITOR_CAPTURE);
     }
 
     private void showMonitoredAppChoiceDialog() {
