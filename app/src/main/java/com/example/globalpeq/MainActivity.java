@@ -2011,7 +2011,68 @@ public final class MainActivity extends Activity {
     }
 
     private void updateBand(int index, ParametricBand band) {
+        if (editingPreset == null || index < 0 || index >= editingPreset.bands.length || band == null) {
+            return;
+        }
+        ParametricBand current = editingPreset.bands[index];
+        if (sameBandState(current, band)) {
+            return;
+        }
+        if (isBandEnabledToggleOnly(current, band)) {
+            applyImmediateBandUpdate(index, band);
+            return;
+        }
         setEditingPreset(editingPreset.withBand(index, band), true);
+    }
+
+    private void applyImmediateBandUpdate(int index, ParametricBand band) {
+        if (pendingPeqToggleHistorySnapshot == null) {
+            pendingPeqToggleHistorySnapshot = editingPreset;
+        }
+        editingPreset = editingPreset.withBand(index, band);
+        if (curveView != null) {
+            refreshCurveView();
+        }
+        updatePeqBandVisuals();
+        updateEditStateLabels();
+        schedulePeqToggleCommit();
+    }
+
+    private void schedulePeqToggleCommit() {
+        uiHandler.removeCallbacks(commitPeqToggleRunnable);
+        uiHandler.postDelayed(commitPeqToggleRunnable, PEQ_TOGGLE_COMMIT_DELAY_MS);
+    }
+
+    private void commitPendingPeqToggle() {
+        uiHandler.removeCallbacks(commitPeqToggleRunnable);
+        if (pendingPeqToggleHistorySnapshot == null) {
+            return;
+        }
+        pushHistory(undoStack, pendingPeqToggleHistorySnapshot);
+        redoStack.clear();
+        pendingPeqToggleHistorySnapshot = null;
+        syncRunningIfEditingPresetIsActive();
+        updateEditStateLabels();
+    }
+
+    private boolean isBandEnabledToggleOnly(ParametricBand current, ParametricBand next) {
+        return current != null
+                && next != null
+                && current.enabled != next.enabled
+                && current.type == next.type
+                && current.frequencyHz == next.frequencyHz
+                && current.gainMb == next.gainMb
+                && current.qHundred == next.qHundred;
+    }
+
+    private boolean sameBandState(ParametricBand left, ParametricBand right) {
+        return left != null
+                && right != null
+                && left.type == right.type
+                && left.enabled == right.enabled
+                && left.frequencyHz == right.frequencyHz
+                && left.gainMb == right.gainMb
+                && left.qHundred == right.qHundred;
     }
 
     private void updateGeqBand(int index, int gainMb) {
