@@ -36,6 +36,8 @@ final class PresetRepository {
     private static final String TARGET_CURVE_SMOOTHING = "target_curve_smoothing";
     private static final String MONITOR_CAPTURE_STATUS = "monitor_capture_status";
     private static final String MONITOR_CAPTURE_ACTIVE = "monitor_capture_active";
+    private static final String SHIZUKU_MUTE_STATUS = "shizuku_mute_status";
+    private static final String SHIZUKU_MUTE_ACTIVE = "shizuku_mute_active";
     private static final String DEVICE_SEPARATOR = "\t";
 
     private final Context appContext;
@@ -164,6 +166,21 @@ final class PresetRepository {
         prefs.edit()
                 .putString(MONITOR_CAPTURE_STATUS, status == null ? "Native capture is idle." : status)
                 .putBoolean(MONITOR_CAPTURE_ACTIVE, active)
+                .apply();
+    }
+
+    String loadShizukuMuteStatus() {
+        return prefs.getString(SHIZUKU_MUTE_STATUS, "Shizuku mute is idle.");
+    }
+
+    boolean loadShizukuMuteActive() {
+        return prefs.getBoolean(SHIZUKU_MUTE_ACTIVE, false);
+    }
+
+    void saveShizukuMuteStatus(String status, boolean active) {
+        prefs.edit()
+                .putString(SHIZUKU_MUTE_STATUS, status == null ? "Shizuku mute is idle." : status)
+                .putBoolean(SHIZUKU_MUTE_ACTIVE, active)
                 .apply();
     }
 
