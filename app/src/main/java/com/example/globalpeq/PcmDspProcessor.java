@@ -8,8 +8,7 @@ final class PcmDspProcessor {
     private int sampleRate = 48000;
     private int channelCount = 2;
     private float pregain = 1f;
-    private VirtualBass virtualBass = new VirtualBass(48000, 2);
-    private HarmonicBassEnhancer harmonicBass = new HarmonicBassEnhancer(48000, 2);
+    private PsychoacousticBassProcessor psychoacousticBass = new PsychoacousticBassProcessor(48000, 2);
     private AlgorithmicReverb reverb = new AlgorithmicReverb(48000, 2);
     private LookaheadLimiter limiter = new LookaheadLimiter(48000, 2);
 
@@ -47,11 +46,11 @@ final class PcmDspProcessor {
                     }
                 }
             }
-            virtualBass = new VirtualBass(sampleRate, channelCount);
-            virtualBass.configure(preset.virtualBassCutoffHz,
-                    preset.virtualBassEnabled ? preset.virtualBassAmountPercent : 0);
-            harmonicBass = new HarmonicBassEnhancer(sampleRate, channelCount);
-            harmonicBass.configure(preset.dspBassCutoffHz,
+            psychoacousticBass = new PsychoacousticBassProcessor(sampleRate, channelCount);
+            psychoacousticBass.configure(
+                    preset.virtualBassCutoffHz,
+                    preset.virtualBassEnabled ? preset.virtualBassAmountPercent : 0,
+                    preset.dspBassCutoffHz,
                     enableDspBass ? preset.systemBassBoostPercent : 0);
             reverb = new AlgorithmicReverb(sampleRate, channelCount);
             reverb.configure(preset.reverbType,
@@ -74,11 +73,10 @@ final class PcmDspProcessor {
         for (int i = 0; i < sampleCount; i++) {
             samples[i] *= pregain;
         }
-        virtualBass.process(samples, sampleCount, channelCount);
+        psychoacousticBass.process(samples, sampleCount, channelCount);
         for (Biquad filter : filters) {
             filter.process(samples, sampleCount, channelCount);
         }
-        harmonicBass.process(samples, sampleCount, channelCount);
         reverb.process(samples, sampleCount, channelCount);
         limiter.process(samples, sampleCount, channelCount);
     }
@@ -182,114 +180,131 @@ final class PcmDspProcessor {
         }
     }
 
-    private static final class VirtualBass {
+    private static final class PsychoacousticBassProcessor {
         private final int sampleRate;
         private final int channelCount;
-        private Biquad lowPass;
-        private Biquad bandPass;
-        private float[] generated = new float[0];
-        private float drive = 0f;
-        private float mix = 0f;
-
-        VirtualBass(int sampleRate, int channelCount) {
-            this.sampleRate = sampleRate;
-            this.channelCount = channelCount;
-            configure(140, 0);
-        }
-
-        void configure(int cutoffHz, int amountPercent) {
-            float amount = Math.max(0f, Math.min(1f, amountPercent / 100f));
-            int cutoff = Math.max(60, Math.min(250, cutoffHz));
-            ParametricBand low = new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70);
-            ParametricBand band = new ParametricBand(FilterType.PEAK, true, Math.min(900, cutoff * 2), 1200, 85);
-            lowPass = Biquad.fromBand(low, sampleRate, channelCount);
-            bandPass = Biquad.fromBand(band, sampleRate, channelCount);
-            drive = 1.2f + amount * 7.5f;
-            mix = amount * 0.85f;
-        }
-
-        void process(float[] samples, int sampleCount, int channelCount) {
-            if (mix <= 0f) {
-                return;
-            }
-
-            if (generated.length < sampleCount) {
-                generated = new float[sampleCount];
-            }
-            System.arraycopy(samples, 0, generated, 0, sampleCount);
-            lowPass.process(generated, sampleCount, channelCount);
-            for (int i = 0; i < sampleCount; i++) {
-                float low = generated[i];
-                float even = low * low * Math.signum(low);
-                float odd = low * low * low;
-                generated[i] = (float) Math.tanh((low + even * 0.95f + odd * 0.55f) * drive);
-            }
-            bandPass.process(generated, sampleCount, channelCount);
-            for (int i = 0; i < sampleCount; i++) {
-                samples[i] += generated[i] * mix;
-            }
-        }
-    }
-
-    private static final class HarmonicBassEnhancer {
-        private final int sampleRate;
-        private final int channelCount;
-        private Biquad lowPass;
-        private Biquad highPass;
-        private Biquad secondPeak;
-        private Biquad thirdPeak;
-        private float[] generated = new float[0];
-        private final float[] dcEstimate;
-        private float secondMix;
-        private float thirdMix;
+        private Biquad sourceHighPass;
+        private Biquad sourceLowPass;
+        private Biquad harmonicHighPass;
+        private Biquad harmonicLowPass;
+        private Biquad octaveHighPass;
+        private Biquad octaveLowPass;
+        private float[] lowBand = new float[0];
+        private float[] harmonicBand = new float[0];
+        private float[] octaveBand = new float[0];
+        private final float[] envelope;
+        private float harmonicMix;
+        private float octaveMix;
+        private float lowBandReduce;
         private float drive;
+        private float envelopeAttack;
+        private float envelopeRelease;
 
-        HarmonicBassEnhancer(int sampleRate, int channelCount) {
+        PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
-            this.dcEstimate = new float[channelCount];
-            configure(95, 0);
+            this.envelope = new float[channelCount];
+            configure(140, 0, 95, 0);
         }
 
-        void configure(int cutoffHz, int amountPercent) {
-            int cutoff = Math.max(20, Math.min(250, cutoffHz));
-            float amount = Math.max(0f, Math.min(1f, amountPercent / 100f));
-            lowPass = Biquad.fromBand(new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 65), sampleRate, channelCount);
-            highPass = Biquad.fromBand(new ParametricBand(FilterType.HIGH_PASS, true, Math.min(700, Math.max(120, Math.round(cutoff * 1.35f))), 0, 70), sampleRate, channelCount);
-            secondPeak = Biquad.fromBand(new ParametricBand(FilterType.PEAK, true, Math.min(sampleRate / 3, Math.round(cutoff * 2.05f)), 900, 95), sampleRate, channelCount);
-            thirdPeak = Biquad.fromBand(new ParametricBand(FilterType.PEAK, true, Math.min(sampleRate / 3, Math.round(cutoff * 3.1f)), 700, 105), sampleRate, channelCount);
-            secondMix = amount * 0.58f;
-            thirdMix = amount * 0.36f;
-            drive = 1.1f + amount * 4.4f;
-            for (int i = 0; i < dcEstimate.length; i++) {
-                dcEstimate[i] = 0f;
+        void configure(int virtualCutoffHz,
+                       int virtualAmountPercent,
+                       int dspCutoffHz,
+                       int dspAmountPercent) {
+            float virtualAmount = clamp01(virtualAmountPercent / 100f);
+            float dspAmount = clamp01(dspAmountPercent / 100f);
+            float totalAmount = clamp01(virtualAmount + dspAmount * 0.35f);
+            int blendedCutoff = clamp(
+                    Math.round(virtualCutoffHz * 0.7f + dspCutoffHz * 0.3f),
+                    60,
+                    220);
+
+            sourceHighPass = Biquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, 28, 0, 70),
+                    sampleRate,
+                    channelCount);
+            sourceLowPass = Biquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, blendedCutoff, 0, 72),
+                    sampleRate,
+                    channelCount);
+            harmonicHighPass = Biquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(110, Math.round(blendedCutoff * 1.3f)), 0, 78),
+                    sampleRate,
+                    channelCount);
+            harmonicLowPass = Biquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.round(blendedCutoff * 4.4f), sampleRate / 3), 0, 82),
+                    sampleRate,
+                    channelCount);
+            octaveHighPass = Biquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(95, Math.round(blendedCutoff * 1.15f)), 0, 80),
+                    sampleRate,
+                    channelCount);
+            octaveLowPass = Biquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.round(blendedCutoff * 3.0f), sampleRate / 4), 0, 88),
+                    sampleRate,
+                    channelCount);
+
+            harmonicMix = totalAmount * (0.34f + virtualAmount * 0.22f);
+            octaveMix = totalAmount * (0.18f + virtualAmount * 0.14f + dspAmount * 0.28f);
+            lowBandReduce = dspAmount * 0.58f + virtualAmount * 0.18f;
+            drive = 1.2f + totalAmount * 5.6f + dspAmount * 1.5f;
+            envelopeAttack = 0.012f + totalAmount * 0.02f;
+            envelopeRelease = 0.002f + dspAmount * 0.006f;
+            for (int i = 0; i < envelope.length; i++) {
+                envelope[i] = 0f;
             }
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
-            if (secondMix <= 0f && thirdMix <= 0f) {
+            if (harmonicMix <= 0f && octaveMix <= 0f && lowBandReduce <= 0f) {
                 return;
             }
 
-            if (generated.length < sampleCount) {
-                generated = new float[sampleCount];
+            if (lowBand.length < sampleCount) {
+                lowBand = new float[sampleCount];
+                harmonicBand = new float[sampleCount];
+                octaveBand = new float[sampleCount];
             }
-            System.arraycopy(samples, 0, generated, 0, sampleCount);
-            lowPass.process(generated, sampleCount, channelCount);
+
+            System.arraycopy(samples, 0, lowBand, 0, sampleCount);
+            sourceHighPass.process(lowBand, sampleCount, channelCount);
+            sourceLowPass.process(lowBand, sampleCount, channelCount);
+            System.arraycopy(lowBand, 0, harmonicBand, 0, sampleCount);
+            System.arraycopy(lowBand, 0, octaveBand, 0, sampleCount);
+
             for (int i = 0; i < sampleCount; i++) {
                 int channel = i % channelCount;
-                float low = generated[i];
-                dcEstimate[channel] += 0.0025f * (Math.abs(low) - dcEstimate[channel]);
-                float second = Math.max(0f, Math.abs(low) - dcEstimate[channel]);
-                float third = low * low * low;
-                generated[i] = (float) Math.tanh((second * secondMix + third * thirdMix) * drive);
+                float low = lowBand[i];
+                float absLow = Math.abs(low);
+                float coeff = absLow > envelope[channel] ? envelopeAttack : envelopeRelease;
+                envelope[channel] += (absLow - envelope[channel]) * coeff;
+                float normalized = low / (0.05f + envelope[channel]);
+                float shaped = (float) Math.tanh(normalized * drive);
+                float third = shaped * shaped * shaped;
+                float second = low * low;
+                float dynamics = 0.3f + Math.min(1f, envelope[channel] * 8f) * 0.7f;
+                harmonicBand[i] = (third * 0.72f + shaped * 0.18f) * dynamics;
+                octaveBand[i] = second * (0.85f + Math.abs(shaped) * 0.35f) * dynamics;
             }
-            highPass.process(generated, sampleCount, channelCount);
-            secondPeak.process(generated, sampleCount, channelCount);
-            thirdPeak.process(generated, sampleCount, channelCount);
+
+            harmonicHighPass.process(harmonicBand, sampleCount, channelCount);
+            harmonicLowPass.process(harmonicBand, sampleCount, channelCount);
+            octaveHighPass.process(octaveBand, sampleCount, channelCount);
+            octaveLowPass.process(octaveBand, sampleCount, channelCount);
+
             for (int i = 0; i < sampleCount; i++) {
-                samples[i] += generated[i];
+                samples[i] += harmonicBand[i] * harmonicMix;
+                samples[i] += octaveBand[i] * octaveMix;
+                samples[i] -= lowBand[i] * lowBandReduce;
             }
+        }
+
+        private static int clamp(int value, int min, int max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        private static float clamp01(float value) {
+            return Math.max(0f, Math.min(1f, value));
         }
     }
 
