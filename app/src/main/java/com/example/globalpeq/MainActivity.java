@@ -201,6 +201,7 @@ public final class MainActivity extends Activity {
     private AudioOutputDevice currentDevice;
     private EqCurveView curveView;
     private View curveFrameView;
+    private View peqListFrameView;
     private EditText pregainInput;
     private Button deviceCurveButton;
     private Button targetCurveButton;
