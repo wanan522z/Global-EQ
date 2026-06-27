@@ -1413,8 +1413,6 @@ public final class MainActivity extends Activity {
                 updateAdvancedModeConfig(advancedModeConfig.withMonitorIntervalMs(value))), blockParams(6));
         panel.addView(createAdvancedNumberRow(lookaheadLabelText(), String.valueOf(advancedModeConfig.lookaheadMs), "0-120", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLookaheadMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(wetMixLabelText(), String.valueOf(advancedModeConfig.wetMixPercent), "0-100", value ->
-                updateAdvancedModeConfig(advancedModeConfig.withWetMixPercent(value))), blockParams(6));
     }
 
     private View labeledSettingsRow(String labelText, View trailingView) {
