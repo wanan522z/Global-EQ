@@ -6788,7 +6788,9 @@ public final class MainActivity extends Activity {
         input.setText(slider.displayValueText());
         input.setHint(slider.displayRangeHint());
         input.setSelectAllOnFocus(true);
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+        input.setInputType(slider.acceptsNegativeInfinity()
+                ? android.text.InputType.TYPE_CLASS_TEXT
+                : android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setGravity(android.view.Gravity.CENTER);
@@ -6807,8 +6809,7 @@ public final class MainActivity extends Activity {
                 .setView(content)
                 .setPositiveButton("Apply", (d, w) -> {
                     try {
-                        float parsed = Float.parseFloat(input.getText().toString());
-                        slider.setValue(slider.rawValueFromDisplay(parsed), true);
+                        slider.setValue(slider.rawValueFromText(input.getText().toString()), true);
                     } catch (NumberFormatException ignored) {
                     }
                 })
