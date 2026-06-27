@@ -187,11 +187,13 @@ final class PlaybackCaptureEngine {
             return;
         }
 
+        boolean outputRouteRestartRequired = currentMode != ProcessingMode.SHIZUKU_MUTE
+                && !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
         boolean requiresRestart = !running
                 || configuredTargetUid != currentTargetUid
                 || configuredBufferFrames != currentConfig.bufferSizeFrames
                 || configuredLatencyMs != currentConfig.latencyMs
-                || !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
+                || outputRouteRestartRequired;
         if (requiresRestart) {
             startPipelineLocked();
         } else {
