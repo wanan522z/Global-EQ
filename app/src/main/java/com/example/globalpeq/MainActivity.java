@@ -5949,12 +5949,23 @@ public final class MainActivity extends Activity {
             names = new ArrayList<>(names);
             names.add(0, runningPreset.name);
         }
-        SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(names.toArray(new String[0]));
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         int selected = Math.max(0, names.indexOf(runningPreset.name));
-        adapter.setSelectedPosition(selected);
-        savedPresetSpinner.setAdapter(adapter);
-        savedPresetSpinner.setSelection(selected);
+        String[] labels = names.toArray(new String[0]);
+        String signature = joinStrings(labels);
+        if (!signature.equals(lastSavedPresetSpinnerSignature)) {
+            SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            adapter.setSelectedPosition(selected);
+            savedPresetSpinner.setAdapter(adapter);
+            lastSavedPresetSpinnerSignature = signature;
+        } else if (savedPresetSpinner.getAdapter() instanceof SmallSpinnerAdapter) {
+            ((SmallSpinnerAdapter) savedPresetSpinner.getAdapter()).setSelectedPosition(selected);
+        }
+        if (!runningPreset.name.equals(lastSavedPresetSpinnerSelectedName)
+                || savedPresetSpinner.getSelectedItemPosition() != selected) {
+            savedPresetSpinner.setSelection(selected);
+            lastSavedPresetSpinnerSelectedName = runningPreset.name;
+        }
     }
 
     private void syncRunningIfEditingPresetIsActive() {
