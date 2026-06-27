@@ -3983,6 +3983,14 @@ public final class MainActivity extends Activity {
     }
 
     private Preset limitPresetForHeadroom(Preset preset) {
+        if (preset == null) {
+            return null;
+        }
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE
+                && preset.enabled
+                && preset.pregainMb > SHIZUKU_STARTUP_HEADROOM_MB) {
+            return preset.withPregainMb(SHIZUKU_STARTUP_HEADROOM_MB);
+        }
         return preset;
     }
 
