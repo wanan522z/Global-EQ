@@ -65,6 +65,7 @@ final class PcmDspProcessor {
                     preset.reverbPredelayMs,
                     preset.reverbSizePercent,
                     preset.reverbMixPercent,
+                    preset.reverbMainMb,
                     false);
             limiter = new LookaheadLimiter(sampleRate, channelCount);
             limiter.configure(safeConfig.lookaheadMs, safeConfig.latencyMs);
