@@ -8293,7 +8293,7 @@ public final class MainActivity extends Activity {
                     touchStartX = event.getX();
                     touchStartY = event.getY();
                     adjusting = false;
-                    getParent().requestDisallowInterceptTouchEvent(false);
+                    getParent().requestDisallowInterceptTouchEvent(true);
                     return true;
                 case MotionEvent.ACTION_MOVE:
                     float dx = Math.abs(event.getX() - touchStartX);
@@ -10872,6 +10872,9 @@ public final class MainActivity extends Activity {
         }
         View current = view;
         while (current != null) {
+            if (current instanceof VerticalReverbSlider) {
+                return current.isEnabled();
+            }
             if (current instanceof HorizontalBassSlider) {
                 return current.isEnabled() && ((HorizontalBassSlider) current).isSwipeHandleHit(rawX, rawY);
             }
