@@ -1,10 +1,13 @@
 package com.example.globalpeq;
 
+import android.util.Log;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 final class PcmDspProcessor {
+    private static final String TAG = "PcmDspProcessor";
     private final List<Biquad> filters = new ArrayList<>();
     private int sampleRate = 48000;
     private int channelCount = 2;
@@ -80,7 +83,12 @@ final class PcmDspProcessor {
         for (Biquad filter : filters) {
             filter.process(samples, sampleCount, channelCount);
         }
-        reverb.process(samples, sampleCount, channelCount);
+        try {
+            reverb.process(samples, sampleCount, channelCount);
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Reverb processing failed, resetting reverb state", e);
+            reverb = new AlgorithmicReverb(sampleRate, channelCount);
+        }
         limiter.process(samples, sampleCount, channelCount);
         for (int i = 0; i < sampleCount; i++) {
             samples[i] = clampSample(finiteOrZero(samples[i]));
