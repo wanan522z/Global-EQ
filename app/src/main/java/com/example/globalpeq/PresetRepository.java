@@ -23,6 +23,7 @@ final class PresetRepository {
     private static final String PROCESSING_MODE = "processing_mode";
     private static final String UI_LANGUAGE = "ui_language";
     private static final String ADVANCED_MODE_CONFIG = "advanced_mode_config";
+    private static final String MASTER_ENABLED = "master_enabled";
     private static final String NAMED_PRESETS = "named_presets";
     private static final String KNOWN_DEVICES = "known_devices";
     private static final String DEVICE_CURVES = "device_curves";
