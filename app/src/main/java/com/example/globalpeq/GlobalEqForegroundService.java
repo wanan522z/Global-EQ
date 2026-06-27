@@ -52,16 +52,16 @@ public final class GlobalEqForegroundService extends Service {
             if (captureEngine == null || shizukuMuteEngine == null) {
                 return;
             }
-            shizukuMuteEngine.updateProcessing(
-                    pendingCaptureMode,
-                    pendingCapturePreset,
-                    pendingCaptureConfig);
             captureEngine.updateProcessing(
                     pendingCaptureMode,
                     pendingCapturePreset,
                     pendingCaptureConfig,
                     pendingCaptureVirtualBassModeIndex,
                     pendingCaptureDevice);
+            shizukuMuteEngine.updateProcessing(
+                    pendingCaptureMode,
+                    pendingCapturePreset,
+                    pendingCaptureConfig);
         }
     };
 
@@ -318,16 +318,16 @@ public final class GlobalEqForegroundService extends Service {
             captureEngine.bootstrapProjection(resultCode, copy);
             ProcessingMode mode = repository.loadProcessingMode();
             AdvancedModeConfig config = repository.loadAdvancedModeConfig();
-            shizukuMuteEngine.updateProcessing(
-                    mode,
-                    currentPreset,
-                    config);
             captureEngine.updateProcessing(
                     mode,
                     currentPreset,
                     config,
                     currentPreset.virtualBassModeIndex,
                     currentDevice);
+            shizukuMuteEngine.updateProcessing(
+                    mode,
+                    currentPreset,
+                    config);
         });
     }
 
