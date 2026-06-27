@@ -2961,7 +2961,7 @@ public final class MainActivity extends Activity {
     }
 
     private void updateMonitoredAppIcon() {
-        if (monitoredAppIconView == null) {
+        if (monitoredAppIconView == null || topControlOverlay == null) {
             return;
         }
         String iconPackage = currentHomepageIconPackage();
@@ -2970,6 +2970,7 @@ public final class MainActivity extends Activity {
                 && !iconPackage.isEmpty();
         Drawable icon = visible ? loadMonitoredAppDrawable() : null;
         if (!visible || icon == null) {
+            topControlOverlay.getOverlay().remove(monitoredAppIconView);
             monitoredAppIconView.setImageDrawable(null);
             monitoredAppIconView.setVisibility(View.GONE);
             return;
@@ -2977,31 +2978,34 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setImageDrawable(icon);
         monitoredAppIconView.setAlpha(1f);
         monitoredAppIconView.setVisibility(View.VISIBLE);
+        if (monitoredAppIconView.getParent() instanceof ViewGroup) {
+            ((ViewGroup) monitoredAppIconView.getParent()).removeView(monitoredAppIconView);
+        }
+        topControlOverlay.getOverlay().remove(monitoredAppIconView);
+        topControlOverlay.getOverlay().add(monitoredAppIconView);
         applyIconGlowColor(icon);
         updateMonitoredAppIconPosition();
     }
 
     private void updateMonitoredAppIconPosition() {
         if (topControlOverlay == null
-                || monitoredAppIconOverlay == null
                 || monitoredAppIconView == null
                 || modeSpinner == null
                 || autoSwitchOutputSwitch == null
                 || monitoredAppIconView.getVisibility() != View.VISIBLE) {
             return;
         }
-        monitoredAppIconOverlay.post(() -> {
+        topControlOverlay.post(() -> {
             if (topControlOverlay == null
-                    || monitoredAppIconOverlay == null
                     || monitoredAppIconView == null
                     || modeSpinner == null
                     || autoSwitchOutputSwitch == null
                     || monitoredAppIconView.getVisibility() != View.VISIBLE
-                    || monitoredAppIconOverlay.getWidth() <= 0
-                    || monitoredAppIconOverlay.getHeight() <= 0) {
+                    || topControlOverlay.getWidth() <= 0
+                    || topControlOverlay.getHeight() <= 0) {
                 return;
             }
-            Rect overlayRect = screenRectOf(monitoredAppIconOverlay);
+            Rect overlayRect = screenRectOf(topControlOverlay);
             Rect titleRect = screenRectOf(modeSpinner);
             Rect switchRect = screenRectOf(autoSwitchOutputSwitch);
             if (overlayRect == null || titleRect == null || switchRect == null) {
@@ -3025,8 +3029,8 @@ public final class MainActivity extends Activity {
             float switchLeft = switchRect.left - overlayRect.left;
             float centerX = (titleTextRight + switchLeft) * 0.5f;
             float x = centerX - iconWidth / 2f;
-            x = Math.max(0f, Math.min(x, monitoredAppIconOverlay.getWidth() - iconWidth));
-            float y = Math.max(0f, (monitoredAppIconOverlay.getHeight() - iconHeight) * 0.5f);
+            x = Math.max(0f, Math.min(x, topControlOverlay.getWidth() - iconWidth));
+            float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
             monitoredAppIconView.setY(y);
         });
