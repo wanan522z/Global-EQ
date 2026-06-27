@@ -6137,7 +6137,7 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbSlider("Decay", 0, 12, editingPreset.reverbDecayPercent, "s", value ->
+        reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, value ->
                 setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
@@ -6347,6 +6347,10 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, 1f, 0, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, IntChanged listener) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
@@ -6354,7 +6358,7 @@ public final class MainActivity extends Activity {
         column.setClipToPadding(false);
 
         VerticalReverbSlider slider = new VerticalReverbSlider(this);
-        slider.configure(label, min, max, value, suffix, listener::onChanged);
+        slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, listener::onChanged);
         // 强制方形：弧形填满 view，标题紧贴弧形下方
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(4);
