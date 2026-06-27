@@ -222,6 +222,7 @@ final class PcmDspProcessor {
         private float subBodyMix;
         private float lowBandLift;
         private float lowBandTrim;
+        private float outputCompensation;
         private float drive;
         private float asymmetry;
         private float saturationCeiling;
@@ -306,8 +307,9 @@ final class PcmDspProcessor {
             octaveMix = safeAmount * (0.18f + virtualAmount * 0.08f + dspAmount * 0.24f);
             sustainMix = safeAmount * (0.2f + dspAmount * 0.24f);
             subBodyMix = safeAmount * (0.12f + dspAmount * 0.18f + virtualAmount * 0.05f);
-            lowBandLift = totalAmount * (0.06f + dspAmount * 0.1f + virtualAmount * 0.05f);
-            lowBandTrim = dspAmount * 0.08f + virtualAmount * 0.025f;
+            lowBandLift = totalAmount * (0.07f + dspAmount * 0.12f + virtualAmount * 0.05f);
+            lowBandTrim = dspAmount * 0.03f + virtualAmount * 0.01f;
+            outputCompensation = 1f + safeAmount * 0.04f + dspAmount * 0.025f + virtualAmount * 0.01f;
             drive = 1.4f + safeAmount * 4.4f + dspAmount * 1.1f;
             asymmetry = 0.12f + safeAmount * 0.2f + dspAmount * 0.12f;
             saturationCeiling = 0.58f + (1f - totalAmount) * 0.16f;
@@ -390,6 +392,7 @@ final class PcmDspProcessor {
                 samples[i] += octaveBand[i] * octaveMix;
                 samples[i] += subBodyBand[i] * subBodyMix;
                 samples[i] -= lowBand[i] * lowBandTrim;
+                samples[i] = finiteOrZero(samples[i] * outputCompensation);
             }
         }
 
