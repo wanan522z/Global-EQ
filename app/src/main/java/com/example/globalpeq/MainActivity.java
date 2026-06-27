@@ -82,6 +82,10 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_MONITOR_CAPTURE = 4103;
     private static final int REQUEST_MONITOR_AUDIO_PERMISSION = 4104;
     private static final int REQUEST_SHIZUKU_PERMISSION = 4105;
+    private static final int REQUEST_IMPORT_PRESET_JSON = 4106;
+    private static final int REQUEST_IMPORT_DEVICE_CONFIG_JSON = 4107;
+    private static final int REQUEST_EXPORT_PRESET_JSON = 4108;
+    private static final int REQUEST_EXPORT_DEVICE_CONFIG_JSON = 4109;
     private static final int EQ_EDIT_FIELD_FREQ = 0;
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
