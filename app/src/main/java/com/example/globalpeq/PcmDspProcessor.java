@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 final class PcmDspProcessor {
-    private static final float EFFECT_HEADROOM_DB = -6.5f;
+    private static final float EFFECT_HEADROOM_DB = -7.5f;
     private final List<Biquad> filters = new ArrayList<>();
     private int sampleRate = 48000;
     private int channelCount = 2;
