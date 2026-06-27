@@ -3030,8 +3030,8 @@ public final class MainActivity extends Activity {
             }
             Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
             Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
-            topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
-            topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
+            monitoredAppIconOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
+            monitoredAppIconOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
             int iconWidth = monitoredAppIconView.getWidth() > 0
                     ? monitoredAppIconView.getWidth()
                     : monitoredAppIconHostSizePx();
