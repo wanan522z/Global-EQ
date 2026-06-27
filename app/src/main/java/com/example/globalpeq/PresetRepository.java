@@ -182,6 +182,14 @@ final class PresetRepository {
                 .apply();
     }
 
+    boolean loadMasterEnabled() {
+        return prefs.getBoolean(MASTER_ENABLED, false);
+    }
+
+    void saveMasterEnabled(boolean enabled) {
+        prefs.edit().putBoolean(MASTER_ENABLED, enabled).apply();
+    }
+
     String loadActivePlaybackPackage() {
         String value = prefs.getString(ACTIVE_PLAYBACK_PACKAGE, "");
         return value == null ? "" : value;
