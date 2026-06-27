@@ -1348,13 +1348,13 @@ public final class MainActivity extends Activity {
         importDeviceConfigButton.setText(tr("Import", "导入"));
         styleMonitorActionButton(importDeviceConfigButton, 182);
         importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
-        panel.addView(labeledSettingsRow(tr("Device config JSON", "设备配置 JSON"), importDeviceConfigButton), blockParams(12));
+        panel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(12));
 
         TextView exportDeviceConfigButton = createExtraChoiceButton();
         exportDeviceConfigButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportDeviceConfigButton, 228);
         exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
-        panel.addView(labeledSettingsRow(tr("Device config export", "设备配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
+        panel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
 
         LinearLayout aboutPanel = new LinearLayout(this);
         aboutPanel.setOrientation(LinearLayout.VERTICAL);
