@@ -910,10 +910,11 @@ final class PcmDspProcessor {
                        float damping,
                        float modDepthMs,
                        float modRateHz,
+                       float phaseOffset,
                        boolean active,
                        boolean lowCpuMode) {
             this.active = active;
-            delay.configure(delayMs, lowCpuMode ? modDepthMs * 0.42f : modDepthMs, modRateHz, active);
+            delay.configure(delayMs, lowCpuMode ? modDepthMs * 0.42f : modDepthMs, modRateHz, phaseOffset, active);
             this.feedback = clamp(feedback, 0.2f, 0.88f);
             this.damping = clamp(damping, 0.05f, 0.6f);
             filterState = 0f;
