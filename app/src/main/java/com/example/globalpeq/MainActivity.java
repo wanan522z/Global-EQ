@@ -887,20 +887,20 @@ public final class MainActivity extends Activity {
         enabledSwitch.setEnabled(supported);
         enabledSwitch.setOnCheckedChangeListener(this::onEnabledChanged);
         styleTopSwitch(enabledSwitch, false);
-        enabledSwitch.setTranslationY(dp(3));
+        enabledSwitch.setTranslationY(dp(2));
         autoSwitchOutputSwitch = new Switch(this);
         autoSwitchOutputSwitch.setText("");
         autoSwitchOutputSwitch.setShowText(false);
         autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         autoSwitchOutputSwitch.setOnCheckedChangeListener(this::onAutoSwitchOutputChanged);
         styleTopSwitch(autoSwitchOutputSwitch, true);
-        autoSwitchOutputSwitch.setTranslationY(dp(3));
+        autoSwitchOutputSwitch.setTranslationY(dp(2));
         statusText = gradientTitleView("");
         statusText.setTextSize(12);
         statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         statusText.setGravity(android.view.Gravity.CENTER);
         statusText.setPadding(dp(10), dp(4), dp(10), dp(4));
-        statusText.setTranslationY(dp(3));
+        statusText.setTranslationY(dp(2));
         styleStatusText(false);
         int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
