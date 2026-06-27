@@ -285,7 +285,8 @@ final class PcmDspProcessor {
         private float[] harmonicBand = new float[0];
         private float[] octaveBand = new float[0];
         private float envelope;
-        private float dcReject;
+        private float harmonicDcReject;
+        private float octaveDcReject;
         private float harmonicMix;
         private float octaveMix;
         private float drive;
@@ -332,13 +333,14 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, octaveHigh, 0, 75),
                     sampleRate);
 
-            harmonicMix = safeAmount * (0.72f + dspAmount * 0.5f + virtualAmount * 0.18f);
-            octaveMix = safeAmount * (0.48f + dspAmount * 0.34f + virtualAmount * 0.12f);
-            drive = 1.28f + safeAmount * 2.35f + dspAmount * 0.58f;
-            harmonicCeiling = 0.37f + safeAmount * 0.07f;
-            octaveCeiling = 0.29f + safeAmount * 0.06f;
+            harmonicMix = safeAmount * (0.56f + dspAmount * 0.34f + virtualAmount * 0.12f);
+            octaveMix = safeAmount * (0.28f + dspAmount * 0.22f + virtualAmount * 0.08f);
+            drive = 1.12f + safeAmount * 1.45f + dspAmount * 0.32f;
+            harmonicCeiling = 0.26f + safeAmount * 0.05f;
+            octaveCeiling = 0.19f + safeAmount * 0.04f;
             envelope = 0f;
-            dcReject = 0f;
+            harmonicDcReject = 0f;
+            octaveDcReject = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -368,12 +370,13 @@ final class PcmDspProcessor {
                 float driven = low * drive;
                 float even = Math.abs(driven);
                 float odd = driven / (1.0f + Math.abs(driven) * 1.35f);
-                float harm = 0.8f * even + 0.2f * odd;
-                float dynamic = 0.88f + Math.min(1f, envelope * 6.8f) * 0.36f;
-                harmonicBand[frame] = softLimit((harm - dcReject) * dynamic * 1.14f, harmonicCeiling);
-                dcReject += (harm - dcReject) * 0.014f;
-                float doubled = Math.abs(driven) * (1.0f + 0.28f * odd);
-                octaveBand[frame] = softLimit((doubled - dcReject) * (0.76f + dynamic * 0.22f), octaveCeiling);
+                float harm = 0.9f * even + 0.1f * odd;
+                float dynamic = 0.9f + Math.min(1f, envelope * 5.2f) * 0.24f;
+                harmonicBand[frame] = softLimit((harm - harmonicDcReject) * dynamic, harmonicCeiling);
+                harmonicDcReject += (harm - harmonicDcReject) * 0.012f;
+                float doubled = Math.abs(driven) * (1.0f + 0.12f * odd);
+                octaveBand[frame] = softLimit((doubled - octaveDcReject) * (0.64f + dynamic * 0.12f), octaveCeiling);
+                octaveDcReject += (doubled - octaveDcReject) * 0.01f;
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
