@@ -1779,9 +1779,6 @@ public final class MainActivity extends Activity {
         if (lookaheadLabelView != null) {
             lookaheadLabelView.setText(lookaheadLabelText());
         }
-        if (wetMixLabelView != null) {
-            wetMixLabelView.setText(wetMixLabelText());
-        }
     }
 
     private void setProcessingMode(ProcessingMode nextMode) {
