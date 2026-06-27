@@ -6123,7 +6123,7 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbSlider("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
+        reverbKnobs.addView(createReverbSlider("Decay", 0, 12, editingPreset.reverbDecayPercent, "s", value ->
                 setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
