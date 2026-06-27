@@ -594,6 +594,8 @@ final class PcmDspProcessor {
         private final ReverbTank rightTank;
         private final InputDiffuser leftInput;
         private final InputDiffuser rightInput;
+        private final WetHighPass leftLowCut;
+        private final WetHighPass rightLowCut;
         private float stereoCrossfeed;
         private float directEarlyMix;
         private float earlyMix;
@@ -605,18 +607,22 @@ final class PcmDspProcessor {
             rightTank = new ReverbTank(sampleRate);
             leftInput = new InputDiffuser(sampleRate);
             rightInput = new InputDiffuser(sampleRate);
+            leftLowCut = new WetHighPass(sampleRate, 60f);
+            rightLowCut = new WetHighPass(sampleRate, 60f);
         }
 
-        void configure(ReverbProfile profile, float size, float decay, float immediateEarlyBlend) {
+        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, float immediateEarlyBlend) {
             stereoCrossfeed = profile.crossfeed * (0.8f + size * 0.3f);
-            directEarlyMix = Math.min(profile.earlyMix * 0.55f, 0.16f) * clamp01(immediateEarlyBlend);
-            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix);
-            lateMix = profile.lateMix;
-            outputGain = profile.outputGain;
+            directEarlyMix = Math.min(profile.earlyMix * 0.42f, 0.14f) * clamp01(immediateEarlyBlend);
+            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix) * (0.95f + decayShape * 0.22f);
+            lateMix = profile.lateMix * (1.08f + decayShape * 0.35f);
+            outputGain = profile.outputGain * (1.08f + decayShape * 0.24f);
             leftInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0f);
             rightInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0.31f);
-            leftTank.configure(profile, size, decay, false);
-            rightTank.configure(profile, size, decay, true);
+            leftTank.configure(profile, size, decaySeconds, decayShape, false);
+            rightTank.configure(profile, size, decaySeconds, decayShape, true);
+            leftLowCut.reset();
+            rightLowCut.reset();
         }
 
         void process(float leftIn, float rightIn, float[] wetFrame) {
@@ -626,8 +632,10 @@ final class PcmDspProcessor {
             float diffuseRight = rightInput.process(rightIn + leftIn * 0.18f);
             float lateLeft = leftTank.process(diffuseLeft, rightTank.previousOutput() * stereoCrossfeed);
             float lateRight = rightTank.process(diffuseRight, leftTank.previousOutput() * stereoCrossfeed);
-            wetFrame[0] = clampSample((directLeft * directEarlyMix + leftInput.lastTap() * earlyMix + lateLeft * lateMix) * outputGain);
-            wetFrame[1] = clampSample((directRight * directEarlyMix + rightInput.lastTap() * earlyMix + lateRight * lateMix) * outputGain);
+            float wetLeft = (directLeft * directEarlyMix + leftInput.lastTap() * earlyMix + lateLeft * lateMix) * outputGain;
+            float wetRight = (directRight * directEarlyMix + rightInput.lastTap() * earlyMix + lateRight * lateMix) * outputGain;
+            wetFrame[0] = clampSample(leftLowCut.process(wetLeft));
+            wetFrame[1] = clampSample(rightLowCut.process(wetRight));
         }
     }
 
@@ -691,20 +699,25 @@ final class PcmDspProcessor {
             dcHighPass = new DcHighPass();
         }
 
-        void configure(ReverbProfile profile, float size, float decay, boolean rightChannel) {
+        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean rightChannel) {
             float sizeScale = profile.minSizeScale + size * profile.sizeRange;
-            float feedback = clamp(profile.baseFeedback + decay * profile.decayRange, 0.35f, 0.8f);
-            float damping = clamp(profile.damping + (1f - decay) * 0.08f, 0.08f, 0.58f);
+            float damping = clamp(profile.damping + (1f - decayShape) * 0.06f - decayShape * 0.02f, 0.08f, 0.56f);
             float inputDiff = clamp(profile.inputGain + size * 0.04f, 0.18f, 0.42f);
             float offset = rightChannel ? 1.013f : 0.987f;
-            widthMix = profile.width;
-            postDamping = profile.postDamping;
+            widthMix = profile.width * (0.96f + decayShape * 0.08f);
+            postDamping = clamp(profile.postDamping + decayShape * 0.04f, 0.08f, 0.26f);
             inputGain = inputDiff;
-            tankGain = profile.tankGain;
+            tankGain = profile.tankGain * (1.02f + decayShape * 0.18f);
             previousOutput = 0f;
             for (int i = 0; i < combs.length; i++) {
-                combs[i].configure(profile.combDelayMs[i] * sizeScale * offset,
-                        feedback - i * profile.feedbackSpread,
+                float combDelayMs = profile.combDelayMs[i] * sizeScale * offset;
+                float feedback = clamp(calculateRt60Feedback(combDelayMs, decaySeconds)
+                        * (0.93f + profile.baseFeedback * 0.15f)
+                        - i * profile.feedbackSpread,
+                        0.35f,
+                        0.93f);
+                combs[i].configure(combDelayMs,
+                        feedback,
                         damping + i * 0.015f,
                         profile.modDepthMs,
                         profile.modRateHz + i * profile.modSpreadHz + (rightChannel ? 0.009f : 0f));
@@ -735,6 +748,38 @@ final class PcmDspProcessor {
 
         float previousOutput() {
             return previousOutput;
+        }
+
+        private static float calculateRt60Feedback(float delayMs, float decaySeconds) {
+            float safeDelaySeconds = Math.max(0.001f, delayMs / 1000f);
+            float safeRt60 = Math.max(0.35f, decaySeconds);
+            return (float) Math.pow(0.001, safeDelaySeconds / safeRt60);
+        }
+    }
+
+    private static final class WetHighPass {
+        private final float alpha;
+        private float previousInput;
+        private float previousOutput;
+
+        WetHighPass(int sampleRate, float cutoffHz) {
+            float safeSampleRate = Math.max(8000f, sampleRate);
+            float safeCutoff = Math.max(20f, cutoffHz);
+            float rc = 1f / ((float) (2.0 * Math.PI) * safeCutoff);
+            float dt = 1f / safeSampleRate;
+            alpha = rc / (rc + dt);
+        }
+
+        float process(float input) {
+            float output = alpha * (previousOutput + input - previousInput);
+            previousInput = input;
+            previousOutput = finiteOrZero(output);
+            return previousOutput;
+        }
+
+        void reset() {
+            previousInput = 0f;
+            previousOutput = 0f;
         }
     }
 
