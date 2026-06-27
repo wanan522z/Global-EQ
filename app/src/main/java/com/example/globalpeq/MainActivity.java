@@ -5303,7 +5303,11 @@ public final class MainActivity extends Activity {
 
     private FrequencyCurve readCurveFromUri(Uri uri) throws IOException {
         StringBuilder text = new StringBuilder();
-        try (InputStream stream = getContentResolver().openInputStream(uri);
+        InputStream rawStream = getContentResolver().openInputStream(uri);
+        if (rawStream == null) {
+            throw new IOException("Unable to open curve input stream");
+        }
+        try (InputStream stream = rawStream;
              BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -5315,7 +5319,11 @@ public final class MainActivity extends Activity {
 
     private String readTextFromUri(Uri uri) throws IOException {
         StringBuilder text = new StringBuilder();
-        try (InputStream stream = getContentResolver().openInputStream(uri);
+        InputStream rawStream = getContentResolver().openInputStream(uri);
+        if (rawStream == null) {
+            throw new IOException("Unable to open text input stream");
+        }
+        try (InputStream stream = rawStream;
              BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -5326,7 +5334,11 @@ public final class MainActivity extends Activity {
     }
 
     private void writeTextToUri(Uri uri, String text) throws IOException {
-        try (OutputStream stream = getContentResolver().openOutputStream(uri, "wt");
+        OutputStream rawStream = getContentResolver().openOutputStream(uri, "wt");
+        if (rawStream == null) {
+            throw new IOException("Unable to open output stream");
+        }
+        try (OutputStream stream = rawStream;
              OutputStreamWriter writer = new OutputStreamWriter(stream)) {
             writer.write(text == null ? "" : text);
             writer.flush();
