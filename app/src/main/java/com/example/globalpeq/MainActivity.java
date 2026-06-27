@@ -174,6 +174,8 @@ public final class MainActivity extends Activity {
     private TextView bufferLabelView;
     private TextView pollIntervalLabelView;
     private TextView lookaheadLabelView;
+    private TextView limiterCeilingLabelView;
+    private TextView limiterReleaseLabelView;
     private LinearLayout settingsRootContent;
     private Button presetSelectButton;
     private Button undoButton;
@@ -1207,11 +1209,11 @@ public final class MainActivity extends Activity {
         FrameLayout listCardHolder = new FrameLayout(this);
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
-        listCardHolder.setClipChildren(false);
-        listCardHolder.setClipToPadding(false);
-        listCard.setClipChildren(false);
-        listCard.setClipToPadding(false);
-        listCard.setPadding(dp(10), dp(10), dp(10), dp(10));
+        listCardHolder.setClipChildren(true);
+        listCardHolder.setClipToPadding(true);
+        listCard.setClipChildren(true);
+        listCard.setClipToPadding(true);
+        listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
         listCard.setBackground(createGlassCard(30));
 
         LinearLayout.LayoutParams listCardParams = new LinearLayout.LayoutParams(
@@ -1219,7 +1221,7 @@ public final class MainActivity extends Activity {
                 0,
                 2f
         );
-        listCardParams.topMargin = dp(12);
+        listCardParams.topMargin = dp(10);
         eqPage.addView(listCardHolder, listCardParams);
 
         FrameLayout.LayoutParams listCardInnerParams = new FrameLayout.LayoutParams(
@@ -1235,8 +1237,9 @@ public final class MainActivity extends Activity {
         listCard.addView(header);
 
         ScrollView scrollView = new ScrollView(this);
-        scrollView.setClipChildren(false);
-        scrollView.setClipToPadding(false);
+        scrollView.setClipChildren(true);
+        scrollView.setClipToPadding(true);
+        scrollView.setPadding(0, 0, 0, 0);
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         rows.setClipChildren(false);
@@ -1497,12 +1500,14 @@ public final class MainActivity extends Activity {
 
         panel.addView(createAdvancedNumberRow(latencyLabelText(), String.valueOf(advancedModeConfig.latencyMs), "20-400", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLatencyMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(bufferLabelText(), String.valueOf(advancedModeConfig.bufferSizeFrames), "128-4096", value ->
+        panel.addView(createAdvancedNumberRow(bufferLabelText(), String.valueOf(advancedModeConfig.bufferSizeFrames), "128-16384", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withBufferSizeFrames(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(pollIntervalLabelText(), String.valueOf(advancedModeConfig.monitorIntervalMs), "100-5000", value ->
-                updateAdvancedModeConfig(advancedModeConfig.withMonitorIntervalMs(value))), blockParams(6));
         panel.addView(createAdvancedNumberRow(lookaheadLabelText(), String.valueOf(advancedModeConfig.lookaheadMs), "0-120", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLookaheadMs(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow(limiterCeilingLabelText(), String.valueOf(advancedModeConfig.limiterCeilingPermille), "930-999", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withLimiterCeilingPermille(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow(limiterReleaseLabelText(), String.valueOf(advancedModeConfig.limiterReleaseMs), "20-400", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
     }
 
     private View labeledSettingsRow(String labelText, View trailingView) {
@@ -1544,6 +1549,10 @@ public final class MainActivity extends Activity {
             pollIntervalLabelView = label;
         } else if (lookaheadLabelView == null && labelText.equals(lookaheadLabelText())) {
             lookaheadLabelView = label;
+        } else if (limiterCeilingLabelView == null && labelText.equals(limiterCeilingLabelText())) {
+            limiterCeilingLabelView = label;
+        } else if (limiterReleaseLabelView == null && labelText.equals(limiterReleaseLabelText())) {
+            limiterReleaseLabelView = label;
         }
         row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -1674,6 +1683,14 @@ public final class MainActivity extends Activity {
 
     private String lookaheadLabelText() {
         return tr("Lookahead (ms)", "Lookahead (ms)");
+    }
+
+    private String limiterCeilingLabelText() {
+        return tr("Limiter ceiling (\u2030)", "Limiter ceiling (\u2030)");
+    }
+
+    private String limiterReleaseLabelText() {
+        return tr("Limiter release (ms)", "Limiter release (ms)");
     }
 
     private String unusedAdvancedLabelText() {
@@ -1868,6 +1885,12 @@ public final class MainActivity extends Activity {
         }
         if (lookaheadLabelView != null) {
             lookaheadLabelView.setText(lookaheadLabelText());
+        }
+        if (limiterCeilingLabelView != null) {
+            limiterCeilingLabelView.setText(limiterCeilingLabelText());
+        }
+        if (limiterReleaseLabelView != null) {
+            limiterReleaseLabelView.setText(limiterReleaseLabelText());
         }
     }
 
@@ -4258,12 +4281,12 @@ public final class MainActivity extends Activity {
                 activeEqEditField = field;
                 showEqEditOverlay(bandIndex, field, true);
             } else if (activeEqEditBandIndex == bandIndex) {
-                view.post(() -> {
+                view.postDelayed(() -> {
                     View focused = getCurrentFocus();
                     if (!(focused instanceof EditText)) {
                         hideEqEditOverlay();
                     }
-                });
+                }, 32L);
             }
         });
     }
@@ -4344,7 +4367,6 @@ public final class MainActivity extends Activity {
 
             removeEqEditDim(false);
             addEqEditDimView(root, 0, 0, rootWidth, curveTop, dimColor);
-            addEqEditDimView(root, 0, curveBottom, rootWidth, rootHeight - curveBottom, dimColor);
             addEqEditDimView(root, 0, curveTop, curveLeft, curveBottom - curveTop, dimColor);
             addEqEditDimView(root, curveRight, curveTop, rootWidth - curveRight, curveBottom - curveTop, dimColor);
 
@@ -5982,7 +6004,7 @@ public final class MainActivity extends Activity {
                 && applyPreset.enabled == runningPreset.enabled) {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
                 if (applyPreset.enabled) {
-                    applyRunningPreset(applyPreset.enabled);
+                    applyRunningPreset();
                     ensureShizukuModeReady(true);
                 } else {
                     applyRunningPreset(false, false);
@@ -7470,6 +7492,9 @@ public final class MainActivity extends Activity {
 
     private boolean shouldDismissKeyboardOnTouch(View focused, MotionEvent event) {
         if (!(focused instanceof EditText) || event == null) {
+            return false;
+        }
+        if (activeEqEditOverlay != null) {
             return false;
         }
         return isTouchOutsideView(focused, event);

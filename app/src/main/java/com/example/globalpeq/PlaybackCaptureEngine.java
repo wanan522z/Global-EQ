@@ -34,7 +34,8 @@ final class PlaybackCaptureEngine {
     private static final int DEFAULT_ASSISTANT_STREAM = 11;
     private static final int EXPERIMENTAL_PLAYBACK_STREAM = resolveAssistantStream();
     private static final int EXPERIMENTAL_PLAYBACK_USAGE = AudioAttributes.USAGE_ASSISTANT;
-    private static final int EXPERIMENTAL_MIN_TRACK_LATENCY_MS = 120;
+    private static final int MIN_PIPELINE_BUFFER_FRAMES = 128;
+    private static final int MIN_TRACK_LATENCY_MS = 40;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -63,6 +64,7 @@ final class PlaybackCaptureEngine {
 
     private int configuredTargetUid = -1;
     private int configuredBufferFrames = -1;
+    private int configuredChunkFrames = -1;
     private int configuredLatencyMs = -1;
     private String configuredOutputDeviceKey = "";
     private String publishedStatus = "";
@@ -264,6 +266,18 @@ final class PlaybackCaptureEngine {
         return "Armed for " + currentTargetLabel + " - waiting for playback.";
     }
 
+    private boolean isHeavyRealtimeDspEnabled() {
+        if (currentPreset == null || !currentPreset.enabled) {
+            return false;
+        }
+        boolean reverbEnabled = AudioProcessingPolicy.reverbAllowed(currentMode)
+                && !"Default".equals(currentPreset.reverbType)
+                && currentPreset.reverbMixPercent > 0;
+        boolean dspBassEnabled = AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentVirtualBassModeIndex)
+                && currentPreset.virtualBassAmountPercent > 0;
+        return reverbEnabled || dspBassEnabled;
+    }
+
     private void startPipelineLocked() {
         stopPipelineLocked();
         if (mediaProjection == null || (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0)) {
@@ -280,7 +294,8 @@ final class PlaybackCaptureEngine {
             AudioPlaybackCaptureConfiguration captureConfiguration = buildCaptureConfiguration();
 
             int bytesPerFrame = CHANNEL_COUNT * 2;
-            int desiredFrames = Math.max(512, currentConfig.bufferSizeFrames);
+            boolean heavyRealtimeDsp = isHeavyRealtimeDspEnabled();
+            int desiredFrames = Math.max(MIN_PIPELINE_BUFFER_FRAMES, currentConfig.bufferSizeFrames);
             int minRecordBytes = AudioRecord.getMinBufferSize(
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_STEREO,
@@ -288,7 +303,9 @@ final class PlaybackCaptureEngine {
             if (minRecordBytes <= 0) {
                 minRecordBytes = desiredFrames * bytesPerFrame * 4;
             }
-            int recordBufferBytes = Math.max(minRecordBytes * 2, desiredFrames * bytesPerFrame * 4);
+            int recordMultiplier = heavyRealtimeDsp ? 4 : 2;
+            int recordBufferBytes = Math.max(minRecordBytes * recordMultiplier,
+                    desiredFrames * bytesPerFrame * (heavyRealtimeDsp ? 6 : 3));
 
             audioRecord = new AudioRecord.Builder()
                     .setAudioFormat(recordFormat)
@@ -308,12 +325,15 @@ final class PlaybackCaptureEngine {
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_OUT_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
-            int latencyMs = Math.max(EXPERIMENTAL_MIN_TRACK_LATENCY_MS, currentConfig.latencyMs);
-            int latencyFrames = Math.max(desiredFrames * 4, SAMPLE_RATE * latencyMs / 1000);
+            int latencyMs = Math.max(MIN_TRACK_LATENCY_MS, currentConfig.latencyMs);
+            int requestedLatencyFrames = Math.max(desiredFrames, SAMPLE_RATE * latencyMs / 1000);
+            int latencyFrames = Math.max(desiredFrames + desiredFrames / 2, requestedLatencyFrames);
             if (minTrackBytes <= 0) {
                 minTrackBytes = latencyFrames * bytesPerFrame;
             }
-            int trackBufferBytes = Math.max(minTrackBytes * 4, latencyFrames * bytesPerFrame * 2);
+            int trackMultiplier = heavyRealtimeDsp ? 4 : 2;
+            int trackBufferBytes = Math.max(minTrackBytes * trackMultiplier,
+                    latencyFrames * bytesPerFrame * (heavyRealtimeDsp ? 3 : 2));
 
             AudioTrack.Builder trackBuilder = new AudioTrack.Builder()
                     .setAudioAttributes(buildTrackAttributesForCurrentMode())
@@ -331,6 +351,7 @@ final class PlaybackCaptureEngine {
 
             configuredTargetUid = currentTargetUid;
             configuredBufferFrames = currentConfig.bufferSizeFrames;
+            configuredChunkFrames = desiredFrames;
             configuredLatencyMs = currentConfig.latencyMs;
             configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
             running = true;
@@ -347,6 +368,7 @@ final class PlaybackCaptureEngine {
                     + " trackUsage=MEDIA"
                     + " stream=" + EXPERIMENTAL_PLAYBACK_STREAM
                     + " desiredFrames=" + desiredFrames
+                    + " heavyRealtimeDsp=" + heavyRealtimeDsp
                     + " trackBufferBytes=" + trackBufferBytes
                     + " latencyMs=" + latencyMs
                     + " output=" + configuredOutputDeviceKey);
@@ -366,7 +388,8 @@ final class PlaybackCaptureEngine {
             return;
         }
 
-        short[] pcm = new short[Math.max(512, configuredBufferFrames) * CHANNEL_COUNT];
+        int chunkFrames = Math.max(512, configuredChunkFrames > 0 ? configuredChunkFrames : configuredBufferFrames);
+        short[] pcm = new short[chunkFrames * CHANNEL_COUNT];
         float[] samples = new float[pcm.length];
         short[] rendered = new short[pcm.length];
         long lastSignalAt = SystemClock.elapsedRealtime();
@@ -458,23 +481,12 @@ final class PlaybackCaptureEngine {
                 currentMode,
                 currentVirtualBassModeIndex);
         synchronized (dspLock) {
-            try {
-                dspProcessor.configure(
-                        effectiveDspPreset,
-                        SAMPLE_RATE,
-                        CHANNEL_COUNT,
-                        enableDspBass,
-                        currentConfig);
-            } catch (RuntimeException ex) {
-                Log.e(TAG, "DSP reconfigure failed, falling back to dry pass-through", ex);
-                dspProcessor.configure(
-                        Preset.flat(currentPreset != null && currentPreset.enabled).withName(
-                                currentPreset == null ? "Default" : currentPreset.name),
-                        SAMPLE_RATE,
-                        CHANNEL_COUNT,
-                        false,
-                        currentConfig);
-            }
+            dspProcessor.configure(
+                    effectiveDspPreset,
+                    SAMPLE_RATE,
+                    CHANNEL_COUNT,
+                    enableDspBass,
+                    currentConfig);
         }
         applyTrackVirtualBassLocked();
     }

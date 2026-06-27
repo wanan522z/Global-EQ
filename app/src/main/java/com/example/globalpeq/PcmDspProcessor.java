@@ -9,6 +9,7 @@ import java.util.List;
 final class PcmDspProcessor {
     private static final String TAG = "PcmDspProcessor";
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
+
     private final List<Biquad> filters = new ArrayList<>();
     private int sampleRate = 48000;
     private int channelCount = 2;
@@ -16,6 +17,8 @@ final class PcmDspProcessor {
     private float effectHeadroom = 1f;
     private PsychoacousticBassProcessor psychoacousticBass = new PsychoacousticBassProcessor(48000, 2);
     private AlgorithmicReverb reverb = new AlgorithmicReverb(48000, 2);
+    private LookaheadLimiter limiter = new LookaheadLimiter(48000, 2);
+    private boolean processingActive;
 
     void configure(Preset preset, int nextSampleRate, int nextChannelCount) {
         configure(preset, nextSampleRate, nextChannelCount, false, AdvancedModeConfig.DEFAULT);
@@ -28,6 +31,7 @@ final class PcmDspProcessor {
                    AdvancedModeConfig config) {
         sampleRate = Math.max(8000, nextSampleRate);
         channelCount = Math.max(1, nextChannelCount);
+        AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         pregain = preset == null ? 1f : dbToLinear(preset.pregainMb / 100f);
         effectHeadroom = 1f;
         filters.clear();
@@ -58,31 +62,59 @@ final class PcmDspProcessor {
                 }
             } else {
                 for (ParametricBand band : preset.bands) {
-                    if (band.enabled && band.gainMb != 0) {
+                    if (!band.enabled) {
+                        continue;
+                    }
+                    if (band.type == FilterType.HIGH_PASS
+                            || band.type == FilterType.LOW_PASS
+                            || band.gainMb != 0) {
                         filters.add(Biquad.fromBand(band, sampleRate, channelCount));
                     }
                 }
             }
-            psychoacousticBass = new PsychoacousticBassProcessor(sampleRate, channelCount);
+            if (psychoacousticBass.sampleRate != sampleRate || psychoacousticBass.channelCount != channelCount) {
+                psychoacousticBass = new PsychoacousticBassProcessor(sampleRate, channelCount);
+            }
             psychoacousticBass.configure(
-                    preset.extraBassCutoffHz,
+                    preset.virtualBassCutoffHz,
                     0,
                     preset.virtualBassCutoffHz,
                     enableDspBass ? preset.virtualBassAmountPercent : 0,
                     false);
-            reverb = new AlgorithmicReverb(sampleRate, channelCount);
-            reverb.configure(preset.reverbType,
+            if (reverb.sampleRate != sampleRate || reverb.channelCount != channelCount) {
+                reverb = new AlgorithmicReverb(sampleRate, channelCount);
+            }
+            reverb.configure(
+                    preset.reverbType,
                     preset.reverbDecayPercent,
                     preset.reverbPredelayMs,
                     preset.reverbSizePercent,
                     preset.reverbMixPercent,
                     preset.reverbMainMb,
                     false);
+        } else {
+            psychoacousticBass.configure(95, 0, 95, 0, false);
+            reverb.configure("Default", 0, 0, 0, 0, 0, false);
         }
+
+        if (limiter.sampleRate != sampleRate || limiter.channelCount != channelCount) {
+            limiter = new LookaheadLimiter(sampleRate, channelCount);
+        }
+        limiter.configure(
+                safeConfig.lookaheadMs,
+                safeConfig.latencyMs,
+                safeConfig.limiterCeilingPermille / 1000f,
+                safeConfig.limiterReleaseMs);
+
+        processingActive = Math.abs(pregain * effectHeadroom - 1f) > 0.0001f
+                || !filters.isEmpty()
+                || psychoacousticBass.isActive()
+                || reverb.isActive()
+                || limiter.isActive();
     }
 
     void processInterleaved(float[] samples, int frameCount) {
-        if (samples == null || frameCount <= 0) {
+        if (samples == null || frameCount <= 0 || !processingActive) {
             return;
         }
 
@@ -101,6 +133,7 @@ final class PcmDspProcessor {
             Log.e(TAG, "Reverb processing failed, resetting reverb state", e);
             reverb = new AlgorithmicReverb(sampleRate, channelCount);
         }
+        limiter.process(samples, sampleCount, channelCount);
         for (int i = 0; i < sampleCount; i++) {
             samples[i] = clampSample(finiteOrZero(samples[i]));
         }
@@ -131,9 +164,9 @@ final class PcmDspProcessor {
             double sin = Math.sin(omega);
             double cos = Math.cos(omega);
             double q = Math.max(0.2, band.qHundred / 100.0);
-            double gain = Math.pow(10.0, band.gainMb / 4000.0);
+            double a = Math.pow(10.0, band.gainMb / 4000.0);
             double alpha = sin / (2.0 * q);
-            double beta = Math.sqrt(gain) / q;
+            double beta = Math.sqrt(a) / q;
             double b0;
             double b1;
             double b2;
@@ -143,20 +176,20 @@ final class PcmDspProcessor {
 
             switch (band.type) {
                 case LOW_SHELF:
-                    b0 = gain * ((gain + 1.0) - (gain - 1.0) * cos + beta * sin);
-                    b1 = 2.0 * gain * ((gain - 1.0) - (gain + 1.0) * cos);
-                    b2 = gain * ((gain + 1.0) - (gain - 1.0) * cos - beta * sin);
-                    a0 = (gain + 1.0) + (gain - 1.0) * cos + beta * sin;
-                    a1 = -2.0 * ((gain - 1.0) + (gain + 1.0) * cos);
-                    a2 = (gain + 1.0) + (gain - 1.0) * cos - beta * sin;
+                    b0 = a * ((a + 1.0) - (a - 1.0) * cos + beta * sin);
+                    b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos);
+                    b2 = a * ((a + 1.0) - (a - 1.0) * cos - beta * sin);
+                    a0 = (a + 1.0) + (a - 1.0) * cos + beta * sin;
+                    a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos);
+                    a2 = (a + 1.0) + (a - 1.0) * cos - beta * sin;
                     break;
                 case HIGH_SHELF:
-                    b0 = gain * ((gain + 1.0) + (gain - 1.0) * cos + beta * sin);
-                    b1 = -2.0 * gain * ((gain - 1.0) + (gain + 1.0) * cos);
-                    b2 = gain * ((gain + 1.0) + (gain - 1.0) * cos - beta * sin);
-                    a0 = (gain + 1.0) - (gain - 1.0) * cos + beta * sin;
-                    a1 = 2.0 * ((gain - 1.0) - (gain + 1.0) * cos);
-                    a2 = (gain + 1.0) - (gain - 1.0) * cos - beta * sin;
+                    b0 = a * ((a + 1.0) + (a - 1.0) * cos + beta * sin);
+                    b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos);
+                    b2 = a * ((a + 1.0) + (a - 1.0) * cos - beta * sin);
+                    a0 = (a + 1.0) - (a - 1.0) * cos + beta * sin;
+                    a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos);
+                    a2 = (a + 1.0) - (a - 1.0) * cos - beta * sin;
                     break;
                 case LOW_PASS:
                     b0 = (1.0 - cos) * 0.5;
@@ -176,12 +209,12 @@ final class PcmDspProcessor {
                     break;
                 case PEAK:
                 default:
-                    b0 = 1.0 + alpha * gain;
+                    b0 = 1.0 + alpha * a;
                     b1 = -2.0 * cos;
-                    b2 = 1.0 - alpha * gain;
-                    a0 = 1.0 + alpha / gain;
+                    b2 = 1.0 - alpha * a;
+                    a0 = 1.0 + alpha / a;
                     a1 = -2.0 * cos;
-                    a2 = 1.0 - alpha / gain;
+                    a2 = 1.0 - alpha / a;
                     break;
             }
 
@@ -205,6 +238,26 @@ final class PcmDspProcessor {
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
+            if (channelCount == 2) {
+                for (int i = 0; i + 1 < sampleCount; i += 2) {
+                    float inputLeft = samples[i];
+                    float outputLeft = finiteOrZero(b0 * inputLeft + z1[0]);
+                    float nextZ1Left = finiteOrZero(b1 * inputLeft - a1 * outputLeft + z2[0]);
+                    float nextZ2Left = finiteOrZero(b2 * inputLeft - a2 * outputLeft);
+                    z1[0] = nextZ1Left;
+                    z2[0] = nextZ2Left;
+                    samples[i] = outputLeft;
+
+                    float inputRight = samples[i + 1];
+                    float outputRight = finiteOrZero(b0 * inputRight + z1[1]);
+                    float nextZ1Right = finiteOrZero(b1 * inputRight - a1 * outputRight + z2[1]);
+                    float nextZ2Right = finiteOrZero(b2 * inputRight - a2 * outputRight);
+                    z1[1] = nextZ1Right;
+                    z2[1] = nextZ2Right;
+                    samples[i + 1] = outputRight;
+                }
+                return;
+            }
             for (int i = 0; i < sampleCount; i++) {
                 int channel = i % channelCount;
                 float input = samples[i];
@@ -221,35 +274,28 @@ final class PcmDspProcessor {
     private static final class PsychoacousticBassProcessor {
         private final int sampleRate;
         private final int channelCount;
-        private Biquad sourceHighPass;
-        private Biquad sourceLowPass;
-        private Biquad harmonicHighPass;
-        private Biquad harmonicLowPass;
-        private Biquad octaveHighPass;
-        private Biquad octaveLowPass;
-        private float[] lowBand = new float[0];
+        private MonoBiquad extractHighPass;
+        private MonoBiquad extractLowPass;
+        private MonoBiquad harmonicHighPass;
+        private MonoBiquad harmonicLowPass;
+        private MonoBiquad octaveHighPass;
+        private MonoBiquad octaveLowPass;
+        private float[] monoSource = new float[0];
+        private float[] monoLow = new float[0];
         private float[] harmonicBand = new float[0];
         private float[] octaveBand = new float[0];
-        private final float[] envelope;
-        private float[] octaveDc = new float[0];
+        private float envelope;
+        private float dcReject;
         private float harmonicMix;
         private float octaveMix;
-        private float sustainMix;
-        private float lowBandLift;
-        private float lowBandTrim;
         private float drive;
-        private float saturationCeiling;
-        private float safeAmount;
         private float harmonicCeiling;
         private float octaveCeiling;
-        private float envelopeAttack;
-        private float envelopeRelease;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
-            this.envelope = new float[channelCount];
-            configure(140, 0, 95, 0, false);
+            configure(95, 0, 95, 0, false);
         }
 
         void configure(int virtualCutoffHz,
@@ -259,118 +305,102 @@ final class PcmDspProcessor {
                        boolean lowCpuMode) {
             float virtualAmount = clamp01(virtualAmountPercent / 100f);
             float dspAmount = clamp01(dspAmountPercent / 100f);
-            float totalAmount = clamp01(virtualAmount * 0.72f + dspAmount * 0.96f);
-            safeAmount = totalAmount <= 0.35f
-                    ? totalAmount
-                    : 0.35f + (totalAmount - 0.35f) * 0.55f;
-            int blendedCutoff = clamp(
-                    Math.round(virtualCutoffHz * 0.35f + dspCutoffHz * 0.65f),
-                    55,
-                    185);
+            float amount = clamp01(virtualAmount * 0.45f + dspAmount * 1.15f);
+            float safeAmount = amount <= 0.45f ? amount : 0.45f + (amount - 0.45f) * 0.55f;
+            int cutoff = clampInt(Math.round(virtualCutoffHz * 0.2f + dspCutoffHz * 0.8f), 45, 180);
+            int harmLow = Math.max(60, Math.round(cutoff * 1.5f));
+            int harmHigh = Math.min(380, Math.round(cutoff * 4.0f));
+            int octaveLow = clampInt(Math.round(cutoff * 2.2f), harmLow, 240);
+            int octaveHigh = clampInt(Math.round(cutoff * 3.8f), octaveLow + 10, harmHigh);
 
-            sourceHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 24, 0, 68),
-                    sampleRate,
-                    channelCount);
-            sourceLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, blendedCutoff, 0, 72),
-                    sampleRate,
-                    channelCount);
-            harmonicHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(58, Math.round(blendedCutoff * 0.66f)), 0, 82),
-                    sampleRate,
-                    channelCount);
-            harmonicLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(255, Math.max(118, Math.round(blendedCutoff * 1.55f))), 0, 88),
-                    sampleRate,
-                    channelCount);
-            octaveHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(72, Math.round(blendedCutoff * 0.92f)), 0, 82),
-                    sampleRate,
-                    channelCount);
-            octaveLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.max(150, Math.round(blendedCutoff * 2.18f)), 320), 0, 88),
-                    sampleRate,
-                    channelCount);
+            extractHighPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, 30, 0, 70),
+                    sampleRate);
+            extractLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 76),
+                    sampleRate);
+            harmonicHighPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, harmLow, 0, 85),
+                    sampleRate);
+            harmonicLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 85),
+                    sampleRate);
+            octaveHighPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, octaveLow, 0, 75),
+                    sampleRate);
+            octaveLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, octaveHigh, 0, 75),
+                    sampleRate);
 
-            harmonicMix = safeAmount * (0.22f + virtualAmount * 0.1f + dspAmount * 0.12f);
-            octaveMix = safeAmount * (0.56f + virtualAmount * 0.18f + dspAmount * 0.22f);
-            sustainMix = safeAmount * (0.015f + dspAmount * 0.03f + virtualAmount * 0.02f);
-            lowBandLift = safeAmount * (0.09f + dspAmount * 0.08f + virtualAmount * 0.06f);
-            lowBandTrim = safeAmount * (0.01f + dspAmount * 0.006f + virtualAmount * 0.004f);
-            drive = 1.18f + safeAmount * 2.1f + dspAmount * 0.65f;
-            saturationCeiling = 0.56f + (1f - totalAmount) * 0.08f;
-            harmonicCeiling = 0.2f + (1f - totalAmount) * 0.05f;
-            octaveCeiling = 0.28f + (1f - totalAmount) * 0.06f;
-            envelopeAttack = 0.012f + safeAmount * 0.012f;
-            envelopeRelease = 0.0028f + safeAmount * 0.0032f;
-            for (int i = 0; i < envelope.length; i++) {
-                envelope[i] = 0f;
-            }
-            if (octaveDc.length != channelCount) {
-                octaveDc = new float[channelCount];
-            }
-            for (int i = 0; i < octaveDc.length; i++) {
-                octaveDc[i] = 0f;
-            }
+            harmonicMix = safeAmount * (0.62f + dspAmount * 0.4f + virtualAmount * 0.15f);
+            octaveMix = safeAmount * (0.4f + dspAmount * 0.28f + virtualAmount * 0.1f);
+            drive = 1.24f + safeAmount * 2.25f + dspAmount * 0.52f;
+            harmonicCeiling = 0.34f + safeAmount * 0.06f;
+            octaveCeiling = 0.26f + safeAmount * 0.05f;
+            envelope = 0f;
+            dcReject = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
-            if (harmonicMix <= 0f && octaveMix <= 0f && sustainMix <= 0f && lowBandLift <= 0f && lowBandTrim <= 0f) {
+            if (!isActive()) {
                 return;
             }
+            int frameCount = sampleCount / channelCount;
+            ensureCapacity(frameCount);
 
-            if (lowBand.length < sampleCount) {
-                lowBand = new float[sampleCount];
-                harmonicBand = new float[sampleCount];
-                octaveBand = new float[sampleCount];
+            for (int frame = 0; frame < frameCount; frame++) {
+                int frameOffset = frame * channelCount;
+                float mono = 0f;
+                for (int channel = 0; channel < channelCount; channel++) {
+                    mono += samples[frameOffset + channel];
+                }
+                monoSource[frame] = mono / channelCount;
             }
-            if (octaveDc.length != channelCount) {
-                octaveDc = new float[channelCount];
-            }
 
-            System.arraycopy(samples, 0, lowBand, 0, sampleCount);
-            sourceHighPass.process(lowBand, sampleCount, channelCount);
-            sourceLowPass.process(lowBand, sampleCount, channelCount);
+            System.arraycopy(monoSource, 0, monoLow, 0, frameCount);
+            extractHighPass.process(monoLow, frameCount);
+            extractLowPass.process(monoLow, frameCount);
 
-            for (int i = 0; i < sampleCount; i++) {
-                int channel = i % channelCount;
-                float low = lowBand[i];
+            for (int frame = 0; frame < frameCount; frame++) {
+                float low = monoLow[frame];
                 float absLow = Math.abs(low);
-                float coeff = absLow > envelope[channel] ? envelopeAttack : envelopeRelease;
-                envelope[channel] += (absLow - envelope[channel]) * coeff;
-                float normalized = low / (0.045f + envelope[channel] * 0.92f);
-                float shaped = (float) Math.tanh(normalized * drive);
-                float envelopeDrive = Math.min(1f, envelope[channel] * 6.0f);
-                float dynamics = 0.48f + envelopeDrive * 0.34f;
-                harmonicBand[i] = softLimit((shaped - normalized * 0.82f) * dynamics, harmonicCeiling);
-
-                // Full-wave rectification gives us a cheap octave-up component from the sub band.
-                float octaveRaw = Math.abs(shaped);
-                octaveDc[channel] += (octaveRaw - octaveDc[channel]) * 0.012f;
-                octaveBand[i] = softLimit((octaveRaw - octaveDc[channel]) * (0.84f + envelopeDrive * 0.36f), octaveCeiling);
+                envelope += (absLow - envelope) * (absLow > envelope ? 0.035f : 0.008f);
+                float driven = low * drive;
+                float even = Math.abs(driven);
+                float odd = driven / (1.0f + Math.abs(driven) * 1.35f);
+                float harm = 0.8f * even + 0.2f * odd;
+                float dynamic = 0.88f + Math.min(1f, envelope * 6.8f) * 0.36f;
+                harmonicBand[frame] = softLimit((harm - dcReject) * dynamic * 1.08f, harmonicCeiling);
+                dcReject += (harm - dcReject) * 0.014f;
+                float doubled = Math.abs(driven) * (1.0f + 0.24f * odd);
+                octaveBand[frame] = softLimit((doubled - dcReject) * (0.7f + dynamic * 0.2f), octaveCeiling);
             }
 
-            harmonicHighPass.process(harmonicBand, sampleCount, channelCount);
-            harmonicLowPass.process(harmonicBand, sampleCount, channelCount);
-            octaveHighPass.process(octaveBand, sampleCount, channelCount);
-            octaveLowPass.process(octaveBand, sampleCount, channelCount);
+            harmonicHighPass.process(harmonicBand, frameCount);
+            harmonicLowPass.process(harmonicBand, frameCount);
+            octaveHighPass.process(octaveBand, frameCount);
+            octaveLowPass.process(octaveBand, frameCount);
 
-            for (int i = 0; i < sampleCount; i++) {
-                samples[i] += softLimit(lowBand[i] * (lowBandLift + sustainMix), saturationCeiling);
-                samples[i] += harmonicBand[i] * harmonicMix;
-                samples[i] += octaveBand[i] * octaveMix;
-                samples[i] -= lowBand[i] * lowBandTrim;
-                samples[i] = finiteOrZero(samples[i]);
+            for (int frame = 0; frame < frameCount; frame++) {
+                float generated = harmonicBand[frame] * harmonicMix + octaveBand[frame] * octaveMix;
+                int frameOffset = frame * channelCount;
+                for (int channel = 0; channel < channelCount; channel++) {
+                    samples[frameOffset + channel] = finiteOrZero(samples[frameOffset + channel] + generated);
+                }
             }
         }
 
-        private static int clamp(int value, int min, int max) {
-            return Math.max(min, Math.min(max, value));
+        boolean isActive() {
+            return harmonicMix > 0.0001f || octaveMix > 0.0001f;
         }
 
-        private static float clamp01(float value) {
-            return Math.max(0f, Math.min(1f, value));
+        private void ensureCapacity(int frameCount) {
+            if (monoSource.length < frameCount) {
+                monoSource = new float[frameCount];
+                monoLow = new float[frameCount];
+                harmonicBand = new float[frameCount];
+                octaveBand = new float[frameCount];
+            }
         }
 
         private static float softLimit(float value, float ceiling) {
@@ -379,15 +409,48 @@ final class PcmDspProcessor {
         }
     }
 
+    private static final class MonoBiquad {
+        private float z1;
+        private float z2;
+        private float b0;
+        private float b1;
+        private float b2;
+        private float a1;
+        private float a2;
+
+        static MonoBiquad fromBand(ParametricBand band, int sampleRate) {
+            Biquad stereo = Biquad.fromBand(band, sampleRate, 1);
+            MonoBiquad mono = new MonoBiquad();
+            mono.b0 = stereo.b0;
+            mono.b1 = stereo.b1;
+            mono.b2 = stereo.b2;
+            mono.a1 = stereo.a1;
+            mono.a2 = stereo.a2;
+            return mono;
+        }
+
+        void process(float[] samples, int sampleCount) {
+            for (int i = 0; i < sampleCount; i++) {
+                float input = samples[i];
+                float output = finiteOrZero(b0 * input + z1);
+                float nextZ1 = finiteOrZero(b1 * input - a1 * output + z2);
+                float nextZ2 = finiteOrZero(b2 * input - a2 * output);
+                z1 = nextZ1;
+                z2 = nextZ2;
+                samples[i] = output;
+            }
+        }
+    }
+
     private static final class AlgorithmicReverb {
         private static final int NEGATIVE_INFINITY_MB = -12000;
+
         private final int sampleRate;
         private final int channelCount;
         private final float[][] preDelayBuffers;
         private final int[] preDelayIndices;
         private final StereoReverbCore reverbCore;
         private final float[] wetFrame = new float[2];
-        private boolean lowCpuMode;
         private boolean activeWet;
         private float dryGain;
         private float wetGain;
@@ -410,24 +473,25 @@ final class PcmDspProcessor {
                        int mixPercent,
                        int mainMb,
                        boolean lowCpuMode) {
-            this.lowCpuMode = lowCpuMode;
+            ReverbProfile profile = ReverbProfile.forType(type);
             float size = clamp01(sizePercent / 100f);
             float mix = clamp01(mixPercent / 100f);
-            ReverbProfile profile = ReverbProfile.forType(type);
             float decaySeconds = clamp(decayPercent / 100f, 0f, 12f);
-            float decayShape = clamp01((Math.max(0.35f, decaySeconds) - 0.35f) / 11.65f);
+            float decayShape = clamp01((Math.max(0.25f, decaySeconds) - 0.25f) / 11.75f);
             activeWet = !"Default".equals(type) && mix > 0f;
             dryGain = mainMb <= NEGATIVE_INFINITY_MB ? 0f : dbToLinear(mainMb / 100f);
-            float sendDrive = 0.16f + 3.35f * mix * mix;
+            float wetMix = activeWet ? (float) Math.pow(mix, 0.72f) : 0f;
+            float sendDrive = activeWet ? (0.22f + 3.6f * wetMix + 2.9f * mix * mix) : 0f;
             wetGain = activeWet
-                    ? mix * sendDrive * (0.9f + size * 0.18f + decayShape * 0.14f)
+                    ? profile.wetBoost * wetMix * sendDrive * (0.96f + size * 0.28f + decayShape * 0.22f)
                     : 0f;
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
-            float immediateEarlyBlend = clamp01(1f - preDelayMs / 8f);
+            float profileDecaySeconds = clamp(
+                    decaySeconds * (0.78f + profile.decayScale + size * 0.2f),
+                    0.28f,
+                    14f);
+            reverbCore.configure(profile, size, profileDecaySeconds, decayShape, lowCpuMode);
             tailLevel = 0f;
-
-            reverbCore.configure(profile, size, decaySeconds, decayShape, immediateEarlyBlend, lowCpuMode);
-
             for (int channel = 0; channel < preDelayIndices.length; channel++) {
                 preDelayIndices[channel] = 0;
                 Arrays.fill(preDelayBuffers[channel], 0f);
@@ -446,11 +510,11 @@ final class PcmDspProcessor {
             }
             if (!activeWet || (inputPeak < 0.00012f && tailLevel < 0.00018f)) {
                 applyDryGainOnly(samples, sampleCount);
-                tailLevel *= 0.72f;
+                tailLevel *= 0.8f;
                 return;
             }
 
-            float blockWetPeak = 0f;
+            float wetPeak = 0f;
             for (int frame = 0; frame < frames; frame++) {
                 int frameOffset = frame * channelCount;
                 float leftDry = samples[frameOffset];
@@ -459,23 +523,25 @@ final class PcmDspProcessor {
                 float rightIn = preDelayProcess(rightDry, Math.min(1, preDelayIndices.length - 1));
                 reverbCore.process(leftIn, rightIn, wetFrame);
 
-                float wetLeft = softSaturate(wetFrame[0] * 1.06f);
+                float wetLeft = softSaturate(wetFrame[0]);
                 float wetRight = channelCount > 1
-                        ? softSaturate(wetFrame[1] * 1.06f)
-                        : softSaturate((wetFrame[0] + wetFrame[1]) * 0.59f);
-                blockWetPeak = Math.max(blockWetPeak, Math.max(Math.abs(wetLeft), Math.abs(wetRight)));
+                        ? softSaturate(wetFrame[1])
+                        : softSaturate((wetFrame[0] + wetFrame[1]) * 0.5f);
+                wetPeak = Math.max(wetPeak, Math.max(Math.abs(wetLeft), Math.abs(wetRight)));
                 samples[frameOffset] = finiteOrZero(leftDry * dryGain + wetLeft * wetGain);
                 if (channelCount > 1) {
                     samples[frameOffset + 1] = finiteOrZero(rightDry * dryGain + wetRight * wetGain);
                 }
                 for (int channel = 2; channel < channelCount; channel++) {
                     float dry = samples[frameOffset + channel];
-                    float wet = softSaturate((wetLeft + wetRight) * 0.5f);
-                    blockWetPeak = Math.max(blockWetPeak, Math.abs(wet));
-                    samples[frameOffset + channel] = finiteOrZero(dry * dryGain + wet * wetGain);
+                    samples[frameOffset + channel] = finiteOrZero(dry * dryGain + (wetLeft + wetRight) * 0.5f * wetGain);
                 }
             }
-            tailLevel = Math.max(blockWetPeak, tailLevel * 0.93f);
+            tailLevel = Math.max(wetPeak, tailLevel * 0.94f);
+        }
+
+        boolean isActive() {
+            return activeWet || Math.abs(dryGain - 1f) >= 0.0001f;
         }
 
         private float preDelayProcess(float input, int channel) {
@@ -505,36 +571,40 @@ final class PcmDspProcessor {
     }
 
     private static final class LookaheadLimiter {
-        private static final float CEILING = 0.985f;
-
         private final int sampleRate;
         private final int channelCount;
-        private float[] delayBuffer;
+        private float[] delayBuffer = new float[0];
         private int writeFrame;
         private int delayFrames;
         private int primedFrames;
         private float envelope;
         private float gain = 1f;
-        private float attackCoeff = 0.5f;
-        private float releaseCoeff = 0.995f;
+        private float ceiling = 0.985f;
+        private float attackCoeff = 0.05f;
+        private float releaseCoeff = 0.998f;
 
         LookaheadLimiter(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
-            configure(0, 20);
         }
 
-        void configure(int lookaheadMs, int latencyMs) {
+        void configure(int lookaheadMs, int latencyMs, float ceiling, int releaseMs) {
+            this.ceiling = clamp(ceiling, 0.93f, 0.999f);
             delayFrames = Math.max(0, Math.min(sampleRate / 8, lookaheadMs * sampleRate / 1000));
             int latencyFrames = Math.max(delayFrames + 1, Math.min(sampleRate / 2, latencyMs * sampleRate / 1000));
-            int bufferFrames = Math.max(delayFrames + 1, latencyFrames + 8);
-            delayBuffer = new float[Math.max(channelCount, bufferFrames * channelCount)];
+            int bufferFrames = Math.max(delayFrames + 2, latencyFrames + 8);
+            int bufferSamples = Math.max(channelCount, bufferFrames * channelCount);
+            if (delayBuffer.length != bufferSamples) {
+                delayBuffer = new float[bufferSamples];
+            } else {
+                Arrays.fill(delayBuffer, 0f);
+            }
             writeFrame = 0;
             primedFrames = 0;
             envelope = 0f;
             gain = 1f;
-            float attackSeconds = Math.max(0.0015f, Math.max(0.001f, lookaheadMs / 1000f) * 0.35f);
-            float releaseSeconds = Math.max(0.045f, Math.max(0.02f, latencyMs / 1000f) * 0.65f);
+            float attackSeconds = Math.max(0.0008f, Math.max(lookaheadMs, 1) / 1000f * 0.45f);
+            float releaseSeconds = Math.max(0.025f, releaseMs / 1000f);
             attackCoeff = (float) Math.exp(-1.0 / (sampleRate * attackSeconds));
             releaseCoeff = (float) Math.exp(-1.0 / (sampleRate * releaseSeconds));
         }
@@ -543,16 +613,12 @@ final class PcmDspProcessor {
             if (samples == null || sampleCount <= 0) {
                 return;
             }
-            if (delayFrames <= 0 || delayBuffer == null) {
-                softClip(samples, sampleCount);
-                return;
-            }
 
             int frames = sampleCount / channelCount;
             int bufferFrames = Math.max(1, delayBuffer.length / this.channelCount);
             for (int frame = 0; frame < frames; frame++) {
-                float peak = 0f;
                 int frameOffset = frame * channelCount;
+                float peak = 0f;
                 for (int channel = 0; channel < channelCount; channel++) {
                     peak = Math.max(peak, Math.abs(samples[frameOffset + channel]));
                 }
@@ -562,8 +628,9 @@ final class PcmDspProcessor {
                 } else {
                     envelope = peak + releaseCoeff * (envelope - peak);
                 }
-                float targetGain = envelope > CEILING ? CEILING / Math.max(CEILING, envelope) : 1f;
-                gain += 0.35f * (targetGain - gain);
+                float targetGain = envelope > ceiling ? ceiling / Math.max(envelope, ceiling) : 1f;
+                float smoothing = targetGain < gain ? 0.55f : 0.08f;
+                gain += (targetGain - gain) * smoothing;
 
                 int readFrame = writeFrame - delayFrames;
                 if (readFrame < 0) {
@@ -571,12 +638,12 @@ final class PcmDspProcessor {
                 }
                 for (int channel = 0; channel < channelCount; channel++) {
                     int writeIndex = writeFrame * this.channelCount + channel;
-                    float dry = samples[frameOffset + channel];
+                    float input = samples[frameOffset + channel];
                     float delayed = primedFrames >= delayFrames
                             ? delayBuffer[readFrame * this.channelCount + channel]
-                            : dry;
-                    delayBuffer[writeIndex] = dry;
-                    samples[frameOffset + channel] = clampSample(delayed * gain);
+                            : input;
+                    delayBuffer[writeIndex] = input;
+                    samples[frameOffset + channel] = finiteOrZero(softLimit(delayed * gain, ceiling));
                 }
 
                 writeFrame++;
@@ -587,102 +654,90 @@ final class PcmDspProcessor {
             }
         }
 
-        private void softClip(float[] samples, int sampleCount) {
-            for (int i = 0; i < sampleCount; i++) {
-                samples[i] = clampSample((float) Math.tanh(samples[i] * 0.92f));
-            }
+        boolean isActive() {
+            return true;
         }
 
-        private float clampSample(float sample) {
-            return Math.max(-1f, Math.min(1f, sample));
+        private static float softLimit(float value, float ceiling) {
+            float safe = Math.max(0.5f, ceiling);
+            return (float) Math.tanh(value / safe) * safe;
         }
     }
 
     private static final class StereoReverbCore {
-        private final ReverbTank leftTank;
-        private final ReverbTank rightTank;
         private final InputDiffuser leftInput;
         private final InputDiffuser rightInput;
+        private final EarlyReflectionCluster earlyReflections;
+        private final FdnReverbTank fdnTank;
         private final WetHighPass leftLowCut;
         private final WetHighPass rightLowCut;
         private final WetLowPass leftHighCut;
         private final WetLowPass rightHighCut;
-        private final MonoPeakFilter leftLowMidTrim;
-        private final MonoPeakFilter rightLowMidTrim;
-        private boolean lowCpuMode;
-        private float stereoCrossfeed;
-        private float directEarlyMix;
+        private final MonoPeakFilter leftBoxCut;
+        private final MonoPeakFilter rightBoxCut;
         private float earlyMix;
         private float lateMix;
         private float outputGain;
 
         StereoReverbCore(int sampleRate) {
-            leftTank = new ReverbTank(sampleRate);
-            rightTank = new ReverbTank(sampleRate);
             leftInput = new InputDiffuser(sampleRate);
             rightInput = new InputDiffuser(sampleRate);
+            earlyReflections = new EarlyReflectionCluster(sampleRate);
+            fdnTank = new FdnReverbTank(sampleRate);
             leftLowCut = new WetHighPass(sampleRate, 60f);
             rightLowCut = new WetHighPass(sampleRate, 60f);
             leftHighCut = new WetLowPass(sampleRate);
             rightHighCut = new WetLowPass(sampleRate);
-            leftLowMidTrim = new MonoPeakFilter(sampleRate);
-            rightLowMidTrim = new MonoPeakFilter(sampleRate);
+            leftBoxCut = new MonoPeakFilter(sampleRate);
+            rightBoxCut = new MonoPeakFilter(sampleRate);
         }
 
-        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, float immediateEarlyBlend, boolean lowCpuMode) {
-            this.lowCpuMode = lowCpuMode;
-            stereoCrossfeed = profile.crossfeed * (0.7f + size * 0.2f);
-            directEarlyMix = Math.min(profile.earlyMix * 0.3f, 0.09f) * clamp01(immediateEarlyBlend);
-            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix) * (0.92f + decayShape * 0.1f);
-            lateMix = profile.lateMix * (0.88f + decayShape * 0.12f);
-            outputGain = profile.outputGain * (0.92f + decayShape * 0.06f);
-            leftInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0f, lowCpuMode);
-            rightInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0.31f, lowCpuMode);
-            leftTank.configure(profile, size, decaySeconds, decayShape, false, lowCpuMode);
-            rightTank.configure(profile, size, decaySeconds, decayShape, true, lowCpuMode);
+        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean lowCpuMode) {
+            leftInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0.0f, lowCpuMode);
+            rightInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0.29f, lowCpuMode);
+            earlyReflections.configure(profile, size, lowCpuMode);
+            fdnTank.configure(profile, size, decaySeconds, decayShape, lowCpuMode);
             leftLowCut.reset();
             rightLowCut.reset();
-            float adaptiveHighCutHz = clamp(profile.highCutHz * (1f - decayShape * 0.1f), 3800f, 11000f);
-            leftHighCut.configure(adaptiveHighCutHz);
-            rightHighCut.configure(adaptiveHighCutHz);
-            float adaptiveLowMidCutDb = profile.lowMidCutDb * (0.96f + size * 0.08f + decayShape * 0.14f);
-            leftLowMidTrim.configure(480f, -adaptiveLowMidCutDb, 0.76f);
-            rightLowMidTrim.configure(480f, -adaptiveLowMidCutDb, 0.76f);
+            leftHighCut.configure(profile.highCutHz * (0.95f - decayShape * 0.12f));
+            rightHighCut.configure(profile.highCutHz * (0.95f - decayShape * 0.12f));
+            float boxCutDb = -(2.1f + size * 0.7f + decayShape * 0.9f);
+            leftBoxCut.configure(520f, boxCutDb, 0.95f);
+            rightBoxCut.configure(520f, boxCutDb, 0.95f);
+            earlyMix = profile.earlyMix * (0.88f + size * 0.05f);
+            lateMix = profile.lateMix * (0.98f + decayShape * 0.16f + size * 0.1f);
+            outputGain = profile.outputGain * (0.86f + size * 0.08f);
         }
 
         void process(float leftIn, float rightIn, float[] wetFrame) {
-            float directLeft = leftIn + rightIn * 0.12f;
-            float directRight = rightIn + leftIn * 0.12f;
-            float diffuseLeft = leftInput.process(leftIn + rightIn * 0.18f);
-            float diffuseRight = rightInput.process(rightIn + leftIn * 0.18f);
-            float lateLeft = leftTank.process(diffuseLeft, rightTank.previousOutput() * stereoCrossfeed);
-            float lateRight = rightTank.process(diffuseRight, leftTank.previousOutput() * stereoCrossfeed);
-            float wetLeft = (directLeft * directEarlyMix + leftInput.lastTap() * earlyMix + lateLeft * lateMix) * outputGain;
-            float wetRight = (directRight * directEarlyMix + rightInput.lastTap() * earlyMix + lateRight * lateMix) * outputGain;
-            wetFrame[0] = clampSample(leftHighCut.process(leftLowMidTrim.process(leftLowCut.process(wetLeft))));
-            wetFrame[1] = clampSample(rightHighCut.process(rightLowMidTrim.process(rightLowCut.process(wetRight))));
+            float diffuseLeft = leftInput.process(leftIn + rightIn * 0.07f);
+            float diffuseRight = rightInput.process(rightIn + leftIn * 0.07f);
+            float[] early = earlyReflections.process(diffuseLeft, diffuseRight);
+            float[] late = fdnTank.process(diffuseLeft, diffuseRight);
+            float wetLeft = (early[0] * earlyMix + late[0] * lateMix) * outputGain;
+            float wetRight = (early[1] * earlyMix + late[1] * lateMix) * outputGain;
+            wetFrame[0] = clampSample(leftHighCut.process(leftBoxCut.process(leftLowCut.process(wetLeft))));
+            wetFrame[1] = clampSample(rightHighCut.process(rightBoxCut.process(rightLowCut.process(wetRight))));
         }
     }
 
     private static final class InputDiffuser {
         private final AllPassStage[] stages;
-        private float tap;
 
         InputDiffuser(int sampleRate) {
             stages = new AllPassStage[] {
-                    new AllPassStage(sampleRate, 8.0f),
-                    new AllPassStage(sampleRate, 12.0f),
-                    new AllPassStage(sampleRate, 16.0f)
+                    new AllPassStage(sampleRate, 6.0f),
+                    new AllPassStage(sampleRate, 10.0f),
+                    new AllPassStage(sampleRate, 15.0f)
             };
         }
 
         void configure(float[] diffusionMs, float feedback, float size, float spreadOffset, boolean lowCpuMode) {
-            int activeStages = lowCpuMode ? stages.length - 1 : stages.length;
+            int activeStages = lowCpuMode ? 2 : stages.length;
             for (int i = 0; i < stages.length; i++) {
-                float scale = 0.82f + size * 0.45f + spreadOffset * (i == 1 ? 0.04f : 0f);
-                stages[i].configure(diffusionMs[i] * scale, clamp(feedback - i * 0.05f, 0.35f, 0.75f), i < activeStages);
+                float scale = 0.98f + size * 0.34f + spreadOffset * 0.06f;
+                stages[i].configure(diffusionMs[i] * scale, clamp(feedback - i * 0.018f, 0.5f, 0.81f), i < activeStages);
             }
-            tap = 0f;
         }
 
         float process(float input) {
@@ -690,106 +745,213 @@ final class PcmDspProcessor {
             for (AllPassStage stage : stages) {
                 sample = stage.process(sample);
             }
-            tap = sample;
             return sample;
-        }
-
-        float lastTap() {
-            return tap;
         }
     }
 
-    private static final class ReverbTank {
-        private final DampedComb[] combs;
-        private final AllPassStage[] allpasses;
-        private final SimpleDelay earlyDelay;
-        private final DcHighPass dcHighPass;
-        private float previousOutput;
-        private float widthMix;
-        private float postDamping;
+    private static final class EarlyReflectionCluster {
+        private final StereoTapDelay[] taps;
+        private final float[] output = new float[2];
+
+        EarlyReflectionCluster(int sampleRate) {
+            taps = new StereoTapDelay[] {
+                    new StereoTapDelay(sampleRate, 18f),
+                    new StereoTapDelay(sampleRate, 24f),
+                    new StereoTapDelay(sampleRate, 31f),
+                    new StereoTapDelay(sampleRate, 39f),
+                    new StereoTapDelay(sampleRate, 47f),
+                    new StereoTapDelay(sampleRate, 55f)
+            };
+        }
+
+        void configure(ReverbProfile profile, float size, boolean lowCpuMode) {
+            int activeTaps = lowCpuMode ? 4 : taps.length;
+            for (int i = 0; i < taps.length; i++) {
+                float leftMs = profile.earlyLeftMs[i] * (0.94f + size * 0.3f);
+                float rightMs = profile.earlyRightMs[i] * (0.94f + size * 0.3f);
+                taps[i].configure(leftMs, rightMs, profile.earlyGain[i] * 0.9f, i < activeTaps);
+            }
+        }
+
+        float[] process(float left, float right) {
+            float wetLeft = 0f;
+            float wetRight = 0f;
+            float mono = (left + right) * 0.5f;
+            for (StereoTapDelay tap : taps) {
+                float[] tapOut = tap.process(left, right, mono);
+                wetLeft += tapOut[0];
+                wetRight += tapOut[1];
+            }
+            output[0] = wetLeft;
+            output[1] = wetRight;
+            return output;
+        }
+    }
+
+    private static final class StereoTapDelay {
+        private final SimpleDelay leftDelay;
+        private final SimpleDelay rightDelay;
+        private final float[] output = new float[2];
+        private float gain;
+        private boolean active;
+
+        StereoTapDelay(int sampleRate, float maxDelayMs) {
+            leftDelay = new SimpleDelay(sampleRate, maxDelayMs);
+            rightDelay = new SimpleDelay(sampleRate, maxDelayMs);
+        }
+
+        void configure(float leftMs, float rightMs, float gain, boolean active) {
+            this.gain = gain;
+            this.active = active;
+            leftDelay.configure(Math.max(1f, leftMs));
+            rightDelay.configure(Math.max(1f, rightMs));
+        }
+
+        float[] process(float left, float right, float mono) {
+            if (!active) {
+                output[0] = 0f;
+                output[1] = 0f;
+                return output;
+            }
+            output[0] = leftDelay.process(left + mono * 0.24f) * gain;
+            output[1] = rightDelay.process(right + mono * 0.24f) * gain;
+            return output;
+        }
+    }
+
+    private static final class FdnReverbTank {
+        private static final int MATRIX_ORDER = 8;
+        private final FdnLine[] lines;
+        private final float[] delayed = new float[MATRIX_ORDER];
+        private final float[] mixed = new float[MATRIX_ORDER];
+        private final float[] output = new float[2];
+        private int activeLines = MATRIX_ORDER;
+        private float stereoWidth;
         private float inputGain;
-        private float tankGain;
-        private int activeCombCount = 1;
 
-        ReverbTank(int sampleRate) {
-            combs = new DampedComb[] {
-                    new DampedComb(sampleRate, 40.0f),
-                    new DampedComb(sampleRate, 48.0f),
-                    new DampedComb(sampleRate, 56.0f),
-                    new DampedComb(sampleRate, 68.0f)
+        FdnReverbTank(int sampleRate) {
+            lines = new FdnLine[] {
+                    new FdnLine(sampleRate, 40f),
+                    new FdnLine(sampleRate, 47f),
+                    new FdnLine(sampleRate, 55f),
+                    new FdnLine(sampleRate, 63f),
+                    new FdnLine(sampleRate, 72f),
+                    new FdnLine(sampleRate, 81f),
+                    new FdnLine(sampleRate, 91f),
+                    new FdnLine(sampleRate, 103f)
             };
-            allpasses = new AllPassStage[] {
-                    new AllPassStage(sampleRate, 6.0f),
-                    new AllPassStage(sampleRate, 9.0f)
-            };
-            earlyDelay = new SimpleDelay(sampleRate, 20f);
-            dcHighPass = new DcHighPass();
         }
 
-        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean rightChannel, boolean lowCpuMode) {
-            float sizeScale = profile.minSizeScale + size * profile.sizeRange;
-            float damping = clamp(profile.damping + 0.05f + decayShape * 0.13f + size * 0.03f, 0.16f, 0.74f);
-            float inputDiff = clamp(profile.inputGain + size * 0.03f, 0.18f, 0.38f);
-            float offset = rightChannel ? 1.013f : 0.987f;
-            widthMix = profile.width * (0.94f + size * 0.05f);
-            postDamping = clamp(profile.postDamping + 0.02f + decayShape * 0.06f, 0.1f, 0.32f);
-            inputGain = inputDiff;
-            tankGain = profile.tankGain * (0.96f + decayShape * 0.08f);
-            previousOutput = 0f;
-            int activeCombs = lowCpuMode ? Math.max(2, combs.length - 1) : combs.length;
-            activeCombCount = activeCombs;
-            for (int i = 0; i < combs.length; i++) {
-                float combDelayMs = profile.combDelayMs[i] * sizeScale * offset;
-                float feedback = clamp(calculateRt60Feedback(combDelayMs, decaySeconds)
-                        * (0.9f + profile.baseFeedback * 0.1f)
-                        - i * profile.feedbackSpread,
-                        0.28f,
-                        profile.feedbackCeiling - decayShape * 0.018f);
-                float modulationDepthMs = profile.modDepthMs
-                        * (1f + size * 0.12f + decayShape * 0.42f * profile.modulationScale);
-                combs[i].configure(combDelayMs,
-                        feedback,
-                        damping + i * 0.015f,
-                        modulationDepthMs,
-                        profile.modRateHz + i * profile.modSpreadHz + (rightChannel ? 0.009f : 0f),
-                        (rightChannel ? 0.41f : 0.19f) + i * 0.73f,
-                        i < activeCombs,
-                        lowCpuMode);
+        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean lowCpuMode) {
+            activeLines = lowCpuMode ? 4 : MATRIX_ORDER;
+            stereoWidth = profile.width * (0.88f + size * 0.12f);
+            inputGain = profile.inputGain * (0.92f + size * 0.08f);
+            for (int i = 0; i < lines.length; i++) {
+                float delayMs = profile.fdnDelayMs[i] * (profile.minSizeScale + size * profile.sizeScaleRange);
+                float feedback = clamp(calculateRt60Feedback(delayMs, decaySeconds) * profile.feedbackScale - i * 0.008f, 0.2f, 0.91f);
+                float damping = clamp(profile.damping + decayShape * 0.14f + i * 0.012f, 0.08f, 0.72f);
+                float modDepthMs = profile.modDepthMs * (0.6f + size * 0.32f);
+                float modRateHz = profile.modRateHz + i * profile.modSpreadHz;
+                lines[i].configure(delayMs, feedback, damping, modDepthMs, modRateHz, i * 0.61f, i < activeLines);
             }
-            int activeAllpasses = lowCpuMode ? 1 : allpasses.length;
-            for (int i = 0; i < allpasses.length; i++) {
-                allpasses[i].configure(profile.allPassDelayMs[i] * (0.9f + size * 0.35f) * offset,
-                        clamp(profile.allPassFeedback - i * 0.06f, 0.35f, 0.7f),
-                        i < activeAllpasses);
-            }
-            earlyDelay.configure(profile.earlyDelayMs * (0.85f + size * 0.35f) * offset);
-            dcHighPass.reset();
         }
 
-        float process(float input, float crossfeed) {
-            float seeded = earlyDelay.process(input) * inputGain + crossfeed;
-            float tankSum = 0f;
-            for (DampedComb comb : combs) {
-                tankSum += comb.process(seeded);
+        float[] process(float left, float right) {
+            float mono = (left + right) * 0.5f * inputGain;
+            for (int i = 0; i < lines.length; i++) {
+                delayed[i] = i < activeLines ? lines[i].read() : 0f;
             }
-            float tankOut = tankSum / Math.max(1, activeCombCount);
-            for (AllPassStage allPass : allpasses) {
-                tankOut = allPass.process(tankOut);
+            hadamard8(delayed, mixed);
+            for (int i = 0; i < lines.length; i++) {
+                if (i >= activeLines) {
+                    continue;
+                }
+                float excitation = ((i & 1) == 0 ? left : right) * 0.32f
+                        + ((i & 2) == 0 ? mono : -mono) * 0.24f;
+                lines[i].write(excitation + mixed[i] * 0.35355338f);
             }
-            previousOutput += postDamping * (tankOut - previousOutput);
-            previousOutput = dcHighPass.process(finiteOrZero(previousOutput * tankGain));
-            previousOutput = clamp(previousOutput, -1.2f, 1.2f);
-            return previousOutput * widthMix;
-        }
-
-        float previousOutput() {
-            return previousOutput;
+            float leftOut = (delayed[0] + delayed[2] + delayed[5] - delayed[7]) * 0.25f;
+            float rightOut = (delayed[1] + delayed[3] + delayed[4] - delayed[6]) * 0.25f;
+            float mid = (leftOut + rightOut) * 0.5f;
+            output[0] = mid + (leftOut - mid) * stereoWidth;
+            output[1] = mid + (rightOut - mid) * stereoWidth;
+            return output;
         }
 
         private static float calculateRt60Feedback(float delayMs, float decaySeconds) {
             float safeDelaySeconds = Math.max(0.001f, delayMs / 1000f);
             float safeRt60 = Math.max(0.35f, decaySeconds);
             return (float) Math.pow(0.001, safeDelaySeconds / safeRt60);
+        }
+
+        private static void hadamard8(float[] in, float[] out) {
+            float a0 = in[0] + in[1];
+            float a1 = in[0] - in[1];
+            float a2 = in[2] + in[3];
+            float a3 = in[2] - in[3];
+            float a4 = in[4] + in[5];
+            float a5 = in[4] - in[5];
+            float a6 = in[6] + in[7];
+            float a7 = in[6] - in[7];
+
+            float b0 = a0 + a2;
+            float b1 = a1 + a3;
+            float b2 = a0 - a2;
+            float b3 = a1 - a3;
+            float b4 = a4 + a6;
+            float b5 = a5 + a7;
+            float b6 = a4 - a6;
+            float b7 = a5 - a7;
+
+            out[0] = b0 + b4;
+            out[1] = b1 + b5;
+            out[2] = b2 + b6;
+            out[3] = b3 + b7;
+            out[4] = b0 - b4;
+            out[5] = b1 - b5;
+            out[6] = b2 - b6;
+            out[7] = b3 - b7;
+        }
+    }
+
+    private static final class FdnLine {
+        private final ModulatedDelay delay;
+        private float feedback;
+        private float damping;
+        private float filterState;
+        private boolean active;
+
+        FdnLine(int sampleRate, float maxDelayMs) {
+            delay = new ModulatedDelay(sampleRate, maxDelayMs);
+        }
+
+        void configure(float delayMs,
+                       float feedback,
+                       float damping,
+                       float modDepthMs,
+                       float modRateHz,
+                       float phaseOffset,
+                       boolean active) {
+            this.active = active;
+            this.feedback = feedback;
+            this.damping = damping;
+            this.filterState = 0f;
+            delay.configure(delayMs, modDepthMs, modRateHz, phaseOffset, active);
+        }
+
+        float read() {
+            if (!active) {
+                return 0f;
+            }
+            float delayed = delay.read();
+            filterState += damping * (delayed - filterState);
+            return finiteOrZero(filterState * feedback);
+        }
+
+        void write(float value) {
+            if (active) {
+                delay.write(softSaturate(value));
+            }
         }
     }
 
@@ -861,7 +1023,8 @@ final class PcmDspProcessor {
         void configure(float frequencyHz, float gainDb, float q) {
             if (Math.abs(gainDb) < 0.05f) {
                 active = false;
-                reset();
+                z1 = 0f;
+                z2 = 0f;
                 return;
             }
             double frequency = clamp(frequencyHz, 20f, this.sampleRate * 0.45f);
@@ -884,62 +1047,19 @@ final class PcmDspProcessor {
             b2 = (float) (cb2 / ca0);
             a1 = (float) (ca1 / ca0);
             a2 = (float) (ca2 / ca0);
+            z1 = 0f;
+            z2 = 0f;
             active = true;
-            reset();
         }
 
         float process(float input) {
             if (!active) {
                 return input;
             }
-            float output = b0 * input + z1;
-            z1 = b1 * input - a1 * output + z2;
-            z2 = b2 * input - a2 * output;
-            return finiteOrZero(output);
-        }
-
-        void reset() {
-            z1 = 0f;
-            z2 = 0f;
-        }
-    }
-
-    private static final class DampedComb {
-        private final ModulatedDelay delay;
-        private float feedback;
-        private float damping;
-        private float filterState;
-        private boolean active = true;
-
-        DampedComb(int sampleRate, float maxDelayMs) {
-            delay = new ModulatedDelay(sampleRate, maxDelayMs);
-        }
-
-        void configure(float delayMs,
-                       float feedback,
-                       float damping,
-                       float modDepthMs,
-                       float modRateHz,
-                       float phaseOffset,
-                       boolean active,
-                       boolean lowCpuMode) {
-            this.active = active;
-            delay.configure(delayMs, lowCpuMode ? modDepthMs * 0.42f : modDepthMs, modRateHz, phaseOffset, active);
-            this.feedback = clamp(feedback, 0.2f, 0.88f);
-            this.damping = clamp(damping, 0.05f, 0.6f);
-            filterState = 0f;
-        }
-
-        float process(float input) {
-            if (!active) {
-                return 0f;
-            }
-            float delayed = delay.read();
-            filterState += damping * (delayed - filterState);
-            float filtered = filterState;
-            float next = softSaturate(input + filtered * feedback);
-            delay.write(next);
-            return softSaturate(filtered * 0.84f + delayed * 0.16f);
+            float output = finiteOrZero(b0 * input + z1);
+            z1 = finiteOrZero(b1 * input - a1 * output + z2);
+            z2 = finiteOrZero(b2 * input - a2 * output);
+            return output;
         }
     }
 
@@ -1036,7 +1156,7 @@ final class PcmDspProcessor {
             this.active = active;
             delaySamples = clamp(delayMs * sampleRate / 1000f, 4f, buffer.length - 4f);
             modDepthSamples = active
-                    ? clamp(modDepthMs * sampleRate / 1000f, 0f, Math.min(5f, delaySamples * 0.12f))
+                    ? clamp(modDepthMs * sampleRate / 1000f, 0f, Math.min(2.8f, delaySamples * 0.08f))
                     : 0f;
             phase = active ? phaseOffset : 0f;
             phaseIncrement = active ? (float) (2.0 * Math.PI * modRateHz / sampleRate) : 0f;
@@ -1049,9 +1169,19 @@ final class PcmDspProcessor {
             float readPos = writeIndex - delaySamples - modulation;
             readPos = wrapReadPosition(readPos, buffer.length);
             int indexA = Math.min(buffer.length - 1, (int) readPos);
+            int indexM1 = indexA <= 0 ? buffer.length - 1 : indexA - 1;
             int indexB = (indexA + 1) % buffer.length;
+            int indexC = (indexA + 2) % buffer.length;
             float frac = readPos - indexA;
-            return finiteOrZero(buffer[indexA] + (buffer[indexB] - buffer[indexA]) * frac);
+            float y0 = buffer[indexM1];
+            float y1 = buffer[indexA];
+            float y2 = buffer[indexB];
+            float y3 = buffer[indexC];
+            float a = (-0.5f * y0) + (1.5f * y1) - (1.5f * y2) + (0.5f * y3);
+            float b = y0 - (2.5f * y1) + (2f * y2) - (0.5f * y3);
+            float c = (-0.5f * y0) + (0.5f * y2);
+            float d = y1;
+            return finiteOrZero(((a * frac + b) * frac + c) * frac + d);
         }
 
         void write(float value) {
@@ -1082,167 +1212,126 @@ final class PcmDspProcessor {
         }
     }
 
-    private static final class DcHighPass {
-        private float x1;
-        private float y1;
-
-        float process(float input) {
-            float output = input - x1 + 0.995f * y1;
-            x1 = input;
-            y1 = output;
-            return output;
-        }
-
-        void reset() {
-            x1 = 0f;
-            y1 = 0f;
-        }
-    }
-
     private static final class ReverbProfile {
-        final float[] combDelayMs;
-        final float[] allPassDelayMs;
+        final float[] fdnDelayMs;
         final float[] diffusionMs;
+        final float[] earlyLeftMs;
+        final float[] earlyRightMs;
+        final float[] earlyGain;
         final float minSizeScale;
-        final float sizeRange;
-        final float baseFeedback;
-        final float decayRange;
+        final float sizeScaleRange;
+        final float feedbackScale;
+        final float decayScale;
         final float damping;
-        final float inputGain;
+        final float diffusionFeedback;
         final float earlyMix;
         final float lateMix;
         final float outputGain;
-        final float crossfeed;
-        final float tankGain;
+        final float wetBoost;
         final float width;
-        final float postDamping;
-        final float allPassFeedback;
-        final float diffusionFeedback;
-        final float feedbackSpread;
+        final float inputGain;
         final float modDepthMs;
         final float modRateHz;
         final float modSpreadHz;
-        final float earlyDelayMs;
-        final float feedbackCeiling;
-        final float modulationScale;
         final float highCutHz;
-        final float lowMidCutDb;
 
-        ReverbProfile(float[] combDelayMs,
-                      float[] allPassDelayMs,
+        ReverbProfile(float[] fdnDelayMs,
                       float[] diffusionMs,
+                      float[] earlyLeftMs,
+                      float[] earlyRightMs,
+                      float[] earlyGain,
                       float minSizeScale,
-                      float sizeRange,
-                      float baseFeedback,
-                      float decayRange,
+                      float sizeScaleRange,
+                      float feedbackScale,
+                      float decayScale,
                       float damping,
-                      float inputGain,
+                      float diffusionFeedback,
                       float earlyMix,
                       float lateMix,
                       float outputGain,
-                      float crossfeed,
-                      float tankGain,
+                      float wetBoost,
                       float width,
-                      float postDamping,
-                      float allPassFeedback,
-                      float diffusionFeedback,
-                      float feedbackSpread,
+                      float inputGain,
                       float modDepthMs,
                       float modRateHz,
                       float modSpreadHz,
-                      float earlyDelayMs,
-                      float feedbackCeiling,
-                      float modulationScale,
-                      float highCutHz,
-                      float lowMidCutDb) {
-            this.combDelayMs = combDelayMs;
-            this.allPassDelayMs = allPassDelayMs;
+                      float highCutHz) {
+            this.fdnDelayMs = fdnDelayMs;
             this.diffusionMs = diffusionMs;
+            this.earlyLeftMs = earlyLeftMs;
+            this.earlyRightMs = earlyRightMs;
+            this.earlyGain = earlyGain;
             this.minSizeScale = minSizeScale;
-            this.sizeRange = sizeRange;
-            this.baseFeedback = baseFeedback;
-            this.decayRange = decayRange;
+            this.sizeScaleRange = sizeScaleRange;
+            this.feedbackScale = feedbackScale;
+            this.decayScale = decayScale;
             this.damping = damping;
-            this.inputGain = inputGain;
+            this.diffusionFeedback = diffusionFeedback;
             this.earlyMix = earlyMix;
             this.lateMix = lateMix;
             this.outputGain = outputGain;
-            this.crossfeed = crossfeed;
-            this.tankGain = tankGain;
+            this.wetBoost = wetBoost;
             this.width = width;
-            this.postDamping = postDamping;
-            this.allPassFeedback = allPassFeedback;
-            this.diffusionFeedback = diffusionFeedback;
-            this.feedbackSpread = feedbackSpread;
+            this.inputGain = inputGain;
             this.modDepthMs = modDepthMs;
             this.modRateHz = modRateHz;
             this.modSpreadHz = modSpreadHz;
-            this.earlyDelayMs = earlyDelayMs;
-            this.feedbackCeiling = feedbackCeiling;
-            this.modulationScale = modulationScale;
             this.highCutHz = highCutHz;
-            this.lowMidCutDb = lowMidCutDb;
         }
 
         static ReverbProfile forType(String type) {
-            if ("Plate".equals(type)) {
-                return new ReverbProfile(
-                        new float[] {29.4f, 34.7f, 38.9f, 42.6f},
-                        new float[] {3.7f, 5.9f},
-                        new float[] {4.2f, 6.8f, 9.7f},
-                        0.74f, 0.52f, 0.57f, 0.18f, 0.19f, 0.27f,
-                        0.24f, 0.92f, 0.34f, 0.18f, 0.88f, 1.08f, 0.15f,
-                        0.58f, 0.6f, 0.026f, 0.11f, 0.15f, 0.011f, 5.8f,
-                        0.86f, 1.08f, 6500f, 1.7f);
-            }
             if ("Hall".equals(type)) {
                 return new ReverbProfile(
-                        new float[] {36.8f, 44.5f, 52.1f, 61.3f},
-                        new float[] {5.1f, 8.4f},
-                        new float[] {5.4f, 8.1f, 12.4f},
-                        0.86f, 0.74f, 0.57f, 0.2f, 0.24f, 0.22f,
-                        0.16f, 0.94f, 0.27f, 0.18f, 0.88f, 1.08f, 0.19f,
-                        0.58f, 0.56f, 0.02f, 0.14f, 0.105f, 0.008f, 9.0f,
-                        0.81f, 1.12f, 5400f, 2.5f);
+                        new float[] {29.8f, 34.7f, 39.2f, 43.6f, 49.1f, 56.4f, 63.7f, 72.3f},
+                        new float[] {3.7f, 6.1f, 9.6f},
+                        new float[] {7.1f, 11.3f, 16.8f, 22.5f, 31.8f, 42.2f},
+                        new float[] {9.2f, 14.7f, 19.4f, 27.6f, 36.1f, 48.7f},
+                        new float[] {0.38f, 0.29f, 0.24f, 0.2f, 0.16f, 0.13f},
+                        0.86f, 0.82f, 0.98f, 0.28f, 0.24f, 0.7f, 0.24f, 0.92f, 0.3f, 1.02f, 1.05f, 0.28f, 0.045f, 0.12f, 0.007f, 5200f);
+            }
+            if ("Plate".equals(type)) {
+                return new ReverbProfile(
+                        new float[] {23.9f, 27.8f, 31.6f, 36.2f, 40.9f, 46.4f, 52.7f, 59.8f},
+                        new float[] {2.8f, 4.9f, 7.1f},
+                        new float[] {5.4f, 8.1f, 12.0f, 16.7f, 23.6f, 31.9f},
+                        new float[] {6.2f, 9.8f, 13.7f, 18.8f, 25.4f, 34.1f},
+                        new float[] {0.42f, 0.33f, 0.27f, 0.21f, 0.17f, 0.14f},
+                        0.74f, 0.58f, 0.95f, 0.2f, 0.2f, 0.72f, 0.18f, 0.98f, 0.28f, 1.0f, 0.98f, 0.24f, 0.034f, 0.18f, 0.01f, 6100f);
             }
             if ("Chamber".equals(type)) {
                 return new ReverbProfile(
-                        new float[] {24.6f, 29.8f, 35.4f, 41.1f},
-                        new float[] {3.9f, 6.3f},
-                        new float[] {4.0f, 6.0f, 8.8f},
-                        0.78f, 0.58f, 0.55f, 0.17f, 0.2f, 0.26f,
-                        0.22f, 0.93f, 0.33f, 0.17f, 0.87f, 1.03f, 0.15f,
-                        0.56f, 0.58f, 0.024f, 0.13f, 0.14f, 0.01f, 6.6f,
-                        0.86f, 1.08f, 6800f, 1.45f);
+                        new float[] {21.3f, 24.7f, 28.6f, 33.1f, 37.4f, 42.9f, 48.5f, 55.9f},
+                        new float[] {3.0f, 4.8f, 7.4f},
+                        new float[] {5.8f, 9.1f, 13.9f, 19.7f, 28.1f, 37.3f},
+                        new float[] {7.0f, 10.8f, 15.4f, 21.3f, 30.2f, 39.8f},
+                        new float[] {0.39f, 0.31f, 0.25f, 0.2f, 0.16f, 0.13f},
+                        0.76f, 0.62f, 0.96f, 0.22f, 0.22f, 0.69f, 0.22f, 0.95f, 0.29f, 0.98f, 1.0f, 0.25f, 0.036f, 0.14f, 0.009f, 5600f);
             }
             if ("Room".equals(type)) {
                 return new ReverbProfile(
-                        new float[] {15.8f, 19.7f, 23.4f, 27.1f},
-                        new float[] {2.8f, 4.1f},
-                        new float[] {2.9f, 4.3f, 6.2f},
-                        0.66f, 0.36f, 0.47f, 0.12f, 0.27f, 0.22f,
-                        0.3f, 0.88f, 0.38f, 0.12f, 0.84f, 0.98f, 0.13f,
-                        0.48f, 0.5f, 0.018f, 0.075f, 0.095f, 0.008f, 3.7f,
-                        0.84f, 0.94f, 5600f, 0.9f);
+                        new float[] {14.2f, 17.1f, 19.8f, 22.9f, 26.3f, 29.8f, 34.2f, 38.7f},
+                        new float[] {2.2f, 3.6f, 5.3f},
+                        new float[] {3.9f, 6.2f, 9.7f, 13.8f, 18.5f, 24.2f},
+                        new float[] {4.8f, 7.4f, 10.9f, 15.1f, 20.4f, 26.7f},
+                        new float[] {0.44f, 0.35f, 0.28f, 0.22f, 0.17f, 0.13f},
+                        0.64f, 0.4f, 0.9f, 0.16f, 0.28f, 0.66f, 0.28f, 0.88f, 0.32f, 0.9f, 0.92f, 0.21f, 0.028f, 0.12f, 0.008f, 4700f);
             }
             if ("Studio".equals(type)) {
                 return new ReverbProfile(
-                        new float[] {11.2f, 13.8f, 16.9f, 19.3f},
-                        new float[] {2.1f, 3.3f},
-                        new float[] {2.3f, 3.5f, 4.9f},
-                        0.58f, 0.28f, 0.42f, 0.1f, 0.3f, 0.2f,
-                        0.34f, 0.84f, 0.42f, 0.08f, 0.8f, 0.92f, 0.11f,
-                        0.44f, 0.46f, 0.016f, 0.06f, 0.085f, 0.007f, 2.8f,
-                        0.83f, 0.88f, 5000f, 0.8f);
+                        new float[] {11.8f, 13.6f, 15.8f, 18.3f, 21.1f, 24.4f, 27.8f, 31.5f},
+                        new float[] {1.8f, 2.9f, 4.4f},
+                        new float[] {3.2f, 5.0f, 7.7f, 10.9f, 14.8f, 19.3f},
+                        new float[] {3.8f, 5.9f, 8.5f, 11.9f, 15.7f, 20.9f},
+                        new float[] {0.41f, 0.32f, 0.26f, 0.21f, 0.16f, 0.12f},
+                        0.56f, 0.3f, 0.88f, 0.14f, 0.31f, 0.64f, 0.32f, 0.84f, 0.34f, 0.84f, 0.9f, 0.18f, 0.022f, 0.11f, 0.007f, 4200f);
             }
             return new ReverbProfile(
-                    new float[] {20.1f, 24.2f, 28.7f, 33.1f},
-                    new float[] {3.4f, 5.2f},
-                    new float[] {3.5f, 5.3f, 7.6f},
-                    0.72f, 0.48f, 0.52f, 0.16f, 0.22f, 0.24f,
-                    0.24f, 0.9f, 0.35f, 0.15f, 0.86f, 1f, 0.14f,
-                    0.52f, 0.54f, 0.022f, 0.1f, 0.125f, 0.009f, 5.1f,
-                    0.85f, 1.04f, 6400f, 1.15f);
+                    new float[] {18.4f, 21.9f, 25.5f, 29.4f, 33.7f, 38.9f, 44.8f, 51.7f},
+                    new float[] {2.9f, 4.7f, 6.9f},
+                    new float[] {4.9f, 7.7f, 11.8f, 16.4f, 22.9f, 31.2f},
+                    new float[] {6.0f, 9.4f, 13.2f, 18.5f, 25.8f, 34.7f},
+                    new float[] {0.4f, 0.31f, 0.25f, 0.2f, 0.16f, 0.13f},
+                    0.7f, 0.5f, 0.93f, 0.2f, 0.24f, 0.68f, 0.24f, 0.92f, 0.3f, 0.94f, 0.96f, 0.23f, 0.032f, 0.13f, 0.008f, 5000f);
         }
     }
 
