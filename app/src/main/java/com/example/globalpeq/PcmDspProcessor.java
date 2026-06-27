@@ -190,6 +190,17 @@ final class PcmDspProcessor {
             biquad.b2 = (float) (b2 / a0);
             biquad.a1 = (float) (a1 / a0);
             biquad.a2 = (float) (a2 / a0);
+            if (!Float.isFinite(biquad.b0)
+                    || !Float.isFinite(biquad.b1)
+                    || !Float.isFinite(biquad.b2)
+                    || !Float.isFinite(biquad.a1)
+                    || !Float.isFinite(biquad.a2)) {
+                biquad.b0 = 1f;
+                biquad.b1 = 0f;
+                biquad.b2 = 0f;
+                biquad.a1 = 0f;
+                biquad.a2 = 0f;
+            }
             return biquad;
         }
 
@@ -197,9 +208,11 @@ final class PcmDspProcessor {
             for (int i = 0; i < sampleCount; i++) {
                 int channel = i % channelCount;
                 float input = samples[i];
-                float output = b0 * input + z1[channel];
-                z1[channel] = b1 * input - a1 * output + z2[channel];
-                z2[channel] = b2 * input - a2 * output;
+                float output = finiteOrZero(b0 * input + z1[channel]);
+                float nextZ1 = finiteOrZero(b1 * input - a1 * output + z2[channel]);
+                float nextZ2 = finiteOrZero(b2 * input - a2 * output);
+                z1[channel] = nextZ1;
+                z2[channel] = nextZ2;
                 samples[i] = output;
             }
         }
