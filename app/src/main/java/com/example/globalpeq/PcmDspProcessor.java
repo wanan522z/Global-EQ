@@ -943,19 +943,30 @@ final class PcmDspProcessor {
         private float feedback;
         private float damping;
         private float filterState;
+        private boolean active = true;
 
         DampedComb(int sampleRate, float maxDelayMs) {
             delay = new ModulatedDelay(sampleRate, maxDelayMs);
         }
 
-        void configure(float delayMs, float feedback, float damping, float modDepthMs, float modRateHz) {
-            delay.configure(delayMs, modDepthMs, modRateHz);
+        void configure(float delayMs,
+                       float feedback,
+                       float damping,
+                       float modDepthMs,
+                       float modRateHz,
+                       boolean active,
+                       boolean lowCpuMode) {
+            this.active = active;
+            delay.configure(delayMs, lowCpuMode ? modDepthMs * 0.42f : modDepthMs, modRateHz, active);
             this.feedback = clamp(feedback, 0.2f, 0.88f);
             this.damping = clamp(damping, 0.05f, 0.6f);
             filterState = 0f;
         }
 
         float process(float input) {
+            if (!active) {
+                return 0f;
+            }
             float delayed = delay.read();
             filterState += damping * (delayed - filterState);
             float next = softSaturate(input + filterState * feedback);
