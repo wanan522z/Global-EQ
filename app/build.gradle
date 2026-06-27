@@ -1,15 +1,5 @@
-import java.util.Properties
-
 plugins {
     id "com.android.application"
-}
-
-def signingProps = new Properties()
-def signingPropsFile = rootProject.file("key.properties")
-if (signingPropsFile.exists()) {
-    signingPropsFile.withInputStream { stream ->
-        signingProps.load(stream)
-    }
 }
 
 android {
@@ -24,25 +14,6 @@ android {
         versionName "0.1"
     }
 
-    signingConfigs {
-        release {
-            if (!signingProps.isEmpty()) {
-                storeFile rootProject.file(signingProps["storeFile"])
-                storePassword signingProps["storePassword"]
-                keyAlias signingProps["keyAlias"]
-                keyPassword signingProps["keyPassword"]
-            }
-        }
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            shrinkResources false
-            signingConfig signingConfigs.release
-        }
-    }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -50,8 +21,6 @@ android {
 }
 
 dependencies {
-    implementation files(
-            rootProject.file("../_tmp_shizuku_api/classes.jar"),
-            rootProject.file("../_tmp_shizuku_provider/classes.jar")
-    )
+    implementation "dev.rikka.shizuku:api:13.1.5"
+    implementation "dev.rikka.shizuku:provider:13.1.5"
 }
