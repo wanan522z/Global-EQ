@@ -1350,25 +1350,25 @@ public final class MainActivity extends Activity {
 
         TextView importPresetButton = createExtraChoiceButton();
         importPresetButton.setText(tr("Import", "导入"));
-        styleMonitorActionButton(importPresetButton, 24);
+        styleMonitorActionButton(importPresetButton, 132);
         importPresetButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_PRESET_JSON));
         panel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(12));
 
         TextView exportPresetButton = createExtraChoiceButton();
         exportPresetButton.setText(tr("Export", "导出"));
-        styleMonitorActionButton(exportPresetButton, 72);
+        styleMonitorActionButton(exportPresetButton, 132);
         exportPresetButton.setOnClickListener(v -> exportCurrentPresetJson());
         panel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
 
         TextView importDeviceConfigButton = createExtraChoiceButton();
         importDeviceConfigButton.setText(tr("Import", "导入"));
-        styleMonitorActionButton(importDeviceConfigButton, 182);
+        styleMonitorActionButton(importDeviceConfigButton, 132);
         importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
         panel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(12));
 
         TextView exportDeviceConfigButton = createExtraChoiceButton();
         exportDeviceConfigButton.setText(tr("Export", "导出"));
-        styleMonitorActionButton(exportDeviceConfigButton, 228);
+        styleMonitorActionButton(exportDeviceConfigButton, 132);
         exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
         panel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
 
