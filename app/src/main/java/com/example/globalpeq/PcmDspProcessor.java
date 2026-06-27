@@ -1022,13 +1022,13 @@ final class PcmDspProcessor {
             buffer = new float[Math.max(64, Math.round(maxDelayMs * sampleRate / 1000f) + 32)];
         }
 
-        void configure(float delayMs, float modDepthMs, float modRateHz, boolean active) {
+        void configure(float delayMs, float modDepthMs, float modRateHz, float phaseOffset, boolean active) {
             this.active = active;
             delaySamples = clamp(delayMs * sampleRate / 1000f, 4f, buffer.length - 4f);
             modDepthSamples = active
                     ? clamp(modDepthMs * sampleRate / 1000f, 0f, Math.min(5f, delaySamples * 0.12f))
                     : 0f;
-            phase = 0f;
+            phase = active ? phaseOffset : 0f;
             phaseIncrement = active ? (float) (2.0 * Math.PI * modRateHz / sampleRate) : 0f;
             Arrays.fill(buffer, 0f);
             writeIndex = 0;
