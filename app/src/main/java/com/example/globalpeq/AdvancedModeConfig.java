@@ -9,6 +9,10 @@ import java.util.Collections;
 import java.util.List;
 
 final class AdvancedModeConfig {
+    private static final int DSP_SAMPLE_RATE = 48000;
+    private static final int PRE_RENDER_DIVISOR = 4;
+    private static final int PRE_RENDER_BLOCK_STEP = 64;
+
     static final AdvancedModeConfig DEFAULT = new AdvancedModeConfig(
             "",
             "",
@@ -21,6 +25,7 @@ final class AdvancedModeConfig {
 
     final String monitoredAppPackage;
     final String monitoredAppLabel;
+    final int preRenderMs;
     final int latencyMs;
     final int bufferSizeFrames;
     final int monitorIntervalMs;
@@ -36,22 +41,23 @@ final class AdvancedModeConfig {
                        List<MonitoredAppItem> monitoredApps) {
         this.monitoredAppPackage = monitoredAppPackage == null ? "" : monitoredAppPackage.trim();
         this.monitoredAppLabel = monitoredAppLabel == null ? "" : monitoredAppLabel.trim();
-        this.latencyMs = clamp(latencyMs, 20, 400);
-        this.bufferSizeFrames = clamp(bufferSizeFrames, 128, 4096);
+        this.preRenderMs = normalizePreRenderMs(latencyMs, bufferSizeFrames);
+        this.latencyMs = this.preRenderMs;
+        this.bufferSizeFrames = deriveBufferSizeFrames(this.preRenderMs);
         this.monitorIntervalMs = clamp(monitorIntervalMs, 100, 5000);
         this.lookaheadMs = clamp(lookaheadMs, 0, 120);
         this.monitoredApps = Collections.unmodifiableList(normalizeApps(monitoredApps));
     }
 
     AdvancedModeConfig withMonitoredApp(String packageName, String label) {
-        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, monitoredApps);
+        return new AdvancedModeConfig(packageName, label, preRenderMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, monitoredApps);
     }
 
     AdvancedModeConfig withAddedMonitoredApp(String packageName, String label) {
         return new AdvancedModeConfig(
                 packageName,
                 label,
-                latencyMs,
+                preRenderMs,
                 bufferSizeFrames,
                 monitorIntervalMs,
                 lookaheadMs,
@@ -59,20 +65,24 @@ final class AdvancedModeConfig {
         );
     }
 
+    AdvancedModeConfig withPreRenderMs(int value) {
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, deriveBufferSizeFrames(value), monitorIntervalMs, lookaheadMs, monitoredApps);
+    }
+
     AdvancedModeConfig withLatencyMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, monitoredApps);
+        return withPreRenderMs(value);
     }
 
     AdvancedModeConfig withBufferSizeFrames(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, monitoredApps);
+        return withPreRenderMs(derivePreRenderMsFromBuffer(value));
     }
 
     AdvancedModeConfig withMonitorIntervalMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, value, lookaheadMs, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, preRenderMs, bufferSizeFrames, value, lookaheadMs, monitoredApps);
     }
 
     AdvancedModeConfig withLookaheadMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, preRenderMs, bufferSizeFrames, monitorIntervalMs, value, monitoredApps);
     }
 
     String toJson() {
@@ -80,6 +90,7 @@ final class AdvancedModeConfig {
         try {
             object.put("monitoredAppPackage", monitoredAppPackage);
             object.put("monitoredAppLabel", monitoredAppLabel);
+            object.put("preRenderMs", preRenderMs);
             object.put("latencyMs", latencyMs);
             object.put("bufferSizeFrames", bufferSizeFrames);
             object.put("monitorIntervalMs", monitorIntervalMs);
@@ -105,11 +116,14 @@ final class AdvancedModeConfig {
         }
         try {
             JSONObject object = new JSONObject(json);
+            int preRenderMs = object.optInt("preRenderMs", -1);
+            int legacyLatencyMs = object.optInt("latencyMs", DEFAULT.preRenderMs);
+            int legacyBufferSizeFrames = object.optInt("bufferSizeFrames", DEFAULT.bufferSizeFrames);
             return new AdvancedModeConfig(
                     object.optString("monitoredAppPackage", ""),
                     object.optString("monitoredAppLabel", ""),
-                    object.optInt("latencyMs", DEFAULT.latencyMs),
-                    object.optInt("bufferSizeFrames", DEFAULT.bufferSizeFrames),
+                    preRenderMs > 0 ? preRenderMs : legacyLatencyMs,
+                    preRenderMs > 0 ? deriveBufferSizeFrames(preRenderMs) : legacyBufferSizeFrames,
                     object.optInt("monitorIntervalMs", DEFAULT.monitorIntervalMs),
                     object.optInt("lookaheadMs", DEFAULT.lookaheadMs),
                     parseApps(object.optJSONArray("manualMonitoredApps"))
@@ -182,6 +196,25 @@ final class AdvancedModeConfig {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static int normalizePreRenderMs(int latencyMs, int bufferSizeFrames) {
+        int legacyLatency = clamp(latencyMs, 20, 400);
+        int derivedFromBuffer = derivePreRenderMsFromBuffer(bufferSizeFrames);
+        return clamp(Math.max(legacyLatency, derivedFromBuffer), 20, 400);
+    }
+
+    private static int derivePreRenderMsFromBuffer(int bufferSizeFrames) {
+        int safeFrames = clamp(bufferSizeFrames, 128, 4096);
+        int prerenderFrames = safeFrames * PRE_RENDER_DIVISOR;
+        return clamp(Math.round(prerenderFrames * 1000f / DSP_SAMPLE_RATE), 20, 400);
+    }
+
+    private static int deriveBufferSizeFrames(int preRenderMs) {
+        int safePreRenderMs = clamp(preRenderMs, 20, 400);
+        int targetFrames = Math.round((DSP_SAMPLE_RATE * safePreRenderMs / 1000f) / (float) PRE_RENDER_DIVISOR);
+        int steppedFrames = Math.round(targetFrames / (float) PRE_RENDER_BLOCK_STEP) * PRE_RENDER_BLOCK_STEP;
+        return clamp(Math.max(PRE_RENDER_BLOCK_STEP * 2, steppedFrames), 128, 4096);
     }
 
     static final class MonitoredAppItem {
