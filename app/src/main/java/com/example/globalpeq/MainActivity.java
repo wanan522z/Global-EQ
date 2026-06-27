@@ -1210,6 +1210,11 @@ public final class MainActivity extends Activity {
         curveView = new EqCurveView(this);
         curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
         curveView.setMaxDb(curveGraphMaxDb);
+        curveView.setOnClickListener(v -> {
+            if (activeEqEditOverlay != null) {
+                closeKeyboard(v);
+            }
+        });
         curveFrame.addView(curveView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
