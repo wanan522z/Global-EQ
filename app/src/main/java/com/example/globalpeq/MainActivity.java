@@ -102,6 +102,7 @@ public final class MainActivity extends Activity {
     private static final long PRESET_PERSIST_DELAY_MS = 420L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
+    private static final long ACTIVE_APP_REFRESH_INTERVAL_MS = 5000L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
@@ -431,7 +432,7 @@ public final class MainActivity extends Activity {
         public void run() {
             refreshActivePlaybackPackageFromRepository();
             if (!isFinishing() && !isDestroyedCompat()) {
-                uiHandler.postDelayed(this, 900L);
+                uiHandler.postDelayed(this, ACTIVE_APP_REFRESH_INTERVAL_MS);
             }
         }
     };
@@ -442,7 +443,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             refreshMonitorStatusViews();
-            uiHandler.postDelayed(this, 900L);
+            uiHandler.postDelayed(this, ACTIVE_APP_REFRESH_INTERVAL_MS);
         }
     };
     private boolean awaitingInitialDeviceMonitorEvent;
@@ -3064,9 +3065,7 @@ public final class MainActivity extends Activity {
             return;
         }
         String iconPackage = currentHomepageIconPackage();
-        boolean visible = AudioProcessingPolicy.advancedModeEnabled(processingMode)
-                && iconPackage != null
-                && !iconPackage.isEmpty();
+        boolean visible = iconPackage != null && !iconPackage.isEmpty();
         Drawable icon = visible ? loadMonitoredAppDrawable() : null;
         if (!visible || icon == null) {
             topControlOverlay.getOverlay().remove(monitoredAppIconView);
@@ -3169,7 +3168,7 @@ public final class MainActivity extends Activity {
     }
 
     private String currentHomepageIconPackage() {
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (activePlaybackPackageName != null && !activePlaybackPackageName.isEmpty()) {
             return activePlaybackPackageName == null ? "" : activePlaybackPackageName;
         }
         if (advancedModeConfig.monitoredAppPackage != null && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
@@ -3180,10 +3179,6 @@ public final class MainActivity extends Activity {
 
     private void refreshActivePlaybackPackageFromRepository() {
         if (repository == null) {
-            updateActivePlaybackPackage("");
-            return;
-        }
-        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
             updateActivePlaybackPackage("");
             return;
         }
