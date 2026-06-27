@@ -9,8 +9,7 @@ public final class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         PresetRepository repository = new PresetRepository(context);
-        Preset preset = repository.loadLastPreset();
-        if (!preset.enabled) {
+        if (!repository.loadMasterEnabled()) {
             return;
         }
 
