@@ -239,10 +239,6 @@ final class ShizukuSessionMuteEngine {
             if (currentAppSessionIds.contains(session.sessionId)) {
                 continue;
             }
-            if (muteEffects.containsKey(session.sessionId)) {
-                continue;
-            }
-
             String usage = session.usage.toUpperCase(Locale.US).trim();
             if (!usage.contains("USAGE_MEDIA")
                     && !usage.contains("USAGE_GAME")) {
@@ -250,6 +246,9 @@ final class ShizukuSessionMuteEngine {
             }
             if (firstActivePackageName.isEmpty() && !session.packageName.isEmpty()) {
                 firstActivePackageName = session.packageName;
+            }
+            if (muteEffects.containsKey(session.sessionId)) {
+                continue;
             }
 
             Log.d(TAG, "Attempting to mute session " + session.sessionId
