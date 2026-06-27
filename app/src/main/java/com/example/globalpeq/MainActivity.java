@@ -6114,6 +6114,32 @@ public final class MainActivity extends Activity {
         selectedBassModeIndex = editingPreset.virtualBassModeIndex;
     }
 
+    private boolean currentMasterEnabled() {
+        boolean enabled = runningPreset != null ? runningPreset.enabled : repository.loadMasterEnabled();
+        return enabled && supported;
+    }
+
+    private Preset loadScopedPreset(AudioOutputDevice device, ProcessingMode mode) {
+        return limitPresetForHeadroom(repository.loadPreset(device, mode));
+    }
+
+    private void adoptDevicePresetForCurrentMode(AudioOutputDevice device, boolean clearHistory) {
+        Preset loadedPreset = loadScopedPreset(device, processingMode);
+        runningPreset = loadedPreset.withEnabled(currentMasterEnabled());
+        editingPreset = runningPreset;
+        applyPresetCurveSettings(editingPreset);
+        syncSelectedVirtualBassModeFromPreset();
+        syncExtraBassEnabledFromPreset();
+        if (clearHistory) {
+            undoStack.clear();
+            redoStack.clear();
+        }
+    }
+
+    private boolean shouldForceFullResetForCurrentMode() {
+        return processingMode != ProcessingMode.SHIZUKU_MUTE;
+    }
+
     private void applyRunningPreset() {
         applyRunningPreset(false);
     }
