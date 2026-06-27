@@ -434,10 +434,12 @@ final class PcmDspProcessor {
             float size = clamp01(sizePercent / 100f);
             float decay = clamp01(decayPercent / 100f);
             float mix = clamp01(mixPercent / 100f);
+            ReverbProfile profile = ReverbProfile.forType(type);
             wetMix = "Default".equals(type) ? 0f : Math.min(0.55f, mix);
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
+            float immediateEarlyBlend = clamp01(1f - preDelayMs / 8f);
 
-            reverbCore.configure(ReverbProfile.forType(type), size, decay);
+            reverbCore.configure(profile, size, decay, immediateEarlyBlend);
 
             for (int channel = 0; channel < preDelayIndices.length; channel++) {
                 preDelayIndices[channel] = 0;
@@ -592,6 +594,7 @@ final class PcmDspProcessor {
         private final InputDiffuser leftInput;
         private final InputDiffuser rightInput;
         private float stereoCrossfeed;
+        private float directEarlyMix;
         private float earlyMix;
         private float lateMix;
         private float outputGain;
@@ -603,9 +606,10 @@ final class PcmDspProcessor {
             rightInput = new InputDiffuser(sampleRate);
         }
 
-        void configure(ReverbProfile profile, float size, float decay) {
+        void configure(ReverbProfile profile, float size, float decay, float immediateEarlyBlend) {
             stereoCrossfeed = profile.crossfeed * (0.8f + size * 0.3f);
-            earlyMix = profile.earlyMix;
+            directEarlyMix = Math.min(profile.earlyMix * 0.55f, 0.16f) * clamp01(immediateEarlyBlend);
+            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix);
             lateMix = profile.lateMix;
             outputGain = profile.outputGain;
             leftInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0f);
@@ -615,12 +619,14 @@ final class PcmDspProcessor {
         }
 
         void process(float leftIn, float rightIn, float[] wetFrame) {
+            float directLeft = leftIn + rightIn * 0.12f;
+            float directRight = rightIn + leftIn * 0.12f;
             float diffuseLeft = leftInput.process(leftIn + rightIn * 0.18f);
             float diffuseRight = rightInput.process(rightIn + leftIn * 0.18f);
             float lateLeft = leftTank.process(diffuseLeft, rightTank.previousOutput() * stereoCrossfeed);
             float lateRight = rightTank.process(diffuseRight, leftTank.previousOutput() * stereoCrossfeed);
-            wetFrame[0] = clampSample((leftInput.lastTap() * earlyMix + lateLeft * lateMix) * outputGain);
-            wetFrame[1] = clampSample((rightInput.lastTap() * earlyMix + lateRight * lateMix) * outputGain);
+            wetFrame[0] = clampSample((directLeft * directEarlyMix + leftInput.lastTap() * earlyMix + lateLeft * lateMix) * outputGain);
+            wetFrame[1] = clampSample((directRight * directEarlyMix + rightInput.lastTap() * earlyMix + lateRight * lateMix) * outputGain);
         }
     }
 
