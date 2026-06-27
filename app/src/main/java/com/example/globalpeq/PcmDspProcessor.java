@@ -399,13 +399,11 @@ final class PcmDspProcessor {
                        int decayPercent,
                        int preDelayMs,
                        int sizePercent,
-                       int mixPercent,
-                       int globalWetPercent) {
+                       int mixPercent) {
             float size = clamp01(sizePercent / 100f);
             float decay = clamp01(decayPercent / 100f);
             float mix = clamp01(mixPercent / 100f);
-            float globalWet = clamp01(globalWetPercent / 100f);
-            wetMix = "Default".equals(type) ? 0f : mix * globalWet;
+            wetMix = "Default".equals(type) ? 0f : mix;
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
 
             ModeProfile profile = ModeProfile.forType(type);
