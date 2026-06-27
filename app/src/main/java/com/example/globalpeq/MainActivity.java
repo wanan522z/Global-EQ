@@ -3340,6 +3340,10 @@ public final class MainActivity extends Activity {
         if (header == null || editingPreset == null) {
             return;
         }
+        if (lastRenderedHeaderMode == editingPreset.mode && header.getChildCount() > 0) {
+            return;
+        }
+        lastRenderedHeaderMode = editingPreset.mode;
         header.removeAllViews();
         if (editingPreset.mode == EqMode.GEQ) {
             return;
@@ -3386,11 +3390,21 @@ public final class MainActivity extends Activity {
             }
         }
 
-        SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        adapter.setSelectedPosition(selected);
-        deviceSpinner.setAdapter(adapter);
-        deviceSpinner.setSelection(selected);
+        String signature = joinStrings(labels);
+        String selectedKey = currentDevice.key == null ? "" : currentDevice.key;
+        if (!signature.equals(lastDeviceSpinnerSignature)) {
+            SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            adapter.setSelectedPosition(selected);
+            deviceSpinner.setAdapter(adapter);
+            lastDeviceSpinnerSignature = signature;
+        } else if (deviceSpinner.getAdapter() instanceof SmallSpinnerAdapter) {
+            ((SmallSpinnerAdapter) deviceSpinner.getAdapter()).setSelectedPosition(selected);
+        }
+        if (!selectedKey.equals(lastDeviceSpinnerSelectedKey) || deviceSpinner.getSelectedItemPosition() != selected) {
+            deviceSpinner.setSelection(selected);
+            lastDeviceSpinnerSelectedKey = selectedKey;
+        }
     }
 
     private void showDeviceChoiceMenu() {
