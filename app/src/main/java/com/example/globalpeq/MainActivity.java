@@ -883,16 +883,9 @@ public final class MainActivity extends Activity {
         flushPendingPresetPersistence();
         currentDevice = device;
         repository.saveSelectedDevice(currentDevice);
-        Preset loadedPreset = repository.loadPreset(device);
-        loadedPreset = limitPresetForHeadroom(loadedPreset);
-        runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
-        Preset draftPreset = repository.loadDraftPreset();
-        editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        adoptDevicePresetForCurrentMode(currentDevice, true);
         renderAll();
-        applyRunningPreset(true);
+        applyRunningPreset(shouldForceFullResetForCurrentMode());
     }
 
     private LinearLayout buildContent() {
