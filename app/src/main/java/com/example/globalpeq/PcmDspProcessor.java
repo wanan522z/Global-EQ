@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 
 final class PcmDspProcessor {
-    private static final float EFFECT_HEADROOM_DB = -7.5f;
     private final List<Biquad> filters = new ArrayList<>();
     private int sampleRate = 48000;
     private int channelCount = 2;
@@ -27,9 +26,7 @@ final class PcmDspProcessor {
         sampleRate = Math.max(8000, nextSampleRate);
         channelCount = Math.max(1, nextChannelCount);
         pregain = preset == null ? 1f : dbToLinear(preset.pregainMb / 100f);
-        effectHeadroom = shouldReserveEffectHeadroom(preset, enableDspBass)
-                ? dbToLinear(EFFECT_HEADROOM_DB)
-                : 1f;
+        effectHeadroom = 1f;
         filters.clear();
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
 
@@ -76,7 +73,8 @@ final class PcmDspProcessor {
 
         int sampleCount = Math.min(samples.length, frameCount * channelCount);
         for (int i = 0; i < sampleCount; i++) {
-            samples[i] *= pregain * effectHeadroom;
+            float input = finiteOrZero(samples[i]);
+            samples[i] = clampSample(input * pregain * effectHeadroom);
         }
         psychoacousticBass.process(samples, sampleCount, channelCount);
         for (Biquad filter : filters) {
@@ -84,20 +82,13 @@ final class PcmDspProcessor {
         }
         reverb.process(samples, sampleCount, channelCount);
         limiter.process(samples, sampleCount, channelCount);
+        for (int i = 0; i < sampleCount; i++) {
+            samples[i] = clampSample(finiteOrZero(samples[i]));
+        }
     }
 
     private static float dbToLinear(float db) {
         return (float) Math.pow(10.0, db / 20.0);
-    }
-
-    private static boolean shouldReserveEffectHeadroom(Preset preset, boolean enableDspBass) {
-        if (preset == null || !preset.enabled) {
-            return false;
-        }
-        boolean reverbActive = !"Default".equals(preset.reverbType) && preset.reverbMixPercent > 0;
-        boolean virtualBassActive = enableDspBass && preset.virtualBassAmountPercent > 0;
-        boolean extraBassActive = preset.extraBassEnabled && preset.extraBassAmountPercent > 0;
-        return reverbActive || virtualBassActive || extraBassActive;
     }
 
     private static final class Biquad {
@@ -629,9 +620,9 @@ final class PcmDspProcessor {
 
         InputDiffuser(int sampleRate) {
             stages = new AllPassStage[] {
-                    new AllPassStage(sampleRate, 6.7f),
-                    new AllPassStage(sampleRate, 10.1f),
-                    new AllPassStage(sampleRate, 14.9f)
+                    new AllPassStage(sampleRate, 8.0f),
+                    new AllPassStage(sampleRate, 12.0f),
+                    new AllPassStage(sampleRate, 16.0f)
             };
         }
 
@@ -670,16 +661,16 @@ final class PcmDspProcessor {
 
         ReverbTank(int sampleRate) {
             combs = new DampedComb[] {
-                    new DampedComb(sampleRate, 31.1f),
-                    new DampedComb(sampleRate, 37.7f),
-                    new DampedComb(sampleRate, 41.9f),
-                    new DampedComb(sampleRate, 45.7f)
+                    new DampedComb(sampleRate, 40.0f),
+                    new DampedComb(sampleRate, 48.0f),
+                    new DampedComb(sampleRate, 56.0f),
+                    new DampedComb(sampleRate, 68.0f)
             };
             allpasses = new AllPassStage[] {
-                    new AllPassStage(sampleRate, 4.8f),
-                    new AllPassStage(sampleRate, 7.2f)
+                    new AllPassStage(sampleRate, 6.0f),
+                    new AllPassStage(sampleRate, 9.0f)
             };
-            earlyDelay = new SimpleDelay(sampleRate, 18f);
+            earlyDelay = new SimpleDelay(sampleRate, 20f);
             dcHighPass = new DcHighPass();
         }
 
@@ -720,7 +711,8 @@ final class PcmDspProcessor {
                 tankOut = allPass.process(tankOut);
             }
             previousOutput += postDamping * (tankOut - previousOutput);
-            previousOutput = dcHighPass.process(previousOutput * tankGain);
+            previousOutput = dcHighPass.process(finiteOrZero(previousOutput * tankGain));
+            previousOutput = clamp(previousOutput, -1.2f, 1.2f);
             return previousOutput * widthMix;
         }
 
@@ -782,12 +774,12 @@ final class PcmDspProcessor {
             }
             float delayed = buffer[readIndex];
             float output = delayed - input * feedback;
-            buffer[index] = input + delayed * feedback;
+            buffer[index] = finiteOrZero(input + delayed * feedback);
             index++;
             if (index >= buffer.length) {
                 index = 0;
             }
-            return output;
+            return finiteOrZero(output);
         }
     }
 
@@ -814,12 +806,12 @@ final class PcmDspProcessor {
                 readIndex += buffer.length;
             }
             float output = buffer[readIndex];
-            buffer[index] = input;
+            buffer[index] = finiteOrZero(input);
             index++;
             if (index >= buffer.length) {
                 index = 0;
             }
-            return output;
+            return finiteOrZero(output);
         }
     }
 
@@ -854,7 +846,7 @@ final class PcmDspProcessor {
             int indexA = (int) readPos;
             int indexB = (indexA + 1) % buffer.length;
             float frac = readPos - indexA;
-            return buffer[indexA] + (buffer[indexB] - buffer[indexA]) * frac;
+            return finiteOrZero(buffer[indexA] + (buffer[indexB] - buffer[indexA]) * frac);
         }
 
         void write(float value) {
@@ -1030,5 +1022,9 @@ final class PcmDspProcessor {
 
     private static float clampSample(float value) {
         return clamp(value, -1f, 1f);
+    }
+
+    private static float finiteOrZero(float value) {
+        return Float.isFinite(value) ? value : 0f;
     }
 }
