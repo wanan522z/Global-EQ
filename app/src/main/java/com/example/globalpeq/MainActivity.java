@@ -1153,8 +1153,8 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 String name = String.valueOf(parent.getItemAtPosition(position));
-                if (!name.equals(runningPreset.name)) {
-                    loadPresetLive(name);
+                if (editingPreset != null && !name.equals(editingPreset.name)) {
+                    loadPresetForEditing(name);
                 }
             }
 
