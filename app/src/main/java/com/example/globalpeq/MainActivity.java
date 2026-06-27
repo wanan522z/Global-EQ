@@ -5596,6 +5596,101 @@ public final class MainActivity extends Activity {
         applyRunningPreset(true);
     }
 
+    private void exportCurrentDeviceConfigJsonV2() {
+        Preset exportEditingPreset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
+        Preset exportRunningPreset = withCurrentCurveSettings(runningPreset);
+        if (currentDevice == null || exportRunningPreset == null) {
+            Toast.makeText(this, tr("No global config to export", "娌℃湁鍙鍑虹殑鍏ㄥ眬閰嶇疆"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Preset systemDevicePreset = processingMode == ProcessingMode.SYSTEM_EQ
+                ? exportRunningPreset
+                : loadScopedPreset(currentDevice, ProcessingMode.SYSTEM_EQ);
+        Preset shizukuDevicePreset = processingMode == ProcessingMode.SHIZUKU_MUTE
+                ? exportRunningPreset
+                : loadScopedPreset(currentDevice, ProcessingMode.SHIZUKU_MUTE);
+        DeviceConfigFile config = new DeviceConfigFile(
+                currentDevice,
+                processingMode,
+                autoSwitchOutput,
+                new DeviceConfigFile.ModeState(
+                        ProcessingMode.SYSTEM_EQ,
+                        AdvancedModeConfig.DEFAULT,
+                        systemDevicePreset,
+                        activePresetName(processingMode == ProcessingMode.SYSTEM_EQ ? exportEditingPreset : null, systemDevicePreset)),
+                new DeviceConfigFile.ModeState(
+                        ProcessingMode.SHIZUKU_MUTE,
+                        advancedModeConfig,
+                        shizukuDevicePreset,
+                        activePresetName(processingMode == ProcessingMode.SHIZUKU_MUTE ? exportEditingPreset : null, shizukuDevicePreset)),
+                exportPresetLibrary(exportEditingPreset)
+        );
+        pendingExportJson = config.toJson();
+        pendingExportSuccessMessage = tr("Global config exported", "鍏ㄥ眬閰嶇疆宸插鍑?");
+        openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
+    }
+
+    private void applyImportedDeviceConfigV2(DeviceConfigFile config) {
+        flushPendingPresetPersistence();
+        boolean masterEnabled = currentMasterEnabled();
+        currentDevice = config.device;
+        processingMode = config.processingMode;
+        autoSwitchOutput = config.autoSwitchOutput;
+        repository.saveKnownDevice(currentDevice);
+        repository.saveSelectedDevice(currentDevice);
+        repository.saveProcessingMode(processingMode);
+        repository.saveAutoSwitchOutput(autoSwitchOutput);
+        for (Preset preset : config.presets) {
+            if (preset == null || preset.name == null || preset.name.trim().isEmpty()) {
+                continue;
+            }
+            repository.saveNamedPreset(preset);
+        }
+        repository.savePreset(currentDevice, ProcessingMode.SYSTEM_EQ, config.systemEqState.devicePreset);
+        repository.savePreset(currentDevice, ProcessingMode.SHIZUKU_MUTE, config.shizukuState.devicePreset);
+        advancedModeConfig = config.shizukuState.advancedModeConfig;
+        repository.saveAdvancedModeConfig(advancedModeConfig);
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+            stopShizukuCaptureNow();
+        }
+        Preset activeDevicePreset = loadScopedPreset(currentDevice, processingMode);
+        runningPreset = activeDevicePreset.withEnabled(masterEnabled);
+        editingPreset = resolveImportedEditingPreset(config.stateFor(processingMode), runningPreset);
+        applyPresetCurveSettings(editingPreset);
+        syncSelectedVirtualBassModeFromPreset();
+        syncExtraBassEnabledFromPreset();
+        repository.saveDraftPreset(editingPreset);
+        undoStack.clear();
+        redoStack.clear();
+        renderDeviceSpinner();
+        renderAll();
+        applyRunningPreset(shouldForceFullResetForCurrentMode());
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE && runningPreset.enabled) {
+            ensureShizukuModeReady(true);
+        }
+    }
+
+    private String activePresetName(Preset activePreset, Preset fallbackPreset) {
+        if (activePreset != null && activePreset.name != null && !activePreset.name.trim().isEmpty()) {
+            return activePreset.name;
+        }
+        return fallbackPreset == null ? "Default" : fallbackPreset.name;
+    }
+
+    private Preset resolveImportedEditingPreset(DeviceConfigFile.ModeState state, Preset fallbackPreset) {
+        if (state == null || state.activePresetName == null || state.activePresetName.trim().isEmpty()) {
+            return fallbackPreset;
+        }
+        if (fallbackPreset != null && state.activePresetName.equalsIgnoreCase(fallbackPreset.name)) {
+            return fallbackPreset;
+        }
+        Preset selected = repository.loadNamedPreset(state.activePresetName);
+        if (selected == null) {
+            return fallbackPreset;
+        }
+        return limitPresetForHeadroom(selected);
+    }
+
     private List<Preset> exportPresetLibrary(Preset currentPreset) {
         List<Preset> presets = new ArrayList<>();
         List<String> names = repository.loadNamedPresetNames();
