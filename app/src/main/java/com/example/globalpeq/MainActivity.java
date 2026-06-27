@@ -1979,6 +1979,12 @@ public final class MainActivity extends Activity {
         ProcessingMode previousMode = processingMode;
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
+        flushPendingPresetPersistence();
+        if (currentDevice == null) {
+            currentDevice = deviceMonitor.currentOutputDevice();
+            repository.saveSelectedDevice(currentDevice);
+        }
+        adoptDevicePresetForCurrentMode(currentDevice, true);
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             if (previousMode == ProcessingMode.SHIZUKU_MUTE) {
                 stopShizukuCaptureNow();
@@ -1986,23 +1992,12 @@ public final class MainActivity extends Activity {
             if (monitorSettingsOpen) {
                 hideAdvancedSettingsSubpage();
             }
-            if (editingPreset != null && !"Default".equals(editingPreset.reverbType)) {
-                setEditingPreset(editingPreset.withReverbType("Default"), true);
-            } else {
-                applyRunningPreset();
-            }
+            applyRunningPreset(true);
         } else {
-            if (editingPreset != null && editingPreset.enabled) {
-                Preset reservedPreset = limitPresetForHeadroom(editingPreset);
-                if (!reservedPreset.toJson().equals(editingPreset.toJson())) {
-                    setEditingPreset(reservedPreset, true);
-                    renderAll();
-                    ensureShizukuModeReady(true);
-                    return;
-                }
-            }
             applyRunningPreset();
-            ensureShizukuModeReady(true);
+            if (runningPreset != null && runningPreset.enabled) {
+                ensureShizukuModeReady(true);
+            }
         }
         renderAll();
     }
