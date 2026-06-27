@@ -141,9 +141,9 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             startForegroundInternal(captureEngine.hasProjection());
         }
-        Preset preset = ACTION_APPLY.equals(action) && applyStateFromIntent(intent)
-                ? applyCurrentPresetState()
-                : applySavedPreset();
+        boolean appliedIntentState = (ACTION_APPLY.equals(action) || ACTION_BOOTSTRAP_CAPTURE.equals(action))
+                && applyStateFromIntent(intent);
+        Preset preset = appliedIntentState ? applyCurrentPresetState() : applySavedPreset();
         ProcessingMode processingMode = currentProcessingMode;
         if (!preset.enabled) {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {

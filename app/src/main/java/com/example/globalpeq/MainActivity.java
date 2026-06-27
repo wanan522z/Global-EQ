@@ -673,6 +673,19 @@ public final class MainActivity extends Activity {
             service.setAction(GlobalEqForegroundService.ACTION_BOOTSTRAP_CAPTURE);
             service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_RESULT_CODE, resultCode);
             service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_DATA, new Intent(data));
+            if (runningPreset != null) {
+                service.putExtra(GlobalEqForegroundService.EXTRA_PRESET_JSON, runningPreset.toJson());
+            }
+            if (currentDevice != null) {
+                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_KEY, currentDevice.key);
+                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_LABEL, currentDevice.label);
+            }
+            if (processingMode != null) {
+                service.putExtra(GlobalEqForegroundService.EXTRA_PROCESSING_MODE, processingMode.key);
+            }
+            if (advancedModeConfig != null) {
+                service.putExtra(GlobalEqForegroundService.EXTRA_ADVANCED_MODE_CONFIG_JSON, advancedModeConfig.toJson());
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(service);
             } else {
