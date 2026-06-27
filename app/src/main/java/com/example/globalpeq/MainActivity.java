@@ -6142,7 +6142,7 @@ public final class MainActivity extends Activity {
 
     private void updateEditStateLabels() {
         if (presetSelectButton != null) {
-            presetSelectButton.setText(editingPreset.name);
+            setTextIfChanged(presetSelectButton, editingPreset.name);
         }
         if (undoButton != null) {
             styleButton(undoButton, false, !undoStack.isEmpty() && supported);
@@ -6152,7 +6152,7 @@ public final class MainActivity extends Activity {
         }
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
         if (statusText != null) {
-            statusText.setText(statusLabel(hasClip));
+            setTextIfChanged(statusText, statusLabel(hasClip));
             styleStatusText(hasClip);
         }
         styleModeText();
