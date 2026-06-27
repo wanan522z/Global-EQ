@@ -4458,21 +4458,16 @@ public final class MainActivity extends Activity {
 
             int rootWidth = root.getWidth();
             int rootHeight = root.getHeight();
-            int curveLeft = Math.max(0, curveLocation[0] - rootLocation[0]);
-            int curveTop = Math.max(0, curveLocation[1] - rootLocation[1]);
-            int curveRight = Math.min(rootWidth, curveLeft + curveFrameView.getWidth());
-            int curveBottom = Math.min(rootHeight, curveTop + curveFrameView.getHeight());
             int dimColor = Color.argb(180, 18, 18, 25);
             int left = dp(18);
             int top = Math.max(dp(8), curveLocation[1] - rootLocation[1] + curveFrameView.getHeight() + dp(6));
             int width = Math.max(dp(240), rootWidth - dp(36));
+            int height = dp(48);
 
             removeEqEditDim(false);
-            addEqEditDimView(root, 0, 0, rootWidth, curveTop, dimColor);
-            addEqEditDimView(root, 0, curveTop, curveLeft, curveBottom - curveTop, dimColor);
-            addEqEditDimView(root, curveRight, curveTop, rootWidth - curveRight, curveBottom - curveTop, dimColor);
+            addEqEditDimExceptRect(root, left, top, width, height, dimColor);
 
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, dp(48));
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
             params.leftMargin = left;
             params.topMargin = top;
             overlay.setAlpha(0f);
@@ -5239,6 +5234,22 @@ public final class MainActivity extends Activity {
             addEqEditDimView(root, 0, top, left, bottom - top, color);
             addEqEditDimView(root, right, top, rootWidth - right, bottom - top, color);
         });
+    }
+
+    private void addEqEditDimExceptRect(FrameLayout root, int left, int top, int width, int height, int color) {
+        if (root == null) {
+            return;
+        }
+        int rootWidth = root.getWidth();
+        int rootHeight = root.getHeight();
+        int safeLeft = Math.max(0, left);
+        int safeTop = Math.max(0, top);
+        int safeRight = Math.min(rootWidth, safeLeft + Math.max(0, width));
+        int safeBottom = Math.min(rootHeight, safeTop + Math.max(0, height));
+        addEqEditDimView(root, 0, 0, rootWidth, safeTop, color);
+        addEqEditDimView(root, 0, safeTop, safeLeft, Math.max(0, safeBottom - safeTop), color);
+        addEqEditDimView(root, safeRight, safeTop, Math.max(0, rootWidth - safeRight), Math.max(0, safeBottom - safeTop), color);
+        addEqEditDimView(root, 0, safeBottom, rootWidth, Math.max(0, rootHeight - safeBottom), color);
     }
 
     private void addEqEditDimView(FrameLayout root, int left, int top, int width, int height, int color) {
