@@ -392,7 +392,7 @@ final class PcmDspProcessor {
             this.preDelayBuffers = new float[Math.max(1, channelCount)][Math.max(1, sampleRate / 2)];
             this.preDelayIndices = new int[Math.max(1, channelCount)];
             this.network = new ReverbEngine(sampleRate);
-            configure("Default", 0, 0, 0, 0, 100);
+            configure("Default", 0, 0, 0, 0);
         }
 
         void configure(String type,
