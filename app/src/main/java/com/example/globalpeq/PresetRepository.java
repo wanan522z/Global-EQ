@@ -400,10 +400,20 @@ final class PresetRepository {
         if (key == null) {
             return loadGlobalPreset();
         }
-        return Preset.fromJson(prefs.getString("preset_" + key, null));
+        ProcessingMode mode = loadProcessingMode();
+        String json = prefs.getString("preset_" + key + "__" + mode.key, null);
+        if (json == null) {
+            json = prefs.getString("preset_" + key, null);
+        }
+        return stripRuntimeEnabled(Preset.fromJson(json));
     }
 
-    private String deviceKey(AudioOutputDevice device) {
+    private String deviceKey(AudioOutputDevice device, ProcessingMode mode) {
+        String safeModeKey = mode == null ? ProcessingMode.SYSTEM_EQ.key : mode.key;
+        return "preset_" + device.key + "__" + safeModeKey;
+    }
+
+    private String legacyDeviceKey(AudioOutputDevice device) {
         return "preset_" + device.key;
     }
 
