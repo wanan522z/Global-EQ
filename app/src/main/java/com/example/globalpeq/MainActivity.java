@@ -1586,7 +1586,7 @@ public final class MainActivity extends Activity {
         return tr("Lookahead (ms)", "Lookahead (ms)");
     }
 
-    private String wetMixLabelText() {
+    private String unusedAdvancedLabelText() {
         return tr("DSP wet mix (%)", "DSP 湿声混合 (%)");
     }
 
