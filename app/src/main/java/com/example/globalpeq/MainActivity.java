@@ -688,12 +688,6 @@ public final class MainActivity extends Activity {
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         if (event != null && event.getAction() == MotionEvent.ACTION_DOWN) {
-            if (shouldDismissEqEditOverlayOnTouch(event)) {
-                View focused = getCurrentFocus();
-                View tokenView = focused != null ? focused : activeEqEditOverlay;
-                closeKeyboard(tokenView);
-                return true;
-            }
             View focused = getCurrentFocus();
             if (shouldDismissKeyboardOnTouch(focused, event)) {
                 closeKeyboard(focused);
@@ -7245,7 +7239,6 @@ public final class MainActivity extends Activity {
             dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         });
         dlg.show();
-        dlg.setCanceledOnTouchOutside(true);
     }
 
     private void showStyledKnobInputDialog(KnobView knob) {
@@ -7303,7 +7296,6 @@ public final class MainActivity extends Activity {
             dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         });
         dlg.show();
-        dlg.setCanceledOnTouchOutside(true);
     }
 
     private void showStyledReverbSliderInputDialog(VerticalReverbSlider slider) {
@@ -7362,7 +7354,6 @@ public final class MainActivity extends Activity {
             dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         });
         dlg.show();
-        dlg.setCanceledOnTouchOutside(true);
     }
 
     private int reverbTypeIndex(String type) {
@@ -7998,7 +7989,6 @@ public final class MainActivity extends Activity {
                     })
                     .create();
             dialog.show();
-            dialog.setCanceledOnTouchOutside(true);
             styleDialog(dialog);
             
             input.requestFocus();
