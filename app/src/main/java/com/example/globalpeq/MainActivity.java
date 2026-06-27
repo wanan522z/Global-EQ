@@ -5367,16 +5367,7 @@ public final class MainActivity extends Activity {
             return;
         }
         try {
-            JSONObject object = new JSONObject(json);
-            Preset imported;
-            if (DeviceConfigFile.looksLikeDeviceConfig(object)) {
-                imported = DeviceConfigFile.fromJson(json).preset;
-            } else if (DeviceConfigFile.looksLikePreset(object)) {
-                imported = Preset.fromJson(object.toString());
-            } else {
-                Toast.makeText(this, tr("Unrecognized preset JSON", "无法识别的预设 JSON"), Toast.LENGTH_SHORT).show();
-                return;
-            }
+            Preset imported = PresetFile.fromJson(json).preset;
             applyImportedPreset(imported, true);
             Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
@@ -5387,15 +5378,15 @@ public final class MainActivity extends Activity {
     private void importDeviceConfigJsonFromUri(Uri uri) throws IOException {
         String json = readTextFromUri(uri);
         if (json.isEmpty()) {
-            Toast.makeText(this, tr("Device config file is empty", "设备配置文件为空"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config file is empty", "全局配置文件为空"), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
             DeviceConfigFile config = DeviceConfigFile.fromJson(json);
             applyImportedDeviceConfig(config);
-            Toast.makeText(this, tr("Device config imported", "设备配置已导入"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config imported", "全局配置已导入"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
-            Toast.makeText(this, tr("Unrecognized device config JSON", "无法识别的设备配置 JSON"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Unrecognized global config JSON", "无法识别的全局配置 JSON"), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -5405,7 +5396,7 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
             return;
         }
-        pendingExportJson = prettyJson(preset.toJson());
+        pendingExportJson = new PresetFile(preset).toJson();
         pendingExportSuccessMessage = tr("Preset exported", "预设已导出");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
@@ -5413,13 +5404,21 @@ public final class MainActivity extends Activity {
     private void exportCurrentDeviceConfigJson() {
         Preset preset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
         if (currentDevice == null || preset == null) {
-            Toast.makeText(this, tr("No device config to export", "没有可导出的设备配置"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No global config to export", "没有可导出的全局配置"), Toast.LENGTH_SHORT).show();
             return;
         }
-        DeviceConfigFile config = new DeviceConfigFile(currentDevice, processingMode, preset, advancedModeConfig);
+        DeviceConfigFile config = new DeviceConfigFile(
+                currentDevice,
+                processingMode,
+                advancedModeConfig,
+                preset,
+                exportPresetLibrary(preset),
+                preset.name,
+                autoSwitchOutput
+        );
         pendingExportJson = config.toJson();
-        pendingExportSuccessMessage = tr("Device config exported", "设备配置已导出");
-        openJsonExport(safeJsonFileName(currentDevice.label, "device-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
+        pendingExportSuccessMessage = tr("Global config exported", "全局配置已导出");
+        openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
     }
 
     private void applyImportedPreset(Preset imported, boolean applyLive) {
@@ -5446,15 +5445,49 @@ public final class MainActivity extends Activity {
         currentDevice = config.device;
         processingMode = config.processingMode;
         advancedModeConfig = config.advancedModeConfig;
+        autoSwitchOutput = config.autoSwitchOutput;
         repository.saveKnownDevice(currentDevice);
         repository.saveSelectedDevice(currentDevice);
         repository.saveProcessingMode(processingMode);
         repository.saveAdvancedModeConfig(advancedModeConfig);
-        applyImportedPreset(config.preset, false);
+        repository.saveAutoSwitchOutput(autoSwitchOutput);
+        for (Preset preset : config.presets) {
+            if (preset == null || preset.name == null || preset.name.trim().isEmpty()) {
+                continue;
+            }
+            repository.saveNamedPreset(preset);
+        }
+        applyImportedPreset(config.devicePreset, false);
         repository.savePreset(currentDevice, runningPreset);
         repository.saveGlobalPreset(runningPreset);
         renderDeviceSpinner();
         applyRunningPreset(true);
+    }
+
+    private List<Preset> exportPresetLibrary(Preset currentPreset) {
+        List<Preset> presets = new ArrayList<>();
+        List<String> names = repository.loadNamedPresetNames();
+        for (String name : names) {
+            Preset savedPreset = repository.loadNamedPreset(name);
+            if (savedPreset != null) {
+                presets.add(savedPreset);
+            }
+        }
+        if (currentPreset != null && currentPreset.name != null && !currentPreset.name.trim().isEmpty()) {
+            boolean replaced = false;
+            for (int i = 0; i < presets.size(); i++) {
+                Preset preset = presets.get(i);
+                if (preset != null && currentPreset.name.equalsIgnoreCase(preset.name)) {
+                    presets.set(i, currentPreset);
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced) {
+                presets.add(currentPreset);
+            }
+        }
+        return presets;
     }
 
     private String prettyJson(String rawJson) {
