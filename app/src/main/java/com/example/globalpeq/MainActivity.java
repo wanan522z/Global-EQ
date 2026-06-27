@@ -73,7 +73,6 @@ import java.util.Locale;
 import java.util.Set;
 
 import org.json.JSONException;
-import org.json.JSONObject;
 
 public final class MainActivity extends Activity {
     private static final int HISTORY_LIMIT = 30;
