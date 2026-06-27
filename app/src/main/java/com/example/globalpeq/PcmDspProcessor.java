@@ -713,10 +713,11 @@ final class PcmDspProcessor {
             };
         }
 
-        void configure(float[] diffusionMs, float feedback, float size, float spreadOffset) {
+        void configure(float[] diffusionMs, float feedback, float size, float spreadOffset, boolean lowCpuMode) {
+            int activeStages = lowCpuMode ? stages.length - 1 : stages.length;
             for (int i = 0; i < stages.length; i++) {
                 float scale = 0.82f + size * 0.45f + spreadOffset * (i == 1 ? 0.04f : 0f);
-                stages[i].configure(diffusionMs[i] * scale, clamp(feedback - i * 0.05f, 0.35f, 0.75f));
+                stages[i].configure(diffusionMs[i] * scale, clamp(feedback - i * 0.05f, 0.35f, 0.75f), i < activeStages);
             }
             tap = 0f;
         }
