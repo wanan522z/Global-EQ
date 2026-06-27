@@ -80,6 +80,27 @@ final class DeviceConfigFile {
         this.presets = Collections.unmodifiableList(normalizePresets(presets));
     }
 
+    DeviceConfigFile(AudioOutputDevice device,
+                     ProcessingMode processingMode,
+                     AdvancedModeConfig advancedModeConfig,
+                     Preset activeDevicePreset,
+                     List<Preset> presets,
+                     String activePresetName,
+                     boolean autoSwitchOutput) {
+        this(
+                device,
+                processingMode,
+                autoSwitchOutput,
+                processingMode == ProcessingMode.SYSTEM_EQ
+                        ? new ModeState(ProcessingMode.SYSTEM_EQ, AdvancedModeConfig.DEFAULT, activeDevicePreset, activePresetName)
+                        : new ModeState(ProcessingMode.SYSTEM_EQ, AdvancedModeConfig.DEFAULT, Preset.flat(false), "Default"),
+                processingMode == ProcessingMode.SHIZUKU_MUTE
+                        ? new ModeState(ProcessingMode.SHIZUKU_MUTE, advancedModeConfig, activeDevicePreset, activePresetName)
+                        : new ModeState(ProcessingMode.SHIZUKU_MUTE, advancedModeConfig, Preset.flat(false), "Default"),
+                presets
+        );
+    }
+
     ModeState stateFor(ProcessingMode mode) {
         return mode == ProcessingMode.SHIZUKU_MUTE ? shizukuState : systemEqState;
     }
