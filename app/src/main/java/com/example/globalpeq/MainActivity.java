@@ -6932,7 +6932,15 @@ public final class MainActivity extends Activity {
                 "Cutoff Hz",
                 20,
                 250,
-                value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
+                value -> {
+                    Preset basePreset = editingPreset;
+                    if (basePreset != null && virtualBassSlider != null) {
+                        basePreset = basePreset.withVirtualBassAmountPercent(virtualBassSlider.getValue());
+                    }
+                    if (basePreset != null) {
+                        setEditingPreset(basePreset.withVirtualBassCutoffHz(value), true);
+                    }
+                });
         virtualBassCutoffInput.setTextSize(13);
         virtualBassCutoffInput.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
