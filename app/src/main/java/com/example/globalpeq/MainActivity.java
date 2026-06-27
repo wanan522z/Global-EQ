@@ -715,7 +715,7 @@ public final class MainActivity extends Activity {
             try {
                 importDeviceConfigJsonFromUri(data.getData());
             } catch (IOException ex) {
-                Toast.makeText(this, tr("Device config import failed", "设备配置导入失败"), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, tr("Global config import failed", "全局配置导入失败"), Toast.LENGTH_SHORT).show();
             }
             return;
         }
@@ -5488,14 +5488,6 @@ public final class MainActivity extends Activity {
             }
         }
         return presets;
-    }
-
-    private String prettyJson(String rawJson) {
-        try {
-            return new JSONObject(rawJson).toString(2);
-        } catch (JSONException ignored) {
-            return rawJson;
-        }
     }
 
     private String safeJsonFileName(String baseName, String fallback) {
