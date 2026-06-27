@@ -438,7 +438,7 @@ final class PcmDspProcessor {
             wetMix = "Default".equals(type) ? 0f : mix;
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
 
-            reverbCore.configure(ReverbProfile.forType(type, sampleRate), size, decay);
+            reverbCore.configure(ReverbProfile.forType(type), size, decay);
 
             for (int channel = 0; channel < preDelayIndices.length; channel++) {
                 preDelayIndices[channel] = 0;
@@ -960,7 +960,7 @@ final class PcmDspProcessor {
             this.earlyDelayMs = earlyDelayMs;
         }
 
-        static ReverbProfile forType(String type, int sampleRate) {
+        static ReverbProfile forType(String type) {
             if ("Plate".equals(type)) {
                 return new ReverbProfile(
                         new float[] {29.4f, 34.7f, 38.9f, 42.6f},
