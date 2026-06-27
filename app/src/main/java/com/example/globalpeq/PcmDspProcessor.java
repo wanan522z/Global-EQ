@@ -395,12 +395,12 @@ final class PcmDspProcessor {
             ReverbProfile profile = ReverbProfile.forType(type);
             float decaySeconds = clamp(decayPercent / 100f, 0f, 12f);
             float decayShape = clamp01((Math.max(0.35f, decaySeconds) - 0.35f) / 11.65f);
-            wetMix = "Default".equals(type) ? 0f : mix;
-            dryMix = "Default".equals(type) ? 1f : 1f - wetMix * wetMix;
-            wetGain = "Default".equals(type) ? 0f : wetMix;
-            blendGain = 1f;
+            activeWet = !"Default".equals(type) && mix > 0f;
+            dryGain = mainMb <= NEGATIVE_INFINITY_MB ? 0f : dbToLinear(mainMb / 100f);
+            wetGain = activeWet ? mix * (0.76f + size * 0.14f + decayShape * 0.1f) : 0f;
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
             float immediateEarlyBlend = clamp01(1f - preDelayMs / 8f);
+            tailLevel = 0f;
 
             reverbCore.configure(profile, size, decaySeconds, decayShape, immediateEarlyBlend, lowCpuMode);
 
