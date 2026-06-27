@@ -359,6 +359,7 @@ final class PcmDspProcessor {
     }
 
     private static final class AlgorithmicReverb {
+        private static final int NEGATIVE_INFINITY_MB = -12000;
         private final int sampleRate;
         private final int channelCount;
         private final float[][] preDelayBuffers;
@@ -366,11 +367,11 @@ final class PcmDspProcessor {
         private final StereoReverbCore reverbCore;
         private final float[] wetFrame = new float[2];
         private boolean lowCpuMode;
-        private float wetMix;
-        private float dryMix;
+        private boolean activeWet;
+        private float dryGain;
         private float wetGain;
-        private float blendGain;
         private int preDelayLength;
+        private float tailLevel;
 
         AlgorithmicReverb(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
@@ -378,7 +379,7 @@ final class PcmDspProcessor {
             this.preDelayBuffers = new float[Math.max(1, channelCount)][Math.max(1, sampleRate / 2)];
             this.preDelayIndices = new int[Math.max(1, channelCount)];
             this.reverbCore = new StereoReverbCore(sampleRate);
-            configure("Default", 0, 0, 0, 0, false);
+            configure("Default", 0, 0, 0, 0, 0, false);
         }
 
         void configure(String type,
@@ -386,6 +387,7 @@ final class PcmDspProcessor {
                        int preDelayMs,
                        int sizePercent,
                        int mixPercent,
+                       int mainMb,
                        boolean lowCpuMode) {
             this.lowCpuMode = lowCpuMode;
             float size = clamp01(sizePercent / 100f);
