@@ -5966,7 +5966,7 @@ public final class MainActivity extends Activity {
         flushPendingPresetPersistence();
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
-        runningPreset = selected.withEnabled(supported);
+        runningPreset = selected.withEnabled(currentMasterEnabled());
         editingPreset = runningPreset;
         applyPresetCurveSettings(editingPreset);
         syncSelectedVirtualBassModeFromPreset();
@@ -6131,9 +6131,10 @@ public final class MainActivity extends Activity {
             if (persistedRunningPreset != null) {
                 runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
             }
+            repository.saveMasterEnabled(runningPreset.enabled);
             scheduleRunningPresetPersistence();
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, runningPreset.virtualBassModeIndex);
-            if (forceFullReset && effectivePreset.enabled) {
+            if (forceFullReset && effectivePreset.enabled && shouldForceFullResetForCurrentMode()) {
                 engine.applyWithFullReset(effectivePreset);
             } else {
                 engine.apply(effectivePreset);
@@ -6451,26 +6452,24 @@ public final class MainActivity extends Activity {
         flushPendingPresetPersistence();
         repository.saveSelectedDevice(selected);
         currentDevice = selected;
-        Preset loadedPreset = repository.loadPreset(currentDevice);
-        loadedPreset = limitPresetForHeadroom(loadedPreset);
-        runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
-        editingPreset = runningPreset;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
-        undoStack.clear();
-        redoStack.clear();
+        adoptDevicePresetForCurrentMode(currentDevice, true);
         renderAll();
-        applyRunningPreset(true);
+        applyRunningPreset(shouldForceFullResetForCurrentMode());
     }
 
     private void renderSavedPresetSpinner() {
-        List<String> names = repository.loadNamedPresetNames();
-        if (!names.contains(runningPreset.name)) {
-            names = new ArrayList<>(names);
-            names.add(0, runningPreset.name);
+        if (savedPresetSpinner == null) {
+            return;
         }
-        int selected = Math.max(0, names.indexOf(runningPreset.name));
+        String activeName = editingPreset != null
+                ? editingPreset.name
+                : (runningPreset == null ? "Default" : runningPreset.name);
+        List<String> names = repository.loadNamedPresetNames();
+        if (!names.contains(activeName)) {
+            names = new ArrayList<>(names);
+            names.add(0, activeName);
+        }
+        int selected = Math.max(0, names.indexOf(activeName));
         String[] labels = names.toArray(new String[0]);
         String signature = joinStrings(labels);
         if (!signature.equals(lastSavedPresetSpinnerSignature)) {
@@ -6482,10 +6481,10 @@ public final class MainActivity extends Activity {
         } else if (savedPresetSpinner.getAdapter() instanceof SmallSpinnerAdapter) {
             ((SmallSpinnerAdapter) savedPresetSpinner.getAdapter()).setSelectedPosition(selected);
         }
-        if (!runningPreset.name.equals(lastSavedPresetSpinnerSelectedName)
+        if (!activeName.equals(lastSavedPresetSpinnerSelectedName)
                 || savedPresetSpinner.getSelectedItemPosition() != selected) {
             savedPresetSpinner.setSelection(selected);
-            lastSavedPresetSpinnerSelectedName = runningPreset.name;
+            lastSavedPresetSpinnerSelectedName = activeName;
         }
     }
 
@@ -6602,8 +6601,9 @@ public final class MainActivity extends Activity {
         if (persistedPreset != null && !persistedPreset.toJson().equals(runningPreset.toJson())) {
             runningPreset = persistedPreset.withEnabled(runningPreset.enabled);
         }
-        repository.savePreset(currentDevice, runningPreset);
+        repository.savePreset(currentDevice, processingMode, runningPreset);
         repository.saveGlobalPreset(runningPreset);
+        repository.saveMasterEnabled(runningPreset.enabled);
     }
 
     private void persistEditingPresetNow() {
