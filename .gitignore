@@ -3,6 +3,8 @@
 build/
 app/build/
 local.properties
+key.properties
+*.jks
 *.apk
 *.ap_
 captures/
