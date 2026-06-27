@@ -121,7 +121,7 @@ final class ShizukuSessionMuteEngine {
         }
 
         ShizukuCompat.grantPermissionsAndAppOps(appContext);
-        if (shouldActivelyMuteSessions()) {
+        if (wantsToMuteSessions()) {
             currentRescanIntervalMs = ACTIVE_RESCAN_INTERVAL_MS;
             updateCurrentAppSessionIds();
             registerPlaybackCallback();
@@ -155,22 +155,33 @@ final class ShizukuSessionMuteEngine {
                 && ShizukuCompat.hasPermission();
     }
 
-    private boolean shouldActivelyMuteSessions() {
+    private boolean wantsToMuteSessions() {
         return shouldMonitorPlaybackSessions()
                 && currentMode == ProcessingMode.SHIZUKU_MUTE
                 && currentPreset != null
                 && currentPreset.enabled;
     }
 
+    private boolean hasOwnedCaptureSessions() {
+        return currentAppSessionIds != null && !currentAppSessionIds.isEmpty();
+    }
+
+    private boolean shouldActivelyMuteSessions() {
+        return wantsToMuteSessions() && hasOwnedCaptureSessions();
+    }
+
     private void scanSessionsAndRefreshState() {
         if (!shouldMonitorPlaybackSessions()) {
             return;
         }
-        boolean applyMuteEffects = shouldActivelyMuteSessions();
-        if (applyMuteEffects) {
+        boolean wantsMuteEffects = wantsToMuteSessions();
+        if (wantsMuteEffects) {
             updateCurrentAppSessionIds();
         } else {
             currentAppSessionIds = new LinkedHashSet<>();
+        }
+        boolean applyMuteEffects = shouldActivelyMuteSessions();
+        if (!applyMuteEffects) {
             if (!muteEffects.isEmpty() || !knownSessions.isEmpty()) {
                 releaseAllEffects();
             }
@@ -182,6 +193,10 @@ final class ShizukuSessionMuteEngine {
                 + ", muteMode=" + applyMuteEffects);
         String activePackageName = muteOtherSessions(sessions, applyMuteEffects);
         updateActivePackageName(activePackageName);
+        if (wantsMuteEffects && !applyMuteEffects) {
+            publishStatus("Waiting for native capture playback session.", false);
+            return;
+        }
         if (!applyMuteEffects) {
             return;
         }
