@@ -91,6 +91,7 @@ public final class MainActivity extends Activity {
     private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 660L;
     private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 60L;
     private static final long ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS = 140L;
+    private static final long PRESET_PERSIST_DELAY_MS = 420L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
@@ -361,6 +362,7 @@ public final class MainActivity extends Activity {
     private final Runnable disableNeonCurveRunnable = this::activateDisabledNeonCurve;
     private final Runnable enablePeqBandStepRunnable = this::activateNextPeqBandVisual;
     private final Runnable delayedShizukuReadyRunnable = () -> ensureShizukuModeReady(true);
+    private final Runnable persistPresetStateRunnable = this::flushPendingPresetPersistence;
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
@@ -402,6 +404,8 @@ public final class MainActivity extends Activity {
     private boolean monitorSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
     private String activePlaybackPackageName = "";
+    private boolean pendingEditingPresetPersistence;
+    private boolean pendingRunningPresetPersistence;
     private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
     private final ShizukuCompat.PermissionResultListener shizukuPermissionResultListener = this::handleShizukuPermissionResult;
     private final Runnable activePlaybackPackageRefreshRunnable = new Runnable() {
@@ -533,6 +537,7 @@ public final class MainActivity extends Activity {
         cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
+        flushPendingPresetPersistence();
         pauseShizukuCaptureIfClosing();
         activePlaybackPackageName = "";
         deviceMonitor.stop();
@@ -589,6 +594,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
+        uiHandler.removeCallbacks(persistPresetStateRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
         pauseShizukuCaptureIfClosing();
@@ -715,6 +721,7 @@ public final class MainActivity extends Activity {
             return;
         }
 
+        flushPendingPresetPersistence();
         currentDevice = device;
         repository.saveSelectedDevice(currentDevice);
         Preset loadedPreset = repository.loadPreset(device);
@@ -5308,6 +5315,7 @@ public final class MainActivity extends Activity {
     }
 
     private void loadPresetLive(String name) {
+        flushPendingPresetPersistence();
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
         runningPreset = selected.withEnabled(supported);
@@ -5369,6 +5377,7 @@ public final class MainActivity extends Activity {
     }
 
     private void loadPresetForEditing(String name) {
+        flushPendingPresetPersistence();
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
         editingPreset = selected;
@@ -5474,9 +5483,7 @@ public final class MainActivity extends Activity {
             if (persistedRunningPreset != null) {
                 runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
             }
-            repository.saveSelectedDevice(currentDevice);
-            repository.savePreset(currentDevice, runningPreset);
-            repository.saveGlobalPreset(runningPreset);
+            scheduleRunningPresetPersistence();
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, runningPreset.virtualBassModeIndex);
             if (forceFullReset && effectivePreset.enabled) {
                 engine.applyWithFullReset(effectivePreset);
@@ -5486,6 +5493,11 @@ public final class MainActivity extends Activity {
             if (notifyService) {
                 Intent service = new Intent(this, GlobalEqForegroundService.class);
                 service.setAction(GlobalEqForegroundService.ACTION_APPLY);
+                service.putExtra(GlobalEqForegroundService.EXTRA_PRESET_JSON, runningPreset.toJson());
+                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_KEY, currentDevice.key);
+                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_LABEL, currentDevice.label);
+                service.putExtra(GlobalEqForegroundService.EXTRA_PROCESSING_MODE, processingMode.key);
+                service.putExtra(GlobalEqForegroundService.EXTRA_ADVANCED_MODE_CONFIG_JSON, advancedModeConfig.toJson());
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(service);
                 } else {
@@ -5788,6 +5800,7 @@ public final class MainActivity extends Activity {
     }
 
     private void selectOutputDevice(AudioOutputDevice selected) {
+        flushPendingPresetPersistence();
         repository.saveSelectedDevice(selected);
         currentDevice = selected;
         Preset loadedPreset = repository.loadPreset(currentDevice);
@@ -5818,7 +5831,7 @@ public final class MainActivity extends Activity {
     }
 
     private void syncRunningIfEditingPresetIsActive() {
-        persistEditingPreset();
+        scheduleEditingPresetPersistence();
         if (!isEditingPresetActive()) {
             return;
         }
@@ -5886,6 +5899,51 @@ public final class MainActivity extends Activity {
     }
 
     private void persistEditingPreset() {
+        persistEditingPresetNow();
+    }
+
+    private void scheduleEditingPresetPersistence() {
+        pendingEditingPresetPersistence = true;
+        schedulePresetPersistence();
+    }
+
+    private void scheduleRunningPresetPersistence() {
+        pendingRunningPresetPersistence = true;
+        schedulePresetPersistence();
+    }
+
+    private void schedulePresetPersistence() {
+        uiHandler.removeCallbacks(persistPresetStateRunnable);
+        uiHandler.postDelayed(persistPresetStateRunnable, PRESET_PERSIST_DELAY_MS);
+    }
+
+    private void flushPendingPresetPersistence() {
+        uiHandler.removeCallbacks(persistPresetStateRunnable);
+        boolean shouldPersistRunning = pendingRunningPresetPersistence;
+        boolean shouldPersistEditing = pendingEditingPresetPersistence;
+        pendingRunningPresetPersistence = false;
+        pendingEditingPresetPersistence = false;
+        if (shouldPersistRunning) {
+            persistRunningPresetNow();
+        }
+        if (shouldPersistEditing) {
+            persistEditingPresetNow();
+        }
+    }
+
+    private void persistRunningPresetNow() {
+        if (currentDevice == null || runningPreset == null) {
+            return;
+        }
+        Preset persistedPreset = withCurrentCurveSettings(runningPreset);
+        if (persistedPreset != null && !persistedPreset.toJson().equals(runningPreset.toJson())) {
+            runningPreset = persistedPreset.withEnabled(runningPreset.enabled);
+        }
+        repository.savePreset(currentDevice, runningPreset);
+        repository.saveGlobalPreset(runningPreset);
+    }
+
+    private void persistEditingPresetNow() {
         Preset persistedPreset = withCurrentCurveSettings(editingPreset);
         if (persistedPreset == null) {
             return;
