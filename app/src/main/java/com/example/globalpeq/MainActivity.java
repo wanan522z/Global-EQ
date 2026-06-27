@@ -7556,6 +7556,7 @@ public final class MainActivity extends Activity {
         private int value;
         private float displayScale = 1f;
         private int displayDecimals;
+        private boolean negativeInfinityAtMin;
         private String suffix = "";
         private String label = "";
         private KnobView.Listener listener;
@@ -7569,16 +7570,21 @@ public final class MainActivity extends Activity {
         }
 
         void configure(String label, int min, int max, int value, String suffix, KnobView.Listener listener) {
-            configure(label, min, max, value, suffix, 1f, 0, listener);
+            configure(label, min, max, value, suffix, 1f, 0, false, listener);
         }
 
         void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, KnobView.Listener listener) {
+            configure(label, min, max, value, suffix, displayScale, displayDecimals, false, listener);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, KnobView.Listener listener) {
             this.label = label == null ? "" : label;
             this.min = min;
             this.max = max;
             this.suffix = suffix == null ? "" : suffix;
             this.displayScale = Math.abs(displayScale) < 0.0001f ? 1f : displayScale;
             this.displayDecimals = Math.max(0, displayDecimals);
+            this.negativeInfinityAtMin = negativeInfinityAtMin;
             this.listener = listener;
             setValue(value, false);
         }
@@ -7588,6 +7594,7 @@ public final class MainActivity extends Activity {
         int getValue() { return value; }
         String getSuffix() { return suffix; }
         String getLabel() { return label; }
+        boolean acceptsNegativeInfinity() { return negativeInfinityAtMin; }
         String displayValueText() { return formatDisplayValue(value); }
         String displayRangeText() { return formatDisplayNumber(min) + " - " + formatDisplayNumber(max) + suffix; }
         String displayRangeHint() { return formatDisplayNumber(min) + " ~ " + formatDisplayNumber(max) + suffix; }
@@ -7595,6 +7602,21 @@ public final class MainActivity extends Activity {
         int rawValueFromDisplay(float displayValue) {
             float scaled = displayValue / displayScale;
             return clamp(Math.round(scaled), min, max);
+        }
+
+        int rawValueFromText(String text) {
+            String normalized = text == null ? "" : text.trim();
+            if (negativeInfinityAtMin) {
+                String lower = normalized.toLowerCase(Locale.US);
+                if (lower.isEmpty() || "-inf".equals(lower) || "inf".equals(lower) || "off".equals(lower) || "mute".equals(lower)) {
+                    return min;
+                }
+            }
+            String compact = normalized;
+            if (!suffix.isEmpty() && compact.toLowerCase(Locale.US).endsWith(suffix.toLowerCase(Locale.US))) {
+                compact = compact.substring(0, compact.length() - suffix.length()).trim();
+            }
+            return rawValueFromDisplay(Float.parseFloat(compact));
         }
 
         void setValue(int nextValue, boolean notify) {
@@ -7758,10 +7780,16 @@ public final class MainActivity extends Activity {
         }
 
         private String formatDisplayValue(int rawValue) {
+            if (negativeInfinityAtMin && rawValue <= min) {
+                return "-inf";
+            }
             return formatDisplayNumber(rawValue) + suffix;
         }
 
         private String formatDisplayNumber(int rawValue) {
+            if (negativeInfinityAtMin && rawValue <= min) {
+                return "-inf";
+            }
             float displayValue = rawValue * displayScale;
             if (displayDecimals <= 0) {
                 return String.valueOf(Math.round(displayValue));
