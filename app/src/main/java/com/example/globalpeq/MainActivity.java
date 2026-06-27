@@ -1454,8 +1454,6 @@ public final class MainActivity extends Activity {
             pollIntervalLabelView = label;
         } else if (lookaheadLabelView == null && labelText.equals(lookaheadLabelText())) {
             lookaheadLabelView = label;
-        } else if (wetMixLabelView == null && labelText.equals(wetMixLabelText())) {
-            wetMixLabelView = label;
         }
         row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
