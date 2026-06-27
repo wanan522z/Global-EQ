@@ -3169,9 +3169,11 @@ public final class MainActivity extends Activity {
 
     private String currentHomepageIconPackage() {
         if (activePlaybackPackageName != null && !activePlaybackPackageName.isEmpty()) {
-            return activePlaybackPackageName == null ? "" : activePlaybackPackageName;
+            return activePlaybackPackageName;
         }
-        if (advancedModeConfig.monitoredAppPackage != null && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE
+                && advancedModeConfig.monitoredAppPackage != null
+                && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
             return advancedModeConfig.monitoredAppPackage;
         }
         return "";
