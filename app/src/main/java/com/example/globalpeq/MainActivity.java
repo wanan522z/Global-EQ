@@ -3112,7 +3112,7 @@ public final class MainActivity extends Activity {
             return "";
         }
         for (AudioPlaybackConfiguration config : configs) {
-            if (config == null || !config.isActive()) {
+            if (config == null || !isPlaybackConfigActive(config)) {
                 continue;
             }
             AudioAttributes attributes = config.getAudioAttributes();
@@ -3120,7 +3120,7 @@ public final class MainActivity extends Activity {
             if (usage != AudioAttributes.USAGE_MEDIA && usage != AudioAttributes.USAGE_GAME) {
                 continue;
             }
-            int clientUid = config.getClientUid();
+            int clientUid = readPlaybackClientUid(config);
             if (clientUid == android.os.Process.myUid()) {
                 continue;
             }
@@ -3130,6 +3130,52 @@ public final class MainActivity extends Activity {
             }
         }
         return "";
+    }
+
+    private boolean isPlaybackConfigActive(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
+            Object value = method.invoke(configuration);
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback active state via isActive", ex);
+        }
+
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerState");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                int startedState = AudioPlaybackConfiguration.PLAYER_STATE_STARTED;
+                return ((Integer) value) == startedState;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback player state", ex);
+        }
+        return true;
+    }
+
+    private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return -1;
+        }
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getClientUid");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                return (Integer) value;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback client uid", ex);
+        }
+        return -1;
     }
 
     private String resolvePackageNameForUid(int uid) {
