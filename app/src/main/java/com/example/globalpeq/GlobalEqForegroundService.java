@@ -180,7 +180,7 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     private Preset applySavedPreset() {
-        Preset preset = refreshSavedPresetState();
+        refreshSavedPresetState();
         return applyCurrentPresetState();
     }
 
