@@ -50,32 +50,39 @@ final class PresetRepository {
     }
 
     Preset loadGlobalPreset() {
-        return Preset.fromJson(prefs.getString(GLOBAL_PRESET, null));
+        return stripRuntimeEnabled(Preset.fromJson(prefs.getString(GLOBAL_PRESET, null)));
     }
 
     void saveGlobalPreset(Preset preset) {
-        prefs.edit().putString(GLOBAL_PRESET, preset.toJson()).apply();
+        prefs.edit().putString(GLOBAL_PRESET, stripRuntimeEnabled(preset).toJson()).apply();
     }
 
     Preset loadDraftPreset() {
         String json = prefs.getString(DRAFT_PRESET, null);
-        return json == null ? null : Preset.fromJson(json);
+        return json == null ? null : stripRuntimeEnabled(Preset.fromJson(json));
     }
 
     void saveDraftPreset(Preset preset) {
-        prefs.edit().putString(DRAFT_PRESET, preset.toJson()).apply();
+        prefs.edit().putString(DRAFT_PRESET, stripRuntimeEnabled(preset).toJson()).apply();
     }
 
     Preset loadPreset(AudioOutputDevice device) {
-        String json = prefs.getString(deviceKey(device), null);
+        return loadPreset(device, ProcessingMode.SYSTEM_EQ);
+    }
+
+    Preset loadPreset(AudioOutputDevice device, ProcessingMode mode) {
+        String json = prefs.getString(deviceKey(device, mode), null);
+        if (json == null) {
+            json = prefs.getString(legacyDeviceKey(device), null);
+        }
         if (json != null) {
-            return Preset.fromJson(json);
+            return stripRuntimeEnabled(Preset.fromJson(json));
         }
         Preset preset = loadDefaultDevicePreset();
         if (device != null && device.key != null && !device.key.trim().isEmpty()) {
-            prefs.edit().putString(deviceKey(device), preset.toJson()).apply();
+            prefs.edit().putString(deviceKey(device, mode), stripRuntimeEnabled(preset).toJson()).apply();
         }
-        return preset;
+        return stripRuntimeEnabled(preset);
     }
 
     void saveKnownDevice(AudioOutputDevice device) {
