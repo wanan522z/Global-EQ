@@ -762,7 +762,7 @@ final class PcmDspProcessor {
             dcHighPass = new DcHighPass();
         }
 
-        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean rightChannel) {
+        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean rightChannel, boolean lowCpuMode) {
             float sizeScale = profile.minSizeScale + size * profile.sizeRange;
             float damping = clamp(profile.damping + 0.03f + decayShape * 0.09f + size * 0.02f, 0.12f, 0.68f);
             float inputDiff = clamp(profile.inputGain + size * 0.03f, 0.18f, 0.38f);
@@ -772,6 +772,7 @@ final class PcmDspProcessor {
             inputGain = inputDiff;
             tankGain = profile.tankGain * (0.96f + decayShape * 0.08f);
             previousOutput = 0f;
+            int activeCombs = lowCpuMode ? Math.max(2, combs.length - 1) : combs.length;
             for (int i = 0; i < combs.length; i++) {
                 float combDelayMs = profile.combDelayMs[i] * sizeScale * offset;
                 float feedback = clamp(calculateRt60Feedback(combDelayMs, decaySeconds)
@@ -785,11 +786,15 @@ final class PcmDspProcessor {
                         feedback,
                         damping + i * 0.015f,
                         modulationDepthMs,
-                        profile.modRateHz + i * profile.modSpreadHz + (rightChannel ? 0.009f : 0f));
+                        profile.modRateHz + i * profile.modSpreadHz + (rightChannel ? 0.009f : 0f),
+                        i < activeCombs,
+                        lowCpuMode);
             }
+            int activeAllpasses = lowCpuMode ? 1 : allpasses.length;
             for (int i = 0; i < allpasses.length; i++) {
                 allpasses[i].configure(profile.allPassDelayMs[i] * (0.9f + size * 0.35f) * offset,
-                        clamp(profile.allPassFeedback - i * 0.06f, 0.35f, 0.7f));
+                        clamp(profile.allPassFeedback - i * 0.06f, 0.35f, 0.7f),
+                        i < activeAllpasses);
             }
             earlyDelay.configure(profile.earlyDelayMs * (0.85f + size * 0.35f) * offset);
             dcHighPass.reset();
