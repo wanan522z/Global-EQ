@@ -3143,22 +3143,33 @@ public final class MainActivity extends Activity {
                 return (Boolean) value;
             }
         } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to read playback active state via isActive", ex);
+        } catch (RuntimeException ignored) {
         }
 
         try {
             java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerState");
             Object value = method.invoke(configuration);
             if (value instanceof Integer) {
-                int startedState = AudioPlaybackConfiguration.PLAYER_STATE_STARTED;
-                return ((Integer) value) == startedState;
+                int startedState = readPlaybackStartedState();
+                return startedState < 0 || ((Integer) value) == startedState;
             }
         } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to read playback player state", ex);
+        } catch (RuntimeException ignored) {
         }
         return true;
+    }
+
+    private int readPlaybackStartedState() {
+        try {
+            java.lang.reflect.Field field = AudioPlaybackConfiguration.class.getField("PLAYER_STATE_STARTED");
+            Object value = field.get(null);
+            if (value instanceof Integer) {
+                return (Integer) value;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ignored) {
+        }
+        return -1;
     }
 
     private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
@@ -3172,8 +3183,7 @@ public final class MainActivity extends Activity {
                 return (Integer) value;
             }
         } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to read playback client uid", ex);
+        } catch (RuntimeException ignored) {
         }
         return -1;
     }
