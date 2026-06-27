@@ -7660,7 +7660,7 @@ public final class MainActivity extends Activity {
                 float top = b.top + inset;
                 float right = b.right - inset;
                 float bottom = b.bottom - inset;
-                float cx = (left + right) * 0.5f - dpf(1f);
+                float cx = (left + right) * 0.5f - dpf(1f) + (checked ? 0f : dpf(1f));
                 float cy = (top + bottom) * 0.5f;
                 float radius = Math.min(right - left, bottom - top) * 0.5f;
                 paint.setShader(null);
