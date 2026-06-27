@@ -453,15 +453,15 @@ final class PcmDspProcessor {
                         ? softSaturate(wetFrame[1] * 1.06f)
                         : softSaturate((wetFrame[0] + wetFrame[1]) * 0.59f);
                 blockWetPeak = Math.max(blockWetPeak, Math.max(Math.abs(wetLeft), Math.abs(wetRight)));
-                samples[frameOffset] = clampSample(leftDry * dryGain + wetLeft * wetGain);
+                samples[frameOffset] = finiteOrZero(leftDry * dryGain + wetLeft * wetGain);
                 if (channelCount > 1) {
-                    samples[frameOffset + 1] = clampSample(rightDry * dryGain + wetRight * wetGain);
+                    samples[frameOffset + 1] = finiteOrZero(rightDry * dryGain + wetRight * wetGain);
                 }
                 for (int channel = 2; channel < channelCount; channel++) {
                     float dry = samples[frameOffset + channel];
                     float wet = softSaturate((wetLeft + wetRight) * 0.5f);
                     blockWetPeak = Math.max(blockWetPeak, Math.abs(wet));
-                    samples[frameOffset + channel] = clampSample(dry * dryGain + wet * wetGain);
+                    samples[frameOffset + channel] = finiteOrZero(dry * dryGain + wet * wetGain);
                 }
             }
             tailLevel = Math.max(blockWetPeak, tailLevel * 0.93f);
@@ -488,7 +488,7 @@ final class PcmDspProcessor {
                 return;
             }
             for (int i = 0; i < sampleCount; i++) {
-                samples[i] = clampSample(samples[i] * dryGain);
+                samples[i] = finiteOrZero(samples[i] * dryGain);
             }
         }
     }
