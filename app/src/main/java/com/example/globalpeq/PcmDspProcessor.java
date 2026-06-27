@@ -411,11 +411,22 @@ final class PcmDspProcessor {
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
-            if (wetMix <= 0f) {
+            if (!activeWet && Math.abs(dryGain - 1f) < 0.0001f) {
                 return;
             }
 
             int frames = sampleCount / channelCount;
+            float inputPeak = 0f;
+            for (int i = 0; i < sampleCount; i++) {
+                inputPeak = Math.max(inputPeak, Math.abs(samples[i]));
+            }
+            if (!activeWet || (inputPeak < 0.00012f && tailLevel < 0.00018f)) {
+                applyDryGainOnly(samples, sampleCount);
+                tailLevel *= 0.72f;
+                return;
+            }
+
+            float blockWetPeak = 0f;
             for (int frame = 0; frame < frames; frame++) {
                 int frameOffset = frame * channelCount;
                 float leftDry = samples[frameOffset];
@@ -428,16 +439,19 @@ final class PcmDspProcessor {
                 float wetRight = channelCount > 1
                         ? softSaturate(wetFrame[1] * 1.06f)
                         : softSaturate((wetFrame[0] + wetFrame[1]) * 0.59f);
-                samples[frameOffset] = clampSample((leftDry * dryMix + wetLeft * wetGain) * blendGain);
+                blockWetPeak = Math.max(blockWetPeak, Math.max(Math.abs(wetLeft), Math.abs(wetRight)));
+                samples[frameOffset] = clampSample(leftDry * dryGain + wetLeft * wetGain);
                 if (channelCount > 1) {
-                    samples[frameOffset + 1] = clampSample((rightDry * dryMix + wetRight * wetGain) * blendGain);
+                    samples[frameOffset + 1] = clampSample(rightDry * dryGain + wetRight * wetGain);
                 }
                 for (int channel = 2; channel < channelCount; channel++) {
                     float dry = samples[frameOffset + channel];
                     float wet = softSaturate((wetLeft + wetRight) * 0.5f);
-                    samples[frameOffset + channel] = clampSample((dry * dryMix + wet * wetGain) * blendGain);
+                    blockWetPeak = Math.max(blockWetPeak, Math.abs(wet));
+                    samples[frameOffset + channel] = clampSample(dry * dryGain + wet * wetGain);
                 }
             }
+            tailLevel = Math.max(blockWetPeak, tailLevel * 0.93f);
         }
 
         private float preDelayProcess(float input, int channel) {
@@ -454,6 +468,15 @@ final class PcmDspProcessor {
             buffer[writeIndex] = input;
             preDelayIndices[channel] = (writeIndex + 1) % buffer.length;
             return output;
+        }
+
+        private void applyDryGainOnly(float[] samples, int sampleCount) {
+            if (Math.abs(dryGain - 1f) < 0.0001f) {
+                return;
+            }
+            for (int i = 0; i < sampleCount; i++) {
+                samples[i] = clampSample(samples[i] * dryGain);
+            }
         }
     }
 
