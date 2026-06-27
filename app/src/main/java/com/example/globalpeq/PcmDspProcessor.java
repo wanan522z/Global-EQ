@@ -318,8 +318,8 @@ final class PcmDspProcessor {
             sustainMix = safeAmount * (0.2f + dspAmount * 0.24f);
             subBodyMix = safeAmount * (0.12f + dspAmount * 0.18f + virtualAmount * 0.05f);
             if (lowCpuMode) {
-                upperHarmonicMix *= 0.35f;
-                octaveMix *= 0.18f;
+                upperHarmonicMix = 0f;
+                octaveMix = 0f;
                 subBodyMix *= 0.55f;
             }
             lowBandLift = totalAmount * (0.07f + dspAmount * 0.12f + virtualAmount * 0.05f);
