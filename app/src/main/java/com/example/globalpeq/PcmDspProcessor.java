@@ -27,7 +27,7 @@ final class PcmDspProcessor {
         sampleRate = Math.max(8000, nextSampleRate);
         channelCount = Math.max(1, nextChannelCount);
         pregain = preset == null ? 1f : dbToLinear(preset.pregainMb / 100f);
-        effectHeadroom = shouldReserveEffectHeadroom(preset, enableDspBass)
+        effectHeadroom = preset != null && preset.enabled
                 ? dbToLinear(EFFECT_HEADROOM_DB)
                 : 1f;
         filters.clear();
@@ -90,17 +90,6 @@ final class PcmDspProcessor {
 
     private static float dbToLinear(float db) {
         return (float) Math.pow(10.0, db / 20.0);
-    }
-
-    private static boolean shouldReserveEffectHeadroom(Preset preset, boolean enableDspBass) {
-        if (preset == null || !preset.enabled) {
-            return false;
-        }
-        boolean bassEffectsActive = (preset.extraBassEnabled && preset.extraBassAmountPercent > 0)
-                || (enableDspBass && preset.virtualBassAmountPercent > 0)
-                || (preset.virtualBassModeIndex == 1 && preset.virtualBassAmountPercent > 0);
-        boolean reverbActive = !"Default".equals(preset.reverbType) && preset.reverbMixPercent > 0;
-        return bassEffectsActive || reverbActive;
     }
 
     private static int effectiveReverbWetPercent(Preset preset, AdvancedModeConfig config) {
