@@ -5363,6 +5363,10 @@ public final class MainActivity extends Activity {
     }
 
     private void applyRunningPreset(boolean forceFullReset) {
+        applyRunningPreset(forceFullReset, true);
+    }
+
+    private void applyRunningPreset(boolean forceFullReset, boolean notifyService) {
         if (currentDevice == null || runningPreset == null) {
             return;
         }
@@ -5380,12 +5384,14 @@ public final class MainActivity extends Activity {
             } else {
                 engine.apply(effectivePreset);
             }
-            Intent service = new Intent(this, GlobalEqForegroundService.class);
-            service.setAction(GlobalEqForegroundService.ACTION_APPLY);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(service);
-            } else {
-                startService(service);
+            if (notifyService) {
+                Intent service = new Intent(this, GlobalEqForegroundService.class);
+                service.setAction(GlobalEqForegroundService.ACTION_APPLY);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(service);
+                } else {
+                    startService(service);
+                }
             }
         } catch (Throwable ignored) {
         }
@@ -5413,13 +5419,16 @@ public final class MainActivity extends Activity {
         }
         if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
                 && applyPreset.enabled == runningPreset.enabled) {
-            applyRunningPreset(applyPreset.enabled);
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
                 if (applyPreset.enabled) {
+                    applyRunningPreset(applyPreset.enabled);
                     scheduleDelayedShizukuReady();
                 } else {
+                    applyRunningPreset(false, false);
                     stopShizukuCaptureNow();
                 }
+            } else {
+                applyRunningPreset(applyPreset.enabled);
             }
         }
     }
@@ -5482,11 +5491,7 @@ public final class MainActivity extends Activity {
         try {
             Intent service = new Intent(this, GlobalEqForegroundService.class);
             service.setAction(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(service);
-            } else {
-                startService(service);
-            }
+            startService(service);
         } catch (Throwable ignored) {
         }
     }
