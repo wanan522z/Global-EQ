@@ -1450,7 +1450,7 @@ public final class MainActivity extends Activity {
         TextView exportDeviceConfigButton = createExtraChoiceButton();
         exportDeviceConfigButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportDeviceConfigButton, 132);
-        exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
+        exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJsonV2());
         panel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
 
         LinearLayout aboutPanel = new LinearLayout(this);
@@ -5515,7 +5515,7 @@ public final class MainActivity extends Activity {
         }
         try {
             DeviceConfigFile config = DeviceConfigFile.fromJson(json);
-            applyImportedDeviceConfig(config);
+            applyImportedDeviceConfigV2(config);
             Toast.makeText(this, tr("Global config imported", "全局配置已导入"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
             Toast.makeText(this, tr("Unrecognized global config JSON", "无法识别的全局配置 JSON"), Toast.LENGTH_SHORT).show();
