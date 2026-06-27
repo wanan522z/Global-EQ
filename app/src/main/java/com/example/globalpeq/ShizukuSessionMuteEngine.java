@@ -54,6 +54,24 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
+    private static final class ActivePlaybackSnapshot {
+        final Set<Integer> activeUids;
+        final String primaryPackageName;
+
+        ActivePlaybackSnapshot(Set<Integer> activeUids, String primaryPackageName) {
+            this.activeUids = activeUids == null ? new LinkedHashSet<>() : activeUids;
+            this.primaryPackageName = primaryPackageName == null ? "" : primaryPackageName;
+        }
+
+        boolean hasActivePlayback() {
+            return !activeUids.isEmpty();
+        }
+
+        boolean containsUid(int uid) {
+            return uid > 0 && activeUids.contains(uid);
+        }
+    }
+
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -187,11 +205,13 @@ final class ShizukuSessionMuteEngine {
             }
         }
         List<SessionInfo> sessions = dumpPolicySessions();
+        ActivePlaybackSnapshot activePlayback = captureActivePlaybackSnapshot();
         Log.d(TAG, "Rescanned audio policy, matched sessions=" + sessions.size()
                 + ", ownedSessions=" + currentAppSessionIds.size()
                 + ", activeMuteEffects=" + muteEffects.size()
-                + ", muteMode=" + applyMuteEffects);
-        String activePackageName = muteOtherSessions(sessions, applyMuteEffects);
+                + ", muteMode=" + applyMuteEffects
+                + ", activePlaybackUids=" + activePlayback.activeUids.size());
+        String activePackageName = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
         updateActivePackageName(activePackageName);
         if (wantsMuteEffects && !applyMuteEffects) {
             publishStatus("Waiting for native capture playback session.", false);
@@ -206,6 +226,36 @@ final class ShizukuSessionMuteEngine {
             return;
         }
         publishStatus("Muted " + mutedCount + " session(s) while monitoring system audio.", true);
+    }
+
+    private ActivePlaybackSnapshot captureActivePlaybackSnapshot() {
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return new ActivePlaybackSnapshot(new LinkedHashSet<>(), "");
+        }
+        LinkedHashSet<Integer> activeUids = new LinkedHashSet<>();
+        String primaryPackageName = "";
+        try {
+            List<AudioPlaybackConfiguration> configs = audioManager.getActivePlaybackConfigurations();
+            if (configs == null) {
+                return new ActivePlaybackSnapshot(activeUids, primaryPackageName);
+            }
+            for (AudioPlaybackConfiguration configuration : configs) {
+                if (!isRelevantActivePlayback(configuration)) {
+                    continue;
+                }
+                int uid = readPlaybackClientUid(configuration);
+                if (uid <= 0) {
+                    continue;
+                }
+                activeUids.add(uid);
+                if (primaryPackageName.isEmpty()) {
+                    primaryPackageName = getPackageNameForUid(uid);
+                }
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to inspect active playback configurations", ex);
+        }
+        return new ActivePlaybackSnapshot(activeUids, primaryPackageName);
     }
 
     private void updateCurrentAppSessionIds() {
@@ -254,9 +304,11 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
-    private String muteOtherSessions(List<SessionInfo> sessions, boolean applyMuteEffects) {
+    private String muteOtherSessions(List<SessionInfo> sessions,
+                                     ActivePlaybackSnapshot activePlayback,
+                                     boolean applyMuteEffects) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
-        String firstActivePackageName = "";
+        String firstActivePackageName = activePlayback == null ? "" : activePlayback.primaryPackageName;
         for (SessionInfo session : sessions) {
             currentSessionIds.add(session.sessionId);
         }
@@ -284,6 +336,11 @@ final class ShizukuSessionMuteEngine {
             String usage = session.usage.toUpperCase(Locale.US).trim();
             if (!usage.contains("USAGE_MEDIA")
                     && !usage.contains("USAGE_GAME")) {
+                continue;
+            }
+            if (activePlayback != null
+                    && activePlayback.hasActivePlayback()
+                    && !activePlayback.containsUid(session.uid)) {
                 continue;
             }
             if (firstActivePackageName.isEmpty() && !session.packageName.isEmpty()) {
@@ -315,6 +372,41 @@ final class ShizukuSessionMuteEngine {
             }
         }
         return firstActivePackageName;
+    }
+
+    private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
+        if (configuration == null || !configuration.isActive()) {
+            return false;
+        }
+        try {
+            android.media.AudioAttributes attributes = configuration.getAudioAttributes();
+            if (attributes == null) {
+                return false;
+            }
+            int usage = attributes.getUsage();
+            return usage == android.media.AudioAttributes.USAGE_MEDIA
+                    || usage == android.media.AudioAttributes.USAGE_GAME;
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to inspect playback attributes", ex);
+            return false;
+        }
+    }
+
+    private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return -1;
+        }
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getClientUid");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                return (Integer) value;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback client uid", ex);
+        }
+        return -1;
     }
 
     private void updateActivePackageName(String packageName) {
