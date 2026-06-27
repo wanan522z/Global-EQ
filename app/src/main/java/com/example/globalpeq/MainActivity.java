@@ -7822,12 +7822,16 @@ public final class MainActivity extends Activity {
         private float displayScale = 1f;
         private int displayDecimals;
         private boolean negativeInfinityAtMin;
+        private int resetValue;
         private String suffix = "";
         private String label = "";
         private KnobView.Listener listener;
         private float touchStartX;
         private float touchStartY;
         private boolean adjusting;
+        private long lastTapTime;
+        private float lastTapX;
+        private float lastTapY;
 
         VerticalReverbSlider(Context context) {
             super(context);
@@ -7850,6 +7854,7 @@ public final class MainActivity extends Activity {
             this.displayScale = Math.abs(displayScale) < 0.0001f ? 1f : displayScale;
             this.displayDecimals = Math.max(0, displayDecimals);
             this.negativeInfinityAtMin = negativeInfinityAtMin;
+            this.resetValue = clamp(negativeInfinityAtMin ? 0 : min, min, max);
             this.listener = listener;
             setValue(value, false);
         }
@@ -8027,10 +8032,27 @@ public final class MainActivity extends Activity {
                     if (adjusting) {
                         setValue(yToValue(event.getY()), true);
                     } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                        if (event.getY() <= dpf(24f) || event.getY() >= getHeight() - dpf(22f)) {
+                        float endX = event.getX();
+                        float endY = event.getY();
+                        float totalDist = (float) Math.hypot(endX - touchStartX, endY - touchStartY);
+                        if (totalDist < dpf(15f)) {
+                            long now = android.os.SystemClock.uptimeMillis();
+                            float tapDist = (float) Math.hypot(endX - lastTapX, endY - lastTapY);
+                            if (now - lastTapTime < 300 && tapDist < dpf(30f)) {
+                                setValue(resetValue, true);
+                                lastTapTime = 0L;
+                            } else if (endY <= dpf(24f) || endY >= getHeight() - dpf(22f)) {
+                                lastTapTime = now;
+                                lastTapX = endX;
+                                lastTapY = endY;
+                                showStyledReverbSliderInputDialog(this);
+                            } else {
+                                lastTapTime = now;
+                                lastTapX = endX;
+                                lastTapY = endY;
+                            }
+                        } else if (event.getY() <= dpf(24f) || event.getY() >= getHeight() - dpf(22f)) {
                             showStyledReverbSliderInputDialog(this);
-                        } else {
-                            setValue(yToValue(event.getY()), true);
                         }
                     }
                     adjusting = false;
