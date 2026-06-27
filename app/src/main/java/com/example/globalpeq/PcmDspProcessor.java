@@ -217,6 +217,7 @@ final class PcmDspProcessor {
         private float[] octaveBand = new float[0];
         private float[] subBodyBand = new float[0];
         private final float[] envelope;
+        private float[] octaveDc = new float[0];
         private float harmonicMix;
         private float upperHarmonicMix;
         private float octaveMix;
@@ -253,12 +254,12 @@ final class PcmDspProcessor {
             this.lowCpuMode = lowCpuMode;
             float virtualAmount = clamp01(virtualAmountPercent / 100f);
             float dspAmount = clamp01(dspAmountPercent / 100f);
-            float totalAmount = clamp01(virtualAmount * 0.9f + dspAmount * 0.7f);
-            safeAmount = totalAmount <= 0.23f
+            float totalAmount = clamp01(virtualAmount * 0.72f + dspAmount * 0.96f);
+            safeAmount = totalAmount <= 0.35f
                     ? totalAmount
-                    : 0.23f + (totalAmount - 0.23f) * 0.42f;
+                    : 0.35f + (totalAmount - 0.35f) * 0.55f;
             int blendedCutoff = clamp(
-                    Math.round(virtualCutoffHz * 0.55f + dspCutoffHz * 0.45f),
+                    Math.round(virtualCutoffHz * 0.35f + dspCutoffHz * 0.65f),
                     50,
                     210);
 
@@ -270,99 +271,71 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, blendedCutoff, 0, 72),
                     sampleRate,
                     channelCount);
-            sustainHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(24, Math.round(blendedCutoff * 0.42f)), 0, 84),
-                    sampleRate,
-                    channelCount);
-            sustainLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.max(85, Math.round(blendedCutoff * 1.18f)), 0, 82),
-                    sampleRate,
-                    channelCount);
             harmonicHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(95, Math.round(blendedCutoff * 1.08f)), 0, 76),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(36, Math.round(blendedCutoff * 0.58f)), 0, 82),
                     sampleRate,
                     channelCount);
             harmonicLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.round(blendedCutoff * 4.9f), sampleRate / 3), 0, 84),
-                    sampleRate,
-                    channelCount);
-            upperHarmonicHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(160, Math.round(blendedCutoff * 1.8f)), 0, 80),
-                    sampleRate,
-                    channelCount);
-            upperHarmonicLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.round(blendedCutoff * 6.4f), sampleRate / 2), 0, 86),
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.max(80, Math.round(blendedCutoff * 1.18f)), 0, 86),
                     sampleRate,
                     channelCount);
             octaveHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(85, Math.round(blendedCutoff * 0.96f)), 0, 82),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(48, Math.round(blendedCutoff * 0.92f)), 0, 80),
                     sampleRate,
                     channelCount);
             octaveLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.round(blendedCutoff * 3.6f), sampleRate / 3), 0, 88),
-                    sampleRate,
-                    channelCount);
-            subBodyLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.max(70, Math.round(blendedCutoff * 1.28f)), 0, 92),
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.max(96, Math.round(blendedCutoff * 2.2f)), 380), 0, 86),
                     sampleRate,
                     channelCount);
 
-            harmonicMix = safeAmount * (0.4f + virtualAmount * 0.22f + dspAmount * 0.12f);
-            upperHarmonicMix = safeAmount * (0.12f + virtualAmount * 0.08f + dspAmount * 0.14f);
-            octaveMix = safeAmount * (0.18f + virtualAmount * 0.08f + dspAmount * 0.24f);
-            sustainMix = safeAmount * (0.2f + dspAmount * 0.24f);
-            subBodyMix = safeAmount * (0.12f + dspAmount * 0.18f + virtualAmount * 0.05f);
-            if (lowCpuMode) {
-                upperHarmonicMix = 0f;
-                octaveMix = 0f;
-                subBodyMix *= 0.55f;
-            }
-            lowBandLift = totalAmount * (0.07f + dspAmount * 0.12f + virtualAmount * 0.05f);
-            lowBandTrim = dspAmount * 0.03f + virtualAmount * 0.01f;
-            outputCompensation = 1f + safeAmount * 0.04f + dspAmount * 0.025f + virtualAmount * 0.01f;
-            drive = 1.4f + safeAmount * 4.4f + dspAmount * 1.1f;
-            asymmetry = 0.12f + safeAmount * 0.2f + dspAmount * 0.12f;
-            saturationCeiling = 0.58f + (1f - totalAmount) * 0.16f;
-            sustainCeiling = 0.32f + (1f - totalAmount) * 0.12f;
-            harmonicCeiling = 0.3f + (1f - totalAmount) * 0.1f;
-            upperHarmonicCeiling = 0.18f + (1f - totalAmount) * 0.08f;
-            octaveCeiling = 0.24f + (1f - totalAmount) * 0.1f;
-            subBodyCeiling = 0.28f + (1f - totalAmount) * 0.1f;
-            envelopeAttack = 0.012f + safeAmount * 0.018f;
-            envelopeRelease = 0.0022f + safeAmount * 0.005f;
+            harmonicMix = safeAmount * (0.16f + virtualAmount * 0.06f + dspAmount * 0.08f);
+            upperHarmonicMix = 0f;
+            octaveMix = safeAmount * (0.34f + virtualAmount * 0.1f + dspAmount * 0.18f);
+            sustainMix = safeAmount * (0.05f + dspAmount * 0.08f);
+            subBodyMix = 0f;
+            lowBandLift = safeAmount * (0.08f + dspAmount * 0.1f + virtualAmount * 0.05f);
+            lowBandTrim = safeAmount * (0.012f + dspAmount * 0.008f + virtualAmount * 0.004f);
+            outputCompensation = 1f + safeAmount * 0.025f + dspAmount * 0.02f;
+            drive = 1.15f + safeAmount * 2.2f + dspAmount * 0.8f;
+            asymmetry = 0f;
+            saturationCeiling = 0.52f + (1f - totalAmount) * 0.12f;
+            sustainCeiling = 0f;
+            harmonicCeiling = 0.22f + (1f - totalAmount) * 0.06f;
+            upperHarmonicCeiling = 0f;
+            octaveCeiling = 0.28f + (1f - totalAmount) * 0.08f;
+            subBodyCeiling = 0f;
+            envelopeAttack = 0.01f + safeAmount * 0.01f;
+            envelopeRelease = 0.002f + safeAmount * 0.003f;
             for (int i = 0; i < envelope.length; i++) {
                 envelope[i] = 0f;
+            }
+            if (octaveDc.length != channelCount) {
+                octaveDc = new float[channelCount];
+            }
+            for (int i = 0; i < octaveDc.length; i++) {
+                octaveDc[i] = 0f;
             }
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
-            if (harmonicMix <= 0f && upperHarmonicMix <= 0f && octaveMix <= 0f && sustainMix <= 0f && subBodyMix <= 0f && lowBandLift <= 0f && lowBandTrim <= 0f) {
+            if (harmonicMix <= 0f && octaveMix <= 0f && sustainMix <= 0f && lowBandLift <= 0f && lowBandTrim <= 0f) {
                 return;
             }
 
             if (lowBand.length < sampleCount) {
                 lowBand = new float[sampleCount];
-                sustainBand = new float[sampleCount];
                 harmonicBand = new float[sampleCount];
-                upperHarmonicBand = new float[sampleCount];
                 octaveBand = new float[sampleCount];
-                subBodyBand = new float[sampleCount];
+            }
+            if (octaveDc.length != channelCount) {
+                octaveDc = new float[channelCount];
             }
 
             System.arraycopy(samples, 0, lowBand, 0, sampleCount);
             sourceHighPass.process(lowBand, sampleCount, channelCount);
             sourceLowPass.process(lowBand, sampleCount, channelCount);
-            System.arraycopy(lowBand, 0, sustainBand, 0, sampleCount);
             System.arraycopy(lowBand, 0, harmonicBand, 0, sampleCount);
-            if (!lowCpuMode || upperHarmonicMix > 0f) {
-                System.arraycopy(lowBand, 0, upperHarmonicBand, 0, sampleCount);
-            }
-            if (!lowCpuMode || octaveMix > 0f) {
-                System.arraycopy(lowBand, 0, octaveBand, 0, sampleCount);
-            }
-            if (!lowCpuMode || subBodyMix > 0f) {
-                System.arraycopy(lowBand, 0, subBodyBand, 0, sampleCount);
-            }
+            System.arraycopy(lowBand, 0, octaveBand, 0, sampleCount);
 
             for (int i = 0; i < sampleCount; i++) {
                 int channel = i % channelCount;
@@ -370,55 +343,26 @@ final class PcmDspProcessor {
                 float absLow = Math.abs(low);
                 float coeff = absLow > envelope[channel] ? envelopeAttack : envelopeRelease;
                 envelope[channel] += (absLow - envelope[channel]) * coeff;
-                float headroomComp = 1f / (1f + Math.max(0f, envelope[channel] - 0.14f) * 8.5f + Math.max(0f, safeAmount - 0.18f) * 3.5f);
-                float normalized = low / (0.04f + envelope[channel] * 0.96f);
-                float sign = Math.signum(normalized);
-                float adaptiveDrive = drive * headroomComp;
-                float shaped = (float) Math.tanh(normalized * adaptiveDrive);
-                float evenDriver = (float) Math.tanh((normalized + normalized * Math.abs(normalized) * asymmetry) * (adaptiveDrive * 0.76f));
-                float oddDriver = shaped * shaped * shaped;
-                float fifthDriver = oddDriver * shaped * shaped;
-                float rectified = Math.max(0f, Math.abs(evenDriver) - 0.22f) * sign;
-                float dynamics = 0.34f + Math.min(1f, envelope[channel] * 8.2f) * 0.66f;
-                float sustain = (float) Math.tanh(low * (1.18f + envelope[channel] * 5.2f + adaptiveDrive * 0.1f));
-                float body = (float) Math.tanh(low * (1.72f + adaptiveDrive * 0.08f));
+                float normalized = low / (0.05f + envelope[channel] * 0.95f);
+                float shaped = (float) Math.tanh(normalized * drive);
+                float dynamics = 0.55f + Math.min(1f, envelope[channel] * 6.0f) * 0.45f;
+                harmonicBand[i] = softLimit((shaped - normalized * 0.78f) * dynamics, harmonicCeiling);
 
-                sustainBand[i] = softLimit(sustain * dynamics, sustainCeiling);
-                harmonicBand[i] = softLimit((oddDriver * 0.68f + evenDriver * 0.2f + shaped * 0.14f) * dynamics, harmonicCeiling);
-                if (!lowCpuMode || upperHarmonicMix > 0f) {
-                    upperHarmonicBand[i] = softLimit((fifthDriver * 0.42f + rectified * 0.28f) * dynamics, upperHarmonicCeiling);
-                }
-                if (!lowCpuMode || octaveMix > 0f) {
-                    octaveBand[i] = softLimit((Math.abs(shaped) * sign) * (0.48f + Math.abs(evenDriver) * 0.28f) * dynamics, octaveCeiling);
-                }
-                if (!lowCpuMode || subBodyMix > 0f) {
-                    subBodyBand[i] = softLimit(body * (0.34f + dynamics * 0.4f), subBodyCeiling);
-                }
+                // Full-wave rectification gives us a cheap octave-up component from the sub band.
+                float octaveRaw = Math.abs(shaped);
+                octaveDc[channel] += (octaveRaw - octaveDc[channel]) * 0.014f;
+                octaveBand[i] = softLimit((octaveRaw - octaveDc[channel]) * (0.72f + Math.min(1f, envelope[channel] * 6f) * 0.48f), octaveCeiling);
             }
 
-            sustainHighPass.process(sustainBand, sampleCount, channelCount);
-            sustainLowPass.process(sustainBand, sampleCount, channelCount);
             harmonicHighPass.process(harmonicBand, sampleCount, channelCount);
             harmonicLowPass.process(harmonicBand, sampleCount, channelCount);
-            if (!lowCpuMode || upperHarmonicMix > 0f) {
-                upperHarmonicHighPass.process(upperHarmonicBand, sampleCount, channelCount);
-                upperHarmonicLowPass.process(upperHarmonicBand, sampleCount, channelCount);
-            }
-            if (!lowCpuMode || octaveMix > 0f) {
-                octaveHighPass.process(octaveBand, sampleCount, channelCount);
-                octaveLowPass.process(octaveBand, sampleCount, channelCount);
-            }
-            if (!lowCpuMode || subBodyMix > 0f) {
-                subBodyLowPass.process(subBodyBand, sampleCount, channelCount);
-            }
+            octaveHighPass.process(octaveBand, sampleCount, channelCount);
+            octaveLowPass.process(octaveBand, sampleCount, channelCount);
 
             for (int i = 0; i < sampleCount; i++) {
-                samples[i] += softLimit(lowBand[i] * lowBandLift, saturationCeiling);
-                samples[i] += sustainBand[i] * sustainMix;
+                samples[i] += softLimit(lowBand[i] * (lowBandLift + sustainMix), saturationCeiling);
                 samples[i] += harmonicBand[i] * harmonicMix;
-                samples[i] += upperHarmonicBand[i] * upperHarmonicMix;
                 samples[i] += octaveBand[i] * octaveMix;
-                samples[i] += subBodyBand[i] * subBodyMix;
                 samples[i] -= lowBand[i] * lowBandTrim;
                 samples[i] = finiteOrZero(samples[i] * outputCompensation);
             }
