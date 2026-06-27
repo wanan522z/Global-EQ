@@ -5573,27 +5573,7 @@ public final class MainActivity extends Activity {
     }
 
     private void applyImportedDeviceConfig(DeviceConfigFile config) {
-        flushPendingPresetPersistence();
-        currentDevice = config.device;
-        processingMode = config.processingMode;
-        advancedModeConfig = config.advancedModeConfig;
-        autoSwitchOutput = config.autoSwitchOutput;
-        repository.saveKnownDevice(currentDevice);
-        repository.saveSelectedDevice(currentDevice);
-        repository.saveProcessingMode(processingMode);
-        repository.saveAdvancedModeConfig(advancedModeConfig);
-        repository.saveAutoSwitchOutput(autoSwitchOutput);
-        for (Preset preset : config.presets) {
-            if (preset == null || preset.name == null || preset.name.trim().isEmpty()) {
-                continue;
-            }
-            repository.saveNamedPreset(preset);
-        }
-        applyImportedPreset(config.devicePreset, false);
-        repository.savePreset(currentDevice, runningPreset);
-        repository.saveGlobalPreset(runningPreset);
-        renderDeviceSpinner();
-        applyRunningPreset(true);
+        applyImportedDeviceConfigV2(config);
     }
 
     private void exportCurrentDeviceConfigJsonV2() {
