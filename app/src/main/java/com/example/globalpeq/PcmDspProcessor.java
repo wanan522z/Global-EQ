@@ -387,7 +387,6 @@ final class PcmDspProcessor {
         private final int[] preDelayIndices;
         private final StereoReverbCore reverbCore;
         private final float[] wetFrame = new float[2];
-        private float[] dryBackup = new float[0];
         private boolean lowCpuMode;
         private boolean activeWet;
         private float dryGain;
@@ -451,16 +450,7 @@ final class PcmDspProcessor {
                 return;
             }
 
-            boolean protectDryPath = dryGain > 0.0001f && inputPeak > 0.001f;
-            if (protectDryPath && dryBackup.length < sampleCount) {
-                dryBackup = new float[sampleCount];
-            }
-            if (protectDryPath) {
-                System.arraycopy(samples, 0, dryBackup, 0, sampleCount);
-            }
-
             float blockWetPeak = 0f;
-            float outputPeak = 0f;
             for (int frame = 0; frame < frames; frame++) {
                 int frameOffset = frame * channelCount;
                 float leftDry = samples[frameOffset];
@@ -475,25 +465,15 @@ final class PcmDspProcessor {
                         : softSaturate((wetFrame[0] + wetFrame[1]) * 0.59f);
                 blockWetPeak = Math.max(blockWetPeak, Math.max(Math.abs(wetLeft), Math.abs(wetRight)));
                 samples[frameOffset] = finiteOrZero(leftDry * dryGain + wetLeft * wetGain);
-                outputPeak = Math.max(outputPeak, Math.abs(samples[frameOffset]));
                 if (channelCount > 1) {
                     samples[frameOffset + 1] = finiteOrZero(rightDry * dryGain + wetRight * wetGain);
-                    outputPeak = Math.max(outputPeak, Math.abs(samples[frameOffset + 1]));
                 }
                 for (int channel = 2; channel < channelCount; channel++) {
                     float dry = samples[frameOffset + channel];
                     float wet = softSaturate((wetLeft + wetRight) * 0.5f);
                     blockWetPeak = Math.max(blockWetPeak, Math.abs(wet));
                     samples[frameOffset + channel] = finiteOrZero(dry * dryGain + wet * wetGain);
-                    outputPeak = Math.max(outputPeak, Math.abs(samples[frameOffset + channel]));
                 }
-            }
-
-            if (protectDryPath && outputPeak < inputPeak * 0.12f) {
-                for (int i = 0; i < sampleCount; i++) {
-                    samples[i] = finiteOrZero(dryBackup[i] * dryGain);
-                }
-                blockWetPeak = 0f;
             }
             tailLevel = Math.max(blockWetPeak, tailLevel * 0.93f);
         }
