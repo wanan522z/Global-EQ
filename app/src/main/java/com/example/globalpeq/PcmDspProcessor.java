@@ -606,6 +606,10 @@ final class PcmDspProcessor {
         private final InputDiffuser rightInput;
         private final WetHighPass leftLowCut;
         private final WetHighPass rightLowCut;
+        private final WetLowPass leftHighCut;
+        private final WetLowPass rightHighCut;
+        private final MonoPeakFilter leftLowMidTrim;
+        private final MonoPeakFilter rightLowMidTrim;
         private float stereoCrossfeed;
         private float directEarlyMix;
         private float earlyMix;
@@ -619,20 +623,30 @@ final class PcmDspProcessor {
             rightInput = new InputDiffuser(sampleRate);
             leftLowCut = new WetHighPass(sampleRate, 60f);
             rightLowCut = new WetHighPass(sampleRate, 60f);
+            leftHighCut = new WetLowPass(sampleRate);
+            rightHighCut = new WetLowPass(sampleRate);
+            leftLowMidTrim = new MonoPeakFilter(sampleRate);
+            rightLowMidTrim = new MonoPeakFilter(sampleRate);
         }
 
         void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, float immediateEarlyBlend) {
-            stereoCrossfeed = profile.crossfeed * (0.8f + size * 0.3f);
-            directEarlyMix = Math.min(profile.earlyMix * 0.42f, 0.14f) * clamp01(immediateEarlyBlend);
-            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix) * (0.95f + decayShape * 0.22f);
-            lateMix = profile.lateMix * (1.08f + decayShape * 0.35f);
-            outputGain = profile.outputGain * (1.08f + decayShape * 0.24f);
+            stereoCrossfeed = profile.crossfeed * (0.74f + size * 0.22f);
+            directEarlyMix = Math.min(profile.earlyMix * 0.34f, 0.11f) * clamp01(immediateEarlyBlend);
+            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix) * (0.94f + decayShape * 0.12f);
+            lateMix = profile.lateMix * (0.92f + decayShape * 0.16f);
+            outputGain = profile.outputGain * (0.95f + decayShape * 0.08f);
             leftInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0f);
             rightInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0.31f);
             leftTank.configure(profile, size, decaySeconds, decayShape, false);
             rightTank.configure(profile, size, decaySeconds, decayShape, true);
             leftLowCut.reset();
             rightLowCut.reset();
+            float adaptiveHighCutHz = clamp(profile.highCutHz * (1f - decayShape * 0.08f), 4200f, 12000f);
+            leftHighCut.configure(adaptiveHighCutHz);
+            rightHighCut.configure(adaptiveHighCutHz);
+            float adaptiveLowMidCutDb = profile.lowMidCutDb * (0.9f + size * 0.06f + decayShape * 0.12f);
+            leftLowMidTrim.configure(520f, -adaptiveLowMidCutDb, 0.82f);
+            rightLowMidTrim.configure(520f, -adaptiveLowMidCutDb, 0.82f);
         }
 
         void process(float leftIn, float rightIn, float[] wetFrame) {
@@ -644,8 +658,8 @@ final class PcmDspProcessor {
             float lateRight = rightTank.process(diffuseRight, leftTank.previousOutput() * stereoCrossfeed);
             float wetLeft = (directLeft * directEarlyMix + leftInput.lastTap() * earlyMix + lateLeft * lateMix) * outputGain;
             float wetRight = (directRight * directEarlyMix + rightInput.lastTap() * earlyMix + lateRight * lateMix) * outputGain;
-            wetFrame[0] = clampSample(leftLowCut.process(wetLeft));
-            wetFrame[1] = clampSample(rightLowCut.process(wetRight));
+            wetFrame[0] = clampSample(leftHighCut.process(leftLowMidTrim.process(leftLowCut.process(wetLeft))));
+            wetFrame[1] = clampSample(rightHighCut.process(rightLowMidTrim.process(rightLowCut.process(wetRight))));
         }
     }
 
