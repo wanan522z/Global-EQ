@@ -629,4 +629,8 @@ final class PresetRepository {
         return normalizeCurveName(name).toLowerCase().replaceAll("[^a-z0-9_\\-]+", "_");
     }
 
+    private Preset stripRuntimeEnabled(Preset preset) {
+        return preset == null ? Preset.flat(false) : preset.withEnabled(false);
+    }
+
 }
