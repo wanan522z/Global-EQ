@@ -6475,7 +6475,7 @@ public final class MainActivity extends Activity {
         content.setPadding(dp(20), dp(14), dp(20), dp(8));
 
         TextView hint = new TextView(this);
-        hint.setText(slider.getLabel() + "  " + slider.getMin() + " - " + slider.getMax() + slider.getSuffix());
+        hint.setText(slider.getLabel() + "  " + slider.displayRangeText());
         hint.setTextSize(13);
         hint.setTextColor(Color.rgb(150, 165, 185));
         hint.setGravity(android.view.Gravity.CENTER);
@@ -6487,8 +6487,8 @@ public final class MainActivity extends Activity {
 
         final EditText input = new EditText(this);
         input.setSingleLine(true);
-        input.setText(String.valueOf(slider.getValue()));
-        input.setHint(slider.getMin() + " ~ " + slider.getMax() + slider.getSuffix());
+        input.setText(slider.displayValueText());
+        input.setHint(slider.displayRangeHint());
         input.setSelectAllOnFocus(true);
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -6509,8 +6509,8 @@ public final class MainActivity extends Activity {
                 .setView(content)
                 .setPositiveButton("Apply", (d, w) -> {
                     try {
-                        int v = Math.round(Float.parseFloat(input.getText().toString()));
-                        slider.setValue(clamp(v, slider.getMin(), slider.getMax()), true);
+                        float parsed = Float.parseFloat(input.getText().toString());
+                        slider.setValue(slider.rawValueFromDisplay(parsed), true);
                     } catch (NumberFormatException ignored) {
                     }
                 })
@@ -7255,6 +7255,8 @@ public final class MainActivity extends Activity {
         private int min;
         private int max;
         private int value;
+        private float displayScale = 1f;
+        private int displayDecimals;
         private String suffix = "";
         private String label = "";
         private KnobView.Listener listener;
@@ -7268,10 +7270,16 @@ public final class MainActivity extends Activity {
         }
 
         void configure(String label, int min, int max, int value, String suffix, KnobView.Listener listener) {
+            configure(label, min, max, value, suffix, 1f, 0, listener);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, KnobView.Listener listener) {
             this.label = label == null ? "" : label;
             this.min = min;
             this.max = max;
             this.suffix = suffix == null ? "" : suffix;
+            this.displayScale = Math.abs(displayScale) < 0.0001f ? 1f : displayScale;
+            this.displayDecimals = Math.max(0, displayDecimals);
             this.listener = listener;
             setValue(value, false);
         }
@@ -7281,6 +7289,14 @@ public final class MainActivity extends Activity {
         int getValue() { return value; }
         String getSuffix() { return suffix; }
         String getLabel() { return label; }
+        String displayValueText() { return formatDisplayValue(value); }
+        String displayRangeText() { return formatDisplayNumber(min) + " - " + formatDisplayNumber(max) + suffix; }
+        String displayRangeHint() { return formatDisplayNumber(min) + " ~ " + formatDisplayNumber(max) + suffix; }
+
+        int rawValueFromDisplay(float displayValue) {
+            float scaled = displayValue / displayScale;
+            return clamp(Math.round(scaled), min, max);
+        }
 
         void setValue(int nextValue, boolean notify) {
             int clamped = Math.max(min, Math.min(max, nextValue));
@@ -7341,7 +7357,7 @@ public final class MainActivity extends Activity {
             } else {
                 paint.setColor(Color.argb(150, 255, 255, 255));
             }
-            canvas.drawText(value + suffix, cx, dpf(14f), paint);
+            canvas.drawText(displayValueText(), cx, dpf(14f), paint);
             paint.clearShadowLayer();
 
             android.graphics.RectF trackRect = new android.graphics.RectF(
@@ -7440,6 +7456,18 @@ public final class MainActivity extends Activity {
 
         private float clampFloat(float v, float lo, float hi) {
             return Math.max(lo, Math.min(hi, v));
+        }
+
+        private String formatDisplayValue(int rawValue) {
+            return formatDisplayNumber(rawValue) + suffix;
+        }
+
+        private String formatDisplayNumber(int rawValue) {
+            float displayValue = rawValue * displayScale;
+            if (displayDecimals <= 0) {
+                return String.valueOf(Math.round(displayValue));
+            }
+            return String.format(Locale.US, "%." + displayDecimals + "f", displayValue);
         }
     }
 
