@@ -1785,6 +1785,15 @@ public final class MainActivity extends Activity {
                 applyRunningPreset();
             }
         } else {
+            if (editingPreset != null && editingPreset.enabled) {
+                Preset reservedPreset = limitPresetForHeadroom(editingPreset);
+                if (!reservedPreset.toJson().equals(editingPreset.toJson())) {
+                    setEditingPreset(reservedPreset, true);
+                    renderAll();
+                    ensureShizukuModeReady(true);
+                    return;
+                }
+            }
             applyRunningPreset();
             ensureShizukuModeReady(true);
         }
