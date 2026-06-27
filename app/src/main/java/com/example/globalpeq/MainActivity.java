@@ -7747,13 +7747,6 @@ public final class MainActivity extends Activity {
         return isTouchOutsideView(focused, event);
     }
 
-    private boolean shouldDismissEqEditOverlayOnTouch(MotionEvent event) {
-        if (activeEqEditOverlay == null || event == null) {
-            return false;
-        }
-        return isTouchOutsideView(activeEqEditOverlay, event);
-    }
-
     private boolean isTouchOutsideView(View view, MotionEvent event) {
         if (view == null || event == null) {
             return false;
