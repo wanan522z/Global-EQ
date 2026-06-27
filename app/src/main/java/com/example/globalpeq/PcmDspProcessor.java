@@ -965,6 +965,7 @@ final class PcmDspProcessor {
         private int delaySamples;
         private int index;
         private float feedback;
+        private boolean active = true;
 
         AllPassStage(int sampleRate, float maxDelayMs) {
             this.sampleRate = sampleRate;
@@ -972,7 +973,8 @@ final class PcmDspProcessor {
             delaySamples = 8;
         }
 
-        void configure(float delayMs, float feedback) {
+        void configure(float delayMs, float feedback, boolean active) {
+            this.active = active;
             delaySamples = clampInt(Math.round(delayMs * sampleRate / 1000f), 4, buffer.length - 2);
             this.feedback = feedback;
             Arrays.fill(buffer, 0f);
@@ -980,6 +982,9 @@ final class PcmDspProcessor {
         }
 
         float process(float input) {
+            if (!active) {
+                return input;
+            }
             int readIndex = index - delaySamples;
             if (readIndex < 0) {
                 readIndex += buffer.length;
