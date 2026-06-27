@@ -89,6 +89,7 @@ final class ShizukuSessionMuteEngine {
     private volatile ProcessingMode currentMode = ProcessingMode.SYSTEM_EQ;
     private volatile Preset currentPreset = Preset.flat(false);
     private volatile Set<Integer> currentAppSessionIds = new LinkedHashSet<>();
+    private volatile String currentActivePackageName = "";
     private String publishedStatus = "";
     private boolean publishedActive;
 
@@ -142,6 +143,7 @@ final class ShizukuSessionMuteEngine {
         unregisterPlaybackCallback();
         releaseAllEffects();
         currentAppSessionIds = new LinkedHashSet<>();
+        updateActivePackageName("");
         publishStatus("Shizuku mute is idle.", false);
     }
 
@@ -157,6 +159,7 @@ final class ShizukuSessionMuteEngine {
         muteOtherSessions(sessions);
         int mutedCount = muteEffects.size();
         if (mutedCount == 0) {
+            updateActivePackageName("");
             publishStatus("Waiting for active playback sessions.", false);
         } else {
             publishStatus("Muted " + mutedCount + " session(s) while monitoring system audio.", true);
@@ -211,6 +214,7 @@ final class ShizukuSessionMuteEngine {
 
     private void muteOtherSessions(List<SessionInfo> sessions) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
+        String firstActivePackageName = "";
         for (SessionInfo session : sessions) {
             currentSessionIds.add(session.sessionId);
         }
@@ -244,6 +248,9 @@ final class ShizukuSessionMuteEngine {
                     && !usage.contains("USAGE_GAME")) {
                 continue;
             }
+            if (firstActivePackageName.isEmpty() && !session.packageName.isEmpty()) {
+                firstActivePackageName = session.packageName;
+            }
 
             Log.d(TAG, "Attempting to mute session " + session.sessionId
                     + " uid=" + session.uid
@@ -262,6 +269,19 @@ final class ShizukuSessionMuteEngine {
             } catch (RuntimeException ex) {
                 Log.e(TAG, "Error creating mute effect for session: " + session.sessionId, ex);
             }
+        }
+        updateActivePackageName(firstActivePackageName);
+    }
+
+    private void updateActivePackageName(String packageName) {
+        String normalized = packageName == null ? "" : packageName.trim();
+        if (normalized.equals(currentActivePackageName)) {
+            return;
+        }
+        currentActivePackageName = normalized;
+        repository.saveActivePlaybackPackage(normalized);
+        if (notificationCallback != null) {
+            mainHandler.post(notificationCallback);
         }
     }
 
