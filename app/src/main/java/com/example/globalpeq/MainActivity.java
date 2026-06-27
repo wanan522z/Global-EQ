@@ -3381,7 +3381,7 @@ public final class MainActivity extends Activity {
                     : advancedModeConfig.monitoredAppLabel);
         }
         if (presetSelectButton != null) {
-            setTextIfChanged(presetSelectButton, editingPreset.name);
+            setTextIfChanged(presetSelectButton, presetDisplayName(runningPreset));
         }
         if (enabledSwitch != null) {
             enabledSwitch.setChecked(runningPreset.enabled);
@@ -5835,7 +5835,7 @@ public final class MainActivity extends Activity {
     }
 
     private View createPresetMenuRow(String name, AlertDialog[] dialogHolder) {
-        boolean active = name.equals(editingPreset.name);
+        boolean active = samePresetSelection(name, presetName(runningPreset));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5861,13 +5861,13 @@ public final class MainActivity extends Activity {
             if (dialogHolder[0] != null) {
                 dialogHolder[0].dismiss();
             }
-            loadPresetForEditing(name);
+            loadPresetLive(name);
         });
         row.setOnClickListener(v -> {
             if (dialogHolder[0] != null) {
                 dialogHolder[0].dismiss();
             }
-            loadPresetForEditing(name);
+            loadPresetLive(name);
         });
         row.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1f));
 
@@ -5953,6 +5953,7 @@ public final class MainActivity extends Activity {
 
         editingPreset = savedPreset;
         syncSelectedVirtualBassModeFromPreset();
+        syncExtraBassEnabledFromPreset();
         repository.saveDraftPreset(editingPreset);
         if (updatesRunningPreset) {
             runningPreset = editingPreset.withEnabled(runningPreset.enabled && supported);
@@ -6536,7 +6537,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean isEditingPresetActive() {
-        return runningPreset != null && editingPreset != null && runningPreset.name.equals(editingPreset.name);
+        return samePresetSelection(runningPreset, editingPreset);
     }
 
     private void setEditingPreset(Preset nextPreset, boolean recordHistory) {
@@ -6555,12 +6556,37 @@ public final class MainActivity extends Activity {
         }
         editingPreset = nextPreset;
         syncSelectedVirtualBassModeFromPreset();
+        syncExtraBassEnabledFromPreset();
         if (curveView != null) {
             refreshCurveView();
         }
         syncRunningIfEditingPresetIsActive();
         updateExtraControls();
         updateEditStateLabels();
+    }
+
+    private boolean samePresetSelection(Preset first, Preset second) {
+        return samePresetSelection(presetName(first), presetName(second));
+    }
+
+    private boolean samePresetSelection(String firstName, String secondName) {
+        if (firstName == null || secondName == null) {
+            return false;
+        }
+        return firstName.equals(secondName);
+    }
+
+    private String presetName(Preset preset) {
+        if (preset == null || preset.name == null) {
+            return null;
+        }
+        String trimmed = preset.name.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String presetDisplayName(Preset preset) {
+        String name = presetName(preset);
+        return name == null ? "Default" : name;
     }
 
     private void undoEdit() {
@@ -6698,7 +6724,7 @@ public final class MainActivity extends Activity {
 
     private void updateEditStateLabels() {
         if (presetSelectButton != null) {
-            setTextIfChanged(presetSelectButton, editingPreset.name);
+            setTextIfChanged(presetSelectButton, presetDisplayName(runningPreset));
         }
         if (undoButton != null) {
             styleButton(undoButton, false, !undoStack.isEmpty() && supported);
