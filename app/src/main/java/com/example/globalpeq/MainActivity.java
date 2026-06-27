@@ -130,6 +130,7 @@ public final class MainActivity extends Activity {
     private TextView virtualBassTitleView;
     private TextView extraBassTitleView;
     private FrameLayout topControlOverlay;
+    private FrameLayout monitoredAppIconOverlay;
     private TextView statusText;
     private TextView engineStatusValueView;
     private TextView engineStatusTitleView;
