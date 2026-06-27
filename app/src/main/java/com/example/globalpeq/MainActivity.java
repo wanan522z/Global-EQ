@@ -843,14 +843,6 @@ public final class MainActivity extends Activity {
                 FrameLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        monitoredAppIconOverlay = new FrameLayout(this);
-        monitoredAppIconOverlay.setClipChildren(false);
-        monitoredAppIconOverlay.setClipToPadding(false);
-        top.addView(monitoredAppIconOverlay, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-        ));
-
         modeSpinner = new GlowTitleTextView(this);
         modeSpinner.setTextSize(16);
         modeSpinner.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -906,7 +898,6 @@ public final class MainActivity extends Activity {
                 monitoredAppIconHostSizePx(),
                 monitoredAppIconHostSizePx());
         iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
-        monitoredAppIconOverlay.addView(monitoredAppIconView, iconParams);
 
         enabledSwitch = new Switch(this);
         enabledSwitch.setText("");
