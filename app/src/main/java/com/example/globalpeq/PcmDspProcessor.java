@@ -434,7 +434,7 @@ final class PcmDspProcessor {
             float size = clamp01(sizePercent / 100f);
             float decay = clamp01(decayPercent / 100f);
             float mix = clamp01(mixPercent / 100f);
-            wetMix = "Default".equals(type) ? 0f : mix;
+            wetMix = "Default".equals(type) ? 0f : Math.min(0.55f, mix);
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
 
             reverbCore.configure(ReverbProfile.forType(type), size, decay);
@@ -459,15 +459,17 @@ final class PcmDspProcessor {
                 float rightIn = preDelayProcess(rightDry, Math.min(1, preDelayIndices.length - 1));
                 reverbCore.process(leftIn, rightIn, wetFrame);
 
-                float wetLeft = wetFrame[0];
-                float wetRight = channelCount > 1 ? wetFrame[1] : 0.5f * (wetFrame[0] + wetFrame[1]);
+                float wetLeft = softSaturate(wetFrame[0] * 0.82f);
+                float wetRight = channelCount > 1
+                        ? softSaturate(wetFrame[1] * 0.82f)
+                        : softSaturate((wetFrame[0] + wetFrame[1]) * 0.41f);
                 samples[frameOffset] = clampSample(leftDry * (1f - wetMix) + wetLeft * wetMix);
                 if (channelCount > 1) {
                     samples[frameOffset + 1] = clampSample(rightDry * (1f - wetMix) + wetRight * wetMix);
                 }
                 for (int channel = 2; channel < channelCount; channel++) {
                     float dry = samples[frameOffset + channel];
-                    float wet = 0.5f * (wetLeft + wetRight);
+                    float wet = softSaturate((wetLeft + wetRight) * 0.5f);
                     samples[frameOffset + channel] = clampSample(dry * (1f - wetMix) + wet * wetMix);
                 }
             }
