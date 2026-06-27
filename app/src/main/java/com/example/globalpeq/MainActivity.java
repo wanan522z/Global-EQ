@@ -688,6 +688,12 @@ public final class MainActivity extends Activity {
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         if (event != null && event.getAction() == MotionEvent.ACTION_DOWN) {
+            if (shouldDismissEqEditOverlayOnTouch(event)) {
+                View focused = getCurrentFocus();
+                View tokenView = focused != null ? focused : activeEqEditOverlay;
+                closeKeyboard(tokenView);
+                return true;
+            }
             View focused = getCurrentFocus();
             if (shouldDismissKeyboardOnTouch(focused, event)) {
                 closeKeyboard(focused);
@@ -7737,6 +7743,13 @@ public final class MainActivity extends Activity {
             return false;
         }
         return isTouchOutsideView(focused, event);
+    }
+
+    private boolean shouldDismissEqEditOverlayOnTouch(MotionEvent event) {
+        if (activeEqEditOverlay == null || event == null) {
+            return false;
+        }
+        return isTouchOutsideView(activeEqEditOverlay, event);
     }
 
     private boolean isTouchOutsideView(View view, MotionEvent event) {
