@@ -242,8 +242,12 @@ final class PresetRepository {
     }
 
     void savePreset(AudioOutputDevice device, Preset preset) {
+        savePreset(device, ProcessingMode.SYSTEM_EQ, preset);
+    }
+
+    void savePreset(AudioOutputDevice device, ProcessingMode mode, Preset preset) {
         prefs.edit()
-                .putString(deviceKey(device), preset.toJson())
+                .putString(deviceKey(device, mode), stripRuntimeEnabled(preset).toJson())
                 .putString(LAST_DEVICE_KEY, device.key)
                 .putString(LAST_DEVICE_LABEL, device.label)
                 .apply();
@@ -253,7 +257,7 @@ final class PresetRepository {
         Set<String> names = new HashSet<>(prefs.getStringSet(NAMED_PRESETS, Collections.emptySet()));
         names.add(preset.name);
         prefs.edit()
-                .putString(namedPresetKey(preset.name), preset.toJson())
+                .putString(namedPresetKey(preset.name), stripRuntimeEnabled(preset).toJson())
                 .putStringSet(NAMED_PRESETS, names)
                 .commit();
     }
@@ -264,7 +268,7 @@ final class PresetRepository {
         names.add(renamedPreset.name);
         prefs.edit()
                 .remove(namedPresetKey(oldName))
-                .putString(namedPresetKey(renamedPreset.name), renamedPreset.toJson())
+                .putString(namedPresetKey(renamedPreset.name), stripRuntimeEnabled(renamedPreset).toJson())
                 .putStringSet(NAMED_PRESETS, names)
                 .commit();
     }
@@ -279,7 +283,7 @@ final class PresetRepository {
     }
 
     Preset loadNamedPreset(String name) {
-        return Preset.fromJson(prefs.getString(namedPresetKey(name), null));
+        return stripRuntimeEnabled(Preset.fromJson(prefs.getString(namedPresetKey(name), null)));
     }
 
     List<String> loadNamedPresetNames() {
