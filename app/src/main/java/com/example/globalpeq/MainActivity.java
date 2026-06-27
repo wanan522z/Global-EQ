@@ -3626,15 +3626,33 @@ public final class MainActivity extends Activity {
     }
 
     private void renderRows() {
-        rows.removeAllViews();
+        if (rows == null || editingPreset == null) {
+            return;
+        }
         if (editingPreset.mode == EqMode.GEQ) {
+            lastRenderedRowsMode = EqMode.GEQ;
+            lastRenderedRowsBandCount = Preset.GEQ_BAND_COUNT;
+            rows.removeAllViews();
             rows.addView(createGeqSliderPanel());
             return;
         }
-        for (int i = 0; i < editingPreset.bands.length; i++) {
-            rows.addView(createBandRow(i));
+        boolean canReuseRows = lastRenderedRowsMode == EqMode.PEQ
+                && lastRenderedRowsBandCount == editingPreset.bands.length
+                && rows.getChildCount() == editingPreset.bands.length + 1
+                && hasReusablePeqRows();
+        lastRenderedRowsMode = EqMode.PEQ;
+        lastRenderedRowsBandCount = editingPreset.bands.length;
+        if (!canReuseRows) {
+            rows.removeAllViews();
+            for (int i = 0; i < editingPreset.bands.length; i++) {
+                rows.addView(createBandRow(i));
+            }
+            rows.addView(createAddBandRow());
+            return;
         }
-        rows.addView(createAddBandRow());
+        for (int i = 0; i < editingPreset.bands.length; i++) {
+            updateBandRowInPlace((LinearLayout) rows.getChildAt(i), i);
+        }
     }
 
     private View createGeqSliderPanel() {
