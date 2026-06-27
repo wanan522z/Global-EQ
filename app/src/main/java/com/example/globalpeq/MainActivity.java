@@ -6635,7 +6635,7 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, IntChanged listener) {
-        return createReverbSlider(label, min, max, value, suffix, 1f, 0, listener);
+        return createReverbSlider(label, min, max, value, suffix, 1f, 0, false, listener);
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, IntChanged listener) {
