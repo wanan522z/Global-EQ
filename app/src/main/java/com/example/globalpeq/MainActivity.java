@@ -3033,7 +3033,7 @@ public final class MainActivity extends Activity {
             }
             float switchLeft = switchRect.left - overlayRect.left;
             float centerX = (titleTextRight + switchLeft) * 0.5f;
-            float x = centerX - iconWidth / 2f + dp(3);
+            float x = centerX - iconWidth / 2f + dp(8);
             x = Math.max(0f, Math.min(x, topControlOverlay.getWidth() - iconWidth));
             float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
