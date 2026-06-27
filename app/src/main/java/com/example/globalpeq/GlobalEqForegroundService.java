@@ -19,6 +19,11 @@ public final class GlobalEqForegroundService extends Service {
     static final String ACTION_PAUSE_SHIZUKU = "com.example.globalpeq.PAUSE_SHIZUKU";
     static final String EXTRA_CAPTURE_RESULT_CODE = "capture_result_code";
     static final String EXTRA_CAPTURE_DATA = "capture_result_data";
+    static final String EXTRA_PRESET_JSON = "preset_json";
+    static final String EXTRA_DEVICE_KEY = "device_key";
+    static final String EXTRA_DEVICE_LABEL = "device_label";
+    static final String EXTRA_PROCESSING_MODE = "processing_mode";
+    static final String EXTRA_ADVANCED_MODE_CONFIG_JSON = "advanced_mode_config_json";
     private static final String CHANNEL_ID = "global_eq";
     private static final int NOTIFICATION_ID = 10;
     private static final long CAPTURE_UPDATE_DEBOUNCE_MS = 350L;
@@ -32,6 +37,8 @@ public final class GlobalEqForegroundService extends Service {
     private Handler captureControlHandler;
     private AudioOutputDevice currentDevice = new AudioOutputDevice("none", "Output device");
     private Preset currentPreset = Preset.flat(false);
+    private ProcessingMode currentProcessingMode = ProcessingMode.SYSTEM_EQ;
+    private AdvancedModeConfig currentAdvancedModeConfig = AdvancedModeConfig.DEFAULT;
     private boolean awaitingInitialDeviceMonitorEvent;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
@@ -63,6 +70,8 @@ public final class GlobalEqForegroundService extends Service {
         super.onCreate();
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
+        currentProcessingMode = repository.loadProcessingMode();
+        currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
         captureEngine = new PlaybackCaptureEngine(this, repository, this::updateNotification);
         shizukuMuteEngine = new ShizukuSessionMuteEngine(
                 this,
@@ -98,18 +107,19 @@ public final class GlobalEqForegroundService extends Service {
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             currentPreset = repository.loadPreset(device);
-            ProcessingMode processingMode = repository.loadProcessingMode();
+            currentProcessingMode = repository.loadProcessingMode();
+            currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
             int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
-            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, processingMode, virtualBassModeIndex);
+            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, currentProcessingMode, virtualBassModeIndex);
             if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset);
             } else {
                 engine.applyWithFullReset(effectivePreset);
             }
             scheduleCaptureUpdate(
-                    processingMode,
+                    currentProcessingMode,
                     currentPreset,
-                    repository.loadAdvancedModeConfig(),
+                    currentAdvancedModeConfig,
                     virtualBassModeIndex,
                     currentDevice,
                     CAPTURE_UPDATE_DEBOUNCE_MS);
@@ -131,8 +141,10 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             startForegroundInternal(captureEngine.hasProjection());
         }
-        Preset preset = applySavedPreset();
-        ProcessingMode processingMode = repository.loadProcessingMode();
+        Preset preset = ACTION_APPLY.equals(action) && applyStateFromIntent(intent)
+                ? applyCurrentPresetState()
+                : applySavedPreset();
+        ProcessingMode processingMode = currentProcessingMode;
         if (!preset.enabled) {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
                 requestPauseShizukuAndStopService();
@@ -169,30 +181,63 @@ public final class GlobalEqForegroundService extends Service {
 
     private Preset applySavedPreset() {
         Preset preset = refreshSavedPresetState();
-        ProcessingMode processingMode = repository.loadProcessingMode();
-        int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
-        engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
-                currentPreset,
-                processingMode,
-                virtualBassModeIndex));
-        scheduleCaptureUpdate(
-                processingMode,
-                currentPreset,
-                repository.loadAdvancedModeConfig(),
-                virtualBassModeIndex,
-                currentDevice,
-                0L);
-        return preset;
+        return applyCurrentPresetState();
     }
 
     private Preset refreshSavedPresetState() {
         AudioOutputDevice selected = repository.loadSelectedDevice();
         currentDevice = selected == null ? deviceMonitor.currentOutputDevice() : selected;
         repository.saveSelectedDevice(currentDevice);
-        Preset preset = repository.loadPreset(currentDevice);
-        currentPreset = preset;
+        currentPreset = repository.loadPreset(currentDevice);
+        currentProcessingMode = repository.loadProcessingMode();
+        currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
         updateNotification();
-        return preset;
+        return currentPreset;
+    }
+
+    private Preset applyCurrentPresetState() {
+        if (currentPreset == null) {
+            currentPreset = Preset.flat(false);
+        }
+        if (currentDevice == null) {
+            currentDevice = deviceMonitor.currentOutputDevice();
+        }
+        int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
+        engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
+                currentPreset,
+                currentProcessingMode,
+                virtualBassModeIndex));
+        scheduleCaptureUpdate(
+                currentProcessingMode,
+                currentPreset,
+                currentAdvancedModeConfig,
+                virtualBassModeIndex,
+                currentDevice,
+                0L);
+        updateNotification();
+        return currentPreset;
+    }
+
+    private boolean applyStateFromIntent(Intent intent) {
+        if (intent == null) {
+            return false;
+        }
+        String presetJson = intent.getStringExtra(EXTRA_PRESET_JSON);
+        if (presetJson == null || presetJson.trim().isEmpty()) {
+            return false;
+        }
+        currentPreset = Preset.fromJson(presetJson);
+        String deviceKey = intent.getStringExtra(EXTRA_DEVICE_KEY);
+        String deviceLabel = intent.getStringExtra(EXTRA_DEVICE_LABEL);
+        if (deviceKey != null && !deviceKey.trim().isEmpty()
+                && deviceLabel != null && !deviceLabel.trim().isEmpty()) {
+            currentDevice = new AudioOutputDevice(deviceKey, deviceLabel);
+        }
+        currentProcessingMode = ProcessingMode.fromKey(intent.getStringExtra(EXTRA_PROCESSING_MODE));
+        currentAdvancedModeConfig = AdvancedModeConfig.fromJson(
+                intent.getStringExtra(EXTRA_ADVANCED_MODE_CONFIG_JSON));
+        updateNotification();
+        return true;
     }
 
     private void updateNotification() {
@@ -216,7 +261,7 @@ public final class GlobalEqForegroundService extends Service {
                 : new Notification.Builder(this);
 
         String state = currentPreset.enabled ? "Global PEQ on" : "Global PEQ off";
-        ProcessingMode mode = repository.loadProcessingMode();
+        ProcessingMode mode = currentProcessingMode;
         String content;
         if (mode == ProcessingMode.SHIZUKU_MUTE) {
             content = repository.loadShizukuMuteStatus();
