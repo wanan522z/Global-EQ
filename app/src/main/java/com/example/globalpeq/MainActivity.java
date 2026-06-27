@@ -404,6 +404,13 @@ public final class MainActivity extends Activity {
     private boolean monitorSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
     private String activePlaybackPackageName = "";
+    private String lastDeviceSpinnerSignature = "";
+    private String lastDeviceSpinnerSelectedKey = "";
+    private String lastSavedPresetSpinnerSignature = "";
+    private String lastSavedPresetSpinnerSelectedName = "";
+    private EqMode lastRenderedHeaderMode;
+    private EqMode lastRenderedRowsMode;
+    private int lastRenderedRowsBandCount = -1;
     private boolean pendingEditingPresetPersistence;
     private boolean pendingRunningPresetPersistence;
     private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
@@ -423,7 +430,7 @@ public final class MainActivity extends Activity {
             if (!monitorSettingsOpen) {
                 return;
             }
-            renderAll();
+            refreshMonitorStatusViews();
             uiHandler.postDelayed(this, 900L);
         }
     };
@@ -435,6 +442,7 @@ public final class MainActivity extends Activity {
         EditText frequency;
         EditText gain;
         EditText q;
+        View delete;
     }
 
     private static final class InstalledAppEntry {
