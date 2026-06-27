@@ -120,6 +120,7 @@ public final class MainActivity extends Activity {
     private KnobView cutoffKnob;
     private KnobView amountKnob;
     private HorizontalBassSlider virtualBassSlider;
+    private VerticalReverbSlider reverbMainSlider;
     private VerticalReverbSlider reverbDecaySlider;
     private VerticalReverbSlider reverbPredelaySlider;
     private VerticalReverbSlider reverbSizeSlider;
@@ -6262,6 +6263,7 @@ public final class MainActivity extends Activity {
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(virtualBassTitleView);
         syncExtraSectionTitleVisual(extraBassTitleView);
+        updateReverbControl(reverbMainSlider, editingPreset.reverbMainMb, reverbAllowed);
         updateReverbControl(reverbDecaySlider, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelaySlider, editingPreset.reverbPredelayMs, reverbEnabled);
         updateReverbControl(reverbSizeSlider, editingPreset.reverbSizePercent, reverbEnabled);
@@ -6421,14 +6423,16 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, value ->
-                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Size", 0, 100, editingPreset.reverbSizePercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Main", -12000, 300, editingPreset.reverbMainMb, "dB", 0.01f, 1, true, value ->
+                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, false, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", false, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Size", 0, 100, editingPreset.reverbSizePercent, "%", false, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Mix", 0, 100, editingPreset.reverbMixPercent, "%", false, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
