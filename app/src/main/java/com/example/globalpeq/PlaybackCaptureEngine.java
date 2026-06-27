@@ -38,8 +38,9 @@ final class PlaybackCaptureEngine {
     private static final int MIN_TRACK_LATENCY_MS = 40;
     private static final int MIN_PROCESSING_CHUNK_FRAMES = 256;
     private static final int MAX_PROCESSING_CHUNK_FRAMES = 2048;
-    private static final int MAX_BLUETOOTH_CHUNK_FRAMES = 768;
-    private static final int BLUETOOTH_PREFILL_CHUNKS = 3;
+    private static final int MAX_BLUETOOTH_CHUNK_FRAMES = 640;
+    private static final int BLUETOOTH_HEAVY_DSP_CHUNK_FRAMES = 384;
+    private static final int BLUETOOTH_PREFILL_CHUNKS = 4;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -347,7 +348,7 @@ final class PlaybackCaptureEngine {
                     : (heavyRealtimeDsp ? 4 : 2);
             int trackBufferBytes = Math.max(minTrackBytes * trackMultiplier,
                     latencyFrames * bytesPerFrame * (bluetoothOutput ? 4 : (heavyRealtimeDsp ? 3 : 2)));
-            trackBufferBytes = Math.max(trackBufferBytes, processingChunkFrames * bytesPerFrame * 6);
+            trackBufferBytes = Math.max(trackBufferBytes, processingChunkFrames * bytesPerFrame * (bluetoothOutput ? 8 : 6));
 
             AudioTrack.Builder trackBuilder = new AudioTrack.Builder()
                     .setAudioAttributes(buildTrackAttributesForCurrentMode())
@@ -667,7 +668,7 @@ final class PlaybackCaptureEngine {
             chunkFrames = chunkFrames / 2;
         }
         if (heavyRealtimeDsp) {
-            chunkFrames = Math.min(chunkFrames, bluetoothOutput ? 512 : 1024);
+            chunkFrames = Math.min(chunkFrames, bluetoothOutput ? BLUETOOTH_HEAVY_DSP_CHUNK_FRAMES : 1024);
         }
         return Math.max(MIN_PROCESSING_CHUNK_FRAMES, Math.min(upperBound, chunkFrames));
     }

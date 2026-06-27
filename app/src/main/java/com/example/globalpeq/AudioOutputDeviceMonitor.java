@@ -9,7 +9,13 @@ import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Looper;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 final class AudioOutputDeviceMonitor {
     interface Listener {
@@ -69,6 +75,27 @@ final class AudioOutputDeviceMonitor {
         return best == null ? new AudioOutputDevice("none", "No output device") : describe(best);
     }
 
+    List<AudioOutputDevice> availableOutputDevices() {
+        AudioDeviceInfo[] devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+        Map<String, AudioOutputDevice> ordered = new LinkedHashMap<>();
+        Set<String> seenLabels = new HashSet<>();
+        for (AudioDeviceInfo device : devices) {
+            if (device == null || !device.isSink() || !isSelectableOutput(device)) {
+                continue;
+            }
+            AudioOutputDevice described = describe(device);
+            if (!described.isDisplayable()) {
+                continue;
+            }
+            String labelKey = normalizeLabelKey(described.label);
+            if (!seenLabels.add(labelKey)) {
+                continue;
+            }
+            ordered.put(described.key, described);
+        }
+        return new ArrayList<>(ordered.values());
+    }
+
     String currentOutputLabel() {
         return currentOutputDevice().label;
     }
@@ -83,10 +110,34 @@ final class AudioOutputDeviceMonitor {
         switch (device.getType()) {
             case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
             case AudioDeviceInfo.TYPE_BLUETOOTH_SCO:
+            case AudioDeviceInfo.TYPE_BLE_HEADSET:
+            case AudioDeviceInfo.TYPE_BLE_SPEAKER:
+            case AudioDeviceInfo.TYPE_BLE_BROADCAST:
             case AudioDeviceInfo.TYPE_USB_DEVICE:
             case AudioDeviceInfo.TYPE_USB_HEADSET:
             case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
             case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean isSelectableOutput(AudioDeviceInfo device) {
+        if (device == null || !device.isSink()) {
+            return false;
+        }
+        switch (device.getType()) {
+            case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
+            case AudioDeviceInfo.TYPE_BLUETOOTH_SCO:
+            case AudioDeviceInfo.TYPE_BLE_HEADSET:
+            case AudioDeviceInfo.TYPE_BLE_SPEAKER:
+            case AudioDeviceInfo.TYPE_BLE_BROADCAST:
+            case AudioDeviceInfo.TYPE_USB_DEVICE:
+            case AudioDeviceInfo.TYPE_USB_HEADSET:
+            case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
+            case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+            case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
                 return true;
             default:
                 return false;
@@ -117,6 +168,12 @@ final class AudioOutputDeviceMonitor {
                 return "Bluetooth";
             case AudioDeviceInfo.TYPE_BLUETOOTH_SCO:
                 return "Bluetooth SCO";
+            case AudioDeviceInfo.TYPE_BLE_HEADSET:
+                return "BLE headset";
+            case AudioDeviceInfo.TYPE_BLE_SPEAKER:
+                return "BLE speaker";
+            case AudioDeviceInfo.TYPE_BLE_BROADCAST:
+                return "BLE audio";
             case AudioDeviceInfo.TYPE_USB_DEVICE:
                 return "USB DAC";
             case AudioDeviceInfo.TYPE_USB_HEADSET:
@@ -128,5 +185,12 @@ final class AudioOutputDeviceMonitor {
             default:
                 return "Output " + type;
         }
+    }
+
+    private String normalizeLabelKey(String label) {
+        if (label == null) {
+            return "";
+        }
+        return label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
     }
 }

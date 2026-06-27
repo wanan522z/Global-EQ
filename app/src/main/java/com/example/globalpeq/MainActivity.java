@@ -109,6 +109,90 @@ public final class MainActivity extends Activity {
     private static final String[] VIRTUAL_BASS_MODE_LABELS = {"Default", "System", "DSP"};
     private static final String UI_LANGUAGE_EN = "en";
     private static final String UI_LANGUAGE_ZH = "zh";
+    private static final SliderValueMapper LINEAR_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            return (value - min) / Math.max(1f, max - min);
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            return Math.round(min + (max - min) * fraction);
+        }
+    };
+    private static final SliderValueMapper REVERB_MAIN_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= -300) {
+                float tailRange = Math.max(1f, -300f - min);
+                return Math.max(0f, Math.min(tailRange, value - min)) / tailRange * 0.2f;
+            }
+            return 0.2f + Math.max(0f, Math.min(600f, value + 300f)) / 600f * 0.8f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.2f) {
+                return clamp(Math.round(min + (t / 0.2f) * (-300f - min)), min, max);
+            }
+            return clamp(Math.round(-300f + ((t - 0.2f) / 0.8f) * 600f), min, max);
+        }
+    };
+    private static final SliderValueMapper REVERB_DECAY_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= 400) {
+                return Math.max(0f, Math.min(400f, value)) / 400f * 0.6f;
+            }
+            return 0.6f + Math.max(0f, Math.min(max - 400f, value - 400f)) / Math.max(1f, max - 400f) * 0.4f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.6f) {
+                return clamp(Math.round((t / 0.6f) * 400f), min, max);
+            }
+            return clamp(Math.round(400f + ((t - 0.6f) / 0.4f) * (max - 400f)), min, max);
+        }
+    };
+    private static final SliderValueMapper REVERB_MIX_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= 50) {
+                return Math.max(0f, Math.min(50f, value)) / 50f * 0.3f;
+            }
+            return 0.3f + Math.max(0f, Math.min(max - 50f, value - 50f)) / Math.max(1f, max - 50f) * 0.7f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.3f) {
+                return clamp(Math.round((t / 0.3f) * 50f), min, max);
+            }
+            return clamp(Math.round(50f + ((t - 0.3f) / 0.7f) * (max - 50f)), min, max);
+        }
+    };
+    private static final SliderValueMapper REVERB_PREDELAY_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= 50) {
+                return Math.max(0f, Math.min(50f, value)) / 50f * 0.5f;
+            }
+            return 0.5f + Math.max(0f, Math.min(max - 50f, value - 50f)) / Math.max(1f, max - 50f) * 0.5f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.5f) {
+                return clamp(Math.round((t / 0.5f) * 50f), min, max);
+            }
+            return clamp(Math.round(50f + ((t - 0.5f) / 0.5f) * (max - 50f)), min, max);
+        }
+    };
 
     private PresetRepository repository;
     private GlobalEqualizerEngine engine;
@@ -3470,6 +3554,31 @@ public final class MainActivity extends Activity {
         }
 
         deviceChoices = repository.loadKnownDevices();
+        if (deviceMonitor != null) {
+            List<AudioOutputDevice> liveDevices = deviceMonitor.availableOutputDevices();
+            if (!liveDevices.isEmpty()) {
+                List<AudioOutputDevice> mergedChoices = new ArrayList<>(deviceChoices);
+                for (AudioOutputDevice liveDevice : liveDevices) {
+                    boolean exists = false;
+                    String liveLabelKey = liveDevice.label == null
+                            ? ""
+                            : liveDevice.label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
+                    for (AudioOutputDevice knownDevice : mergedChoices) {
+                        String knownLabelKey = knownDevice.label == null
+                                ? ""
+                                : knownDevice.label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
+                        if (knownDevice.key.equals(liveDevice.key) || knownLabelKey.equals(liveLabelKey)) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        mergedChoices.add(liveDevice);
+                    }
+                }
+                deviceChoices = mergedChoices;
+            }
+        }
         boolean hasCurrent = false;
         for (AudioOutputDevice device : deviceChoices) {
             if (device.key.equals(currentDevice.key)) {
@@ -6720,15 +6829,15 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbSlider("Main", -12000, 300, editingPreset.reverbMainMb, "dB", 0.01f, 1, true, value ->
+        reverbKnobs.addView(createReverbSlider("Main", -12000, 300, editingPreset.reverbMainMb, "dB", 0.01f, 1, true, REVERB_MAIN_SLIDER_MAPPER, value ->
                 setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, false, value ->
+        reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, false, REVERB_DECAY_SLIDER_MAPPER, value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", false, value ->
+        reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", 1f, 0, false, REVERB_PREDELAY_SLIDER_MAPPER, value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Size", 0, 100, editingPreset.reverbSizePercent, "%", false, value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Mix", 0, 100, editingPreset.reverbMixPercent, "%", false, value ->
+        reverbKnobs.addView(createReverbSlider("Mix", 0, 100, editingPreset.reverbMixPercent, "%", 1f, 0, false, REVERB_MIX_SLIDER_MAPPER, value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
@@ -6932,18 +7041,31 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, IntChanged listener) {
-        return createReverbSlider(label, min, max, value, suffix, 1f, 0, false, listener);
+        return createReverbSlider(label, min, max, value, suffix, 1f, 0, false, LINEAR_SLIDER_MAPPER, listener);
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, IntChanged listener) {
-        return createReverbSlider(label, min, max, value, suffix, displayScale, displayDecimals, false, listener);
+        return createReverbSlider(label, min, max, value, suffix, displayScale, displayDecimals, false, LINEAR_SLIDER_MAPPER, listener);
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, boolean negativeInfinityAtMin, IntChanged listener) {
-        return createReverbSlider(label, min, max, value, suffix, 1f, 0, negativeInfinityAtMin, listener);
+        return createReverbSlider(label, min, max, value, suffix, 1f, 0, negativeInfinityAtMin, LINEAR_SLIDER_MAPPER, listener);
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin, LINEAR_SLIDER_MAPPER, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label,
+                                            int min,
+                                            int max,
+                                            int value,
+                                            String suffix,
+                                            float displayScale,
+                                            int displayDecimals,
+                                            boolean negativeInfinityAtMin,
+                                            SliderValueMapper mapper,
+                                            IntChanged listener) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
@@ -6951,7 +7073,8 @@ public final class MainActivity extends Activity {
         column.setClipToPadding(false);
 
         VerticalReverbSlider slider = new VerticalReverbSlider(this);
-        slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin, listener::onChanged);
+        slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin,
+                mapper == null ? LINEAR_SLIDER_MAPPER : mapper, listener::onChanged);
         // 强制方形：弧形填满 view，标题紧贴弧形下方
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(4);
@@ -7517,6 +7640,11 @@ public final class MainActivity extends Activity {
         void onChanged(float value);
     }
 
+    private interface SliderValueMapper {
+        float valueToFraction(int value, int min, int max);
+        int fractionToValue(float fraction, int min, int max);
+    }
+
     private interface ChoiceCallback {
         void onChoice(int position);
     }
@@ -7861,6 +7989,7 @@ public final class MainActivity extends Activity {
         private String suffix = "";
         private String label = "";
         private KnobView.Listener listener;
+        private SliderValueMapper mapper = LINEAR_SLIDER_MAPPER;
         private float touchStartX;
         private float touchStartY;
         private boolean adjusting;
@@ -7874,14 +8003,18 @@ public final class MainActivity extends Activity {
         }
 
         void configure(String label, int min, int max, int value, String suffix, KnobView.Listener listener) {
-            configure(label, min, max, value, suffix, 1f, 0, false, listener);
+            configure(label, min, max, value, suffix, 1f, 0, false, LINEAR_SLIDER_MAPPER, listener);
         }
 
         void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, KnobView.Listener listener) {
-            configure(label, min, max, value, suffix, displayScale, displayDecimals, false, listener);
+            configure(label, min, max, value, suffix, displayScale, displayDecimals, false, LINEAR_SLIDER_MAPPER, listener);
         }
 
         void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, KnobView.Listener listener) {
+            configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin, LINEAR_SLIDER_MAPPER, listener);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, SliderValueMapper mapper, KnobView.Listener listener) {
             this.label = label == null ? "" : label;
             this.min = min;
             this.max = max;
@@ -7890,6 +8023,7 @@ public final class MainActivity extends Activity {
             this.displayDecimals = Math.max(0, displayDecimals);
             this.negativeInfinityAtMin = negativeInfinityAtMin;
             this.resetValue = clamp(negativeInfinityAtMin ? 0 : min, min, max);
+            this.mapper = mapper == null ? LINEAR_SLIDER_MAPPER : mapper;
             this.listener = listener;
             setValue(value, false);
         }
@@ -7954,14 +8088,20 @@ public final class MainActivity extends Activity {
         }
 
         private float valueToY() {
-            float t = (value - min) / Math.max(1f, max - min);
+            float t = Math.max(0f, Math.min(1f, mapper.valueToFraction(value, min, max)));
             return trackBottom() - (trackBottom() - trackTop()) * t;
         }
 
         private int yToValue(float y) {
             float t = (trackBottom() - clampFloat(y, trackTop(), trackBottom()))
                     / Math.max(1f, trackBottom() - trackTop());
-            return Math.round(min + (max - min) * t);
+            return mapper.fractionToValue(t, min, max);
+        }
+
+        private void commitCurrentValue() {
+            if (listener != null) {
+                listener.onValueChanged(value);
+            }
         }
 
         @Override
@@ -8058,14 +8198,17 @@ public final class MainActivity extends Activity {
                         getParent().requestDisallowInterceptTouchEvent(true);
                     }
                     if (adjusting) {
-                        setValue(yToValue(event.getY()), true);
+                        setValue(yToValue(event.getY()), false);
                     }
                     return true;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     getParent().requestDisallowInterceptTouchEvent(false);
                     if (adjusting) {
-                        setValue(yToValue(event.getY()), true);
+                        setValue(yToValue(event.getY()), false);
+                        if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                            commitCurrentValue();
+                        }
                     } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
                         float endX = event.getX();
                         float endY = event.getY();
@@ -8074,7 +8217,8 @@ public final class MainActivity extends Activity {
                             long now = android.os.SystemClock.uptimeMillis();
                             float tapDist = (float) Math.hypot(endX - lastTapX, endY - lastTapY);
                             if (now - lastTapTime < 300 && tapDist < dpf(30f)) {
-                                setValue(resetValue, true);
+                                setValue(resetValue, false);
+                                commitCurrentValue();
                                 lastTapTime = 0L;
                             } else if (endY <= dpf(24f) || endY >= getHeight() - dpf(22f)) {
                                 lastTapTime = now;
@@ -8145,6 +8289,12 @@ public final class MainActivity extends Activity {
             this.label = label == null ? "" : label;
             this.listener = listener;
             setValue(value, false);
+        }
+
+        private void commitCurrentValue() {
+            if (listener != null) {
+                listener.onValueChanged(value);
+            }
         }
 
         void setLabel(String label) {
@@ -8309,19 +8459,25 @@ public final class MainActivity extends Activity {
                         getParent().requestDisallowInterceptTouchEvent(true);
                     }
                     if (adjusting) {
-                        setValue(xToValue(event.getX()), true);
+                        setValue(xToValue(event.getX()), false);
+                        if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                            commitCurrentValue();
+                        }
                     }
                     return true;
                 case android.view.MotionEvent.ACTION_UP:
                 case android.view.MotionEvent.ACTION_CANCEL:
                     getParent().requestDisallowInterceptTouchEvent(false);
                     if (adjusting) {
-                        setValue(xToValue(event.getX()), true);
+                        setValue(xToValue(event.getX()), false);
                     } else {
                         // tap thumb 区域直接跳转
                         float thumbX = valueToX();
                         if (Math.abs(event.getX() - thumbX) < dpf(20f)) {
-                            setValue(xToValue(event.getX()), true);
+                            setValue(xToValue(event.getX()), false);
+                            if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                                commitCurrentValue();
+                            }
                         }
                     }
                     adjusting = false;

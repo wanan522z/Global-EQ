@@ -332,11 +332,11 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, octaveHigh, 0, 75),
                     sampleRate);
 
-            harmonicMix = safeAmount * (0.62f + dspAmount * 0.4f + virtualAmount * 0.15f);
-            octaveMix = safeAmount * (0.4f + dspAmount * 0.28f + virtualAmount * 0.1f);
-            drive = 1.24f + safeAmount * 2.25f + dspAmount * 0.52f;
-            harmonicCeiling = 0.34f + safeAmount * 0.06f;
-            octaveCeiling = 0.26f + safeAmount * 0.05f;
+            harmonicMix = safeAmount * (0.72f + dspAmount * 0.5f + virtualAmount * 0.18f);
+            octaveMix = safeAmount * (0.48f + dspAmount * 0.34f + virtualAmount * 0.12f);
+            drive = 1.28f + safeAmount * 2.35f + dspAmount * 0.58f;
+            harmonicCeiling = 0.37f + safeAmount * 0.07f;
+            octaveCeiling = 0.29f + safeAmount * 0.06f;
             envelope = 0f;
             dcReject = 0f;
         }
@@ -370,10 +370,10 @@ final class PcmDspProcessor {
                 float odd = driven / (1.0f + Math.abs(driven) * 1.35f);
                 float harm = 0.8f * even + 0.2f * odd;
                 float dynamic = 0.88f + Math.min(1f, envelope * 6.8f) * 0.36f;
-                harmonicBand[frame] = softLimit((harm - dcReject) * dynamic * 1.08f, harmonicCeiling);
+                harmonicBand[frame] = softLimit((harm - dcReject) * dynamic * 1.14f, harmonicCeiling);
                 dcReject += (harm - dcReject) * 0.014f;
-                float doubled = Math.abs(driven) * (1.0f + 0.24f * odd);
-                octaveBand[frame] = softLimit((doubled - dcReject) * (0.7f + dynamic * 0.2f), octaveCeiling);
+                float doubled = Math.abs(driven) * (1.0f + 0.28f * odd);
+                octaveBand[frame] = softLimit((doubled - dcReject) * (0.76f + dynamic * 0.22f), octaveCeiling);
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
@@ -405,7 +405,11 @@ final class PcmDspProcessor {
 
         private static float softLimit(float value, float ceiling) {
             float safeCeiling = Math.max(0.05f, ceiling);
-            return (float) Math.tanh(value / safeCeiling) * safeCeiling;
+            float normalized = value / safeCeiling;
+            if (Math.abs(normalized) < 0.82f) {
+                return value;
+            }
+            return fastTanh(normalized) * safeCeiling;
         }
     }
 
@@ -660,7 +664,11 @@ final class PcmDspProcessor {
 
         private static float softLimit(float value, float ceiling) {
             float safe = Math.max(0.5f, ceiling);
-            return (float) Math.tanh(value / safe) * safe;
+            float normalized = value / safe;
+            if (Math.abs(normalized) < 0.9f) {
+                return value;
+            }
+            return fastTanh(normalized) * safe;
         }
     }
 
@@ -1136,15 +1144,17 @@ final class PcmDspProcessor {
         }
     }
 
-    private static final class ModulatedDelay {
+        private static final class ModulatedDelay {
         private static final float TWO_PI = (float) (Math.PI * 2.0);
         private final float[] buffer;
         private final int sampleRate;
         private int writeIndex;
         private float delaySamples;
         private float modDepthSamples;
-        private float phase;
-        private float phaseIncrement;
+        private float oscSin;
+        private float oscCos;
+        private float sinStep = 1f;
+        private float cosStep = 1f;
         private boolean active = true;
 
         ModulatedDelay(int sampleRate, float maxDelayMs) {
@@ -1158,14 +1168,24 @@ final class PcmDspProcessor {
             modDepthSamples = active
                     ? clamp(modDepthMs * sampleRate / 1000f, 0f, Math.min(2.8f, delaySamples * 0.08f))
                     : 0f;
-            phase = active ? phaseOffset : 0f;
-            phaseIncrement = active ? (float) (2.0 * Math.PI * modRateHz / sampleRate) : 0f;
+            if (active && modDepthSamples > 0f) {
+                float phaseIncrement = (float) (2.0 * Math.PI * modRateHz / sampleRate);
+                oscSin = (float) Math.sin(phaseOffset);
+                oscCos = (float) Math.cos(phaseOffset);
+                sinStep = (float) Math.sin(phaseIncrement);
+                cosStep = (float) Math.cos(phaseIncrement);
+            } else {
+                oscSin = 0f;
+                oscCos = 1f;
+                sinStep = 0f;
+                cosStep = 1f;
+            }
             Arrays.fill(buffer, 0f);
             writeIndex = 0;
         }
 
         float read() {
-            float modulation = active ? (float) Math.sin(phase) * modDepthSamples : 0f;
+            float modulation = (active && modDepthSamples > 0f) ? oscSin * modDepthSamples : 0f;
             float readPos = writeIndex - delaySamples - modulation;
             readPos = wrapReadPosition(readPos, buffer.length);
             int indexA = Math.min(buffer.length - 1, (int) readPos);
@@ -1191,10 +1211,10 @@ final class PcmDspProcessor {
                 writeIndex = 0;
             }
             if (active && modDepthSamples > 0f) {
-                phase += phaseIncrement;
-                if (phase >= TWO_PI) {
-                    phase -= TWO_PI;
-                }
+                float nextSin = oscSin * cosStep + oscCos * sinStep;
+                float nextCos = oscCos * cosStep - oscSin * sinStep;
+                oscSin = nextSin;
+                oscCos = nextCos;
             }
         }
 
@@ -1202,10 +1222,10 @@ final class PcmDspProcessor {
             if (!Float.isFinite(readPos) || bufferLength <= 0) {
                 return 0f;
             }
-            while (readPos < 0f) {
+            if (readPos < 0f) {
                 readPos += bufferLength;
             }
-            while (readPos >= bufferLength) {
+            if (readPos >= bufferLength) {
                 readPos -= bufferLength;
             }
             return readPos;
@@ -1352,7 +1372,17 @@ final class PcmDspProcessor {
     }
 
     private static float softSaturate(float value) {
-        return finiteOrZero((float) Math.tanh(value * 0.92f));
+        float abs = Math.abs(value);
+        if (abs < 0.88f) {
+            return value;
+        }
+        return finiteOrZero(fastTanh(value * 0.92f));
+    }
+
+    private static float fastTanh(float value) {
+        float x = clamp(value, -3f, 3f);
+        float x2 = x * x;
+        return x * (27f + x2) / (27f + 9f * x2);
     }
 
     private static float finiteOrZero(float value) {
