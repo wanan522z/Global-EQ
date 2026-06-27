@@ -3823,6 +3823,7 @@ public final class MainActivity extends Activity {
         delete.setEnabled(supported && editingPreset.bands.length > 1);
         delete.setBackground(deleteSymbolDrawable(delete.isEnabled()));
         delete.setOnClickListener(v -> confirmDeleteBand(index));
+        holder.delete = delete;
         row.addView(wrapCircularButton(delete, 0.35f, 22, 3, 0, 1));
 
         applyBandRowVisualState(row, index);
