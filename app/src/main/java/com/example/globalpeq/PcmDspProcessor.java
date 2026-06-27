@@ -16,7 +16,6 @@ final class PcmDspProcessor {
     private float effectHeadroom = 1f;
     private PsychoacousticBassProcessor psychoacousticBass = new PsychoacousticBassProcessor(48000, 2);
     private AlgorithmicReverb reverb = new AlgorithmicReverb(48000, 2);
-    private LookaheadLimiter limiter = new LookaheadLimiter(48000, 2);
 
     void configure(Preset preset, int nextSampleRate, int nextChannelCount) {
         configure(preset, nextSampleRate, nextChannelCount, false, AdvancedModeConfig.DEFAULT);
@@ -80,8 +79,6 @@ final class PcmDspProcessor {
                     preset.reverbMixPercent,
                     preset.reverbMainMb,
                     false);
-            limiter = new LookaheadLimiter(sampleRate, channelCount);
-            limiter.configure(safeConfig.lookaheadMs, safeConfig.latencyMs);
         }
     }
 
@@ -105,7 +102,6 @@ final class PcmDspProcessor {
             Log.e(TAG, "Reverb processing failed, resetting reverb state", e);
             reverb = new AlgorithmicReverb(sampleRate, channelCount);
         }
-        limiter.process(samples, sampleCount, channelCount);
         for (int i = 0; i < sampleCount; i++) {
             samples[i] = clampSample(finiteOrZero(samples[i]));
         }
