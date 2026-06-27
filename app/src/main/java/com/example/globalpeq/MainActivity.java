@@ -5899,6 +5899,10 @@ public final class MainActivity extends Activity {
     }
 
     private void persistEditingPreset() {
+        pendingEditingPresetPersistence = false;
+        if (!pendingRunningPresetPersistence) {
+            uiHandler.removeCallbacks(persistPresetStateRunnable);
+        }
         persistEditingPresetNow();
     }
 
