@@ -124,7 +124,6 @@ public final class GlobalEqForegroundService extends Service {
                     intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
                     intent.getParcelableExtra(EXTRA_CAPTURE_DATA));
         } else if (ACTION_PAUSE_SHIZUKU.equals(action)) {
-            startForegroundInternal(captureEngine.hasProjection());
             schedulePauseShizukuSession();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
