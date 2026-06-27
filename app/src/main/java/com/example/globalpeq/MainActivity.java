@@ -5708,7 +5708,7 @@ public final class MainActivity extends Activity {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
                 if (applyPreset.enabled) {
                     applyRunningPreset(applyPreset.enabled);
-                    scheduleDelayedShizukuReady();
+                    ensureShizukuModeReady(true);
                 } else {
                     applyRunningPreset(false, false);
                     stopShizukuCaptureNow();
