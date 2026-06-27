@@ -3632,8 +3632,13 @@ public final class MainActivity extends Activity {
         if (editingPreset.mode == EqMode.GEQ) {
             lastRenderedRowsMode = EqMode.GEQ;
             lastRenderedRowsBandCount = Preset.GEQ_BAND_COUNT;
-            rows.removeAllViews();
-            rows.addView(createGeqSliderPanel());
+            boolean canReuseGeqPanel = rows.getChildCount() == 1 && hasReusableGeqPanel();
+            if (!canReuseGeqPanel) {
+                rows.removeAllViews();
+                rows.addView(createGeqSliderPanel());
+            } else {
+                updateGeqSliderPanelInPlace((HorizontalScrollView) rows.getChildAt(0));
+            }
             return;
         }
         boolean canReuseRows = lastRenderedRowsMode == EqMode.PEQ
@@ -3657,11 +3662,13 @@ public final class MainActivity extends Activity {
 
     private View createGeqSliderPanel() {
         HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setTag("geq_panel");
         scroll.setHorizontalScrollBarEnabled(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(false);
 
         LinearLayout strip = new LinearLayout(this);
+        strip.setTag("geq_strip");
         strip.setOrientation(LinearLayout.HORIZONTAL);
         strip.setGravity(android.view.Gravity.CENTER_VERTICAL);
         strip.setPadding(dp(10), dp(2), dp(32), dp(2));
@@ -3685,6 +3692,46 @@ public final class MainActivity extends Activity {
                 HorizontalScrollView.LayoutParams.WRAP_CONTENT
         ));
         return scroll;
+    }
+
+    private boolean hasReusableGeqPanel() {
+        View panel = rows.getChildAt(0);
+        if (!(panel instanceof HorizontalScrollView)) {
+            return false;
+        }
+        HorizontalScrollView scroll = (HorizontalScrollView) panel;
+        if (scroll.getChildCount() != 1 || !(scroll.getChildAt(0) instanceof LinearLayout)) {
+            return false;
+        }
+        LinearLayout strip = (LinearLayout) scroll.getChildAt(0);
+        if (strip.getChildCount() != Preset.GEQ_BAND_COUNT) {
+            return false;
+        }
+        for (int i = 0; i < strip.getChildCount(); i++) {
+            if (!(strip.getChildAt(i) instanceof GeqSliderView)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void updateGeqSliderPanelInPlace(HorizontalScrollView scroll) {
+        if (scroll == null || scroll.getChildCount() != 1 || !(scroll.getChildAt(0) instanceof LinearLayout)) {
+            return;
+        }
+        LinearLayout strip = (LinearLayout) scroll.getChildAt(0);
+        for (int i = 0; i < Preset.GEQ_BAND_COUNT && i < strip.getChildCount(); i++) {
+            View child = strip.getChildAt(i);
+            if (!(child instanceof GeqSliderView)) {
+                continue;
+            }
+            final int index = i;
+            ((GeqSliderView) child).setBand(
+                    formatFrequency(Preset.GEQ_FREQUENCIES[index]),
+                    editingPreset.geqGainsMb[index],
+                    gainMb -> updateGeqBand(index, gainMb)
+            );
+        }
     }
 
     private LinearLayout createGeqRow(int index) {
