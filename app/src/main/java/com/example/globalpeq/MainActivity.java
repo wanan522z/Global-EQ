@@ -597,15 +597,19 @@ public final class MainActivity extends Activity {
             currentDevice = deviceMonitor.currentOutputDevice();
             repository.saveSelectedDevice(currentDevice);
         }
-        Preset loadedPreset = repository.loadPreset(currentDevice);
+        boolean masterEnabled = repository.loadMasterEnabled();
+        Preset loadedPreset = repository.loadPreset(currentDevice, processingMode);
         Preset limitedPreset = limitPresetForHeadroom(loadedPreset);
         boolean loadedWasLimited = !limitedPreset.toJson().equals(loadedPreset.toJson());
         loadedPreset = limitedPreset;
-        runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
+        runningPreset = loadedPreset.withEnabled(masterEnabled && supported);
         modeVisualEnabled = runningPreset.enabled;
         curveVisualEnabled = runningPreset.enabled;
         Preset draftPreset = repository.loadDraftPreset();
         editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
+        if (editingPreset != null && runningPreset != null && editingPreset.name.equals(runningPreset.name)) {
+            editingPreset = editingPreset.withEnabled(runningPreset.enabled);
+        }
         applyPresetCurveSettings(editingPreset);
         syncSelectedVirtualBassModeFromPreset();
         syncExtraBassEnabledFromPreset();
