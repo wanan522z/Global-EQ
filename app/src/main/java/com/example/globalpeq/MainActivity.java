@@ -3234,6 +3234,44 @@ public final class MainActivity extends Activity {
         updatingUi = false;
     }
 
+    private void refreshMonitorStatusViews() {
+        if (engineStatusValueView != null) {
+            setTextIfChanged(engineStatusValueView, engineStatusText());
+            styleGradientTitle(engineStatusValueView);
+        }
+        if (processingModeButton != null) {
+            setTextIfChanged(processingModeButton, engineStatusText());
+            styleGradientTitle(processingModeButton);
+        }
+        if (advancedModeSummaryView != null) {
+            setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
+        }
+        if (monitorCaptureButton != null) {
+            setTextIfChanged(monitorCaptureButton, monitorCaptureButtonText());
+        }
+        if (monitorCaptureStatusView != null) {
+            setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
+        }
+        if (shizukuAccessButton != null) {
+            setTextIfChanged(shizukuAccessButton, shizukuAccessButtonText());
+            shizukuAccessButton.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuAccessStatusView != null) {
+            setTextIfChanged(shizukuAccessStatusView, shizukuAccessStatusText());
+            shizukuAccessStatusView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuAccessLabelView != null) {
+            shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (advancedMonitorAppButton != null) {
+            setTextIfChanged(advancedMonitorAppButton,
+                    advancedModeConfig.monitoredAppLabel.isEmpty()
+                            ? chooseAppText()
+                            : advancedModeConfig.monitoredAppLabel);
+        }
+        updateMonitoredAppIcon();
+    }
+
     private Preset curveDisplayPreset() {
         if (editingPreset == null) {
             return Preset.flat(false);
