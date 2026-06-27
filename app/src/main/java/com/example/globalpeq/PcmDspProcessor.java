@@ -5,10 +5,12 @@ import java.util.Arrays;
 import java.util.List;
 
 final class PcmDspProcessor {
+    private static final float EFFECT_HEADROOM_DB = -12f;
     private final List<Biquad> filters = new ArrayList<>();
     private int sampleRate = 48000;
     private int channelCount = 2;
     private float pregain = 1f;
+    private float effectHeadroom = 1f;
     private PsychoacousticBassProcessor psychoacousticBass = new PsychoacousticBassProcessor(48000, 2);
     private AlgorithmicReverb reverb = new AlgorithmicReverb(48000, 2);
     private LookaheadLimiter limiter = new LookaheadLimiter(48000, 2);
@@ -25,6 +27,9 @@ final class PcmDspProcessor {
         sampleRate = Math.max(8000, nextSampleRate);
         channelCount = Math.max(1, nextChannelCount);
         pregain = preset == null ? 1f : dbToLinear(preset.pregainMb / 100f);
+        effectHeadroom = shouldReserveEffectHeadroom(preset, enableDspBass)
+                ? dbToLinear(EFFECT_HEADROOM_DB)
+                : 1f;
         filters.clear();
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
 
@@ -73,7 +78,7 @@ final class PcmDspProcessor {
 
         int sampleCount = Math.min(samples.length, frameCount * channelCount);
         for (int i = 0; i < sampleCount; i++) {
-            samples[i] *= pregain;
+            samples[i] *= pregain * effectHeadroom;
         }
         psychoacousticBass.process(samples, sampleCount, channelCount);
         for (Biquad filter : filters) {
@@ -85,6 +90,17 @@ final class PcmDspProcessor {
 
     private static float dbToLinear(float db) {
         return (float) Math.pow(10.0, db / 20.0);
+    }
+
+    private static boolean shouldReserveEffectHeadroom(Preset preset, boolean enableDspBass) {
+        if (preset == null || !preset.enabled) {
+            return false;
+        }
+        boolean bassEffectsActive = (preset.extraBassEnabled && preset.extraBassAmountPercent > 0)
+                || (enableDspBass && preset.virtualBassAmountPercent > 0)
+                || (preset.virtualBassModeIndex == 1 && preset.virtualBassAmountPercent > 0);
+        boolean reverbActive = !"Default".equals(preset.reverbType) && preset.reverbMixPercent > 0;
+        return bassEffectsActive || reverbActive;
     }
 
     private static int effectiveReverbWetPercent(Preset preset, AdvancedModeConfig config) {
