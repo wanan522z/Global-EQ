@@ -1,4 +1,4 @@
-﻿"C:\Users\31855\Documents\New project\GlobalPEQ\app\src\main\java\com\example\globalpeq\AdvancedModeConfig.java"
+"C:\Users\31855\Documents\New project\GlobalPEQ\app\src\main\java\com\example\globalpeq\AdvancedModeConfig.java"
 "C:\Users\31855\Documents\New project\GlobalPEQ\app\src\main\java\com\example\globalpeq\AudioOutputDevice.java"
 "C:\Users\31855\Documents\New project\GlobalPEQ\app\src\main\java\com\example\globalpeq\AudioOutputDeviceMonitor.java"
 "C:\Users\31855\Documents\New project\GlobalPEQ\app\src\main\java\com\example\globalpeq\AudioProcessingPolicy.java"
