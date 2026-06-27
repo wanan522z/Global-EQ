@@ -49,19 +49,19 @@ public final class GlobalEqForegroundService extends Service {
     private final Runnable applyPendingCaptureUpdateRunnable = new Runnable() {
         @Override
         public void run() {
-            if (captureEngine == null) {
+            if (captureEngine == null || shizukuMuteEngine == null) {
                 return;
             }
+            shizukuMuteEngine.updateProcessing(
+                    pendingCaptureMode,
+                    pendingCapturePreset,
+                    pendingCaptureConfig);
             captureEngine.updateProcessing(
                     pendingCaptureMode,
                     pendingCapturePreset,
                     pendingCaptureConfig,
                     pendingCaptureVirtualBassModeIndex,
                     pendingCaptureDevice);
-            shizukuMuteEngine.updateProcessing(
-                    pendingCaptureMode,
-                    pendingCapturePreset,
-                    pendingCaptureConfig);
         }
     };
 
@@ -316,10 +316,16 @@ public final class GlobalEqForegroundService extends Service {
         Intent copy = data == null ? null : new Intent(data);
         handler.post(() -> {
             captureEngine.bootstrapProjection(resultCode, copy);
-            captureEngine.updateProcessing(
-                    repository.loadProcessingMode(),
+            ProcessingMode mode = repository.loadProcessingMode();
+            AdvancedModeConfig config = repository.loadAdvancedModeConfig();
+            shizukuMuteEngine.updateProcessing(
+                    mode,
                     currentPreset,
-                    repository.loadAdvancedModeConfig(),
+                    config);
+            captureEngine.updateProcessing(
+                    mode,
+                    currentPreset,
+                    config,
                     currentPreset.virtualBassModeIndex,
                     currentDevice);
         });
