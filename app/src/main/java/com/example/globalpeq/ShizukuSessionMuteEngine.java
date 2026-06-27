@@ -278,6 +278,7 @@ final class ShizukuSessionMuteEngine {
             return;
         }
         currentActivePackageName = normalized;
+        Log.d(TAG, "Active playback package -> " + normalized);
         repository.saveActivePlaybackPackage(normalized);
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
