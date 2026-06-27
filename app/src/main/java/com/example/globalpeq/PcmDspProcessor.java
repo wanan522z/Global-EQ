@@ -725,25 +725,27 @@ final class PcmDspProcessor {
 
         void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean rightChannel) {
             float sizeScale = profile.minSizeScale + size * profile.sizeRange;
-            float damping = clamp(profile.damping + (1f - decayShape) * 0.06f - decayShape * 0.02f, 0.08f, 0.56f);
-            float inputDiff = clamp(profile.inputGain + size * 0.04f, 0.18f, 0.42f);
+            float damping = clamp(profile.damping + 0.03f + decayShape * 0.09f + size * 0.02f, 0.12f, 0.68f);
+            float inputDiff = clamp(profile.inputGain + size * 0.03f, 0.18f, 0.38f);
             float offset = rightChannel ? 1.013f : 0.987f;
-            widthMix = profile.width * (0.96f + decayShape * 0.08f);
-            postDamping = clamp(profile.postDamping + decayShape * 0.04f, 0.08f, 0.26f);
+            widthMix = profile.width * (0.94f + size * 0.05f);
+            postDamping = clamp(profile.postDamping + 0.02f + decayShape * 0.06f, 0.1f, 0.32f);
             inputGain = inputDiff;
-            tankGain = profile.tankGain * (1.02f + decayShape * 0.18f);
+            tankGain = profile.tankGain * (0.96f + decayShape * 0.08f);
             previousOutput = 0f;
             for (int i = 0; i < combs.length; i++) {
                 float combDelayMs = profile.combDelayMs[i] * sizeScale * offset;
                 float feedback = clamp(calculateRt60Feedback(combDelayMs, decaySeconds)
-                        * (0.93f + profile.baseFeedback * 0.15f)
+                        * (0.9f + profile.baseFeedback * 0.1f)
                         - i * profile.feedbackSpread,
-                        0.35f,
-                        0.93f);
+                        0.32f,
+                        profile.feedbackCeiling);
+                float modulationDepthMs = profile.modDepthMs
+                        * (1f + size * 0.12f + decayShape * 0.42f * profile.modulationScale);
                 combs[i].configure(combDelayMs,
                         feedback,
                         damping + i * 0.015f,
-                        profile.modDepthMs,
+                        modulationDepthMs,
                         profile.modRateHz + i * profile.modSpreadHz + (rightChannel ? 0.009f : 0f));
             }
             for (int i = 0; i < allpasses.length; i++) {
