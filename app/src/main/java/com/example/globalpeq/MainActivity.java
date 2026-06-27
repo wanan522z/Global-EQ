@@ -5398,9 +5398,14 @@ public final class MainActivity extends Activity {
         if (updatingUi) {
             return;
         }
-        runningPreset = runningPreset.withEnabled(isChecked && supported);
+        boolean enabling = isChecked && supported;
+        runningPreset = runningPreset.withEnabled(enabling);
         if (isEditingPresetActive()) {
             editingPreset = editingPreset.withEnabled(runningPreset.enabled);
+            if (enabling) {
+                editingPreset = limitPresetForHeadroom(editingPreset);
+                runningPreset = editingPreset.withEnabled(true);
+            }
             pendingEnabledPersistPreset = editingPreset;
         }
         if (runningPreset.enabled) {
