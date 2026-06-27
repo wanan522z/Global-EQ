@@ -5556,7 +5556,7 @@ public final class MainActivity extends Activity {
     private void applyImportedPreset(Preset imported, boolean applyLive) {
         Preset limited = limitPresetForHeadroom(imported);
         editingPreset = limited;
-        runningPreset = limited.withEnabled(limited.enabled && supported);
+        runningPreset = limited.withEnabled(currentMasterEnabled());
         applyPresetCurveSettings(editingPreset);
         syncSelectedVirtualBassModeFromPreset();
         syncExtraBassEnabledFromPreset();
