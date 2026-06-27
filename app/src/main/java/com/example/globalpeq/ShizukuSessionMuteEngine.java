@@ -25,7 +25,8 @@ import java.util.regex.Pattern;
 final class ShizukuSessionMuteEngine {
     private static final String TAG = "ShizukuSessionMute";
     private static final float MUTE_GAIN_DB = -144f;
-    private static final long RESCAN_INTERVAL_MS = 750L;
+    private static final long ACTIVE_RESCAN_INTERVAL_MS = 750L;
+    private static final long PASSIVE_RESCAN_INTERVAL_MS = 5000L;
     private static final Pattern SESSION_REGEX = Pattern.compile(
             "Session Id:\\s*(\\d+)\\s+UID:\\s*(\\d+)[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
@@ -68,20 +69,17 @@ final class ShizukuSessionMuteEngine {
                 @Override
                 public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
                     Log.d(TAG, "Playback configs changed, rescanning sessions");
-                    dumpSessionsAndMute();
+                    scanSessionsAndRefreshState();
                 }
             };
     private final Runnable periodicRescanRunnable = new Runnable() {
         @Override
         public void run() {
-            if (currentMode != ProcessingMode.SHIZUKU_MUTE
-                    || currentPreset == null
-                    || !currentPreset.enabled
-                    || !ShizukuCompat.hasPermission()) {
+            if (!shouldMonitorPlaybackSessions()) {
                 return;
             }
-            dumpSessionsAndMute();
-            mainHandler.postDelayed(this, RESCAN_INTERVAL_MS);
+            scanSessionsAndRefreshState();
+            mainHandler.postDelayed(this, currentRescanIntervalMs);
         }
     };
 
@@ -90,6 +88,7 @@ final class ShizukuSessionMuteEngine {
     private volatile Preset currentPreset = Preset.flat(false);
     private volatile Set<Integer> currentAppSessionIds = new LinkedHashSet<>();
     private volatile String currentActivePackageName = "";
+    private volatile long currentRescanIntervalMs = PASSIVE_RESCAN_INTERVAL_MS;
     private String publishedStatus = "";
     private boolean publishedActive;
 
@@ -115,16 +114,6 @@ final class ShizukuSessionMuteEngine {
             publishStatus("Shizuku mute requires Android 9 or later.", false);
             return;
         }
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE) {
-            stopAll();
-            publishStatus("Shizuku mute is idle.", false);
-            return;
-        }
-        if (currentPreset == null || !currentPreset.enabled) {
-            stopAll();
-            publishStatus("Shizuku mute ready. Enable EQ to start.", false);
-            return;
-        }
         if (!ShizukuCompat.hasPermission()) {
             stopAll();
             publishStatus(ShizukuCompat.describeState(appContext), false);
@@ -132,10 +121,24 @@ final class ShizukuSessionMuteEngine {
         }
 
         ShizukuCompat.grantPermissionsAndAppOps(appContext);
-        updateCurrentAppSessionIds();
+        if (shouldActivelyMuteSessions()) {
+            currentRescanIntervalMs = ACTIVE_RESCAN_INTERVAL_MS;
+            updateCurrentAppSessionIds();
+            registerPlaybackCallback();
+            schedulePeriodicRescan();
+            scanSessionsAndRefreshState();
+            return;
+        }
+
+        releaseAllEffects();
+        currentAppSessionIds = new LinkedHashSet<>();
+        currentRescanIntervalMs = PASSIVE_RESCAN_INTERVAL_MS;
         registerPlaybackCallback();
         schedulePeriodicRescan();
-        dumpSessionsAndMute();
+        scanSessionsAndRefreshState();
+        publishStatus(currentMode == ProcessingMode.SHIZUKU_MUTE
+                ? "Shizuku mute ready. Enable EQ to start."
+                : "Shizuku is ready.", false);
     }
 
     synchronized void stopAll() {
@@ -147,23 +150,47 @@ final class ShizukuSessionMuteEngine {
         publishStatus("Shizuku mute is idle.", false);
     }
 
-    private void dumpSessionsAndMute() {
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE || currentPreset == null || !currentPreset.enabled) {
+    private boolean shouldMonitorPlaybackSessions() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                && ShizukuCompat.hasPermission();
+    }
+
+    private boolean shouldActivelyMuteSessions() {
+        return shouldMonitorPlaybackSessions()
+                && currentMode == ProcessingMode.SHIZUKU_MUTE
+                && currentPreset != null
+                && currentPreset.enabled;
+    }
+
+    private void scanSessionsAndRefreshState() {
+        if (!shouldMonitorPlaybackSessions()) {
             return;
         }
-        updateCurrentAppSessionIds();
+        boolean applyMuteEffects = shouldActivelyMuteSessions();
+        if (applyMuteEffects) {
+            updateCurrentAppSessionIds();
+        } else {
+            currentAppSessionIds = new LinkedHashSet<>();
+            if (!muteEffects.isEmpty() || !knownSessions.isEmpty()) {
+                releaseAllEffects();
+            }
+        }
         List<SessionInfo> sessions = dumpPolicySessions();
         Log.d(TAG, "Rescanned audio policy, matched sessions=" + sessions.size()
                 + ", ownedSessions=" + currentAppSessionIds.size()
-                + ", activeMuteEffects=" + muteEffects.size());
-        muteOtherSessions(sessions);
+                + ", activeMuteEffects=" + muteEffects.size()
+                + ", muteMode=" + applyMuteEffects);
+        String activePackageName = muteOtherSessions(sessions, applyMuteEffects);
+        updateActivePackageName(activePackageName);
+        if (!applyMuteEffects) {
+            return;
+        }
         int mutedCount = muteEffects.size();
         if (mutedCount == 0) {
-            updateActivePackageName("");
             publishStatus("Waiting for active playback sessions.", false);
-        } else {
-            publishStatus("Muted " + mutedCount + " session(s) while monitoring system audio.", true);
+            return;
         }
+        publishStatus("Muted " + mutedCount + " session(s) while monitoring system audio.", true);
     }
 
     private void updateCurrentAppSessionIds() {
@@ -212,7 +239,7 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
-    private void muteOtherSessions(List<SessionInfo> sessions) {
+    private String muteOtherSessions(List<SessionInfo> sessions, boolean applyMuteEffects) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
         String firstActivePackageName = "";
         for (SessionInfo session : sessions) {
@@ -247,6 +274,9 @@ final class ShizukuSessionMuteEngine {
             if (firstActivePackageName.isEmpty() && !session.packageName.isEmpty()) {
                 firstActivePackageName = session.packageName;
             }
+            if (!applyMuteEffects) {
+                continue;
+            }
             if (muteEffects.containsKey(session.sessionId)) {
                 continue;
             }
@@ -269,7 +299,7 @@ final class ShizukuSessionMuteEngine {
                 Log.e(TAG, "Error creating mute effect for session: " + session.sessionId, ex);
             }
         }
-        updateActivePackageName(firstActivePackageName);
+        return firstActivePackageName;
     }
 
     private void updateActivePackageName(String packageName) {
