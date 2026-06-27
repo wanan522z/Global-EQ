@@ -91,6 +91,7 @@ public final class MainActivity extends Activity {
     private static final int GEQ_COMMIT_DELAY_MS = 160;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
+    private static final long ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS = 280L;
     private static final long EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS = 320L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
@@ -6190,7 +6191,7 @@ public final class MainActivity extends Activity {
     private void scheduleEnabledToggleCommit() {
         pendingEnabledApplyPreset = runningPreset;
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
-        uiHandler.postDelayed(commitEnabledToggleRunnable, ENABLE_TOGGLE_COMMIT_DELAY_MS);
+        uiHandler.postDelayed(commitEnabledToggleRunnable, computeEnabledToggleCommitDelayMs());
     }
 
     private void scheduleEnabledToggleUiRefresh() {
@@ -6212,7 +6213,7 @@ public final class MainActivity extends Activity {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
                 if (applyPreset.enabled) {
                     applyRunningPreset();
-                    ensureShizukuModeReady(true);
+                    scheduleDelayedShizukuReady();
                 } else {
                     applyRunningPreset(false, false);
                     stopShizukuCaptureNow();
@@ -6255,6 +6256,13 @@ public final class MainActivity extends Activity {
     private void scheduleDelayedShizukuReady() {
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         uiHandler.postDelayed(delayedShizukuReadyRunnable, computeShizukuEnableDelayMs());
+    }
+
+    private long computeEnabledToggleCommitDelayMs() {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE && runningPreset != null && runningPreset.enabled) {
+            return ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS;
+        }
+        return ENABLE_TOGGLE_COMMIT_DELAY_MS;
     }
 
     private long computeShizukuEnableDelayMs() {
