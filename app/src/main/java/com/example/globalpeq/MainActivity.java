@@ -7516,6 +7516,7 @@ public final class MainActivity extends Activity {
         return new Drawable() {
             private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
             @Override
             public void draw(Canvas canvas) {
@@ -7528,6 +7529,14 @@ public final class MainActivity extends Activity {
                 
                 float strokeWidth = dpf(1.2f);
                 float radius = Math.min(b.width(), b.height()) / 2f - strokeWidth - dpf(0.8f);
+
+                fillPaint.setStyle(Paint.Style.FILL);
+                fillPaint.setShader(null);
+                fillPaint.clearShadowLayer();
+                fillPaint.setColor(active
+                        ? Color.argb(238, 14, 20, 28)
+                        : Color.argb(220, 14, 18, 26));
+                canvas.drawCircle(cx, cy, radius * 0.98f, fillPaint);
 
                 if (active) {
                     dotPaint.setStyle(Paint.Style.FILL);
