@@ -16,7 +16,6 @@ final class AdvancedModeConfig {
             512,
             750,
             24,
-            88,
             Collections.emptyList()
     );
 
@@ -26,7 +25,6 @@ final class AdvancedModeConfig {
     final int bufferSizeFrames;
     final int monitorIntervalMs;
     final int lookaheadMs;
-    final int wetMixPercent;
     final List<MonitoredAppItem> monitoredApps;
 
     AdvancedModeConfig(String monitoredAppPackage,
@@ -35,7 +33,6 @@ final class AdvancedModeConfig {
                        int bufferSizeFrames,
                        int monitorIntervalMs,
                        int lookaheadMs,
-                       int wetMixPercent,
                        List<MonitoredAppItem> monitoredApps) {
         this.monitoredAppPackage = monitoredAppPackage == null ? "" : monitoredAppPackage.trim();
         this.monitoredAppLabel = monitoredAppLabel == null ? "" : monitoredAppLabel.trim();
@@ -43,12 +40,11 @@ final class AdvancedModeConfig {
         this.bufferSizeFrames = clamp(bufferSizeFrames, 128, 4096);
         this.monitorIntervalMs = clamp(monitorIntervalMs, 100, 5000);
         this.lookaheadMs = clamp(lookaheadMs, 0, 120);
-        this.wetMixPercent = clamp(wetMixPercent, 0, 100);
         this.monitoredApps = Collections.unmodifiableList(normalizeApps(monitoredApps));
     }
 
     AdvancedModeConfig withMonitoredApp(String packageName, String label) {
-        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, monitoredApps);
     }
 
     AdvancedModeConfig withAddedMonitoredApp(String packageName, String label) {
@@ -59,29 +55,24 @@ final class AdvancedModeConfig {
                 bufferSizeFrames,
                 monitorIntervalMs,
                 lookaheadMs,
-                wetMixPercent,
                 appendMonitoredApp(monitoredApps, packageName, label)
         );
     }
 
     AdvancedModeConfig withLatencyMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, monitoredApps);
     }
 
     AdvancedModeConfig withBufferSizeFrames(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, monitoredApps);
     }
 
     AdvancedModeConfig withMonitorIntervalMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, value, lookaheadMs, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, value, lookaheadMs, monitoredApps);
     }
 
     AdvancedModeConfig withLookaheadMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, wetMixPercent, monitoredApps);
-    }
-
-    AdvancedModeConfig withWetMixPercent(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, value, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, monitoredApps);
     }
 
     String toJson() {
@@ -93,7 +84,6 @@ final class AdvancedModeConfig {
             object.put("bufferSizeFrames", bufferSizeFrames);
             object.put("monitorIntervalMs", monitorIntervalMs);
             object.put("lookaheadMs", lookaheadMs);
-            object.put("wetMixPercent", wetMixPercent);
             JSONArray apps = new JSONArray();
             for (MonitoredAppItem item : monitoredApps) {
                 JSONObject app = new JSONObject();
@@ -122,7 +112,6 @@ final class AdvancedModeConfig {
                     object.optInt("bufferSizeFrames", DEFAULT.bufferSizeFrames),
                     object.optInt("monitorIntervalMs", DEFAULT.monitorIntervalMs),
                     object.optInt("lookaheadMs", DEFAULT.lookaheadMs),
-                    object.optInt("wetMixPercent", DEFAULT.wetMixPercent),
                     parseApps(object.optJSONArray("manualMonitoredApps"))
             );
         } catch (JSONException ignored) {
