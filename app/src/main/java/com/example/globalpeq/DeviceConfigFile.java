@@ -69,6 +69,10 @@ final class DeviceConfigFile {
                     preset,
                     activePresetName);
         }
+
+        static ModeState defaultState(ProcessingMode mode) {
+            return new ModeState(mode, AdvancedModeConfig.DEFAULT, Preset.flat(false), "Default");
+        }
     }
 
     DeviceConfigFile(AudioOutputDevice device,
