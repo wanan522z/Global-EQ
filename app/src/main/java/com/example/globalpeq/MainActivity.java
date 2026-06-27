@@ -1290,6 +1290,7 @@ public final class MainActivity extends Activity {
         eqPage.addView(curveFrame, curveParams);
 
         FrameLayout listCardHolder = new FrameLayout(this);
+        peqListFrameView = listCardHolder;
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
         listCardHolder.setClipChildren(true);
@@ -4459,6 +4460,21 @@ public final class MainActivity extends Activity {
 
             int rootWidth = root.getWidth();
             int rootHeight = root.getHeight();
+            int curveLeft = Math.max(0, curveLocation[0] - rootLocation[0]);
+            int curveTop = Math.max(0, curveLocation[1] - rootLocation[1]);
+            int curveRight = Math.min(rootWidth, curveLeft + curveFrameView.getWidth());
+            int curveBottom = Math.min(rootHeight, curveTop + curveFrameView.getHeight());
+            Rect listRect = screenRectOf(peqListFrameView);
+            int listTop = curveBottom;
+            int listBottom = rootHeight;
+            int listLeft = 0;
+            int listRight = rootWidth;
+            if (listRect != null) {
+                listLeft = Math.max(0, listRect.left - rootLocation[0]);
+                listTop = Math.max(0, listRect.top - rootLocation[1]);
+                listRight = Math.min(rootWidth, listRect.right - rootLocation[0]);
+                listBottom = Math.min(rootHeight, listRect.bottom - rootLocation[1]);
+            }
             int dimColor = Color.argb(180, 18, 18, 25);
             int left = dp(18);
             int top = Math.max(dp(8), curveLocation[1] - rootLocation[1] + curveFrameView.getHeight() + dp(6));
@@ -4466,7 +4482,13 @@ public final class MainActivity extends Activity {
             int height = dp(48);
 
             removeEqEditDim(false);
-            addEqEditDimExceptRect(root, left, top, width, height, dimColor);
+            addEqEditDimView(root, 0, 0, rootWidth, curveTop, dimColor);
+            addEqEditDimView(root, 0, curveTop, curveLeft, curveBottom - curveTop, dimColor);
+            addEqEditDimView(root, curveRight, curveTop, rootWidth - curveRight, curveBottom - curveTop, dimColor);
+            addEqEditDimView(root, 0, curveBottom, rootWidth, Math.max(0, listTop - curveBottom), dimColor);
+            addEqEditDimView(root, 0, listBottom, rootWidth, Math.max(0, rootHeight - listBottom), dimColor);
+            addEqEditDimView(root, curveLeft, curveTop, curveRight - curveLeft, curveBottom - curveTop, Color.TRANSPARENT);
+            addEqEditDimView(root, listLeft, listTop, listRight - listLeft, listBottom - listTop, Color.TRANSPARENT);
 
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
             params.leftMargin = left;
@@ -5235,22 +5257,6 @@ public final class MainActivity extends Activity {
             addEqEditDimView(root, 0, top, left, bottom - top, color);
             addEqEditDimView(root, right, top, rootWidth - right, bottom - top, color);
         });
-    }
-
-    private void addEqEditDimExceptRect(FrameLayout root, int left, int top, int width, int height, int color) {
-        if (root == null) {
-            return;
-        }
-        int rootWidth = root.getWidth();
-        int rootHeight = root.getHeight();
-        int safeLeft = Math.max(0, left);
-        int safeTop = Math.max(0, top);
-        int safeRight = Math.min(rootWidth, safeLeft + Math.max(0, width));
-        int safeBottom = Math.min(rootHeight, safeTop + Math.max(0, height));
-        addEqEditDimView(root, 0, 0, rootWidth, safeTop, color);
-        addEqEditDimView(root, 0, safeTop, safeLeft, Math.max(0, safeBottom - safeTop), color);
-        addEqEditDimView(root, safeRight, safeTop, Math.max(0, rootWidth - safeRight), Math.max(0, safeBottom - safeTop), color);
-        addEqEditDimView(root, 0, safeBottom, rootWidth, Math.max(0, rootHeight - safeBottom), color);
     }
 
     private void addEqEditDimView(FrameLayout root, int left, int top, int width, int height, int color) {
