@@ -6654,14 +6654,16 @@ public final class MainActivity extends Activity {
         column.setClipToPadding(false);
 
         VerticalReverbSlider slider = new VerticalReverbSlider(this);
-        slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, listener::onChanged);
+        slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin, listener::onChanged);
         // 强制方形：弧形填满 view，标题紧贴弧形下方
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(4);
         knobParams.bottomMargin = dp(2);
         column.addView(slider, knobParams);
 
-        if ("Decay".equals(label)) {
+        if ("Main".equals(label)) {
+            reverbMainSlider = slider;
+        } else if ("Decay".equals(label)) {
             reverbDecaySlider = slider;
         } else if ("Predelay".equals(label)) {
             reverbPredelaySlider = slider;
