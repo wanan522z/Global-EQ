@@ -3652,19 +3652,19 @@ public final class MainActivity extends Activity {
     }
 
     private void showSavedPresetChoiceMenu() {
-        if (savedPresetSpinner == null || runningPreset == null) {
+        if (savedPresetSpinner == null || editingPreset == null) {
             return;
         }
         List<String> names = repository.loadNamedPresetNames();
-        if (!names.contains(runningPreset.name)) {
+        if (!names.contains(editingPreset.name)) {
             names = new ArrayList<>(names);
-            names.add(0, runningPreset.name);
+            names.add(0, editingPreset.name);
         }
         String[] labels = names.toArray(new String[0]);
-        int selected = Math.max(0, names.indexOf(runningPreset.name));
+        int selected = Math.max(0, names.indexOf(editingPreset.name));
         showLimitedChoiceMenu(savedPresetSpinner, labels, selected, position -> {
-            if (position >= 0 && position < labels.length && !labels[position].equals(runningPreset.name)) {
-                loadPresetLive(labels[position]);
+            if (position >= 0 && position < labels.length && !labels[position].equals(editingPreset.name)) {
+                loadPresetForEditing(labels[position]);
             }
         });
     }
