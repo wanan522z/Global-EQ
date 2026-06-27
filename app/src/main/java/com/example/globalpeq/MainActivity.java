@@ -164,7 +164,6 @@ public final class MainActivity extends Activity {
     private TextView bufferLabelView;
     private TextView pollIntervalLabelView;
     private TextView lookaheadLabelView;
-    private TextView wetMixLabelView;
     private LinearLayout settingsRootContent;
     private Button presetSelectButton;
     private Button undoButton;
