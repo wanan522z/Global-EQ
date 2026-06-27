@@ -432,14 +432,15 @@ final class PcmDspProcessor {
                        int sizePercent,
                        int mixPercent) {
             float size = clamp01(sizePercent / 100f);
-            float decay = clamp01(decayPercent / 100f);
             float mix = clamp01(mixPercent / 100f);
             ReverbProfile profile = ReverbProfile.forType(type);
-            wetMix = "Default".equals(type) ? 0f : Math.min(0.55f, mix);
+            float decaySeconds = clamp(decayPercent, 0f, 12f);
+            float decayShape = clamp01((Math.max(0.35f, decaySeconds) - 0.35f) / 11.65f);
+            wetMix = "Default".equals(type) ? 0f : clamp01((float) Math.pow(mix, 0.78));
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
             float immediateEarlyBlend = clamp01(1f - preDelayMs / 8f);
 
-            reverbCore.configure(profile, size, decay, immediateEarlyBlend);
+            reverbCore.configure(profile, size, decaySeconds, decayShape, immediateEarlyBlend);
 
             for (int channel = 0; channel < preDelayIndices.length; channel++) {
                 preDelayIndices[channel] = 0;
@@ -461,10 +462,10 @@ final class PcmDspProcessor {
                 float rightIn = preDelayProcess(rightDry, Math.min(1, preDelayIndices.length - 1));
                 reverbCore.process(leftIn, rightIn, wetFrame);
 
-                float wetLeft = softSaturate(wetFrame[0] * 0.82f);
+                float wetLeft = softSaturate(wetFrame[0] * 1.18f);
                 float wetRight = channelCount > 1
-                        ? softSaturate(wetFrame[1] * 0.82f)
-                        : softSaturate((wetFrame[0] + wetFrame[1]) * 0.41f);
+                        ? softSaturate(wetFrame[1] * 1.18f)
+                        : softSaturate((wetFrame[0] + wetFrame[1]) * 0.59f);
                 samples[frameOffset] = clampSample(leftDry * (1f - wetMix) + wetLeft * wetMix);
                 if (channelCount > 1) {
                     samples[frameOffset + 1] = clampSample(rightDry * (1f - wetMix) + wetRight * wetMix);
