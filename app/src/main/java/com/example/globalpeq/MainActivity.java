@@ -3142,56 +3142,56 @@ public final class MainActivity extends Activity {
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
         updateMonitoredAppIcon();
         if (statusText != null) {
-            statusText.setText(statusLabel(hasClip));
+            setTextIfChanged(statusText, statusLabel(hasClip));
             styleStatusText(hasClip);
             statusText.postInvalidate();
         }
         if (engineStatusValueView != null) {
-            engineStatusValueView.setText(engineStatusText());
+            setTextIfChanged(engineStatusValueView, engineStatusText());
             styleGradientTitle(engineStatusValueView);
         }
         renderDeviceSpinner();
         if (modeSpinner != null) {
-            modeSpinner.setText(editingPreset.mode.label);
+            setTextIfChanged(modeSpinner, editingPreset.mode.label);
             styleModeText();
         }
         if (autoSwitchOutputSwitch != null) {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         }
         if (processingModeButton != null) {
-            processingModeButton.setText(engineStatusText());
+            setTextIfChanged(processingModeButton, engineStatusText());
             styleGradientTitle(processingModeButton);
         }
         if (advancedModeDetailButton != null) {
             advancedModeDetailButton.setVisibility(AudioProcessingPolicy.advancedModeEnabled(processingMode) ? View.VISIBLE : View.GONE);
         }
         if (advancedModeSummaryView != null) {
-            advancedModeSummaryView.setText(advancedModeSummaryText());
+            setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
         if (monitorCaptureButton != null) {
-            monitorCaptureButton.setText(monitorCaptureButtonText());
+            setTextIfChanged(monitorCaptureButton, monitorCaptureButtonText());
         }
         if (monitorCaptureStatusView != null) {
-            monitorCaptureStatusView.setText(monitorCaptureStatusText());
+            setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
         }
         if (shizukuAccessButton != null) {
-            shizukuAccessButton.setText(shizukuAccessButtonText());
+            setTextIfChanged(shizukuAccessButton, shizukuAccessButtonText());
             shizukuAccessButton.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessStatusView != null) {
-            shizukuAccessStatusView.setText(shizukuAccessStatusText());
+            setTextIfChanged(shizukuAccessStatusView, shizukuAccessStatusText());
             shizukuAccessStatusView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessLabelView != null) {
             shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
         }
         if (advancedMonitorAppButton != null) {
-            advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
+            setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
         if (presetSelectButton != null) {
-            presetSelectButton.setText(editingPreset.name);
+            setTextIfChanged(presetSelectButton, editingPreset.name);
         }
         if (enabledSwitch != null) {
             enabledSwitch.setChecked(runningPreset.enabled);
@@ -3212,7 +3212,7 @@ public final class MainActivity extends Activity {
         }
 
         if (pregainInput != null) {
-            pregainInput.setText(formatDecimal(editingPreset.pregainMb / 100f));
+            setEditTextIfChanged(pregainInput, formatDecimal(editingPreset.pregainMb / 100f));
         }
         if (virtualBassSlider != null) {
             virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
