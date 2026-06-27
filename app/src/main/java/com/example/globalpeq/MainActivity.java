@@ -1289,7 +1289,6 @@ public final class MainActivity extends Activity {
         eqPage.addView(curveFrame, curveParams);
 
         FrameLayout listCardHolder = new FrameLayout(this);
-        peqListFrameView = listCardHolder;
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
         listCardHolder.setClipChildren(true);
