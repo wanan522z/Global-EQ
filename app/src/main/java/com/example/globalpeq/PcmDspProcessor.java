@@ -699,6 +699,7 @@ final class PcmDspProcessor {
         private float postDamping;
         private float inputGain;
         private float tankGain;
+        private int activeCombCount = 1;
 
         ReverbTank(int sampleRate) {
             combs = new DampedComb[] {
@@ -717,7 +718,7 @@ final class PcmDspProcessor {
 
         void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean rightChannel, boolean lowCpuMode) {
             float sizeScale = profile.minSizeScale + size * profile.sizeRange;
-            float damping = clamp(profile.damping + 0.03f + decayShape * 0.09f + size * 0.02f, 0.12f, 0.68f);
+            float damping = clamp(profile.damping + 0.05f + decayShape * 0.13f + size * 0.03f, 0.16f, 0.74f);
             float inputDiff = clamp(profile.inputGain + size * 0.03f, 0.18f, 0.38f);
             float offset = rightChannel ? 1.013f : 0.987f;
             widthMix = profile.width * (0.94f + size * 0.05f);
@@ -726,13 +727,14 @@ final class PcmDspProcessor {
             tankGain = profile.tankGain * (0.96f + decayShape * 0.08f);
             previousOutput = 0f;
             int activeCombs = lowCpuMode ? Math.max(2, combs.length - 1) : combs.length;
+            activeCombCount = activeCombs;
             for (int i = 0; i < combs.length; i++) {
                 float combDelayMs = profile.combDelayMs[i] * sizeScale * offset;
                 float feedback = clamp(calculateRt60Feedback(combDelayMs, decaySeconds)
                         * (0.9f + profile.baseFeedback * 0.1f)
                         - i * profile.feedbackSpread,
-                        0.32f,
-                        profile.feedbackCeiling);
+                        0.28f,
+                        profile.feedbackCeiling - decayShape * 0.018f);
                 float modulationDepthMs = profile.modDepthMs
                         * (1f + size * 0.12f + decayShape * 0.42f * profile.modulationScale);
                 combs[i].configure(combDelayMs,
@@ -740,6 +742,7 @@ final class PcmDspProcessor {
                         damping + i * 0.015f,
                         modulationDepthMs,
                         profile.modRateHz + i * profile.modSpreadHz + (rightChannel ? 0.009f : 0f),
+                        (rightChannel ? 0.41f : 0.19f) + i * 0.73f,
                         i < activeCombs,
                         lowCpuMode);
             }
@@ -759,7 +762,7 @@ final class PcmDspProcessor {
             for (DampedComb comb : combs) {
                 tankSum += comb.process(seeded);
             }
-            float tankOut = tankSum / combs.length;
+            float tankOut = tankSum / Math.max(1, activeCombCount);
             for (AllPassStage allPass : allpasses) {
                 tankOut = allPass.process(tankOut);
             }
