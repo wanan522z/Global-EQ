@@ -201,41 +201,26 @@ final class PcmDspProcessor {
         private final int channelCount;
         private Biquad sourceHighPass;
         private Biquad sourceLowPass;
-        private Biquad sustainLowPass;
-        private Biquad sustainHighPass;
         private Biquad harmonicHighPass;
         private Biquad harmonicLowPass;
-        private Biquad upperHarmonicHighPass;
-        private Biquad upperHarmonicLowPass;
         private Biquad octaveHighPass;
         private Biquad octaveLowPass;
-        private Biquad subBodyLowPass;
         private float[] lowBand = new float[0];
-        private float[] sustainBand = new float[0];
         private float[] harmonicBand = new float[0];
-        private float[] upperHarmonicBand = new float[0];
         private float[] octaveBand = new float[0];
-        private float[] subBodyBand = new float[0];
         private final float[] envelope;
         private float[] octaveDc = new float[0];
         private float harmonicMix;
-        private float upperHarmonicMix;
         private float octaveMix;
         private float sustainMix;
-        private float subBodyMix;
-        private boolean lowCpuMode;
         private float lowBandLift;
         private float lowBandTrim;
         private float outputCompensation;
         private float drive;
-        private float asymmetry;
         private float saturationCeiling;
         private float safeAmount;
-        private float sustainCeiling;
         private float harmonicCeiling;
-        private float upperHarmonicCeiling;
         private float octaveCeiling;
-        private float subBodyCeiling;
         private float envelopeAttack;
         private float envelopeRelease;
 
@@ -251,7 +236,6 @@ final class PcmDspProcessor {
                        int dspCutoffHz,
                        int dspAmountPercent,
                        boolean lowCpuMode) {
-            this.lowCpuMode = lowCpuMode;
             float virtualAmount = clamp01(virtualAmountPercent / 100f);
             float dspAmount = clamp01(dspAmountPercent / 100f);
             float totalAmount = clamp01(virtualAmount * 0.72f + dspAmount * 0.96f);
@@ -276,34 +260,28 @@ final class PcmDspProcessor {
                     sampleRate,
                     channelCount);
             harmonicLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.max(80, Math.round(blendedCutoff * 1.18f)), 0, 86),
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.max(78, Math.round(blendedCutoff * 1.12f)), 0, 88),
                     sampleRate,
                     channelCount);
             octaveHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(48, Math.round(blendedCutoff * 0.92f)), 0, 80),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(42, Math.round(blendedCutoff * 0.84f)), 0, 82),
                     sampleRate,
                     channelCount);
             octaveLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.max(96, Math.round(blendedCutoff * 2.2f)), 380), 0, 86),
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.max(92, Math.round(blendedCutoff * 2.05f)), 360), 0, 88),
                     sampleRate,
                     channelCount);
 
-            harmonicMix = safeAmount * (0.16f + virtualAmount * 0.06f + dspAmount * 0.08f);
-            upperHarmonicMix = 0f;
-            octaveMix = safeAmount * (0.34f + virtualAmount * 0.1f + dspAmount * 0.18f);
-            sustainMix = safeAmount * (0.05f + dspAmount * 0.08f);
-            subBodyMix = 0f;
-            lowBandLift = safeAmount * (0.08f + dspAmount * 0.1f + virtualAmount * 0.05f);
-            lowBandTrim = safeAmount * (0.012f + dspAmount * 0.008f + virtualAmount * 0.004f);
-            outputCompensation = 1f + safeAmount * 0.025f + dspAmount * 0.02f;
-            drive = 1.15f + safeAmount * 2.2f + dspAmount * 0.8f;
-            asymmetry = 0f;
-            saturationCeiling = 0.52f + (1f - totalAmount) * 0.12f;
-            sustainCeiling = 0f;
-            harmonicCeiling = 0.22f + (1f - totalAmount) * 0.06f;
-            upperHarmonicCeiling = 0f;
-            octaveCeiling = 0.28f + (1f - totalAmount) * 0.08f;
-            subBodyCeiling = 0f;
+            harmonicMix = safeAmount * (0.12f + virtualAmount * 0.05f + dspAmount * 0.06f);
+            octaveMix = safeAmount * (0.4f + virtualAmount * 0.12f + dspAmount * 0.2f);
+            sustainMix = safeAmount * (0.03f + dspAmount * 0.05f + virtualAmount * 0.02f);
+            lowBandLift = safeAmount * (0.06f + dspAmount * 0.06f + virtualAmount * 0.04f);
+            lowBandTrim = safeAmount * (0.015f + dspAmount * 0.01f + virtualAmount * 0.006f);
+            outputCompensation = 1f + safeAmount * 0.018f;
+            drive = 1.1f + safeAmount * 1.8f + dspAmount * 0.45f;
+            saturationCeiling = 0.5f + (1f - totalAmount) * 0.1f;
+            harmonicCeiling = 0.18f + (1f - totalAmount) * 0.05f;
+            octaveCeiling = 0.24f + (1f - totalAmount) * 0.06f;
             envelopeAttack = 0.01f + safeAmount * 0.01f;
             envelopeRelease = 0.002f + safeAmount * 0.003f;
             for (int i = 0; i < envelope.length; i++) {
@@ -343,15 +321,16 @@ final class PcmDspProcessor {
                 float absLow = Math.abs(low);
                 float coeff = absLow > envelope[channel] ? envelopeAttack : envelopeRelease;
                 envelope[channel] += (absLow - envelope[channel]) * coeff;
-                float normalized = low / (0.05f + envelope[channel] * 0.95f);
+                float normalized = low / (0.045f + envelope[channel] * 0.92f);
                 float shaped = (float) Math.tanh(normalized * drive);
-                float dynamics = 0.55f + Math.min(1f, envelope[channel] * 6.0f) * 0.45f;
-                harmonicBand[i] = softLimit((shaped - normalized * 0.78f) * dynamics, harmonicCeiling);
+                float envelopeDrive = Math.min(1f, envelope[channel] * 6.0f);
+                float dynamics = 0.48f + envelopeDrive * 0.34f;
+                harmonicBand[i] = softLimit((shaped - normalized * 0.82f) * dynamics, harmonicCeiling);
 
                 // Full-wave rectification gives us a cheap octave-up component from the sub band.
                 float octaveRaw = Math.abs(shaped);
-                octaveDc[channel] += (octaveRaw - octaveDc[channel]) * 0.014f;
-                octaveBand[i] = softLimit((octaveRaw - octaveDc[channel]) * (0.72f + Math.min(1f, envelope[channel] * 6f) * 0.48f), octaveCeiling);
+                octaveDc[channel] += (octaveRaw - octaveDc[channel]) * 0.012f;
+                octaveBand[i] = softLimit((octaveRaw - octaveDc[channel]) * (0.84f + envelopeDrive * 0.36f), octaveCeiling);
             }
 
             harmonicHighPass.process(harmonicBand, sampleCount, channelCount);
@@ -418,7 +397,7 @@ final class PcmDspProcessor {
             float decaySeconds = clamp(decayPercent / 100f, 0f, 12f);
             float decayShape = clamp01((Math.max(0.35f, decaySeconds) - 0.35f) / 11.65f);
             wetMix = "Default".equals(type) ? 0f : mix;
-            dryMix = "Default".equals(type) ? 1f : 1f - wetMix;
+            dryMix = "Default".equals(type) ? 1f : 1f - wetMix * wetMix;
             wetGain = "Default".equals(type) ? 0f : wetMix;
             blendGain = 1f;
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
@@ -620,9 +599,9 @@ final class PcmDspProcessor {
             float adaptiveHighCutHz = clamp(profile.highCutHz * (1f - decayShape * 0.08f), 4200f, 12000f);
             leftHighCut.configure(adaptiveHighCutHz);
             rightHighCut.configure(adaptiveHighCutHz);
-            float adaptiveLowMidCutDb = profile.lowMidCutDb * (0.9f + size * 0.06f + decayShape * 0.12f);
-            leftLowMidTrim.configure(520f, -adaptiveLowMidCutDb, 0.82f);
-            rightLowMidTrim.configure(520f, -adaptiveLowMidCutDb, 0.82f);
+            float adaptiveLowMidCutDb = profile.lowMidCutDb * (0.96f + size * 0.08f + decayShape * 0.14f);
+            leftLowMidTrim.configure(480f, -adaptiveLowMidCutDb, 0.76f);
+            rightLowMidTrim.configure(480f, -adaptiveLowMidCutDb, 0.76f);
         }
 
         void process(float leftIn, float rightIn, float[] wetFrame) {
@@ -907,9 +886,10 @@ final class PcmDspProcessor {
             }
             float delayed = delay.read();
             filterState += damping * (delayed - filterState);
-            float next = softSaturate(input + filterState * feedback);
+            float filtered = filterState;
+            float next = softSaturate(input + filtered * feedback);
             delay.write(next);
-            return softSaturate(delayed);
+            return softSaturate(filtered * 0.84f + delayed * 0.16f);
         }
     }
 
@@ -987,15 +967,14 @@ final class PcmDspProcessor {
     }
 
     private static final class ModulatedDelay {
+        private static final float TWO_PI = (float) (Math.PI * 2.0);
         private final float[] buffer;
         private final int sampleRate;
         private int writeIndex;
         private float delaySamples;
         private float modDepthSamples;
-        private float sinPhase;
-        private float cosPhase;
-        private float sinIncrement;
-        private float cosIncrement;
+        private float phase;
+        private float phaseIncrement;
         private boolean active = true;
 
         ModulatedDelay(int sampleRate, float maxDelayMs) {
@@ -1009,17 +988,14 @@ final class PcmDspProcessor {
             modDepthSamples = active
                     ? clamp(modDepthMs * sampleRate / 1000f, 0f, Math.min(5f, delaySamples * 0.12f))
                     : 0f;
-            float increment = (float) (2.0 * Math.PI * modRateHz / sampleRate);
-            sinPhase = 0f;
-            cosPhase = 1f;
-            sinIncrement = (float) Math.sin(increment);
-            cosIncrement = (float) Math.cos(increment);
+            phase = 0f;
+            phaseIncrement = active ? (float) (2.0 * Math.PI * modRateHz / sampleRate) : 0f;
             Arrays.fill(buffer, 0f);
             writeIndex = 0;
         }
 
         float read() {
-            float modulation = active ? sinPhase * modDepthSamples : 0f;
+            float modulation = active ? (float) Math.sin(phase) * modDepthSamples : 0f;
             float readPos = writeIndex - delaySamples - modulation;
             readPos = wrapReadPosition(readPos, buffer.length);
             int indexA = Math.min(buffer.length - 1, (int) readPos);
@@ -1035,10 +1011,10 @@ final class PcmDspProcessor {
                 writeIndex = 0;
             }
             if (active && modDepthSamples > 0f) {
-                float nextSin = sinPhase * cosIncrement + cosPhase * sinIncrement;
-                float nextCos = cosPhase * cosIncrement - sinPhase * sinIncrement;
-                sinPhase = nextSin;
-                cosPhase = nextCos;
+                phase += phaseIncrement;
+                if (phase >= TWO_PI) {
+                    phase -= TWO_PI;
+                }
             }
         }
 
@@ -1166,8 +1142,8 @@ final class PcmDspProcessor {
                         new float[] {4.2f, 6.8f, 9.7f},
                         0.74f, 0.52f, 0.57f, 0.18f, 0.19f, 0.27f,
                         0.24f, 0.92f, 0.34f, 0.18f, 0.88f, 1.08f, 0.15f,
-                        0.58f, 0.62f, 0.028f, 0.14f, 0.17f, 0.012f, 5.8f,
-                        0.88f, 1.2f, 7100f, 1.3f);
+                        0.58f, 0.6f, 0.026f, 0.11f, 0.15f, 0.011f, 5.8f,
+                        0.86f, 1.08f, 6500f, 1.7f);
             }
             if ("Hall".equals(type)) {
                 return new ReverbProfile(
@@ -1176,8 +1152,8 @@ final class PcmDspProcessor {
                         new float[] {5.4f, 8.1f, 12.4f},
                         0.88f, 0.78f, 0.61f, 0.2f, 0.24f, 0.25f,
                         0.18f, 0.96f, 0.31f, 0.22f, 0.9f, 1.12f, 0.18f,
-                        0.62f, 0.58f, 0.024f, 0.22f, 0.13f, 0.01f, 9.6f,
-                        0.87f, 1.34f, 6600f, 1.55f);
+                        0.6f, 0.54f, 0.022f, 0.18f, 0.115f, 0.009f, 9.4f,
+                        0.85f, 1.18f, 6100f, 2.1f);
             }
             if ("Chamber".equals(type)) {
                 return new ReverbProfile(
@@ -1186,8 +1162,8 @@ final class PcmDspProcessor {
                         new float[] {4.0f, 6.0f, 8.8f},
                         0.78f, 0.58f, 0.55f, 0.17f, 0.2f, 0.26f,
                         0.22f, 0.93f, 0.33f, 0.17f, 0.87f, 1.03f, 0.15f,
-                        0.56f, 0.6f, 0.026f, 0.16f, 0.16f, 0.011f, 6.7f,
-                        0.88f, 1.16f, 7400f, 1.0f);
+                        0.56f, 0.58f, 0.024f, 0.13f, 0.14f, 0.01f, 6.6f,
+                        0.86f, 1.08f, 6800f, 1.45f);
             }
             if ("Room".equals(type)) {
                 return new ReverbProfile(
@@ -1196,8 +1172,8 @@ final class PcmDspProcessor {
                         new float[] {2.9f, 4.3f, 6.2f},
                         0.66f, 0.36f, 0.47f, 0.12f, 0.27f, 0.22f,
                         0.3f, 0.88f, 0.38f, 0.12f, 0.84f, 0.98f, 0.13f,
-                        0.5f, 0.54f, 0.02f, 0.1f, 0.11f, 0.009f, 3.8f,
-                        0.86f, 1.08f, 6200f, 0.55f);
+                        0.48f, 0.5f, 0.018f, 0.075f, 0.095f, 0.008f, 3.7f,
+                        0.84f, 0.94f, 5600f, 0.9f);
             }
             if ("Studio".equals(type)) {
                 return new ReverbProfile(
@@ -1206,8 +1182,8 @@ final class PcmDspProcessor {
                         new float[] {2.3f, 3.5f, 4.9f},
                         0.58f, 0.28f, 0.42f, 0.1f, 0.3f, 0.2f,
                         0.34f, 0.84f, 0.42f, 0.08f, 0.8f, 0.92f, 0.11f,
-                        0.46f, 0.5f, 0.018f, 0.08f, 0.1f, 0.008f, 2.9f,
-                        0.85f, 1.04f, 5600f, 0.45f);
+                        0.44f, 0.46f, 0.016f, 0.06f, 0.085f, 0.007f, 2.8f,
+                        0.83f, 0.88f, 5000f, 0.8f);
             }
             return new ReverbProfile(
                     new float[] {20.1f, 24.2f, 28.7f, 33.1f},
@@ -1215,8 +1191,8 @@ final class PcmDspProcessor {
                     new float[] {3.5f, 5.3f, 7.6f},
                     0.72f, 0.48f, 0.52f, 0.16f, 0.22f, 0.24f,
                     0.24f, 0.9f, 0.35f, 0.15f, 0.86f, 1f, 0.14f,
-                    0.54f, 0.56f, 0.024f, 0.12f, 0.14f, 0.01f, 5.2f,
-                    0.87f, 1.12f, 6800f, 0.8f);
+                    0.52f, 0.54f, 0.022f, 0.1f, 0.125f, 0.009f, 5.1f,
+                    0.85f, 1.04f, 6400f, 1.15f);
         }
     }
 
