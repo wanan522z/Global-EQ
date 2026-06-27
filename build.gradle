@@ -1,8 +1,0 @@
-buildscript {
-    dependencies {
-        classpath files(fileTree(
-                dir: new File(System.getProperty("user.home"), ".gradle/caches/modules-2/files-2.1"),
-                include: ["**/*.jar"]
-        ))
-    }
-}
