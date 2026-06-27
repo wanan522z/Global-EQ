@@ -809,6 +809,91 @@ final class PcmDspProcessor {
         }
     }
 
+    private static final class WetLowPass {
+        private final int sampleRate;
+        private float alpha = 1f;
+        private float state;
+
+        WetLowPass(int sampleRate) {
+            this.sampleRate = Math.max(8000, sampleRate);
+        }
+
+        void configure(float cutoffHz) {
+            float safeCutoff = clamp(cutoffHz, 1000f, sampleRate * 0.45f);
+            float rc = 1f / ((float) (2.0 * Math.PI) * safeCutoff);
+            float dt = 1f / sampleRate;
+            alpha = dt / (rc + dt);
+            state = 0f;
+        }
+
+        float process(float input) {
+            state += alpha * (input - state);
+            state = finiteOrZero(state);
+            return state;
+        }
+    }
+
+    private static final class MonoPeakFilter {
+        private final int sampleRate;
+        private float b0 = 1f;
+        private float b1;
+        private float b2;
+        private float a1;
+        private float a2;
+        private float z1;
+        private float z2;
+        private boolean active;
+
+        MonoPeakFilter(int sampleRate) {
+            this.sampleRate = Math.max(8000, sampleRate);
+        }
+
+        void configure(float frequencyHz, float gainDb, float q) {
+            if (Math.abs(gainDb) < 0.05f) {
+                active = false;
+                reset();
+                return;
+            }
+            double frequency = clamp(frequencyHz, 20f, this.sampleRate * 0.45f);
+            double omega = 2.0 * Math.PI * frequency / this.sampleRate;
+            double sin = Math.sin(omega);
+            double cos = Math.cos(omega);
+            double safeQ = Math.max(0.25, q);
+            double a = Math.pow(10.0, gainDb / 40.0);
+            double alpha = sin / (2.0 * safeQ);
+
+            double cb0 = 1.0 + alpha * a;
+            double cb1 = -2.0 * cos;
+            double cb2 = 1.0 - alpha * a;
+            double ca0 = 1.0 + alpha / a;
+            double ca1 = -2.0 * cos;
+            double ca2 = 1.0 - alpha / a;
+
+            b0 = (float) (cb0 / ca0);
+            b1 = (float) (cb1 / ca0);
+            b2 = (float) (cb2 / ca0);
+            a1 = (float) (ca1 / ca0);
+            a2 = (float) (ca2 / ca0);
+            active = true;
+            reset();
+        }
+
+        float process(float input) {
+            if (!active) {
+                return input;
+            }
+            float output = b0 * input + z1;
+            z1 = b1 * input - a1 * output + z2;
+            z2 = b2 * input - a2 * output;
+            return finiteOrZero(output);
+        }
+
+        void reset() {
+            z1 = 0f;
+            z2 = 0f;
+        }
+    }
+
     private static final class DampedComb {
         private final ModulatedDelay delay;
         private float feedback;
