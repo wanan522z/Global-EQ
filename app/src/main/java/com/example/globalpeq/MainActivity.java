@@ -6639,6 +6639,14 @@ public final class MainActivity extends Activity {
     }
 
     private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, displayScale, displayDecimals, false, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, boolean negativeInfinityAtMin, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, 1f, 0, negativeInfinityAtMin, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, IntChanged listener) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
