@@ -1788,9 +1788,13 @@ public final class MainActivity extends Activity {
     }
 
     private void setProcessingMode(ProcessingMode nextMode) {
+        ProcessingMode previousMode = processingMode;
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
+            if (previousMode == ProcessingMode.SHIZUKU_MUTE) {
+                stopShizukuCaptureNow();
+            }
             if (monitorSettingsOpen) {
                 hideAdvancedSettingsSubpage();
             }
