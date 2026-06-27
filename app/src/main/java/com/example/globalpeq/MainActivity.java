@@ -887,20 +887,20 @@ public final class MainActivity extends Activity {
         enabledSwitch.setEnabled(supported);
         enabledSwitch.setOnCheckedChangeListener(this::onEnabledChanged);
         styleTopSwitch(enabledSwitch, false);
-        enabledSwitch.setTranslationY(dp(2));
+        enabledSwitch.setTranslationY(dp(1));
         autoSwitchOutputSwitch = new Switch(this);
         autoSwitchOutputSwitch.setText("");
         autoSwitchOutputSwitch.setShowText(false);
         autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         autoSwitchOutputSwitch.setOnCheckedChangeListener(this::onAutoSwitchOutputChanged);
         styleTopSwitch(autoSwitchOutputSwitch, true);
-        autoSwitchOutputSwitch.setTranslationY(dp(2));
+        autoSwitchOutputSwitch.setTranslationY(dp(1));
         statusText = gradientTitleView("");
         statusText.setTextSize(12);
         statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         statusText.setGravity(android.view.Gravity.CENTER);
         statusText.setPadding(dp(10), dp(4), dp(10), dp(4));
-        statusText.setTranslationY(dp(2));
+        statusText.setTranslationY(dp(1));
         styleStatusText(false);
         int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
@@ -7660,7 +7660,7 @@ public final class MainActivity extends Activity {
                 float top = b.top + inset;
                 float right = b.right - inset;
                 float bottom = b.bottom - inset;
-                float cx = (left + right) * 0.5f;
+                float cx = (left + right) * 0.5f - dpf(1f);
                 float cy = (top + bottom) * 0.5f;
                 float radius = Math.min(right - left, bottom - top) * 0.5f;
                 paint.setShader(null);
