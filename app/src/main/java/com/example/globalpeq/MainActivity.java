@@ -633,6 +633,31 @@ public final class MainActivity extends Activity {
         keyboardLayoutListener = null;
     }
 
+    private void attachMonitoredAppIconOverlay() {
+        ViewGroup content = findViewById(android.R.id.content);
+        if (!(content instanceof FrameLayout) || monitoredAppIconView == null) {
+            return;
+        }
+        if (monitoredAppIconOverlay == null) {
+            monitoredAppIconOverlay = new FrameLayout(this);
+            monitoredAppIconOverlay.setClipChildren(false);
+            monitoredAppIconOverlay.setClipToPadding(false);
+            monitoredAppIconOverlay.setClickable(false);
+            monitoredAppIconOverlay.setFocusable(false);
+            ((FrameLayout) content).addView(monitoredAppIconOverlay, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+            ));
+        }
+        if (monitoredAppIconView.getParent() == null) {
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+                    monitoredAppIconHostSizePx(),
+                    monitoredAppIconHostSizePx());
+            iconParams.gravity = Gravity.START | Gravity.TOP;
+            monitoredAppIconOverlay.addView(monitoredAppIconView, iconParams);
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
