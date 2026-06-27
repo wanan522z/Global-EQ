@@ -5515,7 +5515,7 @@ public final class MainActivity extends Activity {
         }
         try {
             DeviceConfigFile config = DeviceConfigFile.fromJson(json);
-            applyImportedDeviceConfigV2(config);
+            applyImportedDeviceConfig(config);
             Toast.makeText(this, tr("Global config imported", "全局配置已导入"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
             Toast.makeText(this, tr("Unrecognized global config JSON", "无法识别的全局配置 JSON"), Toast.LENGTH_SHORT).show();
