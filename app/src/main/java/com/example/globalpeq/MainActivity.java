@@ -7359,12 +7359,12 @@ public final class MainActivity extends Activity {
                 })
                 .setNegativeButton("Cancel", null)
                 .create();
-        dlg.setOnShowListener(d -> {
-            styleDialog(dlg);
+        dlg.show();
+        styleDialog(dlg);
+        uiHandler.post(() -> {
             input.requestFocus();
             dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         });
-        dlg.show();
     }
 
     private int reverbTypeIndex(String type) {
