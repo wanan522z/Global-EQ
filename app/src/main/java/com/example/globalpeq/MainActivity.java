@@ -405,18 +405,18 @@ public final class MainActivity extends Activity {
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
-    private AudioManager audioManager;
-    private boolean playbackConfigCallbackRegistered;
     private String activePlaybackPackageName = "";
     private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
     private final ShizukuCompat.PermissionResultListener shizukuPermissionResultListener = this::handleShizukuPermissionResult;
-    private final AudioManager.AudioPlaybackCallback playbackConfigCallback =
-            new AudioManager.AudioPlaybackCallback() {
-                @Override
-                public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
-                    handlePlaybackConfigsChanged(configs);
-                }
-            };
+    private final Runnable activePlaybackPackageRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshActivePlaybackPackageFromRepository();
+            if (!isFinishing() && !isDestroyedCompat()) {
+                uiHandler.postDelayed(this, 900L);
+            }
+        }
+    };
     private final Runnable monitorStatusRefreshRunnable = new Runnable() {
         @Override
         public void run() {
@@ -486,7 +486,6 @@ public final class MainActivity extends Activity {
         refreshDeviceCurveCache();
         refreshTargetCurveCache();
         deviceMonitor = new AudioOutputDeviceMonitor(this);
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         currentDevice = repository.loadSelectedDevice();
         if (currentDevice == null) {
             currentDevice = deviceMonitor.currentOutputDevice();
@@ -519,8 +518,9 @@ public final class MainActivity extends Activity {
         super.onStart();
         ShizukuCompat.addStateListener(shizukuStateListener);
         ShizukuCompat.addPermissionResultListener(shizukuPermissionResultListener);
-        registerPlaybackConfigCallbackIfNeeded();
-        refreshActivePlaybackPackageFromSystem();
+        refreshActivePlaybackPackageFromRepository();
+        uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
+        uiHandler.post(activePlaybackPackageRefreshRunnable);
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
     }
@@ -532,12 +532,12 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
         cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
         pauseShizukuCaptureIfClosing();
-        unregisterPlaybackConfigCallback();
         activePlaybackPackageName = "";
         deviceMonitor.stop();
         ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
@@ -553,7 +553,7 @@ public final class MainActivity extends Activity {
                     ShizukuCompat.describeState(this),
                     ShizukuCompat.hasPermission());
         }
-        refreshActivePlaybackPackageFromSystem();
+        refreshActivePlaybackPackageFromRepository();
         renderAll();
         maybeAutoResumeShizukuCapture();
     }
@@ -592,10 +592,10 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
         pauseShizukuCaptureIfClosing();
-        unregisterPlaybackConfigCallback();
         super.onDestroy();
     }
 
@@ -3059,40 +3059,16 @@ public final class MainActivity extends Activity {
         return "";
     }
 
-    private void registerPlaybackConfigCallbackIfNeeded() {
-        if (playbackConfigCallbackRegistered
-                || audioManager == null
-                || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
-        audioManager.registerAudioPlaybackCallback(playbackConfigCallback, uiHandler);
-        playbackConfigCallbackRegistered = true;
-    }
-
-    private void unregisterPlaybackConfigCallback() {
-        if (!playbackConfigCallbackRegistered
-                || audioManager == null
-                || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
-        audioManager.unregisterAudioPlaybackCallback(playbackConfigCallback);
-        playbackConfigCallbackRegistered = false;
-    }
-
-    private void refreshActivePlaybackPackageFromSystem() {
-        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+    private void refreshActivePlaybackPackageFromRepository() {
+        if (repository == null) {
             updateActivePlaybackPackage("");
             return;
         }
-        try {
-            handlePlaybackConfigsChanged(audioManager.getActivePlaybackConfigurations());
-        } catch (SecurityException ignored) {
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
             updateActivePlaybackPackage("");
+            return;
         }
-    }
-
-    private void handlePlaybackConfigsChanged(List<AudioPlaybackConfiguration> configs) {
-        updateActivePlaybackPackage(resolveCurrentPlaybackPackage(configs));
+        updateActivePlaybackPackage(repository.loadActivePlaybackPackage());
     }
 
     private void updateActivePlaybackPackage(String packageName) {
@@ -3104,106 +3080,8 @@ public final class MainActivity extends Activity {
         uiHandler.post(this::updateMonitoredAppIcon);
     }
 
-    private String resolveCurrentPlaybackPackage(List<AudioPlaybackConfiguration> configs) {
-        if (processingMode != ProcessingMode.SHIZUKU_MUTE
-                || Build.VERSION.SDK_INT < Build.VERSION_CODES.O
-                || configs == null
-                || configs.isEmpty()) {
-            return "";
-        }
-        for (AudioPlaybackConfiguration config : configs) {
-            if (config == null || !isPlaybackConfigActive(config)) {
-                continue;
-            }
-            AudioAttributes attributes = config.getAudioAttributes();
-            int usage = attributes == null ? AudioAttributes.USAGE_UNKNOWN : attributes.getUsage();
-            if (usage != AudioAttributes.USAGE_MEDIA && usage != AudioAttributes.USAGE_GAME) {
-                continue;
-            }
-            int clientUid = readPlaybackClientUid(config);
-            if (clientUid == android.os.Process.myUid()) {
-                continue;
-            }
-            String packageName = resolvePackageNameForUid(clientUid);
-            if (!packageName.isEmpty() && !getPackageName().equals(packageName)) {
-                return packageName;
-            }
-        }
-        return "";
-    }
-
-    private boolean isPlaybackConfigActive(AudioPlaybackConfiguration configuration) {
-        if (configuration == null) {
-            return false;
-        }
-        try {
-            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
-            Object value = method.invoke(configuration);
-            if (value instanceof Boolean) {
-                return (Boolean) value;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ignored) {
-        }
-
-        try {
-            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerState");
-            Object value = method.invoke(configuration);
-            if (value instanceof Integer) {
-                int startedState = readPlaybackStartedState();
-                return startedState < 0 || ((Integer) value) == startedState;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ignored) {
-        }
-        return true;
-    }
-
-    private int readPlaybackStartedState() {
-        try {
-            java.lang.reflect.Field field = AudioPlaybackConfiguration.class.getField("PLAYER_STATE_STARTED");
-            Object value = field.get(null);
-            if (value instanceof Integer) {
-                return (Integer) value;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ignored) {
-        }
-        return -1;
-    }
-
-    private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
-        if (configuration == null) {
-            return -1;
-        }
-        try {
-            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getClientUid");
-            Object value = method.invoke(configuration);
-            if (value instanceof Integer) {
-                return (Integer) value;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        } catch (RuntimeException ignored) {
-        }
-        return -1;
-    }
-
-    private String resolvePackageNameForUid(int uid) {
-        if (uid <= 0) {
-            return "";
-        }
-        String[] packages = getPackageManager().getPackagesForUid(uid);
-        if (packages == null || packages.length == 0) {
-            return "";
-        }
-        for (String packageName : packages) {
-            if (packageName != null
-                    && !packageName.trim().isEmpty()
-                    && !getPackageName().equals(packageName)) {
-                return packageName;
-            }
-        }
-        return "";
+    private boolean isDestroyedCompat() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed();
     }
 
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
