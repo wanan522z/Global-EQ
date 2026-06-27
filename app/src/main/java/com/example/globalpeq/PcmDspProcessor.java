@@ -227,6 +227,7 @@ final class PcmDspProcessor {
         private float octaveMix;
         private float sustainMix;
         private float subBodyMix;
+        private boolean lowCpuMode;
         private float lowBandLift;
         private float lowBandTrim;
         private float outputCompensation;
@@ -246,13 +247,15 @@ final class PcmDspProcessor {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
             this.envelope = new float[channelCount];
-            configure(140, 0, 95, 0);
+            configure(140, 0, 95, 0, false);
         }
 
         void configure(int virtualCutoffHz,
                        int virtualAmountPercent,
                        int dspCutoffHz,
-                       int dspAmountPercent) {
+                       int dspAmountPercent,
+                       boolean lowCpuMode) {
+            this.lowCpuMode = lowCpuMode;
             float virtualAmount = clamp01(virtualAmountPercent / 100f);
             float dspAmount = clamp01(dspAmountPercent / 100f);
             float totalAmount = clamp01(virtualAmount * 0.9f + dspAmount * 0.7f);
@@ -314,6 +317,11 @@ final class PcmDspProcessor {
             octaveMix = safeAmount * (0.18f + virtualAmount * 0.08f + dspAmount * 0.24f);
             sustainMix = safeAmount * (0.2f + dspAmount * 0.24f);
             subBodyMix = safeAmount * (0.12f + dspAmount * 0.18f + virtualAmount * 0.05f);
+            if (lowCpuMode) {
+                upperHarmonicMix *= 0.35f;
+                octaveMix *= 0.18f;
+                subBodyMix *= 0.55f;
+            }
             lowBandLift = totalAmount * (0.07f + dspAmount * 0.12f + virtualAmount * 0.05f);
             lowBandTrim = dspAmount * 0.03f + virtualAmount * 0.01f;
             outputCompensation = 1f + safeAmount * 0.04f + dspAmount * 0.025f + virtualAmount * 0.01f;
@@ -351,9 +359,15 @@ final class PcmDspProcessor {
             sourceLowPass.process(lowBand, sampleCount, channelCount);
             System.arraycopy(lowBand, 0, sustainBand, 0, sampleCount);
             System.arraycopy(lowBand, 0, harmonicBand, 0, sampleCount);
-            System.arraycopy(lowBand, 0, upperHarmonicBand, 0, sampleCount);
-            System.arraycopy(lowBand, 0, octaveBand, 0, sampleCount);
-            System.arraycopy(lowBand, 0, subBodyBand, 0, sampleCount);
+            if (!lowCpuMode || upperHarmonicMix > 0f) {
+                System.arraycopy(lowBand, 0, upperHarmonicBand, 0, sampleCount);
+            }
+            if (!lowCpuMode || octaveMix > 0f) {
+                System.arraycopy(lowBand, 0, octaveBand, 0, sampleCount);
+            }
+            if (!lowCpuMode || subBodyMix > 0f) {
+                System.arraycopy(lowBand, 0, subBodyBand, 0, sampleCount);
+            }
 
             for (int i = 0; i < sampleCount; i++) {
                 int channel = i % channelCount;
@@ -376,20 +390,32 @@ final class PcmDspProcessor {
 
                 sustainBand[i] = softLimit(sustain * dynamics, sustainCeiling);
                 harmonicBand[i] = softLimit((oddDriver * 0.68f + evenDriver * 0.2f + shaped * 0.14f) * dynamics, harmonicCeiling);
-                upperHarmonicBand[i] = softLimit((fifthDriver * 0.42f + rectified * 0.28f) * dynamics, upperHarmonicCeiling);
-                octaveBand[i] = softLimit((Math.abs(shaped) * sign) * (0.48f + Math.abs(evenDriver) * 0.28f) * dynamics, octaveCeiling);
-                subBodyBand[i] = softLimit(body * (0.34f + dynamics * 0.4f), subBodyCeiling);
+                if (!lowCpuMode || upperHarmonicMix > 0f) {
+                    upperHarmonicBand[i] = softLimit((fifthDriver * 0.42f + rectified * 0.28f) * dynamics, upperHarmonicCeiling);
+                }
+                if (!lowCpuMode || octaveMix > 0f) {
+                    octaveBand[i] = softLimit((Math.abs(shaped) * sign) * (0.48f + Math.abs(evenDriver) * 0.28f) * dynamics, octaveCeiling);
+                }
+                if (!lowCpuMode || subBodyMix > 0f) {
+                    subBodyBand[i] = softLimit(body * (0.34f + dynamics * 0.4f), subBodyCeiling);
+                }
             }
 
             sustainHighPass.process(sustainBand, sampleCount, channelCount);
             sustainLowPass.process(sustainBand, sampleCount, channelCount);
             harmonicHighPass.process(harmonicBand, sampleCount, channelCount);
             harmonicLowPass.process(harmonicBand, sampleCount, channelCount);
-            upperHarmonicHighPass.process(upperHarmonicBand, sampleCount, channelCount);
-            upperHarmonicLowPass.process(upperHarmonicBand, sampleCount, channelCount);
-            octaveHighPass.process(octaveBand, sampleCount, channelCount);
-            octaveLowPass.process(octaveBand, sampleCount, channelCount);
-            subBodyLowPass.process(subBodyBand, sampleCount, channelCount);
+            if (!lowCpuMode || upperHarmonicMix > 0f) {
+                upperHarmonicHighPass.process(upperHarmonicBand, sampleCount, channelCount);
+                upperHarmonicLowPass.process(upperHarmonicBand, sampleCount, channelCount);
+            }
+            if (!lowCpuMode || octaveMix > 0f) {
+                octaveHighPass.process(octaveBand, sampleCount, channelCount);
+                octaveLowPass.process(octaveBand, sampleCount, channelCount);
+            }
+            if (!lowCpuMode || subBodyMix > 0f) {
+                subBodyLowPass.process(subBodyBand, sampleCount, channelCount);
+            }
 
             for (int i = 0; i < sampleCount; i++) {
                 samples[i] += softLimit(lowBand[i] * lowBandLift, saturationCeiling);
