@@ -450,17 +450,31 @@ final class PlaybackCaptureEngine {
     }
 
     private void reconfigureEffectsLocked() {
+        Preset effectiveDspPreset = AudioProcessingPolicy.effectiveDspPreset(
+                currentPreset,
+                currentMode,
+                currentVirtualBassModeIndex);
+        boolean enableDspBass = AudioProcessingPolicy.dspVirtualBassAllowed(
+                currentMode,
+                currentVirtualBassModeIndex);
         synchronized (dspLock) {
-            Preset effectiveDspPreset = AudioProcessingPolicy.effectiveDspPreset(
-                    currentPreset,
-                    currentMode,
-                    currentVirtualBassModeIndex);
-            dspProcessor.configure(
-                    effectiveDspPreset,
-                    SAMPLE_RATE,
-                    CHANNEL_COUNT,
-                    AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentVirtualBassModeIndex),
-                    currentConfig);
+            try {
+                dspProcessor.configure(
+                        effectiveDspPreset,
+                        SAMPLE_RATE,
+                        CHANNEL_COUNT,
+                        enableDspBass,
+                        currentConfig);
+            } catch (RuntimeException ex) {
+                Log.e(TAG, "DSP reconfigure failed, falling back to dry pass-through", ex);
+                dspProcessor.configure(
+                        Preset.flat(currentPreset != null && currentPreset.enabled).withName(
+                                currentPreset == null ? "Default" : currentPreset.name),
+                        SAMPLE_RATE,
+                        CHANNEL_COUNT,
+                        false,
+                        currentConfig);
+            }
         }
         applyTrackVirtualBassLocked();
     }
