@@ -13,7 +13,6 @@ final class PcmDspProcessor {
     private int channelCount = 2;
     private float pregain = 1f;
     private float effectHeadroom = 1f;
-    private boolean lowCpuFxMode;
     private PsychoacousticBassProcessor psychoacousticBass = new PsychoacousticBassProcessor(48000, 2);
     private AlgorithmicReverb reverb = new AlgorithmicReverb(48000, 2);
     private LookaheadLimiter limiter = new LookaheadLimiter(48000, 2);
@@ -31,14 +30,10 @@ final class PcmDspProcessor {
         channelCount = Math.max(1, nextChannelCount);
         pregain = preset == null ? 1f : dbToLinear(preset.pregainMb / 100f);
         effectHeadroom = 1f;
-        lowCpuFxMode = false;
         filters.clear();
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
 
         if (preset != null) {
-            boolean reverbEnabled = !"Default".equals(preset.reverbType) && preset.reverbMixPercent > 0;
-            boolean dspBassEnabled = enableDspBass && preset.virtualBassAmountPercent > 0;
-            lowCpuFxMode = reverbEnabled && dspBassEnabled;
             if (preset.mode == EqMode.GEQ) {
                 int bandCount = Math.min(Preset.GEQ_FREQUENCIES.length, preset.geqGainsMb.length);
                 for (int i = 0; i < bandCount; i++) {
@@ -63,14 +58,14 @@ final class PcmDspProcessor {
                     preset.extraBassEnabled ? preset.extraBassAmountPercent : 0,
                     preset.virtualBassCutoffHz,
                     enableDspBass ? preset.virtualBassAmountPercent : 0,
-                    lowCpuFxMode);
+                    false);
             reverb = new AlgorithmicReverb(sampleRate, channelCount);
             reverb.configure(preset.reverbType,
                     preset.reverbDecayPercent,
                     preset.reverbPredelayMs,
                     preset.reverbSizePercent,
                     preset.reverbMixPercent,
-                    lowCpuFxMode);
+                    false);
             limiter = new LookaheadLimiter(sampleRate, channelCount);
             limiter.configure(safeConfig.lookaheadMs, safeConfig.latencyMs);
         }
