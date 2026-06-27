@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 
 public final class GlobalEqForegroundService extends Service {
     static final String ACTION_APPLY = "com.example.globalpeq.APPLY";
@@ -32,6 +33,7 @@ public final class GlobalEqForegroundService extends Service {
     private AudioOutputDevice currentDevice = new AudioOutputDevice("none", "Output device");
     private Preset currentPreset = Preset.flat(false);
     private boolean awaitingInitialDeviceMonitorEvent;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
     private Preset pendingCapturePreset = Preset.flat(false);
     private AdvancedModeConfig pendingCaptureConfig = AdvancedModeConfig.DEFAULT;
@@ -124,10 +126,7 @@ public final class GlobalEqForegroundService extends Service {
                     intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
                     intent.getParcelableExtra(EXTRA_CAPTURE_DATA));
         } else if (ACTION_PAUSE_SHIZUKU.equals(action)) {
-            schedulePauseShizukuSession();
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
-            updateNotification();
+            requestPauseShizukuAndStopService();
             return START_NOT_STICKY;
         } else {
             startForegroundInternal(captureEngine.hasProjection());
@@ -136,10 +135,7 @@ public final class GlobalEqForegroundService extends Service {
         ProcessingMode processingMode = repository.loadProcessingMode();
         if (!preset.enabled) {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-                schedulePauseShizukuSession();
-                stopForeground(STOP_FOREGROUND_REMOVE);
-                stopSelf();
-                updateNotification();
+                requestPauseShizukuAndStopService();
                 return START_NOT_STICKY;
             }
             scheduleCaptureStopAll();
@@ -159,11 +155,10 @@ public final class GlobalEqForegroundService extends Service {
     @Override
     public void onDestroy() {
         deviceMonitor.stop();
-        scheduleCaptureStopAll();
-        scheduleShizukuStopAll();
         if (captureControlHandler != null) {
             captureControlHandler.removeCallbacksAndMessages(null);
         }
+        stopCaptureAndMuteNow();
         if (captureControlThread != null) {
             captureControlThread.quitSafely();
             captureControlThread = null;
@@ -306,6 +301,35 @@ public final class GlobalEqForegroundService extends Service {
     private void schedulePauseShizukuSession() {
         scheduleCaptureStopAll();
         scheduleShizukuStopAll();
+    }
+
+    private void requestPauseShizukuAndStopService() {
+        Handler handler = captureControlHandler;
+        if (handler == null) {
+            stopCaptureAndMuteNow();
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
+            updateNotification();
+            return;
+        }
+        handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
+        handler.post(() -> {
+            stopCaptureAndMuteNow();
+            mainHandler.post(() -> {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+                updateNotification();
+            });
+        });
+    }
+
+    private void stopCaptureAndMuteNow() {
+        if (captureEngine != null) {
+            captureEngine.stopAll();
+        }
+        if (shizukuMuteEngine != null) {
+            shizukuMuteEngine.stopAll();
+        }
     }
 
     private void scheduleCaptureUpdate(ProcessingMode processingMode,
