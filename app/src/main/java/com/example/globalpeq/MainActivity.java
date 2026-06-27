@@ -8403,6 +8403,10 @@ public final class MainActivity extends Activity {
             invalidate();
         }
 
+        int getValue() {
+            return value;
+        }
+
         void setValue(int nextValue, boolean notify) {
             int clamped = Math.max(min, Math.min(max, nextValue));
             if (clamped == value) {
