@@ -6103,6 +6103,43 @@ public final class MainActivity extends Activity {
         return name != null && repository.loadNamedPresetNames().contains(name);
     }
 
+    private String joinStrings(String[] values) {
+        if (values == null || values.length == 0) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(value == null ? "" : value);
+        }
+        return builder.toString();
+    }
+
+    private void setTextIfChanged(TextView view, String text) {
+        if (view == null) {
+            return;
+        }
+        String next = text == null ? "" : text;
+        CharSequence current = view.getText();
+        if (current == null || !next.contentEquals(current)) {
+            view.setText(next);
+        }
+    }
+
+    private void setEditTextIfChanged(EditText input, String text) {
+        if (input == null) {
+            return;
+        }
+        String next = text == null ? "" : text;
+        Editable editable = input.getText();
+        String current = editable == null ? "" : editable.toString();
+        if (!next.equals(current)) {
+            input.setText(next);
+        }
+    }
+
     private void updateEditStateLabels() {
         if (presetSelectButton != null) {
             presetSelectButton.setText(editingPreset.name);
