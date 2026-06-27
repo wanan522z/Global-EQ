@@ -1054,25 +1054,35 @@ final class PcmDspProcessor {
         private int writeIndex;
         private float delaySamples;
         private float modDepthSamples;
-        private float phase;
-        private float phaseIncrement;
+        private float sinPhase;
+        private float cosPhase;
+        private float sinIncrement;
+        private float cosIncrement;
+        private boolean active = true;
 
         ModulatedDelay(int sampleRate, float maxDelayMs) {
             this.sampleRate = sampleRate;
             buffer = new float[Math.max(64, Math.round(maxDelayMs * sampleRate / 1000f) + 32)];
         }
 
-        void configure(float delayMs, float modDepthMs, float modRateHz) {
+        void configure(float delayMs, float modDepthMs, float modRateHz, boolean active) {
+            this.active = active;
             delaySamples = clamp(delayMs * sampleRate / 1000f, 4f, buffer.length - 4f);
-            modDepthSamples = clamp(modDepthMs * sampleRate / 1000f, 0f, Math.min(5f, delaySamples * 0.12f));
-            phase = 0f;
-            phaseIncrement = (float) (2.0 * Math.PI * modRateHz / sampleRate);
+            modDepthSamples = active
+                    ? clamp(modDepthMs * sampleRate / 1000f, 0f, Math.min(5f, delaySamples * 0.12f))
+                    : 0f;
+            float increment = (float) (2.0 * Math.PI * modRateHz / sampleRate);
+            sinPhase = 0f;
+            cosPhase = 1f;
+            sinIncrement = (float) Math.sin(increment);
+            cosIncrement = (float) Math.cos(increment);
             Arrays.fill(buffer, 0f);
             writeIndex = 0;
         }
 
         float read() {
-            float readPos = writeIndex - delaySamples - (float) Math.sin(phase) * modDepthSamples;
+            float modulation = active ? sinPhase * modDepthSamples : 0f;
+            float readPos = writeIndex - delaySamples - modulation;
             readPos = wrapReadPosition(readPos, buffer.length);
             int indexA = Math.min(buffer.length - 1, (int) readPos);
             int indexB = (indexA + 1) % buffer.length;
@@ -1086,9 +1096,11 @@ final class PcmDspProcessor {
             if (writeIndex >= buffer.length) {
                 writeIndex = 0;
             }
-            phase += phaseIncrement;
-            if (phase > Math.PI * 2.0f) {
-                phase -= (float) (Math.PI * 2.0);
+            if (active && modDepthSamples > 0f) {
+                float nextSin = sinPhase * cosIncrement + cosPhase * sinIncrement;
+                float nextCos = cosPhase * cosIncrement - sinPhase * sinIncrement;
+                sinPhase = nextSin;
+                cosPhase = nextCos;
             }
         }
 
