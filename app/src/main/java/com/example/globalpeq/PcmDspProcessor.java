@@ -850,10 +850,8 @@ final class PcmDspProcessor {
 
         float read() {
             float readPos = writeIndex - delaySamples - (float) Math.sin(phase) * modDepthSamples;
-            while (readPos < 0f) {
-                readPos += buffer.length;
-            }
-            int indexA = (int) readPos;
+            readPos = wrapReadPosition(readPos, buffer.length);
+            int indexA = Math.min(buffer.length - 1, (int) readPos);
             int indexB = (indexA + 1) % buffer.length;
             float frac = readPos - indexA;
             return finiteOrZero(buffer[indexA] + (buffer[indexB] - buffer[indexA]) * frac);
@@ -869,6 +867,19 @@ final class PcmDspProcessor {
             if (phase > Math.PI * 2.0f) {
                 phase -= (float) (Math.PI * 2.0);
             }
+        }
+
+        private static float wrapReadPosition(float readPos, int bufferLength) {
+            if (!Float.isFinite(readPos) || bufferLength <= 0) {
+                return 0f;
+            }
+            while (readPos < 0f) {
+                readPos += bufferLength;
+            }
+            while (readPos >= bufferLength) {
+                readPos -= bufferLength;
+            }
+            return readPos;
         }
     }
 
