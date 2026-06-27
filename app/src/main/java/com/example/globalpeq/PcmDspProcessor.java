@@ -463,7 +463,7 @@ final class PcmDspProcessor {
             this.preDelayBuffers = new float[Math.max(1, channelCount)][Math.max(1, sampleRate / 2)];
             this.preDelayIndices = new int[Math.max(1, channelCount)];
             this.reverbCore = new StereoReverbCore(sampleRate);
-            configure("Default", 0, 0, 0, 0);
+            configure("Default", 0, 0, 0, 0, false);
         }
 
         void configure(String type,
