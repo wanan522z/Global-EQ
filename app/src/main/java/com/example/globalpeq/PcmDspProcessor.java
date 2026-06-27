@@ -986,6 +986,10 @@ final class PcmDspProcessor {
         final float modRateHz;
         final float modSpreadHz;
         final float earlyDelayMs;
+        final float feedbackCeiling;
+        final float modulationScale;
+        final float highCutHz;
+        final float lowMidCutDb;
 
         ReverbProfile(float[] combDelayMs,
                       float[] allPassDelayMs,
@@ -1009,7 +1013,11 @@ final class PcmDspProcessor {
                       float modDepthMs,
                       float modRateHz,
                       float modSpreadHz,
-                      float earlyDelayMs) {
+                      float earlyDelayMs,
+                      float feedbackCeiling,
+                      float modulationScale,
+                      float highCutHz,
+                      float lowMidCutDb) {
             this.combDelayMs = combDelayMs;
             this.allPassDelayMs = allPassDelayMs;
             this.diffusionMs = diffusionMs;
@@ -1033,6 +1041,10 @@ final class PcmDspProcessor {
             this.modRateHz = modRateHz;
             this.modSpreadHz = modSpreadHz;
             this.earlyDelayMs = earlyDelayMs;
+            this.feedbackCeiling = feedbackCeiling;
+            this.modulationScale = modulationScale;
+            this.highCutHz = highCutHz;
+            this.lowMidCutDb = lowMidCutDb;
         }
 
         static ReverbProfile forType(String type) {
@@ -1043,7 +1055,8 @@ final class PcmDspProcessor {
                         new float[] {4.2f, 6.8f, 9.7f},
                         0.74f, 0.52f, 0.57f, 0.18f, 0.19f, 0.27f,
                         0.24f, 0.92f, 0.34f, 0.18f, 0.88f, 1.08f, 0.15f,
-                        0.58f, 0.62f, 0.028f, 0.14f, 0.17f, 0.012f, 5.8f);
+                        0.58f, 0.62f, 0.028f, 0.14f, 0.17f, 0.012f, 5.8f,
+                        0.88f, 1.2f, 7100f, 1.3f);
             }
             if ("Hall".equals(type)) {
                 return new ReverbProfile(
@@ -1052,7 +1065,8 @@ final class PcmDspProcessor {
                         new float[] {5.4f, 8.1f, 12.4f},
                         0.88f, 0.78f, 0.61f, 0.2f, 0.24f, 0.25f,
                         0.18f, 0.96f, 0.31f, 0.22f, 0.9f, 1.12f, 0.18f,
-                        0.62f, 0.58f, 0.024f, 0.22f, 0.13f, 0.01f, 9.6f);
+                        0.62f, 0.58f, 0.024f, 0.22f, 0.13f, 0.01f, 9.6f,
+                        0.87f, 1.34f, 6600f, 1.55f);
             }
             if ("Chamber".equals(type)) {
                 return new ReverbProfile(
@@ -1061,7 +1075,8 @@ final class PcmDspProcessor {
                         new float[] {4.0f, 6.0f, 8.8f},
                         0.78f, 0.58f, 0.55f, 0.17f, 0.2f, 0.26f,
                         0.22f, 0.93f, 0.33f, 0.17f, 0.87f, 1.03f, 0.15f,
-                        0.56f, 0.6f, 0.026f, 0.16f, 0.16f, 0.011f, 6.7f);
+                        0.56f, 0.6f, 0.026f, 0.16f, 0.16f, 0.011f, 6.7f,
+                        0.88f, 1.16f, 7400f, 1.0f);
             }
             if ("Room".equals(type)) {
                 return new ReverbProfile(
@@ -1070,7 +1085,8 @@ final class PcmDspProcessor {
                         new float[] {2.9f, 4.3f, 6.2f},
                         0.66f, 0.36f, 0.47f, 0.12f, 0.27f, 0.22f,
                         0.3f, 0.88f, 0.38f, 0.12f, 0.84f, 0.98f, 0.13f,
-                        0.5f, 0.54f, 0.02f, 0.1f, 0.11f, 0.009f, 3.8f);
+                        0.5f, 0.54f, 0.02f, 0.1f, 0.11f, 0.009f, 3.8f,
+                        0.86f, 1.08f, 6200f, 0.55f);
             }
             if ("Studio".equals(type)) {
                 return new ReverbProfile(
@@ -1079,7 +1095,8 @@ final class PcmDspProcessor {
                         new float[] {2.3f, 3.5f, 4.9f},
                         0.58f, 0.28f, 0.42f, 0.1f, 0.3f, 0.2f,
                         0.34f, 0.84f, 0.42f, 0.08f, 0.8f, 0.92f, 0.11f,
-                        0.46f, 0.5f, 0.018f, 0.08f, 0.1f, 0.008f, 2.9f);
+                        0.46f, 0.5f, 0.018f, 0.08f, 0.1f, 0.008f, 2.9f,
+                        0.85f, 1.04f, 5600f, 0.45f);
             }
             return new ReverbProfile(
                     new float[] {20.1f, 24.2f, 28.7f, 33.1f},
@@ -1087,7 +1104,8 @@ final class PcmDspProcessor {
                     new float[] {3.5f, 5.3f, 7.6f},
                     0.72f, 0.48f, 0.52f, 0.16f, 0.22f, 0.24f,
                     0.24f, 0.9f, 0.35f, 0.15f, 0.86f, 1f, 0.14f,
-                    0.54f, 0.56f, 0.024f, 0.12f, 0.14f, 0.01f, 5.2f);
+                    0.54f, 0.56f, 0.024f, 0.12f, 0.14f, 0.01f, 5.2f,
+                    0.87f, 1.12f, 6800f, 0.8f);
         }
     }
 
