@@ -1045,6 +1045,10 @@ final class PcmDspProcessor {
         return clamp(value, -1f, 1f);
     }
 
+    private static float softSaturate(float value) {
+        return finiteOrZero((float) Math.tanh(value * 0.92f));
+    }
+
     private static float finiteOrZero(float value) {
         return Float.isFinite(value) ? value : 0f;
     }
