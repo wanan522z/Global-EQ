@@ -216,7 +216,6 @@ final class PcmDspProcessor {
         private float sustainMix;
         private float lowBandLift;
         private float lowBandTrim;
-        private float outputCompensation;
         private float drive;
         private float saturationCeiling;
         private float safeAmount;
@@ -245,8 +244,8 @@ final class PcmDspProcessor {
                     : 0.35f + (totalAmount - 0.35f) * 0.55f;
             int blendedCutoff = clamp(
                     Math.round(virtualCutoffHz * 0.35f + dspCutoffHz * 0.65f),
-                    50,
-                    210);
+                    55,
+                    185);
 
             sourceHighPass = Biquad.fromBand(
                     new ParametricBand(FilterType.HIGH_PASS, true, 24, 0, 68),
@@ -257,34 +256,33 @@ final class PcmDspProcessor {
                     sampleRate,
                     channelCount);
             harmonicHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(36, Math.round(blendedCutoff * 0.58f)), 0, 82),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(58, Math.round(blendedCutoff * 0.66f)), 0, 82),
                     sampleRate,
                     channelCount);
             harmonicLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.max(78, Math.round(blendedCutoff * 1.12f)), 0, 88),
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(255, Math.max(118, Math.round(blendedCutoff * 1.55f))), 0, 88),
                     sampleRate,
                     channelCount);
             octaveHighPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(42, Math.round(blendedCutoff * 0.84f)), 0, 82),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(72, Math.round(blendedCutoff * 0.92f)), 0, 82),
                     sampleRate,
                     channelCount);
             octaveLowPass = Biquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.max(92, Math.round(blendedCutoff * 2.05f)), 360), 0, 88),
+                    new ParametricBand(FilterType.LOW_PASS, true, Math.min(Math.max(150, Math.round(blendedCutoff * 2.18f)), 320), 0, 88),
                     sampleRate,
                     channelCount);
 
-            harmonicMix = safeAmount * (0.12f + virtualAmount * 0.05f + dspAmount * 0.06f);
-            octaveMix = safeAmount * (0.4f + virtualAmount * 0.12f + dspAmount * 0.2f);
-            sustainMix = safeAmount * (0.03f + dspAmount * 0.05f + virtualAmount * 0.02f);
-            lowBandLift = safeAmount * (0.06f + dspAmount * 0.06f + virtualAmount * 0.04f);
-            lowBandTrim = safeAmount * (0.015f + dspAmount * 0.01f + virtualAmount * 0.006f);
-            outputCompensation = 1f + safeAmount * 0.018f;
-            drive = 1.1f + safeAmount * 1.8f + dspAmount * 0.45f;
-            saturationCeiling = 0.5f + (1f - totalAmount) * 0.1f;
-            harmonicCeiling = 0.18f + (1f - totalAmount) * 0.05f;
-            octaveCeiling = 0.24f + (1f - totalAmount) * 0.06f;
-            envelopeAttack = 0.01f + safeAmount * 0.01f;
-            envelopeRelease = 0.002f + safeAmount * 0.003f;
+            harmonicMix = safeAmount * (0.22f + virtualAmount * 0.1f + dspAmount * 0.12f);
+            octaveMix = safeAmount * (0.56f + virtualAmount * 0.18f + dspAmount * 0.22f);
+            sustainMix = safeAmount * (0.015f + dspAmount * 0.03f + virtualAmount * 0.02f);
+            lowBandLift = safeAmount * (0.09f + dspAmount * 0.08f + virtualAmount * 0.06f);
+            lowBandTrim = safeAmount * (0.01f + dspAmount * 0.006f + virtualAmount * 0.004f);
+            drive = 1.18f + safeAmount * 2.1f + dspAmount * 0.65f;
+            saturationCeiling = 0.56f + (1f - totalAmount) * 0.08f;
+            harmonicCeiling = 0.2f + (1f - totalAmount) * 0.05f;
+            octaveCeiling = 0.28f + (1f - totalAmount) * 0.06f;
+            envelopeAttack = 0.012f + safeAmount * 0.012f;
+            envelopeRelease = 0.0028f + safeAmount * 0.0032f;
             for (int i = 0; i < envelope.length; i++) {
                 envelope[i] = 0f;
             }
@@ -313,8 +311,6 @@ final class PcmDspProcessor {
             System.arraycopy(samples, 0, lowBand, 0, sampleCount);
             sourceHighPass.process(lowBand, sampleCount, channelCount);
             sourceLowPass.process(lowBand, sampleCount, channelCount);
-            System.arraycopy(lowBand, 0, harmonicBand, 0, sampleCount);
-            System.arraycopy(lowBand, 0, octaveBand, 0, sampleCount);
 
             for (int i = 0; i < sampleCount; i++) {
                 int channel = i % channelCount;
@@ -344,7 +340,7 @@ final class PcmDspProcessor {
                 samples[i] += harmonicBand[i] * harmonicMix;
                 samples[i] += octaveBand[i] * octaveMix;
                 samples[i] -= lowBand[i] * lowBandTrim;
-                samples[i] = finiteOrZero(samples[i] * outputCompensation);
+                samples[i] = finiteOrZero(samples[i]);
             }
         }
 
