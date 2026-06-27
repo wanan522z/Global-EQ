@@ -31,7 +31,6 @@ final class PcmDspProcessor {
         pregain = preset == null ? 1f : dbToLinear(preset.pregainMb / 100f);
         effectHeadroom = 1f;
         filters.clear();
-        AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
 
         if (preset != null) {
             if (preset.extraBassEnabled && preset.extraBassAmountPercent > 0) {
