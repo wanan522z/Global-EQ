@@ -2981,6 +2981,11 @@ public final class MainActivity extends Activity {
         if (monitoredAppIconView.getParent() instanceof ViewGroup) {
             ((ViewGroup) monitoredAppIconView.getParent()).removeView(monitoredAppIconView);
         }
+        int iconSize = monitoredAppIconHostSizePx();
+        monitoredAppIconView.measure(
+                View.MeasureSpec.makeMeasureSpec(iconSize, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(iconSize, View.MeasureSpec.EXACTLY));
+        monitoredAppIconView.layout(0, 0, iconSize, iconSize);
         topControlOverlay.getOverlay().remove(monitoredAppIconView);
         topControlOverlay.getOverlay().add(monitoredAppIconView);
         applyIconGlowColor(icon);
