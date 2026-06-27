@@ -7349,11 +7349,10 @@ public final class MainActivity extends Activity {
             paint.clearShadowLayer();
 
             paint.setTextAlign(Paint.Align.CENTER);
-            paint.setFakeBoldText(true);
-            paint.setTextSize(dpf(13f));
-            paint.setColor(Color.WHITE);
-            canvas.drawText(label, width / 2f, getHeight() - dpf(8f), paint);
             paint.setFakeBoldText(false);
+            paint.setTextSize(dpf(11f));
+            paint.setColor(Color.rgb(200, 210, 230));
+            canvas.drawText(label, width / 2f, getHeight() - dpf(8f), paint);
         }
 
         @Override
