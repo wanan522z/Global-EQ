@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace "com.example.globalpeq"
-    compileSdk 35
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.example.globalpeq"
         minSdk 28
-        targetSdk 35
+        targetSdk 34
         versionCode 1
         versionName "0.1"
     }
