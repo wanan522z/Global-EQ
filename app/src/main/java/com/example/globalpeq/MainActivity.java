@@ -3010,32 +3010,52 @@ public final class MainActivity extends Activity {
                     || monitoredAppIconOverlay.getHeight() <= 0) {
                 return;
             }
-            Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
-            Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
-            monitoredAppIconOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
-            monitoredAppIconOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
+            Rect overlayRect = screenRectOf(monitoredAppIconOverlay);
+            Rect titleRect = screenRectOf(modeSpinner);
+            Rect switchRect = screenRectOf(autoSwitchOutputSwitch);
+            if (overlayRect == null || titleRect == null || switchRect == null) {
+                return;
+            }
             int iconWidth = monitoredAppIconView.getWidth() > 0
                     ? monitoredAppIconView.getWidth()
                     : monitoredAppIconHostSizePx();
             int iconHeight = monitoredAppIconView.getHeight() > 0
                     ? monitoredAppIconView.getHeight()
                     : monitoredAppIconHostSizePx();
-            float titleTextRight = titleRect.left
+            float titleTextRight = (titleRect.left - overlayRect.left)
                     + modeSpinner.getTranslationX()
                     + modeSpinner.getCompoundPaddingLeft();
             Layout titleLayout = modeSpinner.getLayout();
             if (titleLayout != null && titleLayout.getLineCount() > 0) {
                 titleTextRight += titleLayout.getLineRight(0);
             } else {
-                titleTextRight = titleRect.right;
+                titleTextRight = titleRect.right - overlayRect.left;
             }
-            float centerX = (titleTextRight + switchRect.left) * 0.5f;
+            float switchLeft = switchRect.left - overlayRect.left;
+            float centerX = (titleTextRight + switchLeft) * 0.5f;
             float x = centerX - iconWidth / 2f;
             x = Math.max(0f, Math.min(x, monitoredAppIconOverlay.getWidth() - iconWidth));
             float y = Math.max(0f, (monitoredAppIconOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
             monitoredAppIconView.setY(y);
         });
+    }
+
+    private Rect screenRectOf(View view) {
+        if (view == null || view.getWidth() <= 0 || view.getHeight() <= 0) {
+            return null;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
+            return null;
+        }
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        return new Rect(
+                location[0],
+                location[1],
+                location[0] + view.getWidth(),
+                location[1] + view.getHeight()
+        );
     }
 
     private Drawable loadMonitoredAppDrawable() {
