@@ -686,7 +686,7 @@ final class PcmDspProcessor {
 
         void configure(ReverbProfile profile, float size, float decay, boolean rightChannel) {
             float sizeScale = profile.minSizeScale + size * profile.sizeRange;
-            float feedback = clamp(profile.baseFeedback + decay * profile.decayRange, 0.35f, 0.86f);
+            float feedback = clamp(profile.baseFeedback + decay * profile.decayRange, 0.35f, 0.8f);
             float damping = clamp(profile.damping + (1f - decay) * 0.08f, 0.08f, 0.58f);
             float inputDiff = clamp(profile.inputGain + size * 0.04f, 0.18f, 0.42f);
             float offset = rightChannel ? 1.013f : 0.987f;
@@ -751,9 +751,9 @@ final class PcmDspProcessor {
         float process(float input) {
             float delayed = delay.read();
             filterState += damping * (delayed - filterState);
-            float next = input + filterState * feedback;
+            float next = softSaturate(input + filterState * feedback);
             delay.write(next);
-            return delayed;
+            return softSaturate(delayed);
         }
     }
 
