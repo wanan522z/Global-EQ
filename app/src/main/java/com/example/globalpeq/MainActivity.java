@@ -1296,6 +1296,30 @@ public final class MainActivity extends Activity {
         languageButton.setOnClickListener(this::showLanguageChoiceMenu);
         panel.addView(labeledSettingsRow(settingsLanguageLabelText(), languageButton), blockParams(12));
 
+        TextView importPresetButton = createExtraChoiceButton();
+        importPresetButton.setText(tr("Import", "导入"));
+        styleMonitorActionButton(importPresetButton, 24);
+        importPresetButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_PRESET_JSON));
+        panel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(12));
+
+        TextView exportPresetButton = createExtraChoiceButton();
+        exportPresetButton.setText(tr("Export", "导出"));
+        styleMonitorActionButton(exportPresetButton, 72);
+        exportPresetButton.setOnClickListener(v -> exportCurrentPresetJson());
+        panel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
+
+        TextView importDeviceConfigButton = createExtraChoiceButton();
+        importDeviceConfigButton.setText(tr("Import", "导入"));
+        styleMonitorActionButton(importDeviceConfigButton, 182);
+        importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
+        panel.addView(labeledSettingsRow(tr("Device config JSON", "设备配置 JSON"), importDeviceConfigButton), blockParams(12));
+
+        TextView exportDeviceConfigButton = createExtraChoiceButton();
+        exportDeviceConfigButton.setText(tr("Export", "导出"));
+        styleMonitorActionButton(exportDeviceConfigButton, 228);
+        exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
+        panel.addView(labeledSettingsRow(tr("Device config export", "设备配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
+
         LinearLayout aboutPanel = new LinearLayout(this);
         aboutPanel.setOrientation(LinearLayout.VERTICAL);
         aboutPanel.setClipChildren(false);
