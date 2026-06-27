@@ -418,7 +418,10 @@ final class PcmDspProcessor {
             float decayShape = clamp01((Math.max(0.35f, decaySeconds) - 0.35f) / 11.65f);
             activeWet = !"Default".equals(type) && mix > 0f;
             dryGain = mainMb <= NEGATIVE_INFINITY_MB ? 0f : dbToLinear(mainMb / 100f);
-            wetGain = activeWet ? mix * (0.76f + size * 0.14f + decayShape * 0.1f) : 0f;
+            float sendDrive = 0.16f + 3.35f * mix * mix;
+            wetGain = activeWet
+                    ? mix * sendDrive * (0.9f + size * 0.18f + decayShape * 0.14f)
+                    : 0f;
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
             float immediateEarlyBlend = clamp01(1f - preDelayMs / 8f);
             tailLevel = 0f;
