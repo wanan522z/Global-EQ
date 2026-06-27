@@ -81,6 +81,7 @@ public final class MainActivity extends Activity {
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
     private static final int GEQ_COMMIT_DELAY_MS = 160;
+    private static final int SHIZUKU_STARTUP_HEADROOM_MB = -750;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS = 320L;
