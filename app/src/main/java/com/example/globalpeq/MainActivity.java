@@ -5280,6 +5280,27 @@ public final class MainActivity extends Activity {
         startActivityForResult(intent, requestCode);
     }
 
+    private void openJsonImport(int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                "application/json",
+                "text/json",
+                "text/plain",
+                "*/*"
+        });
+        startActivityForResult(intent, requestCode);
+    }
+
+    private void openJsonExport(String suggestedName, int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE, suggestedName);
+        startActivityForResult(intent, requestCode);
+    }
+
     private FrequencyCurve readCurveFromUri(Uri uri) throws IOException {
         StringBuilder text = new StringBuilder();
         try (InputStream stream = getContentResolver().openInputStream(uri);
@@ -5290,6 +5311,26 @@ public final class MainActivity extends Activity {
             }
         }
         return FrequencyCurve.fromText(curveNameFromUri(uri), text.toString());
+    }
+
+    private String readTextFromUri(Uri uri) throws IOException {
+        StringBuilder text = new StringBuilder();
+        try (InputStream stream = getContentResolver().openInputStream(uri);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                text.append(line).append('\n');
+            }
+        }
+        return text.toString().trim();
+    }
+
+    private void writeTextToUri(Uri uri, String text) throws IOException {
+        try (OutputStream stream = getContentResolver().openOutputStream(uri, "wt");
+             OutputStreamWriter writer = new OutputStreamWriter(stream)) {
+            writer.write(text == null ? "" : text);
+            writer.flush();
+        }
     }
 
     private String curveNameFromUri(Uri uri) {
