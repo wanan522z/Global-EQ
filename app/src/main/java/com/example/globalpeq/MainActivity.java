@@ -7650,10 +7650,14 @@ public final class MainActivity extends Activity {
                     glowAlpha = checked ? 1f : 0f;
                     colorReady = true;
                 }
-                float cx = (b.left + b.right) * 0.5f;
-                float cy = (b.top + b.bottom) * 0.5f;
                 float inset = dpf(2f);
-                float radius = (Math.min(b.width(), b.height()) * 0.5f) - inset;
+                float left = b.left + inset;
+                float top = b.top + inset;
+                float right = b.right - inset;
+                float bottom = b.bottom - inset;
+                float cx = (left + right) * 0.5f;
+                float cy = (top + bottom) * 0.5f;
+                float radius = Math.min(right - left, bottom - top) * 0.5f;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(currentColor);
