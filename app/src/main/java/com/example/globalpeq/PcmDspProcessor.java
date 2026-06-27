@@ -418,6 +418,9 @@ final class PcmDspProcessor {
         private final StereoReverbCore reverbCore;
         private final float[] wetFrame = new float[2];
         private float wetMix;
+        private float dryMix;
+        private float wetGain;
+        private float blendGain;
         private int preDelayLength;
 
         AlgorithmicReverb(int sampleRate, int channelCount) {
@@ -437,9 +440,13 @@ final class PcmDspProcessor {
             float size = clamp01(sizePercent / 100f);
             float mix = clamp01(mixPercent / 100f);
             ReverbProfile profile = ReverbProfile.forType(type);
-            float decaySeconds = clamp(decayPercent, 0f, 12f);
+            float decaySeconds = clamp(decayPercent / 100f, 0f, 12f);
             float decayShape = clamp01((Math.max(0.35f, decaySeconds) - 0.35f) / 11.65f);
-            wetMix = "Default".equals(type) ? 0f : clamp01((float) Math.pow(mix, 0.78));
+            float mixCurve = clamp01(mix * (0.84f + mix * 0.16f));
+            wetMix = "Default".equals(type) ? 0f : mixCurve;
+            dryMix = "Default".equals(type) ? 1f : 1f - wetMix * 0.26f;
+            wetGain = "Default".equals(type) ? 0f : wetMix * (0.94f + mix * 0.2f);
+            blendGain = "Default".equals(type) ? 1f : 1f / Math.max(1f, dryMix + wetGain * 0.34f);
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
             float immediateEarlyBlend = clamp01(1f - preDelayMs / 8f);
 
@@ -465,18 +472,18 @@ final class PcmDspProcessor {
                 float rightIn = preDelayProcess(rightDry, Math.min(1, preDelayIndices.length - 1));
                 reverbCore.process(leftIn, rightIn, wetFrame);
 
-                float wetLeft = softSaturate(wetFrame[0] * 1.18f);
+                float wetLeft = softSaturate(wetFrame[0] * 1.06f);
                 float wetRight = channelCount > 1
-                        ? softSaturate(wetFrame[1] * 1.18f)
+                        ? softSaturate(wetFrame[1] * 1.06f)
                         : softSaturate((wetFrame[0] + wetFrame[1]) * 0.59f);
-                samples[frameOffset] = clampSample(leftDry * (1f - wetMix) + wetLeft * wetMix);
+                samples[frameOffset] = clampSample((leftDry * dryMix + wetLeft * wetGain) * blendGain);
                 if (channelCount > 1) {
-                    samples[frameOffset + 1] = clampSample(rightDry * (1f - wetMix) + wetRight * wetMix);
+                    samples[frameOffset + 1] = clampSample((rightDry * dryMix + wetRight * wetGain) * blendGain);
                 }
                 for (int channel = 2; channel < channelCount; channel++) {
                     float dry = samples[frameOffset + channel];
                     float wet = softSaturate((wetLeft + wetRight) * 0.5f);
-                    samples[frameOffset + channel] = clampSample(dry * (1f - wetMix) + wet * wetMix);
+                    samples[frameOffset + channel] = clampSample((dry * dryMix + wet * wetGain) * blendGain);
                 }
             }
         }
