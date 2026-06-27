@@ -46,7 +46,7 @@ final class Preset {
         this.extraBassAmountPercent = clamp(extraBassAmountPercent, 0, 100);
         this.virtualBassAmountPercent = clamp(virtualBassAmountPercent, 0, 100);
         this.reverbType = normalizeReverbType(reverbType);
-        this.reverbDecayPercent = clamp(reverbDecayPercent, 0, 12);
+        this.reverbDecayPercent = clamp(reverbDecayPercent, 0, 1200);
         this.reverbPredelayMs = clamp(reverbPredelayMs, 0, 250);
         this.reverbSizePercent = clamp(reverbSizePercent, 0, 100);
         this.reverbMixPercent = clamp(reverbMixPercent, 0, 100);
@@ -173,7 +173,7 @@ final class Preset {
             object.put("extraBassAmountPercent", extraBassAmountPercent);
             object.put("virtualBassAmountPercent", virtualBassAmountPercent);
             object.put("reverbType", reverbType);
-            object.put("reverbDecayPercent", reverbDecayPercent);
+            object.put("reverbDecayPercent", reverbDecayPercent / 100.0);
             object.put("reverbPredelayMs", reverbPredelayMs);
             object.put("reverbSizePercent", reverbSizePercent);
             object.put("reverbMixPercent", reverbMixPercent);
@@ -240,7 +240,7 @@ final class Preset {
                     object.optInt("extraBassAmountPercent", 0),
                     object.optInt("virtualBassAmountPercent", 0),
                     object.optString("reverbType", "Default"),
-                    object.optInt("reverbDecayPercent", 0),
+                    parseStoredReverbDecay(object),
                     object.optInt("reverbPredelayMs", 0),
                     object.optInt("reverbSizePercent", 0),
                     object.optInt("reverbMixPercent", 0),
@@ -260,6 +260,20 @@ final class Preset {
 
     private static Preset copy(String name, EqMode mode, boolean enabled, boolean extraBassEnabled, int pregainMb, int virtualBassModeIndex, int virtualBassCutoffHz, int extraBassCutoffHz, int extraBassAmountPercent, int virtualBassAmountPercent, String reverbType, int reverbDecayPercent, int reverbPredelayMs, int reverbSizePercent, int reverbMixPercent, String deviceCurveName, String targetCurveName, float deviceCurveGainOffsetDb, float targetCurveGainOffsetDb, String deviceCurveSmoothing, String targetCurveSmoothing, ParametricBand[] bands, int[] geqGainsMb) {
         return new Preset(name, mode, enabled, extraBassEnabled, pregainMb, virtualBassModeIndex, virtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, virtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent, reverbMixPercent, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb, targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands, geqGainsMb);
+    }
+
+    private static int parseStoredReverbDecay(JSONObject object) {
+        if (object == null) {
+            return 0;
+        }
+        double storedSeconds = object.optDouble("reverbDecayPercent", 0.0);
+        if (!Double.isFinite(storedSeconds)) {
+            storedSeconds = 0.0;
+        }
+        if (Math.abs(storedSeconds) <= 12.0001) {
+            return clamp((int) Math.round(storedSeconds * 100.0), 0, 1200);
+        }
+        return clamp((int) Math.round(storedSeconds), 0, 1200);
     }
 
     private static int[] normalizedGeqGains(int[] values) {
