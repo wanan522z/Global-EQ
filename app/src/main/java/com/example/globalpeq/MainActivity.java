@@ -9,6 +9,9 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.AudioPlaybackConfiguration;
 import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Canvas;
@@ -83,6 +86,7 @@ public final class MainActivity extends Activity {
     private static final int GEQ_COMMIT_DELAY_MS = 160;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
+    private static final long EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS = 320L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
     private static final long ENABLE_NEON_CURVE_DELAY_MS = 460L;
@@ -118,10 +122,10 @@ public final class MainActivity extends Activity {
     private KnobView cutoffKnob;
     private KnobView amountKnob;
     private HorizontalBassSlider virtualBassSlider;
-    private KnobView reverbDecayKnob;
-    private KnobView reverbPredelayKnob;
-    private KnobView reverbSizeKnob;
-    private KnobView reverbMixKnob;
+    private VerticalReverbSlider reverbDecaySlider;
+    private VerticalReverbSlider reverbPredelaySlider;
+    private VerticalReverbSlider reverbSizeSlider;
+    private VerticalReverbSlider reverbMixSlider;
     private TextView reverbTypeButton;
     private TextView bassModeButton;
     private EditText virtualBassCutoffInput;
@@ -354,6 +358,7 @@ public final class MainActivity extends Activity {
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
     private final Runnable commitPeqToggleRunnable = this::commitPendingPeqToggle;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
+    private final Runnable commitExtraBassToggleRunnable = this::commitPendingExtraBassToggle;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
@@ -391,6 +396,7 @@ public final class MainActivity extends Activity {
     private AdvancedModeConfig advancedModeConfig = AdvancedModeConfig.DEFAULT;
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
+    private Boolean pendingExtraBassEnabledState;
     private boolean pendingEnabledUiRefresh;
     private boolean modeVisualEnabled = true;
     private boolean curveVisualEnabled = true;
@@ -399,8 +405,18 @@ public final class MainActivity extends Activity {
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
+    private AudioManager audioManager;
+    private boolean playbackConfigCallbackRegistered;
+    private String activePlaybackPackageName = "";
     private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
     private final ShizukuCompat.PermissionResultListener shizukuPermissionResultListener = this::handleShizukuPermissionResult;
+    private final AudioManager.AudioPlaybackCallback playbackConfigCallback =
+            new AudioManager.AudioPlaybackCallback() {
+                @Override
+                public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
+                    handlePlaybackConfigsChanged(configs);
+                }
+            };
     private final Runnable monitorStatusRefreshRunnable = new Runnable() {
         @Override
         public void run() {
@@ -470,6 +486,7 @@ public final class MainActivity extends Activity {
         refreshDeviceCurveCache();
         refreshTargetCurveCache();
         deviceMonitor = new AudioOutputDeviceMonitor(this);
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         currentDevice = repository.loadSelectedDevice();
         if (currentDevice == null) {
             currentDevice = deviceMonitor.currentOutputDevice();
@@ -502,6 +519,8 @@ public final class MainActivity extends Activity {
         super.onStart();
         ShizukuCompat.addStateListener(shizukuStateListener);
         ShizukuCompat.addPermissionResultListener(shizukuPermissionResultListener);
+        registerPlaybackConfigCallbackIfNeeded();
+        refreshActivePlaybackPackageFromSystem();
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
     }
@@ -518,6 +537,8 @@ public final class MainActivity extends Activity {
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
         pauseShizukuCaptureIfClosing();
+        unregisterPlaybackConfigCallback();
+        activePlaybackPackageName = "";
         deviceMonitor.stop();
         ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
         ShizukuCompat.removeStateListener(shizukuStateListener);
@@ -532,6 +553,7 @@ public final class MainActivity extends Activity {
                     ShizukuCompat.describeState(this),
                     ShizukuCompat.hasPermission());
         }
+        refreshActivePlaybackPackageFromSystem();
         renderAll();
         maybeAutoResumeShizukuCapture();
     }
@@ -573,6 +595,7 @@ public final class MainActivity extends Activity {
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
         pauseShizukuCaptureIfClosing();
+        unregisterPlaybackConfigCallback();
         super.onDestroy();
     }
 
@@ -2953,9 +2976,10 @@ public final class MainActivity extends Activity {
         if (monitoredAppIconView == null) {
             return;
         }
+        String iconPackage = currentHomepageIconPackage();
         boolean visible = AudioProcessingPolicy.advancedModeEnabled(processingMode)
-                && advancedModeConfig.monitoredAppPackage != null
-                && !advancedModeConfig.monitoredAppPackage.isEmpty();
+                && iconPackage != null
+                && !iconPackage.isEmpty();
         Drawable icon = visible ? loadMonitoredAppDrawable() : null;
         if (!visible || icon == null) {
             monitoredAppIconView.setImageDrawable(null);
@@ -3015,13 +3039,115 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable loadMonitoredAppDrawable() {
-        if (advancedModeConfig.monitoredAppPackage != null && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
+        String packageName = currentHomepageIconPackage();
+        if (packageName != null && !packageName.isEmpty()) {
             try {
-                return getPackageManager().getApplicationIcon(advancedModeConfig.monitoredAppPackage);
+                return getPackageManager().getApplicationIcon(packageName);
             } catch (PackageManager.NameNotFoundException ignored) {
             }
         }
         return null;
+    }
+
+    private String currentHomepageIconPackage() {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            return activePlaybackPackageName == null ? "" : activePlaybackPackageName;
+        }
+        if (advancedModeConfig.monitoredAppPackage != null && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
+            return advancedModeConfig.monitoredAppPackage;
+        }
+        return "";
+    }
+
+    private void registerPlaybackConfigCallbackIfNeeded() {
+        if (playbackConfigCallbackRegistered
+                || audioManager == null
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        audioManager.registerAudioPlaybackCallback(playbackConfigCallback, uiHandler);
+        playbackConfigCallbackRegistered = true;
+    }
+
+    private void unregisterPlaybackConfigCallback() {
+        if (!playbackConfigCallbackRegistered
+                || audioManager == null
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        audioManager.unregisterAudioPlaybackCallback(playbackConfigCallback);
+        playbackConfigCallbackRegistered = false;
+    }
+
+    private void refreshActivePlaybackPackageFromSystem() {
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            updateActivePlaybackPackage("");
+            return;
+        }
+        try {
+            handlePlaybackConfigsChanged(audioManager.getActivePlaybackConfigurations());
+        } catch (SecurityException ignored) {
+            updateActivePlaybackPackage("");
+        }
+    }
+
+    private void handlePlaybackConfigsChanged(List<AudioPlaybackConfiguration> configs) {
+        updateActivePlaybackPackage(resolveCurrentPlaybackPackage(configs));
+    }
+
+    private void updateActivePlaybackPackage(String packageName) {
+        String normalized = packageName == null ? "" : packageName.trim();
+        if (normalized.equals(activePlaybackPackageName)) {
+            return;
+        }
+        activePlaybackPackageName = normalized;
+        uiHandler.post(this::updateMonitoredAppIcon);
+    }
+
+    private String resolveCurrentPlaybackPackage(List<AudioPlaybackConfiguration> configs) {
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+                || configs == null
+                || configs.isEmpty()) {
+            return "";
+        }
+        for (AudioPlaybackConfiguration config : configs) {
+            if (config == null || !config.isActive()) {
+                continue;
+            }
+            AudioAttributes attributes = config.getAudioAttributes();
+            int usage = attributes == null ? AudioAttributes.USAGE_UNKNOWN : attributes.getUsage();
+            if (usage != AudioAttributes.USAGE_MEDIA && usage != AudioAttributes.USAGE_GAME) {
+                continue;
+            }
+            int clientUid = config.getClientUid();
+            if (clientUid == android.os.Process.myUid()) {
+                continue;
+            }
+            String packageName = resolvePackageNameForUid(clientUid);
+            if (!packageName.isEmpty() && !getPackageName().equals(packageName)) {
+                return packageName;
+            }
+        }
+        return "";
+    }
+
+    private String resolvePackageNameForUid(int uid) {
+        if (uid <= 0) {
+            return "";
+        }
+        String[] packages = getPackageManager().getPackagesForUid(uid);
+        if (packages == null || packages.length == 0) {
+            return "";
+        }
+        for (String packageName : packages) {
+            if (packageName != null
+                    && !packageName.trim().isEmpty()
+                    && !getPackageName().equals(packageName)) {
+                return packageName;
+            }
+        }
+        return "";
     }
 
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
@@ -5339,10 +5465,15 @@ public final class MainActivity extends Activity {
             return;
         }
         extraBassEnabledState = isChecked;
-        setEditingPreset(editingPreset.withExtraBassEnabled(isChecked), true);
+        pendingExtraBassEnabledState = isChecked;
+        updateExtraControls();
+        updateEditStateLabels();
+        uiHandler.removeCallbacks(commitExtraBassToggleRunnable);
+        uiHandler.postDelayed(commitExtraBassToggleRunnable, EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS);
     }
 
     private void syncExtraBassEnabledFromPreset() {
+        pendingExtraBassEnabledState = null;
         if (editingPreset == null) {
             extraBassEnabledState = false;
             return;
@@ -5503,6 +5634,18 @@ public final class MainActivity extends Activity {
         pendingEnabledUiRefresh = false;
         refreshCurveView();
         updateEditStateLabels();
+    }
+
+    private void commitPendingExtraBassToggle() {
+        if (editingPreset == null || pendingExtraBassEnabledState == null) {
+            return;
+        }
+        boolean targetState = pendingExtraBassEnabledState;
+        pendingExtraBassEnabledState = null;
+        if (editingPreset.extraBassEnabled == targetState) {
+            return;
+        }
+        setEditingPreset(editingPreset.withExtraBassEnabled(targetState), true);
     }
 
     private void startEnabledNeonSequence() {
@@ -5867,10 +6010,10 @@ public final class MainActivity extends Activity {
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(virtualBassTitleView);
         syncExtraSectionTitleVisual(extraBassTitleView);
-        updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
-        updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
-        updateReverbControl(reverbSizeKnob, editingPreset.reverbSizePercent, reverbEnabled);
-        updateReverbControl(reverbMixKnob, editingPreset.reverbMixPercent, reverbEnabled);
+        updateReverbControl(reverbDecaySlider, editingPreset.reverbDecayPercent, reverbEnabled);
+        updateReverbControl(reverbPredelaySlider, editingPreset.reverbPredelayMs, reverbEnabled);
+        updateReverbControl(reverbSizeSlider, editingPreset.reverbSizePercent, reverbEnabled);
+        updateReverbControl(reverbMixSlider, editingPreset.reverbMixPercent, reverbEnabled);
     }
 
     private void updateExtraBassControl(KnobView knob, int value, boolean enabled) {
@@ -5880,10 +6023,10 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void updateReverbControl(KnobView knob, int value, boolean enabled) {
-        if (knob != null) {
-            knob.setEnabled(enabled);
-            knob.setValue(value, false);
+    private void updateReverbControl(VerticalReverbSlider slider, int value, boolean enabled) {
+        if (slider != null) {
+            slider.setEnabled(enabled);
+            slider.setValue(value, false);
         }
     }
 
@@ -6026,13 +6169,13 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbControl("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
+        reverbKnobs.addView(createReverbSlider("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
                 setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbControl("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
+        reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbControl("Size", 0, 100, editingPreset.reverbSizePercent, "%", value ->
+        reverbKnobs.addView(createReverbSlider("Size", 0, 100, editingPreset.reverbSizePercent, "%", value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbControl("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
+        reverbKnobs.addView(createReverbSlider("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
@@ -6235,42 +6378,32 @@ public final class MainActivity extends Activity {
         return column;
     }
 
-    private LinearLayout createReverbControl(String label, int min, int max, int value, String suffix, IntChanged listener) {
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, IntChanged listener) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
         column.setClipChildren(false);
         column.setClipToPadding(false);
 
-        KnobView knob = new KnobView(this);
-        knob.configure(min, max, value, suffix, listener::onChanged);
-        knob.setTapListener(this::showStyledKnobInputDialog);
+        VerticalReverbSlider slider = new VerticalReverbSlider(this);
+        slider.configure(label, min, max, value, suffix, listener::onChanged);
         // 强制方形：弧形填满 view，标题紧贴弧形下方
-        knob.setForceSquare(true);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = dp(6);
-        knobParams.bottomMargin = dp(6);
-        column.addView(knob, knobParams);
+        knobParams.topMargin = dp(4);
+        knobParams.bottomMargin = dp(2);
+        column.addView(slider, knobParams);
 
         if ("Decay".equals(label)) {
-            reverbDecayKnob = knob;
+            reverbDecaySlider = slider;
         } else if ("Predelay".equals(label)) {
-            reverbPredelayKnob = knob;
+            reverbPredelaySlider = slider;
         } else if ("Size".equals(label)) {
-            reverbSizeKnob = knob;
+            reverbSizeSlider = slider;
         } else {
-            reverbMixKnob = knob;
+            reverbMixSlider = slider;
         }
 
         // 标签紧贴旋钮下方
-        TextView title = new TextView(this);
-        title.setText(label);
-        title.setTextSize(12);
-        title.setTextColor(Color.rgb(180, 195, 215));
-        title.setGravity(android.view.Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.topMargin = dp(1);
-        column.addView(title, titleParams);
         return column;
     }
 
@@ -6349,6 +6482,63 @@ public final class MainActivity extends Activity {
                     try {
                         int v = Math.round(Float.parseFloat(input.getText().toString()));
                         knob.setValue(clamp(v, knob.getMin(), knob.getMax()), true);
+                    } catch (NumberFormatException ignored) {
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
+        dlg.setOnShowListener(d -> {
+            styleDialog(dlg);
+            input.requestFocus();
+            dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        });
+        dlg.show();
+    }
+
+    private void showStyledReverbSliderInputDialog(VerticalReverbSlider slider) {
+        if (slider == null) return;
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(14), dp(20), dp(8));
+
+        TextView hint = new TextView(this);
+        hint.setText(slider.getLabel() + "  " + slider.getMin() + " - " + slider.getMax() + slider.getSuffix());
+        hint.setTextSize(13);
+        hint.setTextColor(Color.rgb(150, 165, 185));
+        hint.setGravity(android.view.Gravity.CENTER);
+        hint.setPadding(0, 0, 0, dp(10));
+        content.addView(hint, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(String.valueOf(slider.getValue()));
+        input.setHint(slider.getMin() + " ~ " + slider.getMax() + slider.getSuffix());
+        input.setSelectAllOnFocus(true);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setGravity(android.view.Gravity.CENTER);
+        input.setTextSize(18);
+        input.setTextColor(Color.rgb(235, 245, 255));
+        input.setHintTextColor(Color.rgb(120, 135, 155));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        input.setBackground(createFieldBackground(26, 90, 10));
+        content.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView("Value Input"))
+                .setView(content)
+                .setPositiveButton("Apply", (d, w) -> {
+                    try {
+                        int v = Math.round(Float.parseFloat(input.getText().toString()));
+                        slider.setValue(clamp(v, slider.getMin(), slider.getMax()), true);
                     } catch (NumberFormatException ignored) {
                     }
                 })
@@ -7087,6 +7277,201 @@ public final class MainActivity extends Activity {
      * 视觉风格与 GeqSliderView 一致（neon 发光、胶囊 thumb、LED 指示），
      * 但方向为水平，用于节省垂直空间。
      */
+    private final class VerticalReverbSlider extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF thumbRect = new android.graphics.RectF();
+        private int min;
+        private int max;
+        private int value;
+        private String suffix = "";
+        private String label = "";
+        private KnobView.Listener listener;
+        private float touchStartX;
+        private float touchStartY;
+        private boolean adjusting;
+
+        VerticalReverbSlider(Context context) {
+            super(context);
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, KnobView.Listener listener) {
+            this.label = label == null ? "" : label;
+            this.min = min;
+            this.max = max;
+            this.suffix = suffix == null ? "" : suffix;
+            this.listener = listener;
+            setValue(value, false);
+        }
+
+        int getMin() { return min; }
+        int getMax() { return max; }
+        int getValue() { return value; }
+        String getSuffix() { return suffix; }
+        String getLabel() { return label; }
+
+        void setValue(int nextValue, boolean notify) {
+            int clamped = Math.max(min, Math.min(max, nextValue));
+            if (clamped == value) {
+                invalidate();
+                return;
+            }
+            value = clamped;
+            invalidate();
+            if (notify && listener != null) {
+                listener.onValueChanged(value);
+            }
+        }
+
+        private boolean isActive() {
+            return value != min;
+        }
+
+        private float trackTop() {
+            return dpf(26f);
+        }
+
+        private float trackBottom() {
+            return getHeight() - dpf(28f);
+        }
+
+        private float trackCenterX() {
+            return getWidth() / 2f;
+        }
+
+        private float valueToY() {
+            float t = (value - min) / Math.max(1f, max - min);
+            return trackBottom() - (trackBottom() - trackTop()) * t;
+        }
+
+        private int yToValue(float y) {
+            float t = (trackBottom() - clampFloat(y, trackTop(), trackBottom()))
+                    / Math.max(1f, trackBottom() - trackTop());
+            return Math.round(min + (max - min) * t);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int width = getWidth();
+            float cx = trackCenterX();
+            float top = trackTop();
+            float bottom = trackBottom();
+            float thumbY = valueToY();
+            boolean active = isActive();
+
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTextSize(dpf(12f));
+            if (active) {
+                paint.setColor(Color.rgb(0, 245, 212));
+                paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(150, 0, 245, 212));
+            } else {
+                paint.setColor(Color.argb(150, 255, 255, 255));
+            }
+            canvas.drawText(value + suffix, cx, dpf(14f), paint);
+            paint.clearShadowLayer();
+
+            android.graphics.RectF trackRect = new android.graphics.RectF(
+                    cx - dpf(2f), top, cx + dpf(2f), bottom);
+            paint.setColor(Color.argb(25, 255, 255, 255));
+            canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
+
+            if (active) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dpf(4f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor(Color.rgb(0, 245, 212));
+                paint.setShadowLayer(dpf(6f), 0, 0, Color.argb(180, 0, 245, 212));
+                canvas.drawLine(cx, bottom, cx, thumbY, paint);
+                paint.clearShadowLayer();
+            }
+
+            float thumbW = dpf(28f);
+            float thumbH = dpf(18f);
+            thumbRect.set(cx - thumbW / 2f, thumbY - thumbH / 2f,
+                    cx + thumbW / 2f, thumbY + thumbH / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(240, 22, 26, 38));
+            canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(adjusting || active ? dpf(1.6f) : dpf(1.0f));
+            paint.setColor(adjusting || active ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
+            if (adjusting || active) {
+                paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
+            }
+            canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
+            paint.clearShadowLayer();
+
+            float indW = dpf(10f);
+            float indH = dpf(3f);
+            android.graphics.RectF indRect = new android.graphics.RectF(
+                    cx - indW / 2f, thumbY - indH / 2f,
+                    cx + indW / 2f, thumbY + indH / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.rgb(0, 245, 212));
+            if (active) {
+                paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(220, 0, 245, 212));
+            }
+            canvas.drawRoundRect(indRect, dpf(1.5f), dpf(1.5f), paint);
+            paint.clearShadowLayer();
+
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setFakeBoldText(true);
+            paint.setTextSize(dpf(13f));
+            paint.setColor(Color.WHITE);
+            canvas.drawText(label, width / 2f, getHeight() - dpf(8f), paint);
+            paint.setFakeBoldText(false);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (!isEnabled()) {
+                return false;
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    touchStartX = event.getX();
+                    touchStartY = event.getY();
+                    adjusting = false;
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = Math.abs(event.getX() - touchStartX);
+                    float dy = Math.abs(event.getY() - touchStartY);
+                    if (!adjusting && dy > dpf(10f) && dy >= dx) {
+                        adjusting = true;
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    if (adjusting) {
+                        setValue(yToValue(event.getY()), true);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                    if (adjusting) {
+                        setValue(yToValue(event.getY()), true);
+                    } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        if (event.getY() <= dpf(24f) || event.getY() >= getHeight() - dpf(22f)) {
+                            showStyledReverbSliderInputDialog(this);
+                        } else {
+                            setValue(yToValue(event.getY()), true);
+                        }
+                    }
+                    adjusting = false;
+                    return true;
+                default:
+                    return super.onTouchEvent(event);
+            }
+        }
+
+        private float clampFloat(float v, float lo, float hi) {
+            return Math.max(lo, Math.min(hi, v));
+        }
+    }
+
     private final class HorizontalBassSlider extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.RectF thumbRect = new android.graphics.RectF();
