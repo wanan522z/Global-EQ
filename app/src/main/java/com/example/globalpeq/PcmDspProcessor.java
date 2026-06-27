@@ -59,13 +59,11 @@ final class PcmDspProcessor {
                     preset.virtualBassCutoffHz,
                     enableDspBass ? preset.virtualBassAmountPercent : 0);
             reverb = new AlgorithmicReverb(sampleRate, channelCount);
-            int effectiveReverbWetPercent = effectiveReverbWetPercent(preset, safeConfig);
             reverb.configure(preset.reverbType,
                     preset.reverbDecayPercent,
                     preset.reverbPredelayMs,
                     preset.reverbSizePercent,
-                    preset.reverbMixPercent,
-                    effectiveReverbWetPercent);
+                    preset.reverbMixPercent);
             limiter = new LookaheadLimiter(sampleRate, channelCount);
             limiter.configure(safeConfig.lookaheadMs, safeConfig.latencyMs);
         }
@@ -90,17 +88,6 @@ final class PcmDspProcessor {
 
     private static float dbToLinear(float db) {
         return (float) Math.pow(10.0, db / 20.0);
-    }
-
-    private static int effectiveReverbWetPercent(Preset preset, AdvancedModeConfig config) {
-        if (preset == null || "Default".equals(preset.reverbType) || preset.reverbMixPercent <= 0) {
-            return 0;
-        }
-        int configuredWet = config == null ? AdvancedModeConfig.DEFAULT.wetMixPercent : config.wetMixPercent;
-        if (configuredWet <= 0) {
-            return 100;
-        }
-        return Math.max(0, Math.min(100, configuredWet));
     }
 
     private static final class Biquad {
