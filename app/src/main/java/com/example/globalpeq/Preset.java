@@ -46,7 +46,7 @@ final class Preset {
         this.extraBassAmountPercent = clamp(extraBassAmountPercent, 0, 100);
         this.virtualBassAmountPercent = clamp(virtualBassAmountPercent, 0, 100);
         this.reverbType = normalizeReverbType(reverbType);
-        this.reverbDecayPercent = clamp(reverbDecayPercent, 0, 100);
+        this.reverbDecayPercent = clamp(reverbDecayPercent, 0, 12);
         this.reverbPredelayMs = clamp(reverbPredelayMs, 0, 250);
         this.reverbSizePercent = clamp(reverbSizePercent, 0, 100);
         this.reverbMixPercent = clamp(reverbMixPercent, 0, 100);
