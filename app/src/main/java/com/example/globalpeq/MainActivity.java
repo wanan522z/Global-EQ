@@ -683,6 +683,42 @@ public final class MainActivity extends Activity {
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
             return;
         }
+        if (requestCode == REQUEST_EXPORT_PRESET_JSON || requestCode == REQUEST_EXPORT_DEVICE_CONFIG_JSON) {
+            if (pendingExportJson == null || pendingExportJson.trim().isEmpty()) {
+                Toast.makeText(this, tr("Nothing to export", "没有可导出的内容"), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                writeTextToUri(data.getData(), pendingExportJson);
+                Toast.makeText(
+                        this,
+                        pendingExportSuccessMessage == null ? tr("Export complete", "导出完成") : pendingExportSuccessMessage,
+                        Toast.LENGTH_SHORT
+                ).show();
+            } catch (IOException ex) {
+                Toast.makeText(this, tr("Export failed", "导出失败"), Toast.LENGTH_SHORT).show();
+            } finally {
+                pendingExportJson = null;
+                pendingExportSuccessMessage = null;
+            }
+            return;
+        }
+        if (requestCode == REQUEST_IMPORT_PRESET_JSON) {
+            try {
+                importPresetJsonFromUri(data.getData());
+            } catch (IOException ex) {
+                Toast.makeText(this, tr("Preset import failed", "预设导入失败"), Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        if (requestCode == REQUEST_IMPORT_DEVICE_CONFIG_JSON) {
+            try {
+                importDeviceConfigJsonFromUri(data.getData());
+            } catch (IOException ex) {
+                Toast.makeText(this, tr("Device config import failed", "设备配置导入失败"), Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
         if (requestCode != REQUEST_IMPORT_DEVICE_CURVE && requestCode != REQUEST_IMPORT_TARGET_CURVE) {
             return;
         }
