@@ -3830,6 +3830,54 @@ public final class MainActivity extends Activity {
         return row;
     }
 
+    private boolean hasReusablePeqRows() {
+        for (int i = 0; i < editingPreset.bands.length; i++) {
+            View child = rows.getChildAt(i);
+            if (!(child instanceof LinearLayout)) {
+                return false;
+            }
+            if (!(((LinearLayout) child).getTag() instanceof PeqBandRowHolder)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void updateBandRowInPlace(LinearLayout row, int index) {
+        if (row == null || index < 0 || index >= editingPreset.bands.length) {
+            return;
+        }
+        Object tag = row.getTag();
+        if (!(tag instanceof PeqBandRowHolder)) {
+            return;
+        }
+        PeqBandRowHolder holder = (PeqBandRowHolder) tag;
+        ParametricBand band = editingPreset.bands[index];
+        boolean warning = PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB);
+        if (warning) {
+            GradientDrawable warningBg = new GradientDrawable();
+            warningBg.setShape(GradientDrawable.RECTANGLE);
+            warningBg.setColor(Color.argb(45, 255, 100, 100));
+            warningBg.setStroke(dp(1), Color.argb(100, 255, 100, 100));
+            warningBg.setCornerRadius(dp(8));
+            row.setBackground(warningBg);
+        } else {
+            row.setBackground(null);
+        }
+        setTextIfChanged(holder.type, band.type.label);
+        holder.type.setEnabled(supported);
+        holder.type.setBackground(typeCellBackground(band.type, false));
+        setEditTextIfChanged(holder.frequency, String.valueOf(band.frequencyHz));
+        setEditTextIfChanged(holder.gain, formatDecimal(band.gainMb / 100f));
+        setEditTextIfChanged(holder.q, formatDecimal(band.qHundred / 100f));
+        if (holder.delete != null) {
+            boolean deleteEnabled = supported && editingPreset.bands.length > 1;
+            holder.delete.setEnabled(deleteEnabled);
+            holder.delete.setBackground(deleteSymbolDrawable(deleteEnabled));
+        }
+        applyBandRowVisualState(row, index);
+    }
+
     private EditText createNumberInput(String value, String hint, FloatChanged listener) {
         EditText input = new EditText(this);
         input.setSingleLine(true);
