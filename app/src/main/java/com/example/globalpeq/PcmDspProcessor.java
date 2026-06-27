@@ -1189,10 +1189,10 @@ final class PcmDspProcessor {
                         new float[] {36.8f, 44.5f, 52.1f, 61.3f},
                         new float[] {5.1f, 8.4f},
                         new float[] {5.4f, 8.1f, 12.4f},
-                        0.88f, 0.78f, 0.61f, 0.2f, 0.24f, 0.25f,
-                        0.18f, 0.96f, 0.31f, 0.22f, 0.9f, 1.12f, 0.18f,
-                        0.6f, 0.54f, 0.022f, 0.18f, 0.115f, 0.009f, 9.4f,
-                        0.85f, 1.18f, 6100f, 2.1f);
+                        0.86f, 0.74f, 0.57f, 0.2f, 0.24f, 0.22f,
+                        0.16f, 0.94f, 0.27f, 0.18f, 0.88f, 1.08f, 0.19f,
+                        0.58f, 0.56f, 0.02f, 0.14f, 0.105f, 0.008f, 9.0f,
+                        0.81f, 1.12f, 5400f, 2.5f);
             }
             if ("Chamber".equals(type)) {
                 return new ReverbProfile(
