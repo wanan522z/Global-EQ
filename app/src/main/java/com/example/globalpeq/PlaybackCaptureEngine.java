@@ -36,6 +36,10 @@ final class PlaybackCaptureEngine {
     private static final int EXPERIMENTAL_PLAYBACK_USAGE = AudioAttributes.USAGE_ASSISTANT;
     private static final int MIN_PIPELINE_BUFFER_FRAMES = 128;
     private static final int MIN_TRACK_LATENCY_MS = 40;
+    private static final int MIN_PROCESSING_CHUNK_FRAMES = 256;
+    private static final int MAX_PROCESSING_CHUNK_FRAMES = 2048;
+    private static final int MAX_BLUETOOTH_CHUNK_FRAMES = 768;
+    private static final int BLUETOOTH_PREFILL_CHUNKS = 3;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -296,16 +300,23 @@ final class PlaybackCaptureEngine {
             int bytesPerFrame = CHANNEL_COUNT * 2;
             boolean heavyRealtimeDsp = isHeavyRealtimeDspEnabled();
             int desiredFrames = Math.max(MIN_PIPELINE_BUFFER_FRAMES, currentConfig.bufferSizeFrames);
+            AudioDeviceInfo preferredOutputDevice = resolvePreferredOutputDeviceInfo();
+            boolean bluetoothOutput = isBluetoothOutput(preferredOutputDevice);
+            int processingChunkFrames = chooseProcessingChunkFrames(
+                    desiredFrames,
+                    heavyRealtimeDsp,
+                    bluetoothOutput);
             int minRecordBytes = AudioRecord.getMinBufferSize(
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
             if (minRecordBytes <= 0) {
-                minRecordBytes = desiredFrames * bytesPerFrame * 4;
+                minRecordBytes = processingChunkFrames * bytesPerFrame * 4;
             }
             int recordMultiplier = heavyRealtimeDsp ? 4 : 2;
             int recordBufferBytes = Math.max(minRecordBytes * recordMultiplier,
                     desiredFrames * bytesPerFrame * (heavyRealtimeDsp ? 6 : 3));
+            recordBufferBytes = Math.max(recordBufferBytes, processingChunkFrames * bytesPerFrame * 4);
 
             audioRecord = new AudioRecord.Builder()
                     .setAudioFormat(recordFormat)
@@ -331,9 +342,12 @@ final class PlaybackCaptureEngine {
             if (minTrackBytes <= 0) {
                 minTrackBytes = latencyFrames * bytesPerFrame;
             }
-            int trackMultiplier = heavyRealtimeDsp ? 4 : 2;
+            int trackMultiplier = bluetoothOutput
+                    ? (heavyRealtimeDsp ? 6 : 4)
+                    : (heavyRealtimeDsp ? 4 : 2);
             int trackBufferBytes = Math.max(minTrackBytes * trackMultiplier,
-                    latencyFrames * bytesPerFrame * (heavyRealtimeDsp ? 3 : 2));
+                    latencyFrames * bytesPerFrame * (bluetoothOutput ? 4 : (heavyRealtimeDsp ? 3 : 2)));
+            trackBufferBytes = Math.max(trackBufferBytes, processingChunkFrames * bytesPerFrame * 6);
 
             AudioTrack.Builder trackBuilder = new AudioTrack.Builder()
                     .setAudioAttributes(buildTrackAttributesForCurrentMode())
@@ -347,18 +361,19 @@ final class PlaybackCaptureEngine {
             if (audioTrack.getState() != AudioTrack.STATE_INITIALIZED) {
                 throw new IllegalStateException("AudioTrack failed to initialize");
             }
-            bindTrackToPreferredOutputLocked(audioTrack);
+            bindTrackToPreferredOutputLocked(audioTrack, preferredOutputDevice);
 
             configuredTargetUid = currentTargetUid;
             configuredBufferFrames = currentConfig.bufferSizeFrames;
-            configuredChunkFrames = desiredFrames;
+            configuredChunkFrames = processingChunkFrames;
             configuredLatencyMs = currentConfig.latencyMs;
             configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
             running = true;
             reconfigureEffectsLocked();
 
-            audioRecord.startRecording();
             audioTrack.play();
+            prefillTrackIfNeeded(audioTrack, processingChunkFrames, bluetoothOutput);
+            audioRecord.startRecording();
             Object workerToken = new Object();
             activeWorkerToken = workerToken;
             workerThread = new Thread(() -> runCaptureLoop(workerToken), "global-peq-capture");
@@ -368,7 +383,9 @@ final class PlaybackCaptureEngine {
                     + " trackUsage=MEDIA"
                     + " stream=" + EXPERIMENTAL_PLAYBACK_STREAM
                     + " desiredFrames=" + desiredFrames
+                    + " processingChunkFrames=" + processingChunkFrames
                     + " heavyRealtimeDsp=" + heavyRealtimeDsp
+                    + " bluetoothOutput=" + bluetoothOutput
                     + " trackBufferBytes=" + trackBufferBytes
                     + " latencyMs=" + latencyMs
                     + " output=" + configuredOutputDeviceKey);
@@ -388,7 +405,8 @@ final class PlaybackCaptureEngine {
             return;
         }
 
-        int chunkFrames = Math.max(512, configuredChunkFrames > 0 ? configuredChunkFrames : configuredBufferFrames);
+        int chunkFrames = Math.max(MIN_PROCESSING_CHUNK_FRAMES,
+                configuredChunkFrames > 0 ? configuredChunkFrames : configuredBufferFrames);
         short[] pcm = new short[chunkFrames * CHANNEL_COUNT];
         float[] samples = new float[pcm.length];
         short[] rendered = new short[pcm.length];
@@ -439,20 +457,14 @@ final class PlaybackCaptureEngine {
                 rendered[i] = (short) Math.round(clamped * 32767f);
             }
 
-            int written = 0;
-            while (running && written < read) {
-                int chunk;
-                try {
-                    chunk = track.write(rendered, written, read - written, AudioTrack.WRITE_BLOCKING);
-                } catch (RuntimeException ex) {
-                    Log.w(TAG, "Capture write failed", ex);
-                    running = false;
+            try {
+                if (!writeTrackFully(track, rendered, read)) {
                     break;
                 }
-                if (chunk <= 0) {
-                    break;
-                }
-                written += chunk;
+            } catch (RuntimeException ex) {
+                Log.w(TAG, "Capture write failed", ex);
+                running = false;
+                break;
             }
         }
 
@@ -591,15 +603,15 @@ final class PlaybackCaptureEngine {
 
         configuredTargetUid = -1;
         configuredBufferFrames = -1;
+        configuredChunkFrames = -1;
         configuredLatencyMs = -1;
         configuredOutputDeviceKey = "";
     }
 
-    private void bindTrackToPreferredOutputLocked(AudioTrack track) {
+    private void bindTrackToPreferredOutputLocked(AudioTrack track, AudioDeviceInfo preferredDevice) {
         if (track == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return;
         }
-        AudioDeviceInfo preferredDevice = resolvePreferredOutputDeviceInfo();
         if (preferredDevice == null) {
             return;
         }
@@ -640,6 +652,65 @@ final class PlaybackCaptureEngine {
             }
         }
         return null;
+    }
+
+    private int chooseProcessingChunkFrames(int desiredFrames,
+                                            boolean heavyRealtimeDsp,
+                                            boolean bluetoothOutput) {
+        int upperBound = bluetoothOutput ? MAX_BLUETOOTH_CHUNK_FRAMES : MAX_PROCESSING_CHUNK_FRAMES;
+        int chunkFrames = desiredFrames;
+        if (chunkFrames > 2048) {
+            chunkFrames = chunkFrames / 8;
+        } else if (chunkFrames > 1024) {
+            chunkFrames = chunkFrames / 4;
+        } else if (chunkFrames > 512) {
+            chunkFrames = chunkFrames / 2;
+        }
+        if (heavyRealtimeDsp) {
+            chunkFrames = Math.min(chunkFrames, bluetoothOutput ? 512 : 1024);
+        }
+        return Math.max(MIN_PROCESSING_CHUNK_FRAMES, Math.min(upperBound, chunkFrames));
+    }
+
+    private void prefillTrackIfNeeded(AudioTrack track, int chunkFrames, boolean bluetoothOutput) {
+        if (track == null || chunkFrames <= 0) {
+            return;
+        }
+        int prefillChunks = bluetoothOutput ? BLUETOOTH_PREFILL_CHUNKS : 1;
+        short[] silence = new short[Math.max(MIN_PROCESSING_CHUNK_FRAMES, chunkFrames) * CHANNEL_COUNT];
+        for (int i = 0; i < prefillChunks; i++) {
+            if (!writeTrackFully(track, silence, silence.length)) {
+                break;
+            }
+        }
+    }
+
+    private boolean writeTrackFully(AudioTrack track, short[] buffer, int sampleCount) {
+        int written = 0;
+        while (running && written < sampleCount) {
+            int chunk = track.write(buffer, written, sampleCount - written, AudioTrack.WRITE_BLOCKING);
+            if (chunk <= 0) {
+                running = false;
+                return false;
+            }
+            written += chunk;
+        }
+        return true;
+    }
+
+    private boolean isBluetoothOutput(AudioDeviceInfo device) {
+        if (device == null) {
+            return false;
+        }
+        int type = device.getType();
+        return type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && type == AudioDeviceInfo.TYPE_BLE_HEADSET)
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && type == AudioDeviceInfo.TYPE_BLE_BROADCAST);
     }
 
     private AudioDeviceInfo resolveActiveTargetPlaybackDeviceInfo() {
