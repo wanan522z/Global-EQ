@@ -8,6 +8,7 @@ import java.util.List;
 
 final class PcmDspProcessor {
     private static final String TAG = "PcmDspProcessor";
+    private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
     private final List<Biquad> filters = new ArrayList<>();
     private int sampleRate = 48000;
     private int channelCount = 2;
@@ -34,6 +35,19 @@ final class PcmDspProcessor {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
 
         if (preset != null) {
+            if (preset.extraBassEnabled && preset.extraBassAmountPercent > 0) {
+                int extraBassGainMb = Math.round(preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
+                filters.add(Biquad.fromBand(
+                        new ParametricBand(
+                                FilterType.LOW_SHELF,
+                                true,
+                                preset.extraBassCutoffHz,
+                                extraBassGainMb,
+                                70),
+                        sampleRate,
+                        channelCount));
+                effectHeadroom = dbToLinear(-extraBassGainMb / 100f);
+            }
             if (preset.mode == EqMode.GEQ) {
                 int bandCount = Math.min(Preset.GEQ_FREQUENCIES.length, preset.geqGainsMb.length);
                 for (int i = 0; i < bandCount; i++) {
@@ -55,7 +69,7 @@ final class PcmDspProcessor {
             psychoacousticBass = new PsychoacousticBassProcessor(sampleRate, channelCount);
             psychoacousticBass.configure(
                     preset.extraBassCutoffHz,
-                    preset.extraBassEnabled ? preset.extraBassAmountPercent : 0,
+                    0,
                     preset.virtualBassCutoffHz,
                     enableDspBass ? preset.virtualBassAmountPercent : 0,
                     false);
