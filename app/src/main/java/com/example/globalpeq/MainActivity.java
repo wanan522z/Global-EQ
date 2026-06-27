@@ -423,6 +423,8 @@ public final class MainActivity extends Activity {
     private int lastRenderedRowsBandCount = -1;
     private boolean pendingEditingPresetPersistence;
     private boolean pendingRunningPresetPersistence;
+    private String pendingExportJson;
+    private String pendingExportSuccessMessage;
     private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
     private final ShizukuCompat.PermissionResultListener shizukuPermissionResultListener = this::handleShizukuPermissionResult;
     private final Runnable activePlaybackPackageRefreshRunnable = new Runnable() {
