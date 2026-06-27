@@ -94,11 +94,14 @@ public final class GlobalEqForegroundService extends Service {
                 return;
             }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
+            currentProcessingMode = repository.loadProcessingMode();
+            currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
             if (awaitingInitialDeviceMonitorEvent) {
                 awaitingInitialDeviceMonitorEvent = false;
                 currentDevice = device;
                 repository.saveSelectedDevice(currentDevice);
-                currentPreset = repository.loadPreset(device);
+                currentPreset = repository.loadPreset(device, currentProcessingMode)
+                        .withEnabled(repository.loadMasterEnabled());
                 if (sameRoute) {
                     updateNotification();
                     return;
@@ -106,12 +109,13 @@ public final class GlobalEqForegroundService extends Service {
             }
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
-            currentPreset = repository.loadPreset(device);
-            currentProcessingMode = repository.loadProcessingMode();
-            currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
+            currentPreset = repository.loadPreset(device, currentProcessingMode)
+                    .withEnabled(repository.loadMasterEnabled());
             int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, currentProcessingMode, virtualBassModeIndex);
-            if (sameRoute) {
+            if (currentProcessingMode == ProcessingMode.SHIZUKU_MUTE) {
+                engine.apply(effectivePreset);
+            } else if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset);
             } else {
                 engine.applyWithFullReset(effectivePreset);
@@ -188,8 +192,9 @@ public final class GlobalEqForegroundService extends Service {
         AudioOutputDevice selected = repository.loadSelectedDevice();
         currentDevice = selected == null ? deviceMonitor.currentOutputDevice() : selected;
         repository.saveSelectedDevice(currentDevice);
-        currentPreset = repository.loadPreset(currentDevice);
         currentProcessingMode = repository.loadProcessingMode();
+        currentPreset = repository.loadPreset(currentDevice, currentProcessingMode)
+                .withEnabled(repository.loadMasterEnabled());
         currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
         updateNotification();
         return currentPreset;
