@@ -46,7 +46,6 @@ final class PcmDspProcessor {
                                 70),
                         sampleRate,
                         channelCount));
-                effectHeadroom = dbToLinear(-extraBassGainMb / 100f);
             }
             if (preset.mode == EqMode.GEQ) {
                 int bandCount = Math.min(Preset.GEQ_FREQUENCIES.length, preset.geqGainsMb.length);
