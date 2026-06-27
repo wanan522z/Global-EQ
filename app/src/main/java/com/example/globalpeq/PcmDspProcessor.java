@@ -621,18 +621,18 @@ final class PcmDspProcessor {
 
         void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, float immediateEarlyBlend, boolean lowCpuMode) {
             this.lowCpuMode = lowCpuMode;
-            stereoCrossfeed = profile.crossfeed * (0.74f + size * 0.22f);
-            directEarlyMix = Math.min(profile.earlyMix * 0.34f, 0.11f) * clamp01(immediateEarlyBlend);
-            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix) * (0.94f + decayShape * 0.12f);
-            lateMix = profile.lateMix * (0.92f + decayShape * 0.16f);
-            outputGain = profile.outputGain * (0.95f + decayShape * 0.08f);
+            stereoCrossfeed = profile.crossfeed * (0.7f + size * 0.2f);
+            directEarlyMix = Math.min(profile.earlyMix * 0.3f, 0.09f) * clamp01(immediateEarlyBlend);
+            earlyMix = Math.max(0f, profile.earlyMix - directEarlyMix) * (0.92f + decayShape * 0.1f);
+            lateMix = profile.lateMix * (0.88f + decayShape * 0.12f);
+            outputGain = profile.outputGain * (0.92f + decayShape * 0.06f);
             leftInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0f, lowCpuMode);
             rightInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0.31f, lowCpuMode);
             leftTank.configure(profile, size, decaySeconds, decayShape, false, lowCpuMode);
             rightTank.configure(profile, size, decaySeconds, decayShape, true, lowCpuMode);
             leftLowCut.reset();
             rightLowCut.reset();
-            float adaptiveHighCutHz = clamp(profile.highCutHz * (1f - decayShape * 0.08f), 4200f, 12000f);
+            float adaptiveHighCutHz = clamp(profile.highCutHz * (1f - decayShape * 0.1f), 3800f, 11000f);
             leftHighCut.configure(adaptiveHighCutHz);
             rightHighCut.configure(adaptiveHighCutHz);
             float adaptiveLowMidCutDb = profile.lowMidCutDb * (0.96f + size * 0.08f + decayShape * 0.14f);
