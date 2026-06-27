@@ -5534,6 +5534,10 @@ public final class MainActivity extends Activity {
     }
 
     private void exportCurrentDeviceConfigJson() {
+        if (System.currentTimeMillis() >= 0L) {
+            exportCurrentDeviceConfigJsonV2();
+            return;
+        }
         Preset preset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
         if (currentDevice == null || preset == null) {
             Toast.makeText(this, tr("No global config to export", "没有可导出的全局配置"), Toast.LENGTH_SHORT).show();
