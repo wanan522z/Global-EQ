@@ -450,6 +450,7 @@ final class PcmDspProcessor {
         private final int[] preDelayIndices;
         private final StereoReverbCore reverbCore;
         private final float[] wetFrame = new float[2];
+        private boolean lowCpuMode;
         private float wetMix;
         private float dryMix;
         private float wetGain;
@@ -469,7 +470,9 @@ final class PcmDspProcessor {
                        int decayPercent,
                        int preDelayMs,
                        int sizePercent,
-                       int mixPercent) {
+                       int mixPercent,
+                       boolean lowCpuMode) {
+            this.lowCpuMode = lowCpuMode;
             float size = clamp01(sizePercent / 100f);
             float mix = clamp01(mixPercent / 100f);
             ReverbProfile profile = ReverbProfile.forType(type);
@@ -483,7 +486,7 @@ final class PcmDspProcessor {
             preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
             float immediateEarlyBlend = clamp01(1f - preDelayMs / 8f);
 
-            reverbCore.configure(profile, size, decaySeconds, decayShape, immediateEarlyBlend);
+            reverbCore.configure(profile, size, decaySeconds, decayShape, immediateEarlyBlend, lowCpuMode);
 
             for (int channel = 0; channel < preDelayIndices.length; channel++) {
                 preDelayIndices[channel] = 0;
