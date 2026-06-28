@@ -86,16 +86,19 @@ final class PlaybackCaptureEngine {
 
     synchronized void bootstrapProjection(int resultCode, Intent data) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("Native capture requires Android 10 or later.", false);
             return;
         }
         if (resultCode != Activity.RESULT_OK || data == null) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("Capture authorization was cancelled.", false);
             return;
         }
 
         MediaProjectionManager manager = appContext.getSystemService(MediaProjectionManager.class);
         if (manager == null) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("MediaProjection service is unavailable.", false);
             return;
         }
@@ -108,6 +111,7 @@ final class PlaybackCaptureEngine {
             mediaProjection = null;
         }
         if (mediaProjection == null) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("Capture authorization could not be initialized.", false);
             return;
         }
@@ -123,6 +127,7 @@ final class PlaybackCaptureEngine {
             }
         };
         mediaProjection.registerCallback(projectionCallback, mainHandler);
+        repository.saveMonitorCaptureAuthorized(true);
         if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
             publishStatus("Capture authorized for system audio.", false);
         } else {
@@ -794,6 +799,7 @@ final class PlaybackCaptureEngine {
         MediaProjection.Callback callback = projectionCallback;
         mediaProjection = null;
         projectionCallback = null;
+        repository.saveMonitorCaptureAuthorized(false);
         if (projection == null) {
             return;
         }

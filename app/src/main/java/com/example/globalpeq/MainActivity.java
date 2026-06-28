@@ -634,10 +634,8 @@ public final class MainActivity extends Activity {
         refreshActivePlaybackPackageFromRepository();
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.post(activePlaybackPackageRefreshRunnable);
-        boolean serviceActive = repository != null
-                && hasStartedDeviceMonitorOnce
-                && syncRuntimeStateWithServiceProcess();
-        suppressInitialDeviceReapply = serviceActive;
+        boolean serviceActive = repository != null && syncRuntimeStateWithServiceProcess();
+        suppressInitialDeviceReapply = hasStartedDeviceMonitorOnce && serviceActive;
         hasStartedDeviceMonitorOnce = true;
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
@@ -675,7 +673,7 @@ public final class MainActivity extends Activity {
         refreshRuntimeStatusUi();
         refreshDeviceSelectionUi();
         updateEditStateLabels();
-        maybeAutoResumeShizukuCapture();
+        maybeEnsureProcessingActive();
     }
 
     @Override
@@ -717,7 +715,6 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(persistPresetStateRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
-        requestShizukuStopIfClosing();
         super.onDestroy();
     }
 
@@ -763,6 +760,7 @@ public final class MainActivity extends Activity {
         if (requestCode == REQUEST_MONITOR_CAPTURE) {
             pendingMonitorCaptureAuthorization = false;
             if (resultCode != RESULT_OK || data == null) {
+                repository.saveMonitorCaptureAuthorized(false);
                 repository.saveMonitorCaptureStatus("Capture authorization was cancelled.", false);
                 refreshRuntimeStatusUi();
                 return;
@@ -2204,15 +2202,7 @@ public final class MainActivity extends Activity {
         if (repository == null) {
             return true;
         }
-        String status = repository.loadMonitorCaptureStatus();
-        if (status == null) {
-            return true;
-        }
-        return !status.startsWith("Capture authorized")
-                && !status.startsWith("Starting native capture")
-                && !status.startsWith("Waiting for capture authorization")
-                && !status.startsWith("Monitoring ")
-                && !status.startsWith("Armed for ");
+        return !repository.loadMonitorCaptureAuthorized();
     }
 
     private void showMonitoredAppChoiceDialog() {
@@ -6282,20 +6272,23 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void maybeAutoResumeShizukuCapture() {
-        if (repository == null
-                || processingMode != ProcessingMode.SHIZUKU_MUTE
-                || runningPreset == null
-                || !runningPreset.enabled) {
+    private void maybeEnsureProcessingActive() {
+        if (repository == null || runningPreset == null || !runningPreset.enabled) {
             return;
         }
         boolean serviceActive = syncRuntimeStateWithServiceProcess();
-        if (serviceActive
-                && repository.loadShizukuMuteActive()
-                && repository.loadMonitorCaptureActive()) {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            if (serviceActive && repository.loadMonitorCaptureAuthorized()) {
+                return;
+            }
+            repository.saveMonitorCaptureAuthorized(false);
+            ensureShizukuModeReady(true);
             return;
         }
-        ensureShizukuModeReady(true);
+        if (serviceActive) {
+            return;
+        }
+        notifyServiceAboutRunningPreset();
     }
 
     private boolean syncRuntimeStateWithServiceProcess() {
@@ -6329,19 +6322,6 @@ public final class MainActivity extends Activity {
             return repository.loadServiceActive();
         }
         return false;
-    }
-
-    private void requestShizukuStopIfClosing() {
-        if (isChangingConfigurations()
-                || processingMode != ProcessingMode.SHIZUKU_MUTE
-                || runningPreset == null
-                || !runningPreset.enabled) {
-            return;
-        }
-        try {
-            startCompatibleForegroundService(buildServiceIntent(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU));
-        } catch (Throwable ignored) {
-        }
     }
 
     private void scheduleDelayedShizukuReady() {
@@ -6378,7 +6358,7 @@ public final class MainActivity extends Activity {
     private void stopShizukuCaptureNow() {
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         try {
-            startService(buildServiceIntent(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU));
+            startCompatibleForegroundService(buildServiceIntent(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU));
         } catch (Throwable ignored) {
         }
     }

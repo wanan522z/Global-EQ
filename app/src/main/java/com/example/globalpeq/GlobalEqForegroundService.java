@@ -70,6 +70,7 @@ public final class GlobalEqForegroundService extends Service {
         super.onCreate();
         repository = new PresetRepository(this);
         repository.saveServiceActive(true);
+        repository.saveMonitorCaptureAuthorized(false);
         engine = GlobalEqRuntime.engine();
         currentProcessingMode = repository.loadProcessingMode();
         currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
@@ -141,7 +142,7 @@ public final class GlobalEqForegroundService extends Service {
                     intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
                     intent.getParcelableExtra(EXTRA_CAPTURE_DATA));
         } else if (ACTION_PAUSE_SHIZUKU.equals(action)) {
-            requestPauseShizukuAndStopService();
+            requestStopAllAndStopService();
             return START_NOT_STICKY;
         } else {
             startForegroundInternal(captureEngine.hasProjection());
@@ -149,16 +150,8 @@ public final class GlobalEqForegroundService extends Service {
         boolean appliedIntentState = (ACTION_APPLY.equals(action) || ACTION_BOOTSTRAP_CAPTURE.equals(action))
                 && applyStateFromIntent(intent);
         Preset preset = appliedIntentState ? applyCurrentPresetState() : applySavedPreset();
-        ProcessingMode processingMode = currentProcessingMode;
         if (!preset.enabled) {
-            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-                requestPauseShizukuAndStopService();
-                return START_NOT_STICKY;
-            }
-            scheduleCaptureStopAll();
-            scheduleShizukuStopAll();
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
+            requestStopAllAndStopService();
             return START_NOT_STICKY;
         }
         return START_STICKY;
@@ -171,12 +164,7 @@ public final class GlobalEqForegroundService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        refreshSavedPresetState();
-        if (currentProcessingMode == ProcessingMode.SHIZUKU_MUTE
-                && currentPreset != null
-                && currentPreset.enabled) {
-            requestPauseShizukuAndStopService();
-        }
+        requestStopAllAndStopService();
         super.onTaskRemoved(rootIntent);
     }
 
@@ -189,7 +177,7 @@ public final class GlobalEqForegroundService extends Service {
         if (captureControlHandler != null) {
             captureControlHandler.removeCallbacksAndMessages(null);
         }
-        stopCaptureAndMuteNow();
+        stopAllProcessingNow();
         if (captureControlThread != null) {
             captureControlThread.quitSafely();
             captureControlThread = null;
@@ -369,10 +357,10 @@ public final class GlobalEqForegroundService extends Service {
         handler.post(() -> shizukuMuteEngine.stopAll());
     }
 
-    private void requestPauseShizukuAndStopService() {
+    private void requestStopAllAndStopService() {
         Handler handler = captureControlHandler;
         if (handler == null) {
-            stopCaptureAndMuteNow();
+            stopAllProcessingNow();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
             updateNotification();
@@ -380,7 +368,7 @@ public final class GlobalEqForegroundService extends Service {
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
         handler.post(() -> {
-            stopCaptureAndMuteNow();
+            stopAllProcessingNow();
             mainHandler.post(() -> {
                 stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
@@ -389,12 +377,18 @@ public final class GlobalEqForegroundService extends Service {
         });
     }
 
-    private void stopCaptureAndMuteNow() {
+    private void stopAllProcessingNow() {
         if (captureEngine != null) {
             captureEngine.stopAll();
         }
         if (shizukuMuteEngine != null) {
             shizukuMuteEngine.stopAll();
+        }
+        if (engine != null) {
+            engine.apply(Preset.flat(false));
+        }
+        if (repository != null) {
+            repository.clearRuntimeAudioState(ShizukuCompat.describeState(this));
         }
     }
 

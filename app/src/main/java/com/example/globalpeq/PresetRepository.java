@@ -36,6 +36,7 @@ final class PresetRepository {
     private static final String TARGET_CURVE_SMOOTHING = "target_curve_smoothing";
     private static final String MONITOR_CAPTURE_STATUS = "monitor_capture_status";
     private static final String MONITOR_CAPTURE_ACTIVE = "monitor_capture_active";
+    private static final String MONITOR_CAPTURE_AUTHORIZED = "monitor_capture_authorized";
     private static final String SHIZUKU_MUTE_STATUS = "shizuku_mute_status";
     private static final String SHIZUKU_MUTE_ACTIVE = "shizuku_mute_active";
     private static final String ACTIVE_PLAYBACK_PACKAGE = "active_playback_package";
@@ -156,10 +157,20 @@ final class PresetRepository {
         return prefs.getBoolean(MONITOR_CAPTURE_ACTIVE, false);
     }
 
+    boolean loadMonitorCaptureAuthorized() {
+        return prefs.getBoolean(MONITOR_CAPTURE_AUTHORIZED, false);
+    }
+
     void saveMonitorCaptureStatus(String status, boolean active) {
         prefs.edit()
                 .putString(MONITOR_CAPTURE_STATUS, status == null ? "Native capture is idle." : status)
                 .putBoolean(MONITOR_CAPTURE_ACTIVE, active)
+                .apply();
+    }
+
+    void saveMonitorCaptureAuthorized(boolean authorized) {
+        prefs.edit()
+                .putBoolean(MONITOR_CAPTURE_AUTHORIZED, authorized)
                 .apply();
     }
 
@@ -209,6 +220,7 @@ final class PresetRepository {
         prefs.edit()
                 .putString(MONITOR_CAPTURE_STATUS, "Native capture is idle.")
                 .putBoolean(MONITOR_CAPTURE_ACTIVE, false)
+                .putBoolean(MONITOR_CAPTURE_AUTHORIZED, false)
                 .putString(SHIZUKU_MUTE_STATUS, shizukuStatus == null ? "Shizuku mute is idle." : shizukuStatus)
                 .putBoolean(SHIZUKU_MUTE_ACTIVE, false)
                 .putString(ACTIVE_PLAYBACK_PACKAGE, "")

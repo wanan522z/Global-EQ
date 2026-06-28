@@ -184,8 +184,11 @@ final class ShizukuSessionMuteEngine {
         return currentAppSessionIds != null && !currentAppSessionIds.isEmpty();
     }
 
-    private boolean shouldActivelyMuteSessions() {
-        return wantsToMuteSessions() && hasOwnedCaptureSessions();
+    private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback) {
+        return wantsToMuteSessions()
+                && hasOwnedCaptureSessions()
+                && ((activePlayback != null && activePlayback.hasActivePlayback())
+                || repository.loadMonitorCaptureActive());
     }
 
     private void scanSessionsAndRefreshState() {
@@ -198,14 +201,12 @@ final class ShizukuSessionMuteEngine {
         } else {
             currentAppSessionIds = new LinkedHashSet<>();
         }
-        boolean applyMuteEffects = shouldActivelyMuteSessions();
-        if (!applyMuteEffects) {
-            if (!muteEffects.isEmpty() || !knownSessions.isEmpty()) {
-                releaseAllEffects();
-            }
-        }
         List<SessionInfo> sessions = dumpPolicySessions();
         ActivePlaybackSnapshot activePlayback = captureActivePlaybackSnapshot();
+        boolean applyMuteEffects = shouldActivelyMuteSessions(activePlayback);
+        if (!applyMuteEffects && (!muteEffects.isEmpty() || !knownSessions.isEmpty())) {
+            releaseAllEffects();
+        }
         Log.d(TAG, "Rescanned audio policy, matched sessions=" + sessions.size()
                 + ", ownedSessions=" + currentAppSessionIds.size()
                 + ", activeMuteEffects=" + muteEffects.size()
@@ -214,7 +215,9 @@ final class ShizukuSessionMuteEngine {
         String activePackageName = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
         updateActivePackageName(activePackageName);
         if (wantsMuteEffects && !applyMuteEffects) {
-            publishStatus("Waiting for native capture playback session.", false);
+            publishStatus(repository.loadMonitorCaptureActive()
+                    ? "Waiting for native capture playback session."
+                    : "Waiting for active playback sessions.", false);
             return;
         }
         if (!applyMuteEffects) {
