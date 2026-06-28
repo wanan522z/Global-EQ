@@ -171,7 +171,7 @@ public final class GlobalEqForegroundService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        performImmediateShutdown(true);
+        requestStopAllAndStopService();
         super.onTaskRemoved(rootIntent);
     }
 
@@ -368,29 +368,21 @@ public final class GlobalEqForegroundService extends Service {
     private void requestStopAllAndStopService() {
         Handler handler = captureControlHandler;
         if (handler == null) {
-            performImmediateShutdown(true);
+            stopAllProcessingNow();
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
+            updateNotification();
             return;
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
         handler.post(() -> {
             stopAllProcessingNow();
             mainHandler.post(() -> {
-                performImmediateShutdown(true);
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+                updateNotification();
             });
         });
-    }
-
-    private void performImmediateShutdown(boolean removeNotification) {
-        if (captureControlHandler != null) {
-            captureControlHandler.removeCallbacksAndMessages(null);
-        }
-        mainHandler.removeCallbacksAndMessages(null);
-        stopAllProcessingNow();
-        if (removeNotification) {
-            stopForeground(STOP_FOREGROUND_REMOVE);
-        }
-        stopSelf();
-        updateNotification();
     }
 
     private void stopAllProcessingNow() {
