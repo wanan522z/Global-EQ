@@ -1841,17 +1841,6 @@ public final class MainActivity extends Activity {
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
     }
 
-    private String monitorCaptureButtonText() {
-        String status = repository.loadMonitorCaptureStatus();
-        boolean armed = repository.loadMonitorCaptureActive()
-                || status.startsWith("Capture authorized")
-                || status.startsWith("Armed for")
-                || status.startsWith("Monitoring");
-        return armed
-                ? tr("Reconnect capture", "重新连接捕获")
-                : tr("Authorize capture", "授权捕获");
-    }
-
     private String advancedModeSummaryText() {
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             return tr(
