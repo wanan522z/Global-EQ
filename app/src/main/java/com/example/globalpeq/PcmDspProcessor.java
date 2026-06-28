@@ -218,6 +218,7 @@ final class PcmDspProcessor {
         private MonoBiquad extractHighPass;
         private MonoBiquad extractLowPass;
         private MonoBiquad harmonicHighPass;
+        private MonoBiquad harmonicHighPass2;
         private MonoBiquad harmonicLowPass;
         private float[] monoSource = new float[0];
         private float[] monoLow = new float[0];
@@ -234,6 +235,7 @@ final class PcmDspProcessor {
         private float lowCutoffPunch;
         private float gateState;
         private float fartZoneBlend;
+        private float wetDuckingState;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
@@ -288,18 +290,23 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.HIGH_PASS, true, harmLow, 0, 76),
                     sampleRate);
 
+            harmonicHighPass2 = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, harmLow, 0, 70),
+                    sampleRate);
+
             harmonicLowPass = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 72),
                     sampleRate);
 
-            harmonicMix = amount * (1.42f + lowCutoffPunch * 0.18f);
-            drive = 1.38f + amount * (4.85f + lowCutoffPunch * 0.90f - fartZoneBlend * 0.55f);
-            harmonicCeiling = 0.20f + amount * (0.17f + lowCutoffPunch * 0.04f);
+            harmonicMix = amount * (1.32f + lowCutoffPunch * 0.14f);
+            drive = 1.32f + amount * (4.35f + lowCutoffPunch * 0.75f - fartZoneBlend * 0.75f);
+            harmonicCeiling = 0.18f + amount * (0.15f + lowCutoffPunch * 0.035f);
 
             envelope = 0f;
             dcBlockX = 0f;
             dcBlockY = 0f;
             gateState = 0f;
+            wetDuckingState = 1f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -326,42 +333,48 @@ final class PcmDspProcessor {
             for (int frame = 0; frame < frameCount; frame++) {
                 float low = monoLow[frame];
                 float absLow = Math.abs(low);
-                envelope += (absLow - envelope) * (absLow > envelope ? 0.040f : 0.009f);
+                envelope += (absLow - envelope) * (absLow > envelope ? 0.032f : 0.0075f);
 
-                float dynamic = Math.min(1f, envelope * (7.0f + lowCutoffPunch * 2.0f));
+                float dynamic = Math.min(1f, envelope * (6.0f + lowCutoffPunch * 1.6f));
 
-                float dynamicDrive = 0.74f + dynamic * (0.40f + lowCutoffPunch * 0.12f - fartZoneBlend * 0.08f);
+                float dynamicDrive = 0.72f + dynamic * (0.32f + lowCutoffPunch * 0.10f - fartZoneBlend * 0.12f);
+                dynamicDrive = clamp(dynamicDrive, 0.62f, 1.18f);
+
                 float driven = low * drive * dynamicDrive;
 
                 float softA = fastTanh(driven);
-                float softB = fastTanh(driven * (2.00f + lowCutoffPunch * 0.25f));
-                float softC = fastTanh(driven * 3.10f);
+                float softB = fastTanh(driven * (1.92f + lowCutoffPunch * 0.20f));
+                float softC = fastTanh(driven * 2.85f);
 
-                float harmonic = softB - softA * (0.72f - lowCutoffPunch * 0.04f);
+                float harmonic = softB - softA * (0.74f - lowCutoffPunch * 0.035f);
 
                 float edge = softC - softA;
-                harmonic += edge * (0.055f + lowCutoffPunch * 0.090f);
+                harmonic += edge * (0.045f + lowCutoffPunch * 0.075f - fartZoneBlend * 0.020f);
 
                 float bite = softC - softB;
-                harmonic += bite * (0.030f + lowCutoffPunch * 0.040f - fartZoneBlend * 0.015f);
+                harmonic += bite * (0.020f + lowCutoffPunch * 0.030f - fartZoneBlend * 0.014f);
 
-                float dcBlocked = harmonic - dcBlockX + 0.988f * dcBlockY;
+                float dcBlocked = harmonic - dcBlockX + 0.984f * dcBlockY;
                 dcBlockX = harmonic;
                 dcBlockY = dcBlocked;
 
-                float gateThreshold = 0.0035f + fartZoneBlend * 0.0045f - lowCutoffPunch * 0.0010f;
-                float gateRange = 0.030f + fartZoneBlend * 0.012f;
+                float gateThreshold = 0.0038f + fartZoneBlend * 0.0060f - lowCutoffPunch * 0.0008f;
+                float gateRange = 0.034f + fartZoneBlend * 0.016f;
                 float gateTarget = clamp01((envelope - gateThreshold) / gateRange);
 
-                float gateCoeff = gateTarget > gateState ? 0.018f : 0.0045f;
+                float gateCoeff = gateTarget > gateState ? 0.012f : 0.0035f;
                 gateState += (gateTarget - gateState) * gateCoeff;
 
-                float shaped = dcBlocked * gateState;
+                float duckTarget = 1f - clamp01((envelope - 0.020f) / 0.080f) * (0.18f + fartZoneBlend * 0.22f);
+                wetDuckingState += (duckTarget - wetDuckingState) * 0.006f;
+
+                float shaped = dcBlocked * gateState * wetDuckingState;
 
                 harmonicBand[frame] = softLimit(shaped, harmonicCeiling);
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
+            harmonicHighPass2.process(harmonicBand, frameCount);
             harmonicLowPass.process(harmonicBand, frameCount);
 
             for (int frame = 0; frame < frameCount; frame++) {
@@ -389,7 +402,7 @@ final class PcmDspProcessor {
         private static float softLimit(float value, float ceiling) {
             float safeCeiling = Math.max(0.05f, ceiling);
             float normalized = value / safeCeiling;
-            if (Math.abs(normalized) < 1.10f) {
+            if (Math.abs(normalized) < 1.00f) {
                 return value;
             }
             return fastTanh(normalized) * safeCeiling;
