@@ -270,8 +270,9 @@ final class PcmDspProcessor {
 
             float amountPow = (float) Math.pow(virtualAmount, 1.2f);
             float boostComp = 1.0f + (1.0f - (float) uiCutoff / 220f) * 0.5f;
-            this.harmonicMix = amountPow * 3.5f * boostComp;
-            this.inputDrive = 1.0f + amountPow * 5.0f;
+            this.virtualAmount = virtualAmount;
+            this.harmonicMix = amountPow * 4.5f * boostComp;
+            this.inputDrive = 1.0f + amountPow * 8.0f;
             this.originalLowMix = dspAmount > 0f ? (dspAmount * 1.5f) : 0.0f;
             this.envFast = 0.0f;
             this.envSlow = 0.0f;
