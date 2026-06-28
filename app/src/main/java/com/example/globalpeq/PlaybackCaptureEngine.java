@@ -254,7 +254,12 @@ final class PlaybackCaptureEngine {
         } else {
             builder.addMatchingUid(currentTargetUid);
         }
-        return builder.build();
+        AudioPlaybackCaptureConfiguration configuration = builder.build();
+        Log.i(TAG, "Built capture configuration mode=" + currentMode
+                + ", targetUid=" + currentTargetUid
+                + ", excludeOwnUid=" + (currentMode == ProcessingMode.SHIZUKU_MUTE)
+                + ", usages=[MEDIA,GAME]");
+        return configuration;
     }
 
     private String monitoringStatusText() {
@@ -377,6 +382,10 @@ final class PlaybackCaptureEngine {
             prefillTrackIfNeeded(audioTrack, processingChunkFrames, bluetoothOutput);
             audioRecord.startRecording();
             Log.i(TAG, "AudioRecord recordingState after startRecording()=" + audioRecord.getRecordingState());
+            Log.i(TAG, "Capture sessions recordSid=" + audioRecord.getAudioSessionId()
+                    + ", trackSid=" + audioTrack.getAudioSessionId()
+                    + ", targetLabel=" + currentTargetLabel
+                    + ", targetUid=" + currentTargetUid);
             Object workerToken = new Object();
             activeWorkerToken = workerToken;
             workerThread = new Thread(() -> runCaptureLoop(workerToken), "global-peq-capture");
@@ -417,6 +426,8 @@ final class PlaybackCaptureEngine {
         boolean signaledLive = false;
         captureSignalLogged = false;
         captureWaitingLogged = false;
+        int silentReadCount = 0;
+        int nonZeroReadCount = 0;
 
         while (running) {
             int read;
@@ -447,8 +458,16 @@ final class PlaybackCaptureEngine {
                 }
             }
 
+            if (peak > 0f) {
+                nonZeroReadCount++;
+                if (nonZeroReadCount <= 5) {
+                    Log.i(TAG, "Capture read non-zero frame readSamples=" + read + ", peak=" + peak);
+                }
+            }
+
             if (peak > SIGNAL_THRESHOLD) {
                 lastSignalAt = SystemClock.elapsedRealtime();
+                silentReadCount = 0;
                 if (!captureSignalLogged) {
                     Log.i(TAG, "Capture loop detected signal: readSamples=" + read + ", peak=" + peak);
                     captureSignalLogged = true;
@@ -457,9 +476,19 @@ final class PlaybackCaptureEngine {
                     publishStatus(monitoringStatusText(), true);
                     signaledLive = true;
                 }
-            } else if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs && signaledLive) {
-                publishStatus(waitingStatusText(), false);
-                signaledLive = false;
+            } else {
+                silentReadCount++;
+                if (silentReadCount == 1 || silentReadCount == 10 || silentReadCount == 30 || silentReadCount % 120 == 0) {
+                    Log.i(TAG, "Capture read below threshold readSamples=" + read
+                            + ", peak=" + peak
+                            + ", silentReadCount=" + silentReadCount
+                            + ", target=" + currentTargetLabel
+                            + ", targetUid=" + currentTargetUid);
+                }
+                if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs && signaledLive) {
+                    publishStatus(waitingStatusText(), false);
+                    signaledLive = false;
+                }
             }
 
             synchronized (dspLock) {
@@ -738,6 +767,7 @@ final class PlaybackCaptureEngine {
         }
         try {
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                Log.i(TAG, "Target route candidate raw=" + summarizeConfig(configuration));
                 if (configuration == null || readPlaybackClientUid(configuration) != currentTargetUid) {
                     continue;
                 }
@@ -852,5 +882,20 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
+    }
+
+    private String summarizeConfig(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return "null";
+        }
+        String text = configuration.toString();
+        if (text == null) {
+            return "null";
+        }
+        String normalized = text.replace('\n', ' ').replace('\r', ' ').trim();
+        if (normalized.length() <= 240) {
+            return normalized;
+        }
+        return normalized.substring(0, 240) + "...";
     }
 }
