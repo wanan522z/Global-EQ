@@ -238,7 +238,7 @@ final class PcmDspProcessor {
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
-            configure(95, 0, 95, 0, false);
+            configure(60, 0, 60, 0, false);
         }
 
         void configure(int virtualCutoffHz,
@@ -250,59 +250,61 @@ final class PcmDspProcessor {
             float virtualAmount = Math.min(1.0f, Math.max(0.0f, virtualAmountPercent / 100f));
             float dspAmount = Math.min(1.0f, Math.max(0.0f, dspAmountPercent / 100f));
 
-            int cutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
-            if (cutoff <= 0) {
-                cutoff = Math.max(virtualCutoffHz, dspCutoffHz);
+            int targetHz = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
+            if (targetHz <= 0) {
+                targetHz = Math.max(virtualCutoffHz, dspCutoffHz);
             }
-            cutoff = Math.min(260, Math.max(40, cutoff));
+            targetHz = Math.min(200, Math.max(40, targetHz));
 
-            this.harmonicMix = virtualAmount * 7.0f;
-            this.inputDrive = 1.0f + virtualAmount * 3.0f;
+            float boostComp = 1.0f + (1.0f - (targetHz - 40f) / 160f) * 0.7f;
+
+            this.harmonicMix = virtualAmount * 7.5f * boostComp;
+            this.inputDrive = 1.5f + virtualAmount * 3.5f;
             this.originalLowMix = dspAmount > 0f ? (dspAmount * 1.5f) : 0.0f;
 
             sourceLowPass1 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70),
+                    new ParametricBand(FilterType.LOW_PASS, true, targetHz, 0, 70),
                     sampleRate);
             sourceLowPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70),
+                    new ParametricBand(FilterType.LOW_PASS, true, targetHz, 0, 70),
                     sampleRate);
 
-            int hpCutoff = cutoff;
+            int physHpCutoff = Math.max(45, (int) (targetHz * 0.70f));
             mainHighPassL1 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate)
             };
             mainHighPassL2 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate)
             };
             mainHighPassR1 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate)
             };
             mainHighPassR2 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            new ParametricBand(FilterType.HIGH_PASS, true, physHpCutoff, 0, 70),
                             sampleRate)
             };
 
-            int hpHmHz = (int) (cutoff * 1.25f);
-            int lpHmHz = Math.min(1800, cutoff * 5);
+            int hpHmHz = (int) (targetHz * 1.10f);
+            int lpHmHz = Math.min(1600, (int) (targetHz * 4.5f));
             harmonicHighPass1 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 70),
                     sampleRate);
@@ -340,9 +342,9 @@ final class PcmDspProcessor {
 
                 float secondHarmonic = (2.0f * x * x) - 0.5f;
                 float thirdHarmonic = (4.0f * x * x * x) - (3.0f * x);
-                float highOrder = Math.abs(x) * 1.5f - 0.4f;
+                float highOrder = Math.abs(x) * 1.6f - 0.45f;
 
-                harmonicBand[frame] = secondHarmonic * 1.2f + thirdHarmonic * 0.8f + highOrder * 0.5f;
+                harmonicBand[frame] = secondHarmonic * 1.3f + thirdHarmonic * 0.8f + highOrder * 0.4f;
             }
 
             harmonicHighPass1.process(harmonicBand, frameCount);
@@ -405,7 +407,7 @@ final class PcmDspProcessor {
             if (Float.isNaN(value) || Float.isInfinite(value)) {
                 return 0f;
             }
-            return Math.min(1.3f, Math.max(-1.3f, value));
+            return Math.min(1.4f, Math.max(-1.4f, value));
         }
     }
 
