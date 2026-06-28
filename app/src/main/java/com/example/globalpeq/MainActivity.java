@@ -1066,6 +1066,7 @@ public final class MainActivity extends Activity {
         enabledSwitch.setText("");
         enabledSwitch.setShowText(false);
         enabledSwitch.setEnabled(supported);
+        enabledSwitch.setChecked(runningPreset != null && runningPreset.enabled);
         enabledSwitch.setOnCheckedChangeListener(this::onEnabledChanged);
         styleTopSwitch(enabledSwitch, false);
         enabledSwitch.setTranslationY(dp(1));
@@ -3404,9 +3405,7 @@ public final class MainActivity extends Activity {
         if (presetSelectButton != null) {
             setTextIfChanged(presetSelectButton, presetDisplayName(editingPreset));
         }
-        if (enabledSwitch != null) {
-            enabledSwitch.setChecked(runningPreset.enabled);
-        }
+        setEnabledSwitchChecked(runningPreset.enabled);
         styleModeText();
 
         if (presetSelectButton != null) {
@@ -6151,6 +6150,15 @@ public final class MainActivity extends Activity {
         return enabled && supported;
     }
 
+    private void setEnabledSwitchChecked(boolean checked) {
+        if (enabledSwitch == null) {
+            return;
+        }
+        enabledSwitch.setOnCheckedChangeListener(null);
+        enabledSwitch.setChecked(checked);
+        enabledSwitch.setOnCheckedChangeListener(this::onEnabledChanged);
+    }
+
     private Preset loadScopedPreset(AudioOutputDevice device, ProcessingMode mode) {
         return limitPresetForHeadroom(repository.loadPreset(device, mode));
     }
@@ -6596,7 +6604,7 @@ public final class MainActivity extends Activity {
         if (enabledSwitch != null) {
             updatingUi = true;
             try {
-                enabledSwitch.setChecked(runningPreset.enabled);
+                setEnabledSwitchChecked(runningPreset.enabled);
             } finally {
                 updatingUi = false;
             }
