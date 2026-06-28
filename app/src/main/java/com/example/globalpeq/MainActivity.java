@@ -3366,7 +3366,7 @@ public final class MainActivity extends Activity {
             setEditTextIfChanged(pregainInput, formatDecimal(editingPreset.pregainMb / 100f));
         }
         if (virtualBassSlider != null) {
-            virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
+            virtualBassSlider.setValue(displayedVirtualBassAmount(editingPreset), false);
         }
         if (cutoffKnob != null) {
             cutoffKnob.setValue(editingPreset.extraBassCutoffHz, false);
