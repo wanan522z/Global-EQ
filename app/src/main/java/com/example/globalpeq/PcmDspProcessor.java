@@ -278,9 +278,9 @@ final class PcmDspProcessor {
             // Tighten the upper bound. Pushing to 900~1000 Hz sounded too airy/harsh.
             // Keep the harmonics around roughly 2~4.5x for a stronger missing-fundamental effect.
             int harmHigh = clampInt(
-                    Math.round(cutoff * (3.9f + lowCutoffPunch * 0.45f + midCutoffBlend * 0.50f)),
-                    harmLow + 120,
-                    620);
+                    Math.round(cutoff * (4.8f + lowCutoffPunch * 0.55f + midCutoffBlend * 0.65f)),
+                    harmLow + 160,
+                    820);
 
             extractHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
@@ -341,9 +341,9 @@ final class PcmDspProcessor {
 
             // This version avoids relying on extreme drive/gate behavior.
             // Generate a cleaner, stabler wet branch first, then mix it back into dry.
-            inputDrive = 1.20f + amount * (3.30f + lowCutoffPunch * 0.55f - fartZoneBlend * 0.45f);
-            harmonicMix = amount * (1.28f + lowCutoffPunch * 0.16f - fartZoneBlend * 0.10f);
-            wetCeiling = 0.22f + amount * 0.14f;
+            inputDrive = 1.35f + amount * (4.80f + lowCutoffPunch * 0.75f - fartZoneBlend * 0.28f);
+            harmonicMix = amount * (1.85f + lowCutoffPunch * 0.22f - fartZoneBlend * 0.08f);
+            wetCeiling = 0.30f + amount * 0.20f;
 
             envelope = 0f;
             dcBlockX = 0f;
@@ -403,13 +403,13 @@ final class PcmDspProcessor {
                 }
 
                 // Remove part of the fundamental so the branch stays mainly harmonic.
-                float harmonic = asym - x * (0.66f + fartZoneBlend * 0.06f);
+                float harmonic = asym - x * (0.52f + fartZoneBlend * 0.05f);
 
                 // Higher-order edge only provides "solidity" and "clarity"; keep it limited.
                 float edgeA = fastTanh(x * (2.15f + lowCutoffPunch * 0.22f));
                 float edgeB = fastTanh(x * 3.10f);
-                harmonic += (edgeA - asym) * (0.16f + lowCutoffPunch * 0.06f - fartZoneBlend * 0.05f);
-                harmonic += (edgeB - edgeA) * (0.055f + lowCutoffPunch * 0.035f);
+                harmonic += (edgeA - asym) * (0.24f + lowCutoffPunch * 0.08f - fartZoneBlend * 0.04f);
+                harmonic += (edgeB - edgeA) * (0.090f + lowCutoffPunch * 0.045f);
 
                 // DC blocker removes bias and slow asymmetry drift from the soft clipper.
                 float dcBlocked = harmonic - dcBlockX + 0.982f * dcBlockY;
@@ -432,13 +432,13 @@ final class PcmDspProcessor {
 
                 float wetAbs = Math.abs(wet);
                 wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.12f : 0.006f);
+                        * (wetAbs > wetLimiterEnvelope ? 0.08f : 0.004f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
 
-                float coeff = targetGain < wetLimiterGain ? 0.18f : 0.004f;
+                float coeff = targetGain < wetLimiterGain ? 0.12f : 0.006f;
                 wetLimiterGain += (targetGain - wetLimiterGain) * coeff;
 
                 harmonicBand[frame] = softLimitWet(wet * wetLimiterGain, wetCeiling);
@@ -446,6 +446,10 @@ final class PcmDspProcessor {
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float generated = harmonicBand[frame] * harmonicMix;
+
+                // Add a little more presence at high knob settings while staying in the wet branch.
+                generated = softLimitWet(generated, wetCeiling * 1.35f);
+
                 int frameOffset = frame * channelCount;
                 for (int channel = 0; channel < channelCount; channel++) {
                     float original = samples[frameOffset + channel];
