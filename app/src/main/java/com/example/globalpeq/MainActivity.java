@@ -28,6 +28,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.Layout;
@@ -77,6 +78,7 @@ import java.util.Set;
 import org.json.JSONException;
 
 public final class MainActivity extends Activity {
+    private static final String TAG = "MainActivity";
     private static final int HISTORY_LIMIT = 30;
     private static final int REQUEST_IMPORT_DEVICE_CURVE = 4101;
     private static final int REQUEST_IMPORT_TARGET_CURVE = 4102;
@@ -2166,6 +2168,10 @@ public final class MainActivity extends Activity {
     }
 
     private void ensureShizukuModeReady(boolean autoLaunchCapture) {
+        Log.i(TAG, "ensureShizukuModeReady mode=" + processingMode
+                + " autoLaunch=" + autoLaunchCapture
+                + " pendingCapture=" + pendingMonitorCaptureAuthorization
+                + " captureAuthorized=" + (repository != null && repository.loadMonitorCaptureAuthorized()));
         if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
             return;
         }
@@ -6277,6 +6283,10 @@ public final class MainActivity extends Activity {
     }
 
     private void maybeEnsureProcessingActive() {
+        Log.i(TAG, "maybeEnsureProcessingActive enabled="
+                + (runningPreset != null && runningPreset.enabled)
+                + " startupPending=" + startupProcessingRecoveryPending
+                + " mode=" + processingMode);
         if (repository == null || runningPreset == null || !runningPreset.enabled) {
             startupProcessingRecoveryPending = false;
             return;
