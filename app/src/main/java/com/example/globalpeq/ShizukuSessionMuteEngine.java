@@ -184,19 +184,11 @@ final class ShizukuSessionMuteEngine {
         return currentAppSessionIds != null && !currentAppSessionIds.isEmpty();
     }
 
-    private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback,
-                                               List<SessionInfo> sessions) {
-        boolean hasPlaybackConfigSignal = activePlayback != null && activePlayback.hasActivePlayback();
-        boolean hasNativeCaptureSignal = repository.loadMonitorCaptureActive();
-        boolean hasPolicySessionSignal = hasForeignMediaSessionCandidate(sessions);
-        if (!hasPlaybackConfigSignal && !hasNativeCaptureSignal && hasPolicySessionSignal) {
-            Log.d(TAG, "Falling back to audio_policy session detection for active playback");
-        }
+    private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback) {
         return wantsToMuteSessions()
                 && hasOwnedCaptureSessions()
-                && (hasPlaybackConfigSignal
-                || hasNativeCaptureSignal
-                || hasPolicySessionSignal);
+                && ((activePlayback != null && activePlayback.hasActivePlayback())
+                || repository.loadMonitorCaptureActive());
     }
 
     private void scanSessionsAndRefreshState() {
@@ -211,7 +203,7 @@ final class ShizukuSessionMuteEngine {
         }
         List<SessionInfo> sessions = dumpPolicySessions();
         ActivePlaybackSnapshot activePlayback = captureActivePlaybackSnapshot();
-        boolean applyMuteEffects = shouldActivelyMuteSessions(activePlayback, sessions);
+        boolean applyMuteEffects = shouldActivelyMuteSessions(activePlayback);
         if (!applyMuteEffects && (!muteEffects.isEmpty() || !knownSessions.isEmpty())) {
             releaseAllEffects();
         }
@@ -383,29 +375,6 @@ final class ShizukuSessionMuteEngine {
             }
         }
         return firstActivePackageName;
-    }
-
-    private boolean hasForeignMediaSessionCandidate(List<SessionInfo> sessions) {
-        if (sessions == null || sessions.isEmpty()) {
-            return false;
-        }
-        int ownUid = Process.myUid();
-        for (SessionInfo session : sessions) {
-            if (session == null) {
-                continue;
-            }
-            if (session.packageName.equals(appContext.getPackageName()) || session.uid == ownUid) {
-                continue;
-            }
-            if (currentAppSessionIds.contains(session.sessionId)) {
-                continue;
-            }
-            String usage = session.usage.toUpperCase(Locale.US).trim();
-            if (usage.contains("USAGE_MEDIA") || usage.contains("USAGE_GAME")) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
