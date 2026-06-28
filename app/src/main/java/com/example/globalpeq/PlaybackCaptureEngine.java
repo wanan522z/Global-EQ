@@ -745,7 +745,11 @@ final class PlaybackCaptureEngine {
             if (value instanceof Integer) {
                 return (Integer) value;
             }
-        } catch (ReflectiveOperationException ignored) {
+            Log.w(TAG, "Playback config returned non-integer client uid: " + value);
+        } catch (NoSuchMethodException ex) {
+            Log.w(TAG, "AudioPlaybackConfiguration#getClientUid is unavailable on this device", ex);
+        } catch (ReflectiveOperationException ex) {
+            Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#getClientUid", ex);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to read playback client uid", ex);
         }
