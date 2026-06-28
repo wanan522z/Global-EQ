@@ -250,30 +250,30 @@ final class PcmDspProcessor {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
 
-            int cutoff = clampInt(requestedCutoff, 45, 180);
+            int cutoff = clampInt(requestedCutoff, 35, 220);
 
-            int harmLow = clampInt(Math.round(cutoff * 1.35f), 95, 260);
-            int harmHigh = clampInt(Math.round(cutoff * 6.5f), harmLow + 180, 780);
+            int harmLow = clampInt(Math.round(cutoff * 1.55f), 65, 260);
+            int harmHigh = clampInt(Math.round(cutoff * 5.5f), harmLow + 160, 950);
 
             extractHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 25, 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(25, Math.round(cutoff * 0.38f)), 0, 70),
                     sampleRate);
 
             extractLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
+                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 68),
                     sampleRate);
 
             harmonicHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, harmLow, 0, 75),
+                    new ParametricBand(FilterType.HIGH_PASS, true, harmLow, 0, 76),
                     sampleRate);
 
             harmonicLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 75),
+                    new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 72),
                     sampleRate);
 
-            harmonicMix = amount * 1.25f;
-            drive = 1.45f + amount * 4.8f;
-            harmonicCeiling = 0.22f + amount * 0.18f;
+            harmonicMix = amount * 1.45f;
+            drive = 1.45f + amount * 5.2f;
+            harmonicCeiling = 0.20f + amount * 0.18f;
 
             envelope = 0f;
             dcBlockX = 0f;
@@ -304,25 +304,28 @@ final class PcmDspProcessor {
             for (int frame = 0; frame < frameCount; frame++) {
                 float low = monoLow[frame];
                 float absLow = Math.abs(low);
-                envelope += (absLow - envelope) * (absLow > envelope ? 0.06f : 0.014f);
+                envelope += (absLow - envelope) * (absLow > envelope ? 0.045f : 0.010f);
 
-                float envDrive = 0.9f + Math.min(1f, envelope * 8.0f) * 0.45f;
-                float driven = low * drive * envDrive;
+                float dynamic = Math.min(1f, envelope * 8.0f);
+                float driven = low * drive * (0.78f + dynamic * 0.50f);
 
-                float sat1 = fastTanh(driven);
-                float sat2 = fastTanh(driven * 1.85f);
+                // Do not use abs-based rectification to avoid "puffing".
+                float softA = fastTanh(driven);
+                float softB = fastTanh(driven * 2.05f);
+                float harmonic = softB - softA * 0.70f;
 
-                float third = sat2 - driven * 0.55f;
-                float second = sat1 * sat1;
-                second -= 0.10f + Math.min(0.22f, envelope * 0.75f);
+                // Add a little second-order warmth without making it the main source.
+                float warmth = softA * softA - envelope * 0.18f;
+                harmonic += warmth * 0.10f;
 
-                float shaped = third * 0.70f + second * 0.30f;
-
-                float dcBlocked = shaped - dcBlockX + 0.996f * dcBlockY;
-                dcBlockX = shaped;
+                float dcBlocked = harmonic - dcBlockX + 0.993f * dcBlockY;
+                dcBlockX = harmonic;
                 dcBlockY = dcBlocked;
 
-                harmonicBand[frame] = softLimit(dcBlocked, harmonicCeiling);
+                float gate = clamp01((envelope - 0.004f) / 0.028f);
+                float shaped = dcBlocked * gate;
+
+                harmonicBand[frame] = softLimit(shaped, harmonicCeiling);
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
@@ -353,7 +356,7 @@ final class PcmDspProcessor {
         private static float softLimit(float value, float ceiling) {
             float safeCeiling = Math.max(0.05f, ceiling);
             float normalized = value / safeCeiling;
-            if (Math.abs(normalized) < 1.05f) {
+            if (Math.abs(normalized) < 1.12f) {
                 return value;
             }
             return fastTanh(normalized) * safeCeiling;
