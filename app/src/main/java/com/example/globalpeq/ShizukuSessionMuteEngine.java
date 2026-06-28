@@ -48,6 +48,15 @@ final class ShizukuSessionMuteEngine {
     private static final Pattern PLAYBACK_SESSION_REGEX = Pattern.compile(
             "\\bsession(?:Id)?\\b\\s*[:=]\\s*(\\d+)",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern PLAYBACK_UID_REGEX = Pattern.compile(
+            "\\b(?:client)?uid\\b\\s*[:=]\\s*(\\d+)",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern PLAYBACK_USAGE_NAME_REGEX = Pattern.compile(
+            "\\busage\\b\\s*[:=]\\s*(AUDIO_USAGE_[A-Z_]+|USAGE_[A-Z_]+)",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern PLAYBACK_USAGE_VALUE_REGEX = Pattern.compile(
+            "\\busage\\b\\s*[:=]\\s*(\\d+)",
+            Pattern.CASE_INSENSITIVE);
 
     interface SessionIdProvider {
         Set<Integer> getOwnedAudioSessionIds();
@@ -305,8 +314,8 @@ final class ShizukuSessionMuteEngine {
             return attributes == null ? -1 : attributes.getUsage();
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to read playback usage", ex);
-            return -1;
         }
+        return parsePlaybackUsage(configuration.toString());
     }
 
     private int readPlaybackPlayerState(AudioPlaybackConfiguration configuration) {
@@ -624,6 +633,46 @@ final class ShizukuSessionMuteEngine {
         return safeParseInt(matcher.group(1));
     }
 
+    private int parsePlaybackUid(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return -1;
+        }
+        Matcher matcher = PLAYBACK_UID_REGEX.matcher(text);
+        if (!matcher.find()) {
+            return -1;
+        }
+        return safeParseInt(matcher.group(1));
+    }
+
+    private int parsePlaybackUsage(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return -1;
+        }
+
+        Matcher nameMatcher = PLAYBACK_USAGE_NAME_REGEX.matcher(text);
+        if (nameMatcher.find()) {
+            String value = nameMatcher.group(1);
+            if (value != null) {
+                String normalized = value.trim().toUpperCase(Locale.US);
+                if (normalized.endsWith("MEDIA")) {
+                    return android.media.AudioAttributes.USAGE_MEDIA;
+                }
+                if (normalized.endsWith("GAME")) {
+                    return android.media.AudioAttributes.USAGE_GAME;
+                }
+                if (normalized.endsWith("UNKNOWN")) {
+                    return android.media.AudioAttributes.USAGE_UNKNOWN;
+                }
+            }
+        }
+
+        Matcher valueMatcher = PLAYBACK_USAGE_VALUE_REGEX.matcher(text);
+        if (!valueMatcher.find()) {
+            return -1;
+        }
+        return safeParseInt(valueMatcher.group(1));
+    }
+
     private String playbackUsageToString(int usage) {
         switch (usage) {
             case android.media.AudioAttributes.USAGE_MEDIA:
@@ -662,7 +711,7 @@ final class ShizukuSessionMuteEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to read playback client uid", ex);
         }
-        return -1;
+        return parsePlaybackUid(configuration.toString());
     }
 
     private void updateActivePackageName(String packageName) {
