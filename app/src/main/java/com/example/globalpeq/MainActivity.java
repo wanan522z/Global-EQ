@@ -1748,10 +1748,6 @@ public final class MainActivity extends Activity {
                 "选择目标应用，完成 Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加。");
     }
 
-    private String monitorCaptureLabelText() {
-        return tr("Capture auth", "捕获授权");
-    }
-
     private String monitoredAppLabelText() {
         return tr("Monitored app", "监听应用");
     }
