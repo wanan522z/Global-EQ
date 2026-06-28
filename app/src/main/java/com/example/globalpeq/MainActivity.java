@@ -8772,6 +8772,9 @@ public final class MainActivity extends Activity {
                     getParent().requestDisallowInterceptTouchEvent(false);
                     if (adjusting) {
                         setValue(xToValue(event.getX()), false);
+                        if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                            commitCurrentValue();
+                        }
                     } else {
                         // tap thumb 区域直接跳转
                         float thumbX = valueToX();
