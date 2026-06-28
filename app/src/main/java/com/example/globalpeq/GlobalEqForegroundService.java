@@ -244,7 +244,7 @@ public final class GlobalEqForegroundService extends Service {
         if (presetJson == null || presetJson.trim().isEmpty()) {
             return false;
         }
-        currentPreset = Preset.fromJson(presetJson);
+        currentPreset = Preset.fromJson(presetJson).withEnabled(repository.loadMasterEnabled());
         String deviceKey = intent.getStringExtra(EXTRA_DEVICE_KEY);
         String deviceLabel = intent.getStringExtra(EXTRA_DEVICE_LABEL);
         if (deviceKey != null && !deviceKey.trim().isEmpty()
