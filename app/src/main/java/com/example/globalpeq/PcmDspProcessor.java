@@ -252,6 +252,7 @@ final class PcmDspProcessor {
         private float harmonicMix;
         private float sourceScale;
         private float wetCeiling;
+        private float amountLevel;
 
         private float h2Mix;
         private float h3Mix;
@@ -362,7 +363,7 @@ final class PcmDspProcessor {
             targetHz = clamp(cutoff * 0.82f, minTrackHz, maxTrackHz);
             trackedHz = targetHz;
             periodSmooth = 0f;
-            trackingReliability = 0f;
+            trackingReliability = 0.35f;
             samplesSinceCrossing = maxPeriodSamples;
             previousLow = 0f;
             phase = 0f;
@@ -371,13 +372,15 @@ final class PcmDspProcessor {
             envelopeReleaseCoeff = onePoleCoeff(90.0f + lowCutoffBlend * 30.0f + fartZoneBlend * 25.0f, sampleRate);
             frequencySmoothCoeff = onePoleCoeff(42.0f + fartZoneBlend * 25.0f, sampleRate);
 
-            h2Mix = 0.96f + lowCutoffBlend * 0.22f - fartZoneBlend * 0.10f;
-            h3Mix = 0.72f + fartZoneBlend * 0.10f + lowCutoffBlend * 0.06f;
-            h4Mix = 0.28f + midCutoffBlend * 0.08f + fartZoneBlend * 0.04f;
+            h2Mix = 1.35f + lowCutoffBlend * 0.36f - fartZoneBlend * 0.06f;
+            h3Mix = 1.05f + fartZoneBlend * 0.14f + lowCutoffBlend * 0.12f;
+            h4Mix = 0.46f + midCutoffBlend * 0.12f + fartZoneBlend * 0.06f;
 
-            sourceScale = 0.88f + amount * (0.42f + lowCutoffBlend * 0.12f);
-            harmonicMix = amount * (3.10f + lowCutoffBlend * 0.85f - fartZoneBlend * 0.06f);
-            wetCeiling = 0.46f + amount * 0.26f;
+            amountLevel = amount;
+
+            sourceScale = 1.45f + amount * (1.10f + lowCutoffBlend * 0.30f);
+            harmonicMix = amount * (6.20f + lowCutoffBlend * 1.35f - fartZoneBlend * 0.08f);
+            wetCeiling = 0.72f + amount * 0.38f;
 
             sourceEnvelope = 0f;
             wetLimiterEnvelope = 0f;
@@ -424,10 +427,16 @@ final class PcmDspProcessor {
                     phase -= TWO_PI;
                 }
 
-                float levelGate = clamp01((sourceEnvelope - 0.0028f) / 0.020f);
-                float reliable = clamp01(trackingReliability) * levelGate;
+                float levelGate = clamp01((sourceEnvelope - 0.0012f) / 0.010f);
 
-                float amp = sourceEnvelope * sourceScale * reliable;
+                // Keep some harmonic output before pitch lock is fully stable.
+                float reliabilityFloor = 0.32f + amountLevel * 0.28f;
+                float reliable = Math.max(reliabilityFloor, clamp01(trackingReliability)) * levelGate;
+
+                // Small low-end content still needs help to stay audible.
+                float perceivedEnvelope = sourceEnvelope + sourceEnvelope * amountLevel * 0.75f;
+
+                float amp = perceivedEnvelope * sourceScale * reliable;
 
                 float h2 = fastSin(phase * 2f);
                 float h3 = fastSin(phase * 3f);
@@ -447,16 +456,16 @@ final class PcmDspProcessor {
 
                 float wetAbs = Math.abs(wet);
                 wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.0042f);
+                        * (wetAbs > wetLimiterEnvelope ? 0.052f : 0.0032f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
 
-                float limiterCoeff = targetGain < wetLimiterGain ? 0.12f : 0.0065f;
+                float limiterCoeff = targetGain < wetLimiterGain ? 0.085f : 0.0085f;
                 wetLimiterGain += (targetGain - wetLimiterGain) * limiterCoeff;
 
-                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.50f);
+                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 2.10f);
 
                 int frameOffset = frame * channelCount;
                 for (int channel = 0; channel < channelCount; channel++) {
@@ -485,7 +494,7 @@ final class PcmDspProcessor {
                     float measuredHz = sampleRate / Math.max(1f, periodSmooth);
                     targetHz = clamp(measuredHz, minTrackHz, maxTrackHz);
 
-                    trackingReliability += (1f - trackingReliability) * 0.22f;
+                    trackingReliability += (1f - trackingReliability) * 0.34f;
                     samplesSinceCrossing = 0;
                 } else if (period > maxPeriodSamples * 2) {
                     trackingReliability *= 0.992f;
@@ -494,7 +503,7 @@ final class PcmDspProcessor {
             }
 
             if (samplesSinceCrossing > maxPeriodSamples * 3) {
-                trackingReliability *= 0.9985f;
+                trackingReliability *= 0.9994f;
                 samplesSinceCrossing = maxPeriodSamples * 3;
             }
 
