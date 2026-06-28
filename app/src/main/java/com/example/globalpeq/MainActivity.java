@@ -864,6 +864,9 @@ public final class MainActivity extends Activity {
                 refreshDeviceSelectionUi();
                 return;
             }
+            adoptDevicePresetForCurrentMode(currentDevice, true);
+            renderAll();
+            return;
         }
         if (!autoSwitchOutput) {
             refreshDeviceSelectionUi();
