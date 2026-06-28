@@ -6080,6 +6080,7 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean enabling = isChecked && supported;
+        repository.saveMasterEnabled(enabling);
         runningPreset = runningPreset.withEnabled(enabling);
         if (isEditingPresetActive()) {
             editingPreset = editingPreset.withEnabled(runningPreset.enabled);
@@ -6140,7 +6141,9 @@ public final class MainActivity extends Activity {
     }
 
     private boolean currentMasterEnabled() {
-        boolean enabled = runningPreset != null ? runningPreset.enabled : repository.loadMasterEnabled();
+        boolean enabled = repository != null
+                ? repository.loadMasterEnabled()
+                : runningPreset != null && runningPreset.enabled;
         return enabled && supported;
     }
 
@@ -6184,7 +6187,6 @@ public final class MainActivity extends Activity {
         if (persistedRunningPreset != null) {
             runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
         }
-        repository.saveMasterEnabled(runningPreset.enabled);
         scheduleRunningPresetPersistence();
     }
 
@@ -6740,7 +6742,6 @@ public final class MainActivity extends Activity {
         }
         repository.savePreset(currentDevice, processingMode, runningPreset);
         repository.saveGlobalPreset(runningPreset);
-        repository.saveMasterEnabled(runningPreset.enabled);
     }
 
     private void persistEditingPresetNow() {
