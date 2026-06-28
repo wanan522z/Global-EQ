@@ -3366,7 +3366,7 @@ public final class MainActivity extends Activity {
             setEditTextIfChanged(pregainInput, formatDecimal(editingPreset.pregainMb / 100f));
         }
         if (virtualBassSlider != null) {
-            virtualBassSlider.setValue(displayedVirtualBassAmount(editingPreset), false);
+            virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
         }
         if (cutoffKnob != null) {
             cutoffKnob.setValue(editingPreset.extraBassCutoffHz, false);
@@ -6086,42 +6086,6 @@ public final class MainActivity extends Activity {
         selectedBassModeIndex = editingPreset.virtualBassModeIndex;
     }
 
-    private int displayedVirtualBassAmount(Preset preset) {
-        if (preset == null) {
-            return 0;
-        }
-        return selectedBassModeIndex == 2
-                ? preset.dspVirtualBassAmountPercent
-                : preset.systemVirtualBassAmountPercent;
-    }
-
-    private int displayedVirtualBassCutoff(Preset preset) {
-        if (preset == null) {
-            return 95;
-        }
-        return selectedBassModeIndex == 2
-                ? preset.dspVirtualBassCutoffHz
-                : preset.systemVirtualBassCutoffHz;
-    }
-
-    private Preset withDisplayedVirtualBassAmount(Preset preset, int value) {
-        if (preset == null) {
-            return null;
-        }
-        return selectedBassModeIndex == 2
-                ? preset.withDspVirtualBassAmountPercent(value)
-                : preset.withSystemVirtualBassAmountPercent(value);
-    }
-
-    private Preset withDisplayedVirtualBassCutoff(Preset preset, int value) {
-        if (preset == null) {
-            return null;
-        }
-        return selectedBassModeIndex == 2
-                ? preset.withDspVirtualBassCutoffHz(value)
-                : preset.withSystemVirtualBassCutoffHz(value);
-    }
-
     private boolean currentMasterEnabled() {
         boolean enabled = repository != null
                 ? repository.loadMasterEnabled()
@@ -6861,7 +6825,7 @@ public final class MainActivity extends Activity {
         boolean reverbAllowed = supported && AudioProcessingPolicy.reverbAllowed(processingMode);
         boolean reverbEnabled = reverbAllowed && !"Default".equals(editingPreset.reverbType);
         if (virtualBassSlider != null) {
-            virtualBassSlider.setValue(displayedVirtualBassAmount(editingPreset), false);
+            virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
             virtualBassSlider.setLabel(dspVirtualBassMode ? "Amount" : "Boost");
             virtualBassSlider.setEnabled(virtualBassEnabled);
             virtualBassSlider.setAlpha(virtualBassEnabled ? 1f : 0.55f);
@@ -6888,12 +6852,11 @@ public final class MainActivity extends Activity {
             virtualBassCutoffInput.setHint(dspVirtualBassMode ? "Cutoff Hz" : "Boost");
             virtualBassCutoffInput.setVisibility(dspVirtualBassMode ? View.VISIBLE : View.GONE);
             virtualBassCutoffInput.setEnabled(virtualBassEnabled && dspVirtualBassMode);
-            int displayedCutoff = displayedVirtualBassCutoff(editingPreset);
-            String cutoffText = String.valueOf(displayedCutoff);
+            String cutoffText = String.valueOf(editingPreset.virtualBassCutoffHz);
             if (!virtualBassCutoffInput.hasFocus() && !cutoffText.contentEquals(virtualBassCutoffInput.getText())) {
                 updatingUi = true;
                 virtualBassCutoffInput.setText(cutoffText);
-                virtualBassCutoffInput.setTag(displayedCutoff);
+                virtualBassCutoffInput.setTag(editingPreset.virtualBassCutoffHz);
                 updatingUi = false;
             }
             virtualBassCutoffInput.setAlpha(dspVirtualBassMode ? 1f : 0.55f);
@@ -7082,13 +7045,8 @@ public final class MainActivity extends Activity {
         bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         bassPanel.addView(bassHeader, blockParams(4));
         virtualBassSlider = new HorizontalBassSlider(this);
-        virtualBassSlider.configure(0, 100, displayedVirtualBassAmount(editingPreset), "%", "Boost",
-                value -> {
-                    Preset nextPreset = withDisplayedVirtualBassAmount(editingPreset, value);
-                    if (nextPreset != null) {
-                        setEditingPreset(nextPreset, true);
-                    }
-                });
+        virtualBassSlider.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", "Boost",
+                value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
         LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
@@ -7098,20 +7056,17 @@ public final class MainActivity extends Activity {
         bassPanel.addView(virtualBassSlider, sliderParams);
 
         virtualBassCutoffInput = createDeferredIntegerInput(
-                String.valueOf(displayedVirtualBassCutoff(editingPreset)),
+                String.valueOf(editingPreset.virtualBassCutoffHz),
                 "Cutoff Hz",
                 20,
                 250,
                 value -> {
                     Preset basePreset = editingPreset;
                     if (basePreset != null && virtualBassSlider != null) {
-                        basePreset = withDisplayedVirtualBassAmount(basePreset, virtualBassSlider.getValue());
+                        basePreset = basePreset.withVirtualBassAmountPercent(virtualBassSlider.getValue());
                     }
                     if (basePreset != null) {
-                        Preset nextPreset = withDisplayedVirtualBassCutoff(basePreset, value);
-                        if (nextPreset != null) {
-                            setEditingPreset(nextPreset, true);
-                        }
+                        setEditingPreset(basePreset.withVirtualBassCutoffHz(value), true);
                     }
                 });
         virtualBassCutoffInput.setTextSize(13);
