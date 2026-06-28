@@ -388,10 +388,12 @@ final class PcmDspProcessor {
                 float x = xNorm * drive;
                 float xClip = x / (1.0f + Math.abs(x));
 
-                float h2 = Math.abs(xClip) - envSlow * 0.7f;
-                float h3 = xClip * xClip * xClip;
-                float h5 = h3 * xClip * xClip;
-                float h4 = h2 * xClip * xClip;
+                float x2 = xClip * xClip;
+                float x3 = x2 * xClip;
+                float x4 = x2 * x2;
+                float h2 = 2.0f * x2 - 1.0f;
+                float h3 = 4.0f * x3 - 3.0f * xClip;
+                float h4 = 8.0f * x4 - 8.0f * x2 + 1.0f;
 
                 float tube;
                 if (xClip > 0.0f) {
@@ -403,17 +405,16 @@ final class PcmDspProcessor {
                 float w2 = 1.0f;
                 float w3 = (0.8f + beastAmount * 1.5f) * (0.8f + 0.6f * uScale);
                 float w4 = (0.6f + beastAmount * 2.2f) * (0.5f + 1.2f * uScale);
-                float w5 = (0.4f + beastAmount * 3.0f) * (0.3f + 1.8f * uScale);
-                float wTube = 0.7f + beastAmount * 1.2f;
+                float wTube = 0.7f + beastAmount * 1.5f;
 
-                float harmonicsSum = h2 * w2 + h3 * w3 + h4 * w4 + h5 * w5 + tube * wTube;
+                float harmonicsSum = h2 * w2 + h3 * w3 + h4 * w4 + tube * wTube;
                 float harmonics = harmonicsSum * (0.35f + beastAmount * 0.85f);
 
                 float noiseGate = envSlow / (envSlow + 0.005f);
                 float gainComp = 1.0f + beastAmount * 3.5f * (1.0f - Math.min(1.0f, envSlow)) * noiseGate;
                 float saturatedEnv = envSlow * (0.8f + beastAmount * 1.5f);
                 float compressedEnv = saturatedEnv / (1.0f + saturatedEnv * 0.15f * drive);
-                float rawHarmonics = harmonics * compressedEnv * envComp * harmonicMix * gainComp;
+                float rawHarmonics = harmonics * compressedEnv * envComp * gainComp;
                 harmonicBand[frame] = rawHarmonics / (1.0f + 0.45f * Math.abs(rawHarmonics));
             }
 
@@ -437,7 +438,7 @@ final class PcmDspProcessor {
                 mainHighPassR2[1].process(rightChannelBuffer, frameCount);
 
                 for (int frame = 0; frame < frameCount; frame++) {
-                    float hrm = harmonicBand[frame];
+                    float hrm = harmonicBand[frame] * harmonicMix;
                     float physLow = monoLow[frame] * originalLowMix;
                     samples[frame * channelCount] = finiteOrZero(leftChannelBuffer[frame] + hrm + physLow);
                     samples[frame * channelCount + 1] = finiteOrZero(rightChannelBuffer[frame] + hrm + physLow);
@@ -452,7 +453,7 @@ final class PcmDspProcessor {
                 mainHighPassL2[0].process(monoSource, frameCount);
                 mainHighPassL2[1].process(monoSource, frameCount);
                 for (int frame = 0; frame < frameCount; frame++) {
-                    float hrm = harmonicBand[frame];
+                    float hrm = harmonicBand[frame] * harmonicMix;
                     float physLow = monoLow[frame] * originalLowMix;
                     samples[frame] = finiteOrZero(monoSource[frame] + hrm + physLow);
                 }
