@@ -242,11 +242,19 @@ final class ShizukuSessionMuteEngine {
             if (configs == null) {
                 return new ActivePlaybackSnapshot(activeUids, primaryPackageName);
             }
+            Log.d(TAG, "Active playback config count=" + configs.size());
             for (AudioPlaybackConfiguration configuration : configs) {
-                if (!isRelevantActivePlayback(configuration)) {
+                int uid = readPlaybackClientUid(configuration);
+                int usage = readPlaybackUsage(configuration);
+                int playerState = readPlaybackPlayerState(configuration);
+                boolean relevant = isRelevantActivePlayback(configuration);
+                Log.d(TAG, "Playback config uid=" + uid
+                        + ", usage=" + usage
+                        + ", playerState=" + playerState
+                        + ", relevant=" + relevant);
+                if (!relevant) {
                     continue;
                 }
-                int uid = readPlaybackClientUid(configuration);
                 if (uid <= 0) {
                     continue;
                 }
@@ -259,6 +267,31 @@ final class ShizukuSessionMuteEngine {
             Log.w(TAG, "Unable to inspect active playback configurations", ex);
         }
         return new ActivePlaybackSnapshot(activeUids, primaryPackageName);
+    }
+
+    private int readPlaybackUsage(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return -1;
+        }
+        try {
+            android.media.AudioAttributes attributes = configuration.getAudioAttributes();
+            return attributes == null ? -1 : attributes.getUsage();
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback usage", ex);
+            return -1;
+        }
+    }
+
+    private int readPlaybackPlayerState(AudioPlaybackConfiguration configuration) {
+        if (configuration == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return -1;
+        }
+        try {
+            return configuration.getPlayerState();
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback player state", ex);
+            return -1;
+        }
     }
 
     private void updateCurrentAppSessionIds() {
