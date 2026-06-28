@@ -403,6 +403,10 @@ final class GlobalEqualizerEngine {
 
     private void applySystemVirtualBass(Preset preset) {
         int systemBassAmountPercent = preset == null ? 0 : preset.systemVirtualBassAmountPercent;
+        Log.d(TAG, "applySystemVirtualBass modeIndex="
+                + (preset == null ? -1 : preset.virtualBassModeIndex)
+                + " systemAmount=" + systemBassAmountPercent
+                + " activeAmount=" + (preset == null ? -1 : preset.virtualBassAmountPercent));
         if (systemBassAmountPercent <= 0) {
             releaseSystemVirtualBass();
             return;
