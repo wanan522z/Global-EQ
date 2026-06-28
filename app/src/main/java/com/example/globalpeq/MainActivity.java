@@ -1561,12 +1561,6 @@ public final class MainActivity extends Activity {
         monitorSettingsDetailView.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(monitorSettingsDetailView, blockParams(2));
 
-        monitorCaptureButton = createExtraChoiceButton();
-        monitorCaptureButton.setText(monitorCaptureButtonText());
-        styleMonitorActionButton(monitorCaptureButton, 152);
-        monitorCaptureButton.setOnClickListener(v -> handleMonitorCaptureAction());
-        panel.addView(labeledSettingsRow(monitorCaptureLabelText(), monitorCaptureButton), blockParams(12));
-
         monitorCaptureStatusView = new TextView(this);
         monitorCaptureStatusView.setText(monitorCaptureStatusText());
         monitorCaptureStatusView.setTextSize(12);
