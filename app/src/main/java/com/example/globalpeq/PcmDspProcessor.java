@@ -215,15 +215,15 @@ final class PcmDspProcessor {
         private final int sampleRate;
         private final int channelCount;
 
-        // 谐波种子提取滤波器（平缓的2阶，带一点宽度，保证火种纯净）
+        // 2阶平滑基音提取
         private MonoBiquad sourceLowPass1;
         private MonoBiquad sourceLowPass2;
 
-        // 物理低音衰减滤波器（用来代替粗暴的高通，平缓压低超低频，防止喇叭拍边，但不破坏相位）
+        // 平滑低架滤波器：不切断原声，只在推子拉大时，温柔地给手机物理小喇叭减负
         private MonoBiquad[] originalLowShelfL;
         private MonoBiquad[] originalLowShelfR;
 
-        // 谐波带通：采用平缓的 2阶 滤波器，让谐波像胶水一样晕染开
+        // 谐波严格带通
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
 
@@ -252,17 +252,14 @@ final class PcmDspProcessor {
 
             float virtualAmount = Math.min(1.0f, Math.max(0.0f, virtualAmountPercent / 100f));
 
-            int uiCutoff = dspAmountPercent > 0 ? dspCutoffHz : virtualCutoffHz;
-            if (uiCutoff <= 0) {
-                uiCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
+            int cutoff = dspAmountPercent > 0 ? dspCutoffHz : virtualCutoffHz;
+            if (cutoff <= 0) {
+                cutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
-            uiCutoff = Math.min(220, Math.max(40, uiCutoff));
+            cutoff = Math.min(200, Math.max(40, cutoff));
 
-            int cutoff = uiCutoff * 2;
-
-            float boostComp = 1.0f + (1.0f - (float) uiCutoff / 220f) * 0.5f;
-            this.harmonicMix = virtualAmount * 8.5f * boostComp;
-            this.inputDrive = 1.2f + virtualAmount * 4.0f;
+            this.harmonicMix = virtualAmount * 4.5f;
+            this.inputDrive = 1.0f + virtualAmount * 2.5f;
 
             sourceLowPass1 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 65),
@@ -271,7 +268,7 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 65),
                     sampleRate);
 
-            float shelfGainDb = -virtualAmount * 10.0f;
+            float shelfGainDb = -virtualAmount * 8.0f;
             originalLowShelfL = new MonoBiquad[] {
                     MonoBiquad.fromBand(
                             new ParametricBand(FilterType.LOW_SHELF, true, cutoff, (int) shelfGainDb, 70),
@@ -283,13 +280,13 @@ final class PcmDspProcessor {
                             sampleRate)
             };
 
-            int hpHmHz = (int) (cutoff * 0.85f);
-            int lpHmHz = Math.min(2500, uiCutoff * 7);
+            int hpHmHz = (int) (cutoff * 1.05f);
+            int lpHmHz = Math.min(1500, cutoff * 6);
             harmonicHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 55),
+                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 60),
                     sampleRate);
             harmonicLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, lpHmHz, 0, 55),
+                    new ParametricBand(FilterType.LOW_PASS, true, lpHmHz, 0, 60),
                     sampleRate);
         }
 
@@ -317,11 +314,9 @@ final class PcmDspProcessor {
             for (int frame = 0; frame < frameCount; frame++) {
                 float x = monoLow[frame] * inputDrive;
 
-                float secondHarmonic = (2.0f * x * x) - 0.5f;
-                float thirdHarmonic = (4.0f * x * x * x) - (3.0f * x);
-                float highOrder = Math.abs(x) * 1.5f - 0.5f;
-
-                harmonicBand[frame] = secondHarmonic * 1.6f + thirdHarmonic * 1.0f + highOrder * 0.5f;
+                float evenPart = Math.abs(x);
+                float oddPart = x / (1.0f + Math.max(0f, x >= 0 ? x : -x));
+                harmonicBand[frame] = evenPart * 1.3f + oddPart * 0.7f;
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
