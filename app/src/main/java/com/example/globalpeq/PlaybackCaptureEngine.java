@@ -279,7 +279,7 @@ final class PlaybackCaptureEngine {
                 && !"Default".equals(currentPreset.reverbType)
                 && currentPreset.reverbMixPercent > 0;
         boolean dspBassEnabled = AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentVirtualBassModeIndex)
-                && currentPreset.virtualBassAmountPercent > 0;
+                && currentPreset.dspVirtualBassAmountPercent > 0;
         return reverbEnabled || dspBassEnabled;
     }
 
@@ -533,8 +533,9 @@ final class PlaybackCaptureEngine {
             releaseTrackVirtualBassLocked();
             return;
         }
+        int systemBassAmountPercent = currentPreset == null ? 0 : currentPreset.systemVirtualBassAmountPercent;
         boolean enableSystemBass = AudioProcessingPolicy.systemVirtualBassAllowed(currentVirtualBassModeIndex)
-                && currentPreset.virtualBassAmountPercent > 0;
+                && systemBassAmountPercent > 0;
         if (!enableSystemBass) {
             releaseTrackVirtualBassLocked();
             return;
@@ -544,7 +545,7 @@ final class PlaybackCaptureEngine {
                 trackBassBoost = new BassBoost(1000, audioTrack.getAudioSessionId());
             }
             trackBassBoost.setEnabled(false);
-            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, currentPreset.virtualBassAmountPercent * 10)));
+            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, systemBassAmountPercent * 10)));
             trackBassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Track virtual bass effect failed", ex);
