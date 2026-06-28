@@ -241,6 +241,7 @@ final class PcmDspProcessor {
         private float inputDrive;
         private float originalLowMix;
         private float virtualAmount;
+        private int activeCutoffHz = 60;
         private float envFast = 0.0f;
         private float envSlow = 0.0f;
 
@@ -248,6 +249,7 @@ final class PcmDspProcessor {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
             this.virtualAmount = 0.0f;
+            this.activeCutoffHz = 60;
             configure(60, 0, 60, 0, false);
         }
 
@@ -267,10 +269,13 @@ final class PcmDspProcessor {
             uiCutoff = Math.min(220, Math.max(40, uiCutoff));
 
             int cutoff = uiCutoff;
+            int cutoffHp = (int) (uiCutoff * 0.45f);
+            cutoffHp = Math.max(20, cutoffHp);
 
             float amountPow = (float) Math.pow(virtualAmount, 1.2f);
             float boostComp = 1.0f + (1.0f - (float) uiCutoff / 220f) * 0.5f;
             this.virtualAmount = virtualAmount;
+            this.activeCutoffHz = uiCutoff;
             this.harmonicMix = amountPow * 4.5f * boostComp;
             this.inputDrive = 1.0f + amountPow * 8.0f;
             this.originalLowMix = dspAmount > 0f ? (dspAmount * 1.5f) : 0.0f;
@@ -281,10 +286,10 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
                     sampleRate);
             sourceLowPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
+                    new ParametricBand(FilterType.HIGH_PASS, true, cutoffHp, 0, 72),
                     sampleRate);
 
-            int mainHpCutoff = (int) (uiCutoff * 0.7f);
+            int mainHpCutoff = (int) (uiCutoff * 0.85f);
             mainHpCutoff = Math.max(10, Math.min(220, mainHpCutoff));
             int safetySubsonicCutoff = 10;
 
@@ -321,8 +326,8 @@ final class PcmDspProcessor {
                             sampleRate)
             };
 
-            int hpHmHz = uiCutoff;
-            int lpHmHz = Math.min(2400, uiCutoff * 5);
+            int hpHmHz = (int) (uiCutoff * 0.9f);
+            int lpHmHz = Math.min(2400, (int) (uiCutoff * 5.5f));
             harmonicHighPass1 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 72),
                     sampleRate);
