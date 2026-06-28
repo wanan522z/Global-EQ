@@ -362,7 +362,7 @@ final class PcmDspProcessor {
             sourceLowPass2.process(monoLow, frameCount);
 
             float uScale = this.activeCutoffHz / 60.0f;
-            float envComp = (float) Math.pow(uScale, 1.6f);
+            float envComp = (float) Math.pow(uScale, 1.8f);
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float lowVal = monoLow[frame];
@@ -383,23 +383,32 @@ final class PcmDspProcessor {
                     envSlow += relS * (absLow - envSlow);
                 }
 
+                float normScale = 1.0f / (envSlow + 0.012f);
+                float xNorm = lowVal * normScale;
+
                 float drive = inputDrive * (1.0f + beastAmount * 2.5f);
-                float x = lowVal * drive;
+                float x = xNorm * drive;
                 float xClip = x / (1.0f + Math.abs(x));
 
                 float h2 = Math.abs(xClip) - envSlow * 0.7f;
                 float h3 = xClip * xClip * xClip;
                 float h5 = h3 * xClip * xClip;
                 float h4 = h2 * xClip * xClip;
-                float h6 = h4 * xClip * xClip;
+
+                float tube;
+                if (xClip > 0.0f) {
+                    tube = xClip / (1.0f + 0.2f * xClip);
+                } else {
+                    tube = xClip / (1.0f - 0.7f * xClip);
+                }
 
                 float w2 = 1.0f;
-                float w3 = (1.0f + beastAmount * 2.5f) * (0.8f + 0.6f * uScale);
-                float w4 = (0.6f + beastAmount * 3.2f) * (0.5f + 1.2f * uScale);
-                float w5 = (0.4f + beastAmount * 4.8f) * (0.3f + 1.8f * uScale);
-                float w6 = (0.2f + beastAmount * 5.5f) * (0.1f + 2.5f * uScale);
+                float w3 = (0.8f + beastAmount * 1.5f) * (0.8f + 0.6f * uScale);
+                float w4 = (0.6f + beastAmount * 2.2f) * (0.5f + 1.2f * uScale);
+                float w5 = (0.4f + beastAmount * 3.0f) * (0.3f + 1.8f * uScale);
+                float wTube = 0.7f + beastAmount * 1.2f;
 
-                float harmonicsSum = h2 * w2 + h3 * w3 + h4 * w4 + h5 * w5 + h6 * w6;
+                float harmonicsSum = h2 * w2 + h3 * w3 + h4 * w4 + h5 * w5 + tube * wTube;
                 float harmonics = harmonicsSum * (0.35f + beastAmount * 0.85f);
 
                 float noiseGate = envSlow / (envSlow + 0.005f);
