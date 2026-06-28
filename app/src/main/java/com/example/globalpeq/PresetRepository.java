@@ -2,6 +2,7 @@ package com.example.globalpeq;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 
 final class PresetRepository {
+    private static final String TAG = "GlobalPEQ-VB";
     private static final String PREFS = "global_peq";
     private static final String GLOBAL_PRESET = "global_preset";
     private static final String DRAFT_PRESET = "draft_preset";
@@ -73,7 +75,14 @@ final class PresetRepository {
             json = prefs.getString(legacyDeviceKey(device), null);
         }
         if (json != null) {
-            return stripRuntimeEnabled(Preset.fromJson(json));
+            Preset preset = stripRuntimeEnabled(Preset.fromJson(json));
+            Log.d(TAG, "repo loadPreset device=" + (device == null ? "null" : device.key)
+                    + " mode=" + (mode == null ? "null" : mode.key)
+                    + " modeIndex=" + preset.virtualBassModeIndex
+                    + " activeAmount=" + preset.virtualBassAmountPercent
+                    + " systemAmount=" + preset.systemVirtualBassAmountPercent
+                    + " dspAmount=" + preset.dspVirtualBassAmountPercent);
+            return preset;
         }
         Preset preset = loadDefaultDevicePreset();
         if (device != null && device.key != null && !device.key.trim().isEmpty()) {
@@ -273,6 +282,12 @@ final class PresetRepository {
     }
 
     void savePreset(AudioOutputDevice device, ProcessingMode mode, Preset preset) {
+        Log.d(TAG, "repo savePreset device=" + (device == null ? "null" : device.key)
+                + " mode=" + (mode == null ? "null" : mode.key)
+                + " modeIndex=" + (preset == null ? -1 : preset.virtualBassModeIndex)
+                + " activeAmount=" + (preset == null ? -1 : preset.virtualBassAmountPercent)
+                + " systemAmount=" + (preset == null ? -1 : preset.systemVirtualBassAmountPercent)
+                + " dspAmount=" + (preset == null ? -1 : preset.dspVirtualBassAmountPercent));
         prefs.edit()
                 .putString(deviceKey(device, mode), stripRuntimeEnabled(preset).toJson())
                 .putString(LAST_DEVICE_KEY, device.key)
