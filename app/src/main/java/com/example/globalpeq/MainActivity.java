@@ -1609,8 +1609,6 @@ public final class MainActivity extends Activity {
         label.setTextColor(Color.rgb(200, 210, 230));
         if (languageLabelView == null && labelText.equals(settingsLanguageLabelText())) {
             languageLabelView = label;
-        } else if (monitorCaptureLabelView == null && labelText.equals(monitorCaptureLabelText())) {
-            monitorCaptureLabelView = label;
         } else if (shizukuAccessLabelView == null && labelText.equals(shizukuAccessLabelText())) {
             shizukuAccessLabelView = label;
         } else if (monitoredAppLabelView == null && labelText.equals(monitoredAppLabelText())) {
