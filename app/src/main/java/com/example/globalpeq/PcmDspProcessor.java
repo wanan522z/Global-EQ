@@ -29,6 +29,12 @@ final class PcmDspProcessor {
                    int nextChannelCount,
                    boolean enableDspBass,
                    AdvancedModeConfig config) {
+        Log.d(TAG, "configure enableDspBass=" + enableDspBass
+                + " modeIndex=" + (preset == null ? -1 : preset.virtualBassModeIndex)
+                + " systemCutoff=" + (preset == null ? -1 : preset.systemVirtualBassCutoffHz)
+                + " dspCutoff=" + (preset == null ? -1 : preset.dspVirtualBassCutoffHz)
+                + " systemAmount=" + (preset == null ? -1 : preset.systemVirtualBassAmountPercent)
+                + " dspAmount=" + (preset == null ? -1 : preset.dspVirtualBassAmountPercent));
         sampleRate = Math.max(8000, nextSampleRate);
         channelCount = Math.max(1, nextChannelCount);
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
