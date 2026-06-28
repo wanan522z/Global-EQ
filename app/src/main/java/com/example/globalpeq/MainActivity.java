@@ -6218,7 +6218,9 @@ public final class MainActivity extends Activity {
     private Intent buildRunningPresetServiceIntent(String action) {
         Intent service = buildServiceIntent(action);
         if (runningPreset != null) {
-            service.putExtra(GlobalEqForegroundService.EXTRA_PRESET_JSON, runningPreset.toJson());
+            service.putExtra(
+                    GlobalEqForegroundService.EXTRA_PRESET_JSON,
+                    runningPreset.withEnabled(currentMasterEnabled()).toJson());
         }
         if (currentDevice != null) {
             service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_KEY, currentDevice.key);
