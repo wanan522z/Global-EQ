@@ -5,7 +5,7 @@ final class PeqMath {
     private static final int VISUAL_RESPONSE_SAMPLE_RATE = 48000;
     private static final double MIN_RESPONSE_MAGNITUDE = 1.0e-9;
     private static final int PASS_SECOND_ORDER_Q_HUNDRED = 71;
-    private static final int PASS_RESONANCE_Q_HUNDRED = 100;
+    private static final int PASS_GAIN_Q_HUNDRED = 100;
     private static final int PASS_MAX_SLOPE_STEP = 16;
     private static final ParametricBand[] EMPTY_BANDS = new ParametricBand[0];
 
@@ -203,17 +203,21 @@ final class PeqMath {
         }
         if (band.gainMb != 0) {
             expanded[index] = new ParametricBand(
-                    FilterType.PEAK,
+                    passGainOverlayType(band.type),
                     true,
                     band.frequencyHz,
                     band.gainMb,
-                    PASS_RESONANCE_Q_HUNDRED);
+                    PASS_GAIN_Q_HUNDRED);
         }
         return expanded;
     }
 
     private static boolean isGainDrivenPassType(FilterType type) {
         return type == FilterType.LOW_PASS || type == FilterType.HIGH_PASS;
+    }
+
+    private static FilterType passGainOverlayType(FilterType type) {
+        return type == FilterType.HIGH_PASS ? FilterType.HIGH_SHELF : FilterType.LOW_SHELF;
     }
 
     private static int passSlopeStepCountFromQ(int qHundred) {
