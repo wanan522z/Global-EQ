@@ -6610,6 +6610,14 @@ public final class MainActivity extends Activity {
         if (pendingPeqToggleHistorySnapshot != null) {
             commitPendingPeqToggle();
         }
+        Log.d(TAG, "setEditingPreset recordHistory=" + recordHistory
+                + " oldModeIndex=" + (editingPreset == null ? -1 : editingPreset.virtualBassModeIndex)
+                + " newModeIndex=" + nextPreset.virtualBassModeIndex
+                + " oldActiveAmount=" + (editingPreset == null ? -1 : editingPreset.virtualBassAmountPercent)
+                + " newActiveAmount=" + nextPreset.virtualBassAmountPercent
+                + " newSystemAmount=" + nextPreset.systemVirtualBassAmountPercent
+                + " newDspAmount=" + nextPreset.dspVirtualBassAmountPercent
+                + " reverbType=" + nextPreset.reverbType);
         if (nextPreset.toJson().equals(editingPreset.toJson())) {
             return;
         }
@@ -6632,8 +6640,9 @@ public final class MainActivity extends Activity {
             return;
         }
         Preset nextPreset = editingPreset;
+        int displayedAmount = -1;
         if (virtualBassSlider != null) {
-            int displayedAmount = virtualBassSlider.getValue();
+            displayedAmount = virtualBassSlider.getValue();
             if (editingPreset.virtualBassModeIndex == 2) {
                 if (displayedAmount != editingPreset.dspVirtualBassAmountPercent) {
                     nextPreset = nextPreset.withDspVirtualBassAmountPercent(displayedAmount);
@@ -6659,6 +6668,15 @@ public final class MainActivity extends Activity {
                 }
             }
         }
+        Log.d(TAG, "persistVirtualBassUiState modeIndex=" + editingPreset.virtualBassModeIndex
+                + " sliderAmount=" + displayedAmount
+                + " activeAmount=" + editingPreset.virtualBassAmountPercent
+                + " systemAmount=" + editingPreset.systemVirtualBassAmountPercent
+                + " dspAmount=" + editingPreset.dspVirtualBassAmountPercent
+                + " nextSystemAmount=" + nextPreset.systemVirtualBassAmountPercent
+                + " nextDspAmount=" + nextPreset.dspVirtualBassAmountPercent
+                + " nextSystemCutoff=" + nextPreset.systemVirtualBassCutoffHz
+                + " nextDspCutoff=" + nextPreset.dspVirtualBassCutoffHz);
         if (!nextPreset.toJson().equals(editingPreset.toJson())) {
             editingPreset = nextPreset;
             if (runningPreset != null && isEditingPresetActive()) {
@@ -6785,6 +6803,12 @@ public final class MainActivity extends Activity {
         if (persistedPreset != null && !persistedPreset.toJson().equals(runningPreset.toJson())) {
             runningPreset = persistedPreset.withEnabled(runningPreset.enabled);
         }
+        Log.d(TAG, "persistRunningPresetNow device=" + currentDevice.key
+                + " mode=" + processingMode.key
+                + " modeIndex=" + runningPreset.virtualBassModeIndex
+                + " activeAmount=" + runningPreset.virtualBassAmountPercent
+                + " systemAmount=" + runningPreset.systemVirtualBassAmountPercent
+                + " dspAmount=" + runningPreset.dspVirtualBassAmountPercent);
         repository.savePreset(currentDevice, processingMode, runningPreset);
         repository.saveGlobalPreset(runningPreset);
     }
@@ -6798,6 +6822,11 @@ public final class MainActivity extends Activity {
         if (!persistedPreset.toJson().equals(editingPreset.toJson())) {
             editingPreset = persistedPreset;
         }
+        Log.d(TAG, "persistEditingPresetNow name=" + persistedPreset.name
+                + " modeIndex=" + persistedPreset.virtualBassModeIndex
+                + " activeAmount=" + persistedPreset.virtualBassAmountPercent
+                + " systemAmount=" + persistedPreset.systemVirtualBassAmountPercent
+                + " dspAmount=" + persistedPreset.dspVirtualBassAmountPercent);
         repository.saveDraftPreset(persistedPreset);
         if (isNamedPreset(persistedPreset.name)) {
             repository.saveNamedPreset(persistedPreset);
