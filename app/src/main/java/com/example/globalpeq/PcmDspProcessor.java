@@ -638,6 +638,8 @@ final class PcmDspProcessor {
         private final InputDiffuser rightInput;
         private final EarlyReflectionCluster earlyReflections;
         private final FdnReverbTank fdnTank;
+        private final WetHighPass leftInputLowCut;
+        private final WetHighPass rightInputLowCut;
         private final WetHighPass leftLowCut;
         private final WetHighPass rightLowCut;
         private final WetLowPass leftHighCut;
@@ -653,8 +655,10 @@ final class PcmDspProcessor {
             rightInput = new InputDiffuser(sampleRate);
             earlyReflections = new EarlyReflectionCluster(sampleRate);
             fdnTank = new FdnReverbTank(sampleRate);
-            leftLowCut = new WetHighPass(sampleRate, 60f);
-            rightLowCut = new WetHighPass(sampleRate, 60f);
+            leftInputLowCut = new WetHighPass(sampleRate, 120f);
+            rightInputLowCut = new WetHighPass(sampleRate, 120f);
+            leftLowCut = new WetHighPass(sampleRate, 120f);
+            rightLowCut = new WetHighPass(sampleRate, 120f);
             leftHighCut = new WetLowPass(sampleRate);
             rightHighCut = new WetLowPass(sampleRate);
             leftBoxCut = new MonoPeakFilter(sampleRate);
@@ -666,6 +670,8 @@ final class PcmDspProcessor {
             rightInput.configure(profile.diffusionMs, profile.diffusionFeedback, size, 0.29f, lowCpuMode);
             earlyReflections.configure(profile, size, lowCpuMode);
             fdnTank.configure(profile, size, decaySeconds, decayShape, lowCpuMode);
+            leftInputLowCut.reset();
+            rightInputLowCut.reset();
             leftLowCut.reset();
             rightLowCut.reset();
             leftHighCut.configure(profile.highCutHz * (0.95f - decayShape * 0.12f));
@@ -679,6 +685,8 @@ final class PcmDspProcessor {
         }
 
         void process(float leftIn, float rightIn, float[] wetFrame) {
+            leftIn = leftInputLowCut.process(leftIn);
+            rightIn = rightInputLowCut.process(rightIn);
             float diffuseLeft = leftInput.process(leftIn + rightIn * 0.07f);
             float diffuseRight = rightInput.process(rightIn + leftIn * 0.07f);
             float[] early = earlyReflections.process(diffuseLeft, diffuseRight);
