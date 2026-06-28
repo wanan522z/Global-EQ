@@ -217,15 +217,16 @@ final class PcmDspProcessor {
 
         private MonoBiquad sourceLowPass;
         private MonoBiquad sourceLowPass2;
-        private MonoBiquad mainHighPass;
-        private MonoBiquad mainHighPass2;
+        private MonoBiquad[] mainHighPassL;
+        private MonoBiquad[] mainHighPassR;
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
 
         private float[] monoSource = new float[0];
         private float[] monoLow = new float[0];
         private float[] harmonicBand = new float[0];
-        private float[] highPassed = new float[0];
+        private float[] leftChannelBuffer = new float[0];
+        private float[] rightChannelBuffer = new float[0];
 
         private float harmonicMix;
         private float inputDrive;
@@ -269,12 +270,22 @@ final class PcmDspProcessor {
                     sampleRate);
 
             int hpCutoff = Math.max(40, (int) (cutoff * 0.85f));
-            mainHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
-                    sampleRate);
-            mainHighPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
-                    sampleRate);
+            mainHighPassL = new MonoBiquad[] {
+                    MonoBiquad.fromBand(
+                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            sampleRate),
+                    MonoBiquad.fromBand(
+                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            sampleRate)
+            };
+            mainHighPassR = new MonoBiquad[] {
+                    MonoBiquad.fromBand(
+                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            sampleRate),
+                    MonoBiquad.fromBand(
+                            new ParametricBand(FilterType.HIGH_PASS, true, hpCutoff, 0, 70),
+                            sampleRate)
+            };
 
             int hpHz = cutoff + 10;
             int lpHz = Math.min(1200, cutoff * 4);
@@ -323,10 +334,6 @@ final class PcmDspProcessor {
             harmonicHighPass.process(harmonicBand, frameCount);
             harmonicLowPass.process(harmonicBand, frameCount);
 
-            System.arraycopy(monoSource, 0, highPassed, 0, frameCount);
-            mainHighPass.process(highPassed, frameCount);
-            mainHighPass2.process(highPassed, frameCount);
-
             for (int frame = 0; frame < frameCount; frame++) {
                 float hrmSample = harmonicBand[frame] * harmonicMix;
                 float absHrm = Math.abs(hrmSample);
@@ -338,13 +345,37 @@ final class PcmDspProcessor {
                     hrmGain = wetCeiling / hrmEnvelope;
                 }
 
-                float finalHarmonic = hrmSample * hrmGain;
-                float physLow = monoLow[frame] * originalLowMix;
-                float output = highPassed[frame] + finalHarmonic + physLow;
+                harmonicBand[frame] = hrmSample * hrmGain;
+            }
 
-                int frameOffset = frame * channelCount;
-                for (int channel = 0; channel < channelCount; channel++) {
-                    samples[frameOffset + channel] = finiteOrZero(output);
+            if (channelCount >= 2) {
+                for (int frame = 0; frame < frameCount; frame++) {
+                    leftChannelBuffer[frame] = samples[frame * channelCount];
+                    rightChannelBuffer[frame] = samples[frame * channelCount + 1];
+                }
+
+                mainHighPassL[0].process(leftChannelBuffer, frameCount);
+                mainHighPassL[1].process(leftChannelBuffer, frameCount);
+                mainHighPassR[0].process(rightChannelBuffer, frameCount);
+                mainHighPassR[1].process(rightChannelBuffer, frameCount);
+
+                for (int frame = 0; frame < frameCount; frame++) {
+                    float hrm = harmonicBand[frame];
+                    float physLow = monoLow[frame] * originalLowMix;
+                    samples[frame * channelCount] = finiteOrZero(leftChannelBuffer[frame] + hrm + physLow);
+                    samples[frame * channelCount + 1] = finiteOrZero(rightChannelBuffer[frame] + hrm + physLow);
+
+                    for (int ch = 2; ch < channelCount; ch++) {
+                        samples[frame * channelCount + ch] = finiteOrZero(samples[frame * channelCount + ch] + hrm);
+                    }
+                }
+            } else {
+                System.arraycopy(monoSource, 0, leftChannelBuffer, 0, frameCount);
+                mainHighPassL[0].process(leftChannelBuffer, frameCount);
+                mainHighPassL[1].process(leftChannelBuffer, frameCount);
+                for (int frame = 0; frame < frameCount; frame++) {
+                    float physLow = monoLow[frame] * originalLowMix;
+                    samples[frame] = finiteOrZero(leftChannelBuffer[frame] + harmonicBand[frame] + physLow);
                 }
             }
         }
@@ -358,7 +389,8 @@ final class PcmDspProcessor {
                 monoSource = new float[frameCount];
                 monoLow = new float[frameCount];
                 harmonicBand = new float[frameCount];
-                highPassed = new float[frameCount];
+                leftChannelBuffer = new float[frameCount];
+                rightChannelBuffer = new float[frameCount];
             }
         }
 
