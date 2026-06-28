@@ -368,7 +368,7 @@ final class PcmDspProcessor {
             sourceLowPass2.process(monoLow, frameCount);
 
             float uScale = this.activeCutoffHz / 60.0f;
-            float envComp = (float) Math.pow(uScale, 1.25f);
+            float envComp = (float) Math.pow(uScale, 1.6f);
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float lowVal = monoLow[frame];
@@ -389,22 +389,31 @@ final class PcmDspProcessor {
                     envSlow += relS * (absLow - envSlow);
                 }
 
-                float drive = inputDrive * (1.0f + virtualAmount * 2.0f);
+                float drive = inputDrive * (1.0f + beastAmount * 2.5f);
                 float x = lowVal * drive;
+                float xClip = x / (1.0f + Math.abs(x));
 
-                float h2 = Math.abs(x) - envSlow * 0.8f;
-                float h3 = x * x * x * 0.25f;
+                float h2 = Math.abs(xClip) - envSlow * 0.7f;
+                float h3 = xClip * xClip * xClip;
+                float h5 = h3 * xClip * xClip;
+                float h4 = h2 * xClip * xClip;
+                float h6 = h4 * xClip * xClip;
 
-                float mixed = h2 * 0.7f + h3 * 1.3f;
+                float w2 = 1.0f;
+                float w3 = (1.0f + beastAmount * 2.5f) * (0.8f + 0.6f * uScale);
+                float w4 = (0.6f + beastAmount * 3.2f) * (0.5f + 1.2f * uScale);
+                float w5 = (0.4f + beastAmount * 4.8f) * (0.3f + 1.8f * uScale);
+                float w6 = (0.2f + beastAmount * 5.5f) * (0.1f + 2.5f * uScale);
 
-                float harmonics;
-                if (mixed > 0.0f) {
-                    harmonics = mixed / (1.0f + 0.3f * mixed);
-                } else {
-                    harmonics = mixed / (1.0f - 0.9f * mixed);
-                }
+                float harmonicsSum = h2 * w2 + h3 * w3 + h4 * w4 + h5 * w5 + h6 * w6;
+                float harmonics = harmonicsSum * (0.35f + beastAmount * 0.85f);
 
-                harmonicBand[frame] = harmonics * envComp * harmonicMix * (1.2f + virtualAmount * 3.0f);
+                float noiseGate = envSlow / (envSlow + 0.005f);
+                float gainComp = 1.0f + beastAmount * 3.5f * (1.0f - Math.min(1.0f, envSlow)) * noiseGate;
+                float saturatedEnv = envSlow * (0.8f + beastAmount * 1.5f);
+                float compressedEnv = saturatedEnv / (1.0f + saturatedEnv * 0.15f * drive);
+                float rawHarmonics = harmonics * compressedEnv * envComp * harmonicMix * gainComp;
+                harmonicBand[frame] = rawHarmonics / (1.0f + 0.45f * Math.abs(rawHarmonics));
             }
 
             harmonicHighPass1.process(harmonicBand, frameCount);
