@@ -4,7 +4,17 @@ final class PeqMath {
     static final int HEADROOM_LIMIT_MB = 1800;
     private static final int VISUAL_RESPONSE_SAMPLE_RATE = 48000;
     private static final double MIN_RESPONSE_MAGNITUDE = 1.0e-9;
+
+    // 保留常量名，方便后续维护。现在 pass cut 不再所有级固定 Q=0.71。
     private static final int PASS_CUT_Q_HUNDRED = 71;
+
+    // q 接近最大时，用更低 Q 做更圆滑的 12dB/oct 曲线。
+    private static final int PASS_SMOOTH_Q_HUNDRED = 50;
+
+    // Butterworth 高阶最后几级 Q 可能很高，限制一下更适合安卓实时 DSP 和 UI 频响显示。
+    private static final double PASS_BUTTERWORTH_MIN_Q = 0.35;
+    private static final double PASS_BUTTERWORTH_MAX_Q = 6.0;
+
     private static final int PASS_SHELF_Q_HUNDRED = -1;
     private static final double PASS_SHELF_SLOPE = 0.8;
     private static final double PASS_SHELF_OFFSET_RATIO = 1.25;
@@ -178,6 +188,7 @@ final class PeqMath {
         if (band == null || !band.enabled) {
             return EMPTY_BANDS;
         }
+
         if (!isGainDrivenPassType(band.type)) {
             if (band.gainMb == 0) {
                 return EMPTY_BANDS;
@@ -185,18 +196,23 @@ final class PeqMath {
             return new ParametricBand[] {band};
         }
 
-        int biquadStageCount = passBiquadCountFromQ(band.qHundred);
+        int order = passFilterOrderFromQ(band.qHundred);
+        int biquadStageCount = Math.max(1, order / 2);
         int extraGainStages = band.gainMb == 0 ? 0 : 1;
         ParametricBand[] expanded = new ParametricBand[biquadStageCount + extraGainStages];
+
         int index = 0;
         for (int i = 0; i < biquadStageCount; i++) {
+            int qHundred = passStageQHundred(order, i, band.qHundred);
+
             expanded[index++] = new ParametricBand(
                     band.type,
                     true,
                     band.frequencyHz,
                     0,
-                    PASS_CUT_Q_HUNDRED);
+                    qHundred);
         }
+
         if (band.gainMb != 0) {
             expanded[index] = new ParametricBand(
                     passGainOverlayType(band.type),
@@ -205,6 +221,7 @@ final class PeqMath {
                     band.gainMb,
                     PASS_SHELF_Q_HUNDRED);
         }
+
         return expanded;
     }
 
@@ -212,6 +229,14 @@ final class PeqMath {
         return type == FilterType.LOW_PASS || type == FilterType.HIGH_PASS;
     }
 
+    /*
+     * 按你的当前设计保留：
+     *
+     * HIGH_PASS + LOW_SHELF
+     * LOW_PASS  + HIGH_SHELF
+     *
+     * 这不是传统“通过区增益”，而是你要的切除区/边缘形状增益。
+     */
     private static FilterType passGainOverlayType(FilterType type) {
         return type == FilterType.HIGH_PASS ? FilterType.LOW_SHELF : FilterType.HIGH_SHELF;
     }
@@ -223,22 +248,77 @@ final class PeqMath {
         return (int) Math.round(shifted);
     }
 
-    private static int passBiquadCountFromQ(int qHundred) {
-        double normalized = Math.max(0.0, Math.min(1.0, qHundred / (double) ParametricBand.MAX_Q_HUNDRED));
+    /*
+     * qHundred 语义：
+     *
+     * q = 0    -> 最陡，接近 wall
+     * q = 1800 -> 最平滑
+     *
+     * 这里返回滤波器总阶数。
+     * 2阶 = 12dB/oct
+     * 4阶 = 24dB/oct
+     * 8阶 = 48dB/oct
+     * 16阶 = 96dB/oct
+     * 32阶 = 192dB/oct
+     */
+    private static int passFilterOrderFromQ(int qHundred) {
+        double normalized = Math.max(0.0, Math.min(1.0,
+                qHundred / (double) ParametricBand.MAX_Q_HUNDRED));
+
         double steep = 1.0 - normalized;
-        if (steep > 0.85) {
+
+        if (steep > 0.90) {
+            return 32;
+        }
+        if (steep > 0.72) {
+            return 16;
+        }
+        if (steep > 0.52) {
             return 8;
         }
-        if (steep > 0.65) {
-            return 6;
-        }
-        if (steep > 0.45) {
+        if (steep > 0.32) {
             return 4;
         }
-        if (steep > 0.25) {
-            return 2;
+        return 2;
+    }
+
+    private static int passStageQHundred(int order, int stageIndex, int originalQHundred) {
+        double normalized = Math.max(0.0, Math.min(1.0,
+                originalQHundred / (double) ParametricBand.MAX_Q_HUNDRED));
+
+        /*
+         * q 接近 18 的时候，你反馈“不够顺滑”。
+         * 所以最低阶时不用标准 Q=0.707，而用 Q=0.50，让曲线更圆、更松。
+         */
+        if (order <= 2 && normalized > 0.88) {
+            return PASS_SMOOTH_Q_HUNDRED;
         }
-        return 1;
+
+        return butterworthStageQHundred(order, stageIndex);
+    }
+
+    /*
+     * 偶数阶 Butterworth 的二阶分段 Q。
+     *
+     * 重要：
+     * 旧写法是 N 个相同 Q=0.707 的 biquad 叠加。
+     * 那会导致 cutoff 点重复衰减，q=0 时看起来切掉太多额外频率。
+     *
+     * 现在按 Butterworth 分配每一级 Q：
+     * 4阶大概是 Q=0.54, 1.31
+     * 8阶大概是 Q=0.51, 0.60, 0.90, 2.56
+     */
+    private static int butterworthStageQHundred(int order, int stageIndex) {
+        int safeOrder = Math.max(2, order);
+        int stageCount = Math.max(1, safeOrder / 2);
+        int safeStageIndex = Math.max(0, Math.min(stageCount - 1, stageIndex));
+
+        double angle = (2.0 * safeStageIndex + 1.0) * Math.PI / (2.0 * safeOrder);
+        double q = 1.0 / (2.0 * Math.cos(angle));
+
+        q = Math.max(PASS_BUTTERWORTH_MIN_Q, Math.min(PASS_BUTTERWORTH_MAX_Q, q));
+
+        return (int) Math.round(q * 100.0);
     }
 
     private static double[] normalizedPassShelfCoefficients(boolean highShelf,
@@ -405,5 +485,4 @@ final class PeqMath {
         }
         return numerator / denominator;
     }
-
 }
