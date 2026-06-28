@@ -12,10 +12,8 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
-import android.util.Log;
 
 public final class GlobalEqForegroundService extends Service {
-    private static final String TAG = "GlobalPeqService";
     static final String ACTION_APPLY = "com.example.globalpeq.APPLY";
     static final String ACTION_BOOTSTRAP_CAPTURE = "com.example.globalpeq.BOOTSTRAP_CAPTURE";
     static final String ACTION_PAUSE_SHIZUKU = "com.example.globalpeq.PAUSE_SHIZUKU";
@@ -139,7 +137,6 @@ public final class GlobalEqForegroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
-        Log.d(TAG, "onStartCommand action=" + action + " startId=" + startId);
         if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
             startForegroundInternal(true);
             scheduleCaptureBootstrap(
