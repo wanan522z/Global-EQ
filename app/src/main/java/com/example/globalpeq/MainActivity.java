@@ -6283,11 +6283,9 @@ public final class MainActivity extends Activity {
     }
 
     private boolean syncRuntimeStateWithServiceProcess() {
-        boolean active = GlobalEqForegroundService.isRunningInProcess();
+        boolean active = repository != null && repository.loadServiceActive();
         if (!active) {
             repository.clearRuntimeAudioState(ShizukuCompat.describeState(this));
-        } else {
-            repository.saveServiceActive(true);
         }
         return active;
     }
