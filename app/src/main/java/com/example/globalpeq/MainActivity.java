@@ -2154,7 +2154,7 @@ public final class MainActivity extends Activity {
     }
 
     private void launchMonitorCaptureAuthorization() {
-        pendingMonitorCaptureAuthorization = false;
+        pendingMonitorCaptureAuthorization = true;
         repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
         renderAll();
         Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 现在会请求回放捕获授权"), Toast.LENGTH_SHORT).show();
