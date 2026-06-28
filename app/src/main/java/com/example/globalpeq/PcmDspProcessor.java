@@ -265,9 +265,9 @@ final class PcmDspProcessor {
             int cutoff = uiCutoff * 2;
 
             float boostComp = 1.0f + (1.0f - (float) uiCutoff / 220f) * 0.6f;
-            this.harmonicMix = virtualAmount * 9.5f * boostComp;
-            this.inputDrive = 1.2f + virtualAmount * 4.3f;
-            this.originalLowMix = dspAmount > 0f ? (dspAmount * 1.5f) : 0.0f;
+            this.harmonicMix = virtualAmount * 2.2f * boostComp;
+            this.inputDrive = 1.2f + virtualAmount * 3.8f;
+            this.originalLowMix = dspAmount > 0f ? (dspAmount * 1.2f) : 0.0f;
 
             sourceLowPass1 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
@@ -344,13 +344,19 @@ final class PcmDspProcessor {
             sourceLowPass2.process(monoLow, frameCount);
 
             for (int frame = 0; frame < frameCount; frame++) {
-                float x = monoLow[frame] * inputDrive;
+                float driveVal = monoLow[frame] * inputDrive;
+                float xClip = driveVal / (1.0f + Math.abs(driveVal));
 
-                float secondHarmonic = (2.0f * x * x) - 0.5f;
-                float thirdHarmonic = (4.0f * x * x * x) - (3.0f * x);
-                float highOrder = Math.abs(x) * 2.0f - 0.6f;
+                float h2 = 2.0f * xClip * xClip;
+                float h3 = 4.0f * xClip * xClip * xClip - 3.0f * xClip;
+                float h4 = 8.0f * xClip * xClip * (xClip * xClip - 1.0f);
 
-                harmonicBand[frame] = secondHarmonic * 1.6f + thirdHarmonic * 1.1f + highOrder * 0.7f;
+                float w = 0.9f * xClip;
+                float atsr = 2.5f * (float) Math.atan(w)
+                        + 2.5f * (float) Math.sqrt(1.0f - w * w)
+                        - 2.5f;
+
+                harmonicBand[frame] = h2 * 0.8f + h3 * 0.5f + h4 * 0.3f + atsr * 0.6f;
             }
 
             harmonicHighPass1.process(harmonicBand, frameCount);
@@ -413,7 +419,16 @@ final class PcmDspProcessor {
             if (Float.isNaN(value) || Float.isInfinite(value)) {
                 return 0f;
             }
-            return Math.min(1.5f, Math.max(-1.5f, value));
+            final float threshold = 0.85f;
+            if (value > threshold) {
+                float y = (value - threshold) / (1.0f - threshold);
+                return threshold + (1.0f - threshold) * (y / (1.0f + y));
+            }
+            if (value < -threshold) {
+                float y = (-value - threshold) / (1.0f - threshold);
+                return -(threshold + (1.0f - threshold) * (y / (1.0f + y)));
+            }
+            return value;
         }
     }
 
