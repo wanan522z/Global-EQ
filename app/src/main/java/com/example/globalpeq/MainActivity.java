@@ -8397,6 +8397,7 @@ public final class MainActivity extends Activity {
 
         private void commitCurrentValue() {
             if (listener != null) {
+                Log.d(TAG, "vb_slider commit value=" + value + " label=" + label);
                 listener.onValueChanged(value);
             }
         }
