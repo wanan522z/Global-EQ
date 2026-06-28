@@ -402,7 +402,8 @@ final class GlobalEqualizerEngine {
     }
 
     private void applySystemVirtualBass(Preset preset) {
-        if (preset.virtualBassAmountPercent <= 0) {
+        int systemBassAmountPercent = preset == null ? 0 : preset.systemVirtualBassAmountPercent;
+        if (systemBassAmountPercent <= 0) {
             releaseSystemVirtualBass();
             return;
         }
@@ -412,7 +413,7 @@ final class GlobalEqualizerEngine {
                 bassBoost = new BassBoost(AUDIO_EFFECT_PRIORITY, GLOBAL_AUDIO_SESSION);
             }
             bassBoost.setEnabled(false);
-            bassBoost.setStrength((short) Math.max(0, Math.min(1000, preset.virtualBassAmountPercent * 10)));
+            bassBoost.setStrength((short) Math.max(0, Math.min(1000, systemBassAmountPercent * 10)));
             bassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "System virtual bass effect could not be applied", ex);
