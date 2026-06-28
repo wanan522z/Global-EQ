@@ -6168,6 +6168,29 @@ public final class MainActivity extends Activity {
         enabledSwitch.setOnCheckedChangeListener(null);
         enabledSwitch.setChecked(checked);
         enabledSwitch.setOnCheckedChangeListener(this::onEnabledChanged);
+        updateEnabledSwitchInteractivity();
+    }
+
+    private void lockEnabledToggleInteraction() {
+        enabledToggleInteractionLocked = true;
+        updateEnabledSwitchInteractivity();
+        uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
+        uiHandler.postDelayed(unlockEnabledToggleInteractionRunnable, computeEnabledToggleInteractionLockMs());
+    }
+
+    private void unlockEnabledToggleInteraction() {
+        enabledToggleInteractionLocked = false;
+        updateEnabledSwitchInteractivity();
+    }
+
+    private void updateEnabledSwitchInteractivity() {
+        if (enabledSwitch == null) {
+            return;
+        }
+        boolean interactive = supported && !enabledToggleInteractionLocked;
+        enabledSwitch.setEnabled(interactive);
+        enabledSwitch.setClickable(interactive);
+        enabledSwitch.setAlpha(interactive ? 1f : 0.78f);
     }
 
     private Preset loadScopedPreset(AudioOutputDevice device, ProcessingMode mode) {

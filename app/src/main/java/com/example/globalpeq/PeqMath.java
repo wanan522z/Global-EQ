@@ -5,7 +5,8 @@ final class PeqMath {
     private static final int VISUAL_RESPONSE_SAMPLE_RATE = 48000;
     private static final double MIN_RESPONSE_MAGNITUDE = 1.0e-9;
     private static final int PASS_CUT_Q_HUNDRED = 71;
-    private static final int PASS_SHELF_Q_HUNDRED = 71;
+    private static final int PASS_SHELF_Q_HUNDRED = -1;
+    private static final double PASS_SHELF_SLOPE = 0.8;
     private static final double PASS_SHELF_OFFSET_RATIO = 1.25;
     private static final ParametricBand[] EMPTY_BANDS = new ParametricBand[0];
 
@@ -212,7 +213,7 @@ final class PeqMath {
     }
 
     private static FilterType passGainOverlayType(FilterType type) {
-        return type == FilterType.HIGH_PASS ? FilterType.HIGH_SHELF : FilterType.LOW_SHELF;
+        return type == FilterType.HIGH_PASS ? FilterType.LOW_SHELF : FilterType.HIGH_SHELF;
     }
 
     private static int passShelfFrequencyHz(ParametricBand band) {
@@ -240,6 +241,59 @@ final class PeqMath {
         return 1;
     }
 
+    private static double[] normalizedPassShelfCoefficients(boolean highShelf,
+                                                            double frequency,
+                                                            double safeSampleRate,
+                                                            int gainMb) {
+        double[] identity = {1.0, 0.0, 0.0, 0.0, 0.0};
+        double a = Math.pow(10.0, gainMb / 4000.0);
+        double omega = 2.0 * Math.PI * frequency / safeSampleRate;
+        double sin = Math.sin(omega);
+        double cos = Math.cos(omega);
+        double alphaBase = (a + 1.0 / a) * (1.0 / PASS_SHELF_SLOPE - 1.0) + 2.0;
+        double alpha = sin * 0.5 * Math.sqrt(Math.max(0.0, alphaBase));
+        double beta = 2.0 * Math.sqrt(a) * alpha;
+        double b0;
+        double b1;
+        double b2;
+        double a0;
+        double a1;
+        double a2;
+
+        if (highShelf) {
+            b0 = a * ((a + 1.0) + (a - 1.0) * cos + beta);
+            b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos);
+            b2 = a * ((a + 1.0) + (a - 1.0) * cos - beta);
+            a0 = (a + 1.0) - (a - 1.0) * cos + beta;
+            a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos);
+            a2 = (a + 1.0) - (a - 1.0) * cos - beta;
+        } else {
+            b0 = a * ((a + 1.0) - (a - 1.0) * cos + beta);
+            b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos);
+            b2 = a * ((a + 1.0) - (a - 1.0) * cos - beta);
+            a0 = (a + 1.0) + (a - 1.0) * cos + beta;
+            a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos);
+            a2 = (a + 1.0) + (a - 1.0) * cos - beta;
+        }
+
+        if (!Double.isFinite(a0) || Math.abs(a0) < 1.0e-12) {
+            return identity;
+        }
+        double nb0 = b0 / a0;
+        double nb1 = b1 / a0;
+        double nb2 = b2 / a0;
+        double na1 = a1 / a0;
+        double na2 = a2 / a0;
+        if (!Double.isFinite(nb0)
+                || !Double.isFinite(nb1)
+                || !Double.isFinite(nb2)
+                || !Double.isFinite(na1)
+                || !Double.isFinite(na2)) {
+            return identity;
+        }
+        return new double[] {nb0, nb1, nb2, na1, na2};
+    }
+
     static double[] normalizedBiquadCoefficients(ParametricBand band, int sampleRate) {
         double[] identity = {1.0, 0.0, 0.0, 0.0, 0.0};
         if (band == null) {
@@ -263,6 +317,9 @@ final class PeqMath {
 
         switch (band.type) {
             case LOW_SHELF:
+                if (band.qHundred < 0) {
+                    return normalizedPassShelfCoefficients(false, frequency, safeSampleRate, band.gainMb);
+                }
                 b0 = a * ((a + 1.0) - (a - 1.0) * cos + beta * sin);
                 b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos);
                 b2 = a * ((a + 1.0) - (a - 1.0) * cos - beta * sin);
@@ -271,6 +328,9 @@ final class PeqMath {
                 a2 = (a + 1.0) + (a - 1.0) * cos - beta * sin;
                 break;
             case HIGH_SHELF:
+                if (band.qHundred < 0) {
+                    return normalizedPassShelfCoefficients(true, frequency, safeSampleRate, band.gainMb);
+                }
                 b0 = a * ((a + 1.0) + (a - 1.0) * cos + beta * sin);
                 b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos);
                 b2 = a * ((a + 1.0) + (a - 1.0) * cos - beta * sin);
