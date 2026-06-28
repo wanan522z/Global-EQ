@@ -4142,7 +4142,7 @@ public final class MainActivity extends Activity {
 
         holder.q = createNumberInput(formatDecimal(band.qHundred / 100f), "Q", value -> {
             int qHundred = Math.round(value * 100f);
-            updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 0, 1000)));
+            updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 0, ParametricBand.MAX_Q_HUNDRED)));
         });
         attachEqEditFocus(holder.q, index, EQ_EDIT_FIELD_Q);
         row.addView(holder.q, cellParams(1f, 36));
@@ -4510,7 +4510,7 @@ public final class MainActivity extends Activity {
         });
         overlay.addView(gainInput);
         EditText qInput = createEqOverlayInput(formatDecimal(band.qHundred / 100f), "Q", 1f, value -> {
-            int qHundred = clamp(Math.round(value * 100f), 0, 1000);
+            int qHundred = clamp(Math.round(value * 100f), 0, ParametricBand.MAX_Q_HUNDRED);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withQHundred(qHundred));
         });
         overlay.addView(qInput);
