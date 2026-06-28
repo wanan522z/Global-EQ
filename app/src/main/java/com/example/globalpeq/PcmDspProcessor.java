@@ -240,12 +240,14 @@ final class PcmDspProcessor {
         private float harmonicMix;
         private float inputDrive;
         private float originalLowMix;
+        private float virtualAmount;
         private float envFast = 0.0f;
         private float envSlow = 0.0f;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
+            this.virtualAmount = 0.0f;
             configure(60, 0, 60, 0, false);
         }
 
