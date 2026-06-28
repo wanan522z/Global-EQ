@@ -18,7 +18,7 @@ final class ParametricBand {
         this.enabled = enabled;
         this.frequencyHz = clamp(frequencyHz, 20, 20000);
         this.gainMb = clamp(gainMb, -MAX_GAIN_MB, MAX_GAIN_MB);
-        this.qHundred = clamp(qHundred, 0, MAX_Q_HUNDRED);
+        this.qHundred = clamp(qHundred, -1, MAX_Q_HUNDRED);
     }
 
     ParametricBand withType(FilterType nextType) {

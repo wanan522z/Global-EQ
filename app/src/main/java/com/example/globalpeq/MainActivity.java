@@ -458,6 +458,7 @@ public final class MainActivity extends Activity {
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
     private final Runnable commitExtraBassToggleRunnable = this::commitPendingExtraBassToggle;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
+    private final Runnable unlockEnabledToggleInteractionRunnable = this::unlockEnabledToggleInteraction;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
     private final Runnable disableNeonCurveRunnable = this::activateDisabledNeonCurve;
@@ -497,6 +498,7 @@ public final class MainActivity extends Activity {
     private Preset pendingEnabledPersistPreset;
     private Boolean pendingExtraBassEnabledState;
     private boolean pendingEnabledUiRefresh;
+    private boolean enabledToggleInteractionLocked;
     private boolean modeVisualEnabled = true;
     private boolean curveVisualEnabled = true;
     private boolean[] peqBandVisualEnabled = new boolean[0];
