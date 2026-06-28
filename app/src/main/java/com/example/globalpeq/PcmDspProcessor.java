@@ -238,7 +238,7 @@ final class PcmDspProcessor {
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
-            configure(100, 0, 100, 0, false);
+            configure(120, 0, 120, 0, false);
         }
 
         void configure(int virtualCutoffHz,
@@ -250,13 +250,16 @@ final class PcmDspProcessor {
             float virtualAmount = Math.min(1.0f, Math.max(0.0f, virtualAmountPercent / 100f));
             float dspAmount = Math.min(1.0f, Math.max(0.0f, dspAmountPercent / 100f));
 
-            int cutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
-            if (cutoff <= 0) {
-                cutoff = Math.max(virtualCutoffHz, dspCutoffHz);
+            int uiCutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
+            if (uiCutoff <= 0) {
+                uiCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
-            cutoff = Math.min(250, Math.max(35, cutoff));
+            uiCutoff = Math.min(250, Math.max(40, uiCutoff));
 
-            this.harmonicMix = virtualAmount * 8.5f;
+            int cutoff = uiCutoff / 2;
+
+            float freqComp = 1.0f + (1.0f - (float) cutoff / 125f) * 0.5f;
+            this.harmonicMix = virtualAmount * 9.0f * freqComp;
             this.inputDrive = 1.0f + virtualAmount * 4.0f;
             this.originalLowMix = dspAmount > 0f ? (dspAmount * 1.5f) : 0.0f;
 
@@ -301,7 +304,7 @@ final class PcmDspProcessor {
             };
 
             int hpHmHz = (int) (cutoff * 0.95f);
-            int lpHmHz = Math.min(2000, cutoff * 4);
+            int lpHmHz = Math.min(2200, uiCutoff * 3);
             harmonicHighPass1 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 70),
                     sampleRate);
