@@ -656,6 +656,7 @@ public final class MainActivity extends Activity {
         commitPendingPeqToggle();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
@@ -719,6 +720,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(commitPeqToggleRunnable);
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.removeCallbacks(persistPresetStateRunnable);
