@@ -3319,9 +3319,6 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
-        if (monitorCaptureButton != null) {
-            setTextIfChanged(monitorCaptureButton, monitorCaptureButtonText());
-        }
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
         }
@@ -3408,9 +3405,6 @@ public final class MainActivity extends Activity {
         }
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
-        }
-        if (monitorCaptureButton != null) {
-            setTextIfChanged(monitorCaptureButton, monitorCaptureButtonText());
         }
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
