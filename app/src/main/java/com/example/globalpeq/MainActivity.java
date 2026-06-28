@@ -3678,6 +3678,12 @@ public final class MainActivity extends Activity {
                 return;
             }
             if (!nextType.equals(editingPreset.reverbType)) {
+                persistVirtualBassUiState();
+                Log.d(TAG, "reverb_menu before_apply type=" + nextType
+                        + " modeIndex=" + editingPreset.virtualBassModeIndex
+                        + " activeAmount=" + editingPreset.virtualBassAmountPercent
+                        + " systemAmount=" + editingPreset.systemVirtualBassAmountPercent
+                        + " dspAmount=" + editingPreset.dspVirtualBassAmountPercent);
                 setEditingPreset(editingPreset.withReverbType(nextType), true);
             }
         });
@@ -3697,6 +3703,11 @@ public final class MainActivity extends Activity {
                 return;
             }
             persistVirtualBassUiState();
+            Log.d(TAG, "bass_mode_menu nextIndex=" + nextIndex
+                    + " currentIndex=" + editingPreset.virtualBassModeIndex
+                    + " activeAmount=" + editingPreset.virtualBassAmountPercent
+                    + " systemAmount=" + editingPreset.systemVirtualBassAmountPercent
+                    + " dspAmount=" + editingPreset.dspVirtualBassAmountPercent);
             setEditingPreset(editingPreset.withVirtualBassModeIndex(nextIndex), true);
         });
     }
