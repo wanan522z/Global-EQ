@@ -326,29 +326,37 @@ final class PcmDspProcessor {
             for (int frame = 0; frame < frameCount; frame++) {
                 float low = monoLow[frame];
                 float absLow = Math.abs(low);
-                envelope += (absLow - envelope) * (absLow > envelope ? 0.050f : 0.011f);
+                envelope += (absLow - envelope) * (absLow > envelope ? 0.040f : 0.009f);
 
-                float dynamic = Math.min(1f, envelope * (7.0f + lowCutoffPunch * 2.2f));
-                float driveScale = 0.80f + dynamic * (0.44f + lowCutoffPunch * 0.18f);
-                float driven = low * drive * driveScale;
+                float dynamic = Math.min(1f, envelope * (7.0f + lowCutoffPunch * 2.0f));
+
+                float dynamicDrive = 0.74f + dynamic * (0.40f + lowCutoffPunch * 0.12f - fartZoneBlend * 0.08f);
+                float driven = low * drive * dynamicDrive;
 
                 float softA = fastTanh(driven);
-                float softB = fastTanh(driven * (1.82f + midCutoffBlend * 0.28f));
-                float harmonic = softB - softA * (0.76f - lowCutoffPunch * 0.05f);
+                float softB = fastTanh(driven * (2.00f + lowCutoffPunch * 0.25f));
+                float softC = fastTanh(driven * 3.10f);
 
-                // Keep warmth secondary, especially around 80-120 Hz where "puffing" is easier.
-                float warmthAmount = 0.04f + lowCutoffPunch * 0.07f - midCutoffBlend * 0.02f;
-                float warmth = (softA * softA - envelope * (0.12f + midCutoffBlend * 0.05f)) * warmthAmount;
-                harmonic += warmth;
+                float harmonic = softB - softA * (0.72f - lowCutoffPunch * 0.04f);
 
-                float dcBlocked = harmonic - dcBlockX + (0.9935f + midCutoffBlend * 0.001f) * dcBlockY;
+                float edge = softC - softA;
+                harmonic += edge * (0.055f + lowCutoffPunch * 0.090f);
+
+                float bite = softC - softB;
+                harmonic += bite * (0.030f + lowCutoffPunch * 0.040f - fartZoneBlend * 0.015f);
+
+                float dcBlocked = harmonic - dcBlockX + 0.988f * dcBlockY;
                 dcBlockX = harmonic;
                 dcBlockY = dcBlocked;
 
-                float gateStart = 0.0035f + midCutoffBlend * 0.0020f;
-                float gateRange = 0.022f - lowCutoffPunch * 0.004f + midCutoffBlend * 0.004f;
-                float gate = clamp01((envelope - gateStart) / Math.max(0.010f, gateRange));
-                float shaped = dcBlocked * gate;
+                float gateThreshold = 0.0035f + fartZoneBlend * 0.0045f - lowCutoffPunch * 0.0010f;
+                float gateRange = 0.030f + fartZoneBlend * 0.012f;
+                float gateTarget = clamp01((envelope - gateThreshold) / gateRange);
+
+                float gateCoeff = gateTarget > gateState ? 0.018f : 0.0045f;
+                gateState += (gateTarget - gateState) * gateCoeff;
+
+                float shaped = dcBlocked * gateState;
 
                 harmonicBand[frame] = softLimit(shaped, harmonicCeiling);
             }
