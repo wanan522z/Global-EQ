@@ -296,7 +296,6 @@ final class PeqMath {
                 break;
             case PEAK:
             default:
-                double a = Math.pow(10.0, band.gainMb / 4000.0);
                 b0 = 1.0 + alpha * a;
                 b1 = -2.0 * cos;
                 b2 = 1.0 - alpha * a;
