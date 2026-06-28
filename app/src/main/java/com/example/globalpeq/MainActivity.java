@@ -639,6 +639,7 @@ public final class MainActivity extends Activity {
         hasStartedDeviceMonitorOnce = true;
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
+        uiHandler.post(this::maybeEnsureProcessingActive);
     }
 
     @Override
