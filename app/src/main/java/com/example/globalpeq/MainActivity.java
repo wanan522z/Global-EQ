@@ -2095,42 +2095,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void handleMonitorCaptureAction() {
-        if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
-            Toast.makeText(this, tr("Switch to Shizuku Mode first", "请先切换到 Shizuku Mode 模式"), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Toast.makeText(this, "Native capture requires Android 10 or later", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                pendingMonitorCaptureAuthorization = true;
-                repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
-                renderAll();
-                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
-                return;
-            }
-            launchMonitorCaptureAuthorization();
-            return;
-        }
-        if (advancedModeConfig.monitoredAppPackage == null || advancedModeConfig.monitoredAppPackage.isEmpty()) {
-            Toast.makeText(this, tr("Choose a monitored app first", "请先选择要监听的应用"), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            pendingMonitorCaptureAuthorization = true;
-            repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
-            renderAll();
-            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
-            return;
-        }
-        launchMonitorCaptureAuthorization();
-    }
-
     private void launchMonitorCaptureAuthorization() {
         pendingMonitorCaptureAuthorization = true;
         repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
