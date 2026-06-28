@@ -29,6 +29,7 @@ public final class GlobalEqForegroundService extends Service {
     private static final String CHANNEL_ID = "global_eq";
     private static final int NOTIFICATION_ID = 10;
     private static final long CAPTURE_UPDATE_DEBOUNCE_MS = 350L;
+    private static volatile boolean instanceRunning;
 
     private GlobalEqualizerEngine engine;
     private PlaybackCaptureEngine captureEngine;
@@ -70,7 +71,7 @@ public final class GlobalEqForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.i(TAG, "onCreate");
+        instanceRunning = true;
         repository = new PresetRepository(this);
         repository.saveServiceActive(true);
         engine = GlobalEqRuntime.engine();
@@ -138,7 +139,6 @@ public final class GlobalEqForegroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
-        Log.i(TAG, "onStartCommand action=" + action + " flags=" + flags + " startId=" + startId);
         if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
             startForegroundInternal(true);
             scheduleCaptureBootstrap(
@@ -154,6 +154,12 @@ public final class GlobalEqForegroundService extends Service {
                 && applyStateFromIntent(intent);
         Preset preset = appliedIntentState ? applyCurrentPresetState() : applySavedPreset();
         if (!preset.enabled) {
+            requestStopAllAndStopService();
+            return START_NOT_STICKY;
+        }
+        if (action == null
+                && currentProcessingMode == ProcessingMode.SHIZUKU_MUTE
+                && (captureEngine == null || !captureEngine.hasProjection())) {
             requestStopAllAndStopService();
             return START_NOT_STICKY;
         }
@@ -173,6 +179,7 @@ public final class GlobalEqForegroundService extends Service {
 
     @Override
     public void onDestroy() {
+        instanceRunning = false;
         deviceMonitor.stop();
         if (repository != null) {
             repository.saveServiceActive(false);
@@ -418,5 +425,9 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             handler.postDelayed(applyPendingCaptureUpdateRunnable, delayMs);
         }
+    }
+
+    static boolean isRunningInProcess() {
+        return instanceRunning;
     }
 }
