@@ -12,8 +12,13 @@ public final class BootReceiver extends BroadcastReceiver {
         if (!repository.loadMasterEnabled()) {
             return;
         }
+        if (repository.loadProcessingMode() == ProcessingMode.SHIZUKU_MUTE) {
+            repository.clearRuntimeAudioState(ShizukuCompat.describeState(context));
+            return;
+        }
 
         Intent service = new Intent(context, GlobalEqForegroundService.class);
+        service.setAction(GlobalEqForegroundService.ACTION_APPLY);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(service);
         } else {
