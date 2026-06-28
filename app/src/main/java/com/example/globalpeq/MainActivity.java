@@ -2161,6 +2161,7 @@ public final class MainActivity extends Activity {
         android.media.projection.MediaProjectionManager manager =
                 (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (manager == null) {
+            pendingMonitorCaptureAuthorization = false;
             Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 服务不可用"), Toast.LENGTH_SHORT).show();
             return;
         }
