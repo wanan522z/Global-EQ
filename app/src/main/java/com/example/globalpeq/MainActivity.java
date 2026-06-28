@@ -3676,7 +3676,6 @@ public final class MainActivity extends Activity {
                 return;
             }
             if (!nextType.equals(editingPreset.reverbType)) {
-                persistVirtualBassUiState();
                 setEditingPreset(editingPreset.withReverbType(nextType), true);
             }
         });
@@ -3695,7 +3694,6 @@ public final class MainActivity extends Activity {
             if (selectedBassModeIndex == nextIndex) {
                 return;
             }
-            persistVirtualBassUiState();
             setEditingPreset(editingPreset.withVirtualBassModeIndex(nextIndex), true);
         });
     }
@@ -6615,47 +6613,6 @@ public final class MainActivity extends Activity {
         updateEditStateLabels();
     }
 
-    private void persistVirtualBassUiState() {
-        if (editingPreset == null) {
-            return;
-        }
-        Preset nextPreset = editingPreset;
-        int displayedAmount = -1;
-        if (virtualBassSlider != null) {
-            displayedAmount = virtualBassSlider.getValue();
-            if (editingPreset.virtualBassModeIndex == 2) {
-                if (displayedAmount != editingPreset.dspVirtualBassAmountPercent) {
-                    nextPreset = nextPreset.withDspVirtualBassAmountPercent(displayedAmount);
-                }
-            } else {
-                if (displayedAmount != editingPreset.systemVirtualBassAmountPercent) {
-                    nextPreset = nextPreset.withSystemVirtualBassAmountPercent(displayedAmount);
-                }
-            }
-        }
-        if (virtualBassCutoffInput != null) {
-            Object tag = virtualBassCutoffInput.getTag();
-            if (tag instanceof Integer) {
-                int displayedCutoff = (Integer) tag;
-                if (editingPreset.virtualBassModeIndex == 2) {
-                    if (displayedCutoff != editingPreset.dspVirtualBassCutoffHz) {
-                        nextPreset = nextPreset.withDspVirtualBassCutoffHz(displayedCutoff);
-                    }
-                } else {
-                    if (displayedCutoff != editingPreset.systemVirtualBassCutoffHz) {
-                        nextPreset = nextPreset.withSystemVirtualBassCutoffHz(displayedCutoff);
-                    }
-                }
-            }
-        }
-        if (!nextPreset.toJson().equals(editingPreset.toJson())) {
-            editingPreset = nextPreset;
-            if (runningPreset != null && isEditingPresetActive()) {
-                runningPreset = nextPreset.withEnabled(runningPreset.enabled && supported);
-            }
-        }
-    }
-
     private void activateMatchedPreset(Preset preset, boolean clearHistory) {
         runningPreset = preset.withEnabled(currentMasterEnabled());
         activateEditingPreset(runningPreset, clearHistory);
@@ -6769,7 +6726,6 @@ public final class MainActivity extends Activity {
         if (currentDevice == null || runningPreset == null) {
             return;
         }
-        persistVirtualBassUiState();
         Preset persistedPreset = withCurrentCurveSettings(runningPreset);
         if (persistedPreset != null && !persistedPreset.toJson().equals(runningPreset.toJson())) {
             runningPreset = persistedPreset.withEnabled(runningPreset.enabled);
@@ -6779,7 +6735,6 @@ public final class MainActivity extends Activity {
     }
 
     private void persistEditingPresetNow() {
-        persistVirtualBassUiState();
         Preset persistedPreset = withCurrentCurveSettings(editingPreset);
         if (persistedPreset == null) {
             return;
@@ -7105,15 +7060,7 @@ public final class MainActivity extends Activity {
                 "Cutoff Hz",
                 20,
                 250,
-                value -> {
-                    Preset basePreset = editingPreset;
-                    if (basePreset != null && virtualBassSlider != null) {
-                        basePreset = basePreset.withVirtualBassAmountPercent(virtualBassSlider.getValue());
-                    }
-                    if (basePreset != null) {
-                        setEditingPreset(basePreset.withVirtualBassCutoffHz(value), true);
-                    }
-                });
+                value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
         virtualBassCutoffInput.setTextSize(13);
         virtualBassCutoffInput.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
