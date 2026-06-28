@@ -519,8 +519,7 @@ final class PlaybackCaptureEngine {
             releaseTrackVirtualBassLocked();
             return;
         }
-        boolean enableSystemBass = currentMode != ProcessingMode.SHIZUKU_MUTE
-                && AudioProcessingPolicy.systemVirtualBassAllowed(currentVirtualBassModeIndex)
+        boolean enableSystemBass = AudioProcessingPolicy.systemVirtualBassAllowed(currentVirtualBassModeIndex)
                 && currentPreset.virtualBassAmountPercent > 0;
         if (!enableSystemBass) {
             releaseTrackVirtualBassLocked();
