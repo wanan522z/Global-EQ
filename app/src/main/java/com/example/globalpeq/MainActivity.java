@@ -6372,6 +6372,13 @@ public final class MainActivity extends Activity {
         return ENABLE_TOGGLE_COMMIT_DELAY_MS;
     }
 
+    private long computeEnabledToggleInteractionLockMs() {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            return ENABLE_TOGGLE_SHIZUKU_INTERACTION_LOCK_MS;
+        }
+        return ENABLE_TOGGLE_INTERACTION_LOCK_MS;
+    }
+
     private long computeShizukuEnableDelayMs() {
         if (editingPreset == null || editingPreset.mode == EqMode.GEQ) {
             return Math.max(ENABLE_NEON_CURVE_DELAY_MS, ENABLE_NEON_PEQ_START_DELAY_MS)
