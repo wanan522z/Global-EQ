@@ -287,11 +287,19 @@ final class ShizukuSessionMuteEngine {
             return -1;
         }
         try {
-            return configuration.getPlayerState();
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerState");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                return (Integer) value;
+            }
+        } catch (NoSuchMethodException ex) {
+            Log.w(TAG, "AudioPlaybackConfiguration#getPlayerState is unavailable on this device", ex);
+        } catch (ReflectiveOperationException ex) {
+            Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#getPlayerState", ex);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to read playback player state", ex);
-            return -1;
         }
+        return -1;
     }
 
     private void updateCurrentAppSessionIds() {
