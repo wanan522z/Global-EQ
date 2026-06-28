@@ -228,7 +228,7 @@ final class PcmDspProcessor {
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
-            configure(95, 0, 95, 0, false);
+            configure(95, 0, false);
         }
 
         void configure(int dspCutoffHz,
