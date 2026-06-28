@@ -258,8 +258,8 @@ final class PcmDspProcessor {
             }
             cutoff = Math.min(200, Math.max(40, cutoff));
 
-            this.harmonicMix = virtualAmount * 4.5f;
-            this.inputDrive = 1.0f + virtualAmount * 2.5f;
+            this.harmonicMix = virtualAmount * 26.0f;
+            this.inputDrive = 1.0f + virtualAmount * 12.0f;
 
             sourceLowPass1 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 65),
@@ -268,7 +268,7 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 65),
                     sampleRate);
 
-            float shelfGainDb = -virtualAmount * 8.0f;
+            float shelfGainDb = -virtualAmount * 16.0f;
             originalLowShelfL = new MonoBiquad[] {
                     MonoBiquad.fromBand(
                             new ParametricBand(FilterType.LOW_SHELF, true, cutoff, (int) shelfGainDb, 70),
@@ -280,13 +280,13 @@ final class PcmDspProcessor {
                             sampleRate)
             };
 
-            int hpHmHz = (int) (cutoff * 1.05f);
-            int lpHmHz = Math.min(1500, cutoff * 6);
+            int hpHmHz = 25;
+            int lpHmHz = Math.min(2200, cutoff * 6);
             harmonicHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 60),
+                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 45),
                     sampleRate);
             harmonicLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, lpHmHz, 0, 60),
+                    new ParametricBand(FilterType.LOW_PASS, true, lpHmHz, 0, 55),
                     sampleRate);
         }
 
@@ -315,8 +315,9 @@ final class PcmDspProcessor {
                 float x = monoLow[frame] * inputDrive;
 
                 float evenPart = Math.abs(x);
-                float oddPart = x / (1.0f + Math.max(0f, x >= 0 ? x : -x));
-                harmonicBand[frame] = evenPart * 1.3f + oddPart * 0.7f;
+                float absX = x >= 0 ? x : -x;
+                float oddPart = x / (0.35f + absX * 0.65f);
+                harmonicBand[frame] = evenPart * 2.5f + oddPart * 1.5f;
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
