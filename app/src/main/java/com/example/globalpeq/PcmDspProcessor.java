@@ -360,6 +360,9 @@ final class PcmDspProcessor {
             sourceLowPass1.process(monoLow, frameCount);
             sourceLowPass2.process(monoLow, frameCount);
 
+            float uScale = this.activeCutoffHz / 60.0f;
+            float envComp = (float) Math.pow(uScale, 1.25f);
+
             for (int frame = 0; frame < frameCount; frame++) {
                 float lowVal = monoLow[frame];
                 float absLow = Math.abs(lowVal);
@@ -423,10 +426,10 @@ final class PcmDspProcessor {
                 float h6 = 32.0f * x6 - 48.0f * x4 + 18.0f * x2 - 1.0f;
 
                 float w2 = 1.0f;
-                float w3 = 1.0f + virtualAmount * 1.8f;
-                float w4 = 0.6f + virtualAmount * 2.2f;
-                float w5 = 0.4f + virtualAmount * 3.5f;
-                float w6 = 0.2f + virtualAmount * 4.0f;
+                float w3 = (1.0f + virtualAmount * 1.8f) * (0.8f + 0.4f * uScale);
+                float w4 = (0.6f + virtualAmount * 2.2f) * (0.4f + 0.9f * uScale);
+                float w5 = (0.4f + virtualAmount * 3.5f) * (0.2f + 1.4f * uScale);
+                float w6 = (0.2f + virtualAmount * 4.0f) * (0.1f + 1.8f * uScale);
                 float harmonicsSum = h2 * w2 + h3 * w3 + h4 * w4 + h5 * w5 + h6 * w6;
                 float harmonics = harmonicsSum * (0.35f + virtualAmount * 0.75f);
 
@@ -435,7 +438,7 @@ final class PcmDspProcessor {
 
                 float saturatedEnv = envSlow * (0.8f + virtualAmount * 1.5f);
                 float compressedEnv = saturatedEnv / (1.0f + saturatedEnv * 0.15f * dynDrive);
-                float rawHarmonics = harmonics * compressedEnv * harmonicMix * gainComp;
+                float rawHarmonics = harmonics * compressedEnv * envComp * harmonicMix * gainComp;
                 harmonicBand[frame] = rawHarmonics / (1.0f + 0.25f * Math.abs(rawHarmonics));
             }
 
