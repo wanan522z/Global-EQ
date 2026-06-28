@@ -153,7 +153,7 @@ public final class GlobalEqForegroundService extends Service {
             requestStopAllAndStopService();
             return START_NOT_STICKY;
         }
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override
