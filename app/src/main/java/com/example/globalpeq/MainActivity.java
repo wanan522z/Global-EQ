@@ -29,7 +29,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.Layout;
@@ -79,7 +78,6 @@ import java.util.Set;
 import org.json.JSONException;
 
 public final class MainActivity extends Activity {
-    private static final String TAG = "MainActivity";
     private static final int HISTORY_LIMIT = 30;
     private static final int REQUEST_IMPORT_DEVICE_CURVE = 4101;
     private static final int REQUEST_IMPORT_TARGET_CURVE = 4102;
@@ -2184,9 +2182,6 @@ public final class MainActivity extends Activity {
             refreshRuntimeStatusUi();
             return;
         }
-        Log.i(TAG, "ensureShizukuModeReady autoLaunch=" + autoLaunchCapture
-                + " shouldLaunchCapture=" + shouldLaunchCaptureAuthorization()
-                + " serviceActive=" + repository.loadServiceActive());
         if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
             applyRunningPreset();
             refreshRuntimeStatusUi();
@@ -6209,10 +6204,6 @@ public final class MainActivity extends Activity {
     }
 
     private void notifyServiceAboutRunningPreset() {
-        Log.i(TAG, "notifyServiceAboutRunningPreset mode=" + processingMode
-                + " enabled=" + (runningPreset != null && runningPreset.enabled)
-                + " captureAuthorized=" + repository.loadMonitorCaptureAuthorized()
-                + " startupRecoveryPending=" + startupProcessingRecoveryPending);
         Intent service = buildRunningPresetServiceIntent(GlobalEqForegroundService.ACTION_APPLY);
         startCompatibleForegroundService(service);
     }
@@ -6291,10 +6282,6 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean serviceActive = syncRuntimeStateWithServiceProcess();
-        Log.i(TAG, "maybeEnsureProcessingActive serviceActive=" + serviceActive
-                + " startupRecoveryPending=" + startupProcessingRecoveryPending
-                + " captureAuthorized=" + repository.loadMonitorCaptureAuthorized()
-                + " mode=" + processingMode);
         if (!startupProcessingRecoveryPending) {
             return;
         }
@@ -6310,36 +6297,13 @@ public final class MainActivity extends Activity {
     }
 
     private boolean syncRuntimeStateWithServiceProcess() {
-        boolean active = isGlobalEqForegroundServiceRunning();
+        boolean active = GlobalEqForegroundService.isRunningInProcess();
         if (!active) {
             repository.clearRuntimeAudioState(ShizukuCompat.describeState(this));
         } else {
             repository.saveServiceActive(true);
         }
         return active;
-    }
-
-    private boolean isGlobalEqForegroundServiceRunning() {
-        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        if (activityManager == null) {
-            return repository.loadServiceActive();
-        }
-        try {
-            for (ActivityManager.RunningServiceInfo serviceInfo
-                    : activityManager.getRunningServices(Integer.MAX_VALUE)) {
-                if (serviceInfo == null || serviceInfo.service == null) {
-                    continue;
-                }
-                if (getPackageName().equals(serviceInfo.service.getPackageName())
-                        && GlobalEqForegroundService.class.getName()
-                        .equals(serviceInfo.service.getClassName())) {
-                    return true;
-                }
-            }
-        } catch (SecurityException ignored) {
-            return repository.loadServiceActive();
-        }
-        return false;
     }
 
     private void scheduleDelayedShizukuReady() {
