@@ -72,6 +72,8 @@ final class PlaybackCaptureEngine {
     private int configuredChunkFrames = -1;
     private int configuredLatencyMs = -1;
     private String configuredOutputDeviceKey = "";
+    private boolean captureSignalLogged;
+    private boolean captureWaitingLogged;
     private String publishedStatus = "";
     private boolean publishedActive;
 
@@ -371,8 +373,10 @@ final class PlaybackCaptureEngine {
             reconfigureEffectsLocked();
 
             audioTrack.play();
+            Log.i(TAG, "AudioTrack playState after play()=" + audioTrack.getPlayState());
             prefillTrackIfNeeded(audioTrack, processingChunkFrames, bluetoothOutput);
             audioRecord.startRecording();
+            Log.i(TAG, "AudioRecord recordingState after startRecording()=" + audioRecord.getRecordingState());
             Object workerToken = new Object();
             activeWorkerToken = workerToken;
             workerThread = new Thread(() -> runCaptureLoop(workerToken), "global-peq-capture");
@@ -411,6 +415,8 @@ final class PlaybackCaptureEngine {
         short[] rendered = new short[pcm.length];
         long lastSignalAt = SystemClock.elapsedRealtime();
         boolean signaledLive = false;
+        captureSignalLogged = false;
+        captureWaitingLogged = false;
 
         while (running) {
             int read;
@@ -421,6 +427,10 @@ final class PlaybackCaptureEngine {
                 break;
             }
             if (read <= 0) {
+                if (!captureWaitingLogged) {
+                    Log.i(TAG, "Capture read returned " + read + " while waiting for playback");
+                    captureWaitingLogged = true;
+                }
                 if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs) {
                     publishStatus(waitingStatusText(), false);
                     signaledLive = false;
@@ -439,6 +449,10 @@ final class PlaybackCaptureEngine {
 
             if (peak > SIGNAL_THRESHOLD) {
                 lastSignalAt = SystemClock.elapsedRealtime();
+                if (!captureSignalLogged) {
+                    Log.i(TAG, "Capture loop detected signal: readSamples=" + read + ", peak=" + peak);
+                    captureSignalLogged = true;
+                }
                 if (!signaledLive) {
                     publishStatus(monitoringStatusText(), true);
                     signaledLive = true;
@@ -612,12 +626,17 @@ final class PlaybackCaptureEngine {
             return;
         }
         if (preferredDevice == null) {
+            Log.i(TAG, "AudioTrack preferred device not set; using system default route");
             return;
         }
         try {
             boolean applied = track.setPreferredDevice(preferredDevice);
             if (!applied) {
                 Log.w(TAG, "AudioTrack preferred device was rejected: " + preferredDevice.getId());
+            } else {
+                Log.i(TAG, "AudioTrack preferred device applied: id=" + preferredDevice.getId()
+                        + ", type=" + preferredDevice.getType()
+                        + ", key=" + describeOutputDeviceKey(preferredDevice));
             }
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to bind AudioTrack to preferred output device", ex);
