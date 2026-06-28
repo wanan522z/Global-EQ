@@ -238,6 +238,8 @@ final class PcmDspProcessor {
         private float harmonicMix;
         private float sourceScale;
         private float wetCeiling;
+        private float lowCutoffBlend;
+        private float fartZoneBlend;
         private float outputDcX;
         private float outputDcY;
         private float outputDcCoeff;
@@ -267,12 +269,12 @@ final class PcmDspProcessor {
 
             int cutoff = clampInt(requestedCutoff, 30, 220);
 
-            float lowCutoffBlend = 1f - clamp01((cutoff - 30f) / 70f);
+            lowCutoffBlend = 1f - clamp01((cutoff - 30f) / 70f);
             float midCutoffBlend = clamp01((cutoff - 70f) / 75f);
 
             float fartRise = clamp01((cutoff - 45f) / 22f);
             float fartFall = 1f - clamp01((cutoff - 90f) / 50f);
-            float fartZoneBlend = fartRise * fartFall;
+            fartZoneBlend = fartRise * fartFall;
 
             sourceHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
