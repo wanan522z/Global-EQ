@@ -6613,6 +6613,46 @@ public final class MainActivity extends Activity {
         updateEditStateLabels();
     }
 
+    private void persistVirtualBassUiState() {
+        if (editingPreset == null) {
+            return;
+        }
+        Preset nextPreset = editingPreset;
+        if (virtualBassSlider != null) {
+            int displayedAmount = virtualBassSlider.getValue();
+            if (editingPreset.virtualBassModeIndex == 2) {
+                if (displayedAmount != editingPreset.dspVirtualBassAmountPercent) {
+                    nextPreset = nextPreset.withDspVirtualBassAmountPercent(displayedAmount);
+                }
+            } else {
+                if (displayedAmount != editingPreset.systemVirtualBassAmountPercent) {
+                    nextPreset = nextPreset.withSystemVirtualBassAmountPercent(displayedAmount);
+                }
+            }
+        }
+        if (virtualBassCutoffInput != null) {
+            Object tag = virtualBassCutoffInput.getTag();
+            if (tag instanceof Integer) {
+                int displayedCutoff = (Integer) tag;
+                if (editingPreset.virtualBassModeIndex == 2) {
+                    if (displayedCutoff != editingPreset.dspVirtualBassCutoffHz) {
+                        nextPreset = nextPreset.withDspVirtualBassCutoffHz(displayedCutoff);
+                    }
+                } else {
+                    if (displayedCutoff != editingPreset.systemVirtualBassCutoffHz) {
+                        nextPreset = nextPreset.withSystemVirtualBassCutoffHz(displayedCutoff);
+                    }
+                }
+            }
+        }
+        if (!nextPreset.toJson().equals(editingPreset.toJson())) {
+            editingPreset = nextPreset;
+            if (runningPreset != null && isEditingPresetActive()) {
+                runningPreset = nextPreset.withEnabled(runningPreset.enabled && supported);
+            }
+        }
+    }
+
     private void activateMatchedPreset(Preset preset, boolean clearHistory) {
         runningPreset = preset.withEnabled(currentMasterEnabled());
         activateEditingPreset(runningPreset, clearHistory);
