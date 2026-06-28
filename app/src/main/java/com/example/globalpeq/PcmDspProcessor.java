@@ -234,29 +234,13 @@ final class PcmDspProcessor {
         private float envelopeAttackCoeff;
         private float envelopeReleaseCoeff;
 
-        private float previousLow;
-        private int samplesSinceCrossing;
-        private int minPeriodSamples;
-        private int maxPeriodSamples;
-
-        private float minTrackHz;
-        private float maxTrackHz;
-        private float targetHz;
-        private float trackedHz;
-        private float periodSmooth;
-        private float trackingReliability;
-        private float frequencySmoothCoeff;
-
-        private float phase;
-
+        private float inputDrive;
         private float harmonicMix;
         private float sourceScale;
         private float wetCeiling;
-        private float amountLevel;
-
-        private float h2Mix;
-        private float h3Mix;
-        private float h4Mix;
+        private float outputDcX;
+        private float outputDcY;
+        private float outputDcCoeff;
 
         private float wetLimiterEnvelope;
         private float wetLimiterGain = 1f;
@@ -318,14 +302,14 @@ final class PcmDspProcessor {
                     sampleRate);
 
             int harmonicHpHz = clampInt(
-                    Math.round(cutoff * (1.18f + midCutoffBlend * 0.24f)),
-                    48,
+                    Math.round(cutoff * (1.45f + midCutoffBlend * 0.25f)),
+                    55,
                     280);
 
             int harmonicLpHz = clampInt(
-                    Math.round(cutoff * (5.25f + lowCutoffBlend * 1.05f + midCutoffBlend * 0.45f)),
+                    Math.round(cutoff * (5.2f + lowCutoffBlend * 0.85f + midCutoffBlend * 0.45f)),
                     harmonicHpHz + 150,
-                    900);
+                    850);
 
             harmonicHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
@@ -354,35 +338,17 @@ final class PcmDspProcessor {
                             68),
                     sampleRate);
 
-            minTrackHz = clamp(cutoff * 0.42f, 22f, 160f);
-            maxTrackHz = clamp(cutoff * 1.15f, minTrackHz + 8f, 260f);
-
-            minPeriodSamples = Math.max(8, Math.round(sampleRate / maxTrackHz));
-            maxPeriodSamples = Math.max(minPeriodSamples + 4, Math.round(sampleRate / minTrackHz));
-
-            targetHz = clamp(cutoff * 0.82f, minTrackHz, maxTrackHz);
-            trackedHz = targetHz;
-            periodSmooth = 0f;
-            trackingReliability = 0.35f;
-            samplesSinceCrossing = maxPeriodSamples;
-            previousLow = 0f;
-            phase = 0f;
-
             envelopeAttackCoeff = onePoleCoeff(8.0f + fartZoneBlend * 4.0f, sampleRate);
             envelopeReleaseCoeff = onePoleCoeff(90.0f + lowCutoffBlend * 30.0f + fartZoneBlend * 25.0f, sampleRate);
-            frequencySmoothCoeff = onePoleCoeff(42.0f + fartZoneBlend * 25.0f, sampleRate);
-
-            h2Mix = 1.35f + lowCutoffBlend * 0.36f - fartZoneBlend * 0.06f;
-            h3Mix = 1.05f + fartZoneBlend * 0.14f + lowCutoffBlend * 0.12f;
-            h4Mix = 0.46f + midCutoffBlend * 0.12f + fartZoneBlend * 0.06f;
-
-            amountLevel = amount;
-
-            sourceScale = 1.45f + amount * (1.10f + lowCutoffBlend * 0.30f);
-            harmonicMix = amount * (6.20f + lowCutoffBlend * 1.35f - fartZoneBlend * 0.08f);
-            wetCeiling = 0.72f + amount * 0.38f;
+            inputDrive = 1.35f + amount * (1.65f + lowCutoffBlend * 0.35f - fartZoneBlend * 0.20f);
+            sourceScale = 1.25f + amount * (0.85f + lowCutoffBlend * 0.25f);
+            harmonicMix = amount * (4.20f + lowCutoffBlend * 0.85f - fartZoneBlend * 0.10f);
+            wetCeiling = 0.55f + amount * 0.30f;
+            outputDcCoeff = (float) Math.exp(-2.0 * Math.PI * 18.0 / Math.max(8000.0, sampleRate));
 
             sourceEnvelope = 0f;
+            outputDcX = 0f;
+            outputDcY = 0f;
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
         }
@@ -416,35 +382,31 @@ final class PcmDspProcessor {
                 sourceEnvelope += (absLow - sourceEnvelope)
                         * (absLow > sourceEnvelope ? envelopeAttackCoeff : envelopeReleaseCoeff);
 
-                updateFrequencyTracker(low, absLow);
+                float level = Math.max(0.006f, sourceEnvelope);
 
-                trackedHz += (targetHz - trackedHz) * frequencySmoothCoeff;
-                trackedHz = clamp(trackedHz, minTrackHz, maxTrackHz);
+                float x = low / level;
+                x = clamp(x * inputDrive, -1.15f, 1.15f);
 
-                float step = TWO_PI * trackedHz / sampleRate;
-                phase += step;
-                if (phase >= TWO_PI) {
-                    phase -= TWO_PI;
-                }
+                float x2 = x * x;
+                float x3 = x2 * x;
+                float x5 = x3 * x2;
 
-                float levelGate = clamp01((sourceEnvelope - 0.0012f) / 0.010f);
+                float third = x3 - x * 0.35f;
+                float fifth = x5 - x3 * 0.55f;
+                float second = x2 - 0.5f;
 
-                // Keep some harmonic output before pitch lock is fully stable.
-                float reliabilityFloor = 0.32f + amountLevel * 0.28f;
-                float reliable = Math.max(reliabilityFloor, clamp01(trackingReliability)) * levelGate;
+                float harmonic =
+                        third * (1.10f + lowCutoffBlend * 0.18f)
+                        + fifth * (0.36f + lowCutoffBlend * 0.10f)
+                        + second * (0.18f * lowCutoffBlend * (1f - fartZoneBlend * 0.85f));
 
-                // Small low-end content still needs help to stay audible.
-                float perceivedEnvelope = sourceEnvelope + sourceEnvelope * amountLevel * 0.75f;
+                float raw = harmonic * sourceEnvelope * sourceScale;
 
-                float amp = perceivedEnvelope * sourceScale * reliable;
+                float dcBlocked = raw - outputDcX + outputDcCoeff * outputDcY;
+                outputDcX = raw;
+                outputDcY = dcBlocked;
 
-                float h2 = fastSin(phase * 2f);
-                float h3 = fastSin(phase * 3f);
-                float h4 = fastSin(phase * 4f);
-
-                float generated = amp * (h2 * h2Mix + h3 * h3Mix + h4 * h4Mix);
-
-                harmonicBand[frame] = finiteOrZero(generated);
+                harmonicBand[frame] = finiteOrZero(dcBlocked);
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
@@ -475,41 +437,6 @@ final class PcmDspProcessor {
             }
         }
 
-        private void updateFrequencyTracker(float low, float absLow) {
-            samplesSinceCrossing++;
-
-            float threshold = Math.max(0.0008f, sourceEnvelope * 0.10f);
-            boolean risingCrossing = previousLow < 0f && low >= 0f && absLow > threshold;
-
-            if (risingCrossing) {
-                int period = samplesSinceCrossing;
-
-                if (period >= minPeriodSamples && period <= maxPeriodSamples) {
-                    if (periodSmooth <= 0f) {
-                        periodSmooth = period;
-                    } else {
-                        periodSmooth += (period - periodSmooth) * 0.20f;
-                    }
-
-                    float measuredHz = sampleRate / Math.max(1f, periodSmooth);
-                    targetHz = clamp(measuredHz, minTrackHz, maxTrackHz);
-
-                    trackingReliability += (1f - trackingReliability) * 0.34f;
-                    samplesSinceCrossing = 0;
-                } else if (period > maxPeriodSamples * 2) {
-                    trackingReliability *= 0.992f;
-                    samplesSinceCrossing = 0;
-                }
-            }
-
-            if (samplesSinceCrossing > maxPeriodSamples * 3) {
-                trackingReliability *= 0.9994f;
-                samplesSinceCrossing = maxPeriodSamples * 3;
-            }
-
-            previousLow = low;
-        }
-
         boolean isActive() {
             return harmonicMix > 0.0001f;
         }
@@ -537,18 +464,6 @@ final class PcmDspProcessor {
             return fastTanh(normalized) * safe;
         }
 
-        private static float fastSin(float value) {
-            float x = value;
-            while (x > PI) {
-                x -= TWO_PI;
-            }
-            while (x < -PI) {
-                x += TWO_PI;
-            }
-
-            float y = 1.27323954f * x - 0.405284735f * x * Math.abs(x);
-            return 0.225f * (y * Math.abs(y) - y) + y;
-        }
     }
 
     private static final class MonoBiquad {
