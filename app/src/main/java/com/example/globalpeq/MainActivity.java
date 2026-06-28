@@ -1922,12 +1922,6 @@ public final class MainActivity extends Activity {
         if (monitorSettingsDetailView != null) {
             monitorSettingsDetailView.setText(monitorSettingsDetailText());
         }
-        if (monitorCaptureLabelView != null) {
-            monitorCaptureLabelView.setText(monitorCaptureLabelText());
-        }
-        if (monitorCaptureButton != null) {
-            monitorCaptureButton.setText(monitorCaptureButtonText());
-        }
         if (monitorCaptureStatusView != null) {
             monitorCaptureStatusView.setText(monitorCaptureStatusText());
         }
