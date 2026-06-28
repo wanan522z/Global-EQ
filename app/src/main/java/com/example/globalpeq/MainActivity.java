@@ -6584,8 +6584,11 @@ public final class MainActivity extends Activity {
         runningPreset = editingPreset.withEnabled(runningPreset.enabled && supported);
         if (enabledSwitch != null) {
             updatingUi = true;
-            enabledSwitch.setChecked(runningPreset.enabled);
-            updatingUi = false;
+            try {
+                enabledSwitch.setChecked(runningPreset.enabled);
+            } finally {
+                updatingUi = false;
+            }
         }
         applyRunningPreset();
     }
