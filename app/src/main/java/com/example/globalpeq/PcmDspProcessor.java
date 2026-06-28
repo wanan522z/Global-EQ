@@ -222,6 +222,7 @@ final class PcmDspProcessor {
         private float[] monoSource = new float[0];
         private float[] monoLow = new float[0];
         private float[] harmonicBand = new float[0];
+        private float envelope;
         private float dcBlockX;
         private float dcBlockY;
 
@@ -249,10 +250,10 @@ final class PcmDspProcessor {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
 
-            int cutoff = clampInt(requestedCutoff, 45, 160);
+            int cutoff = clampInt(requestedCutoff, 45, 180);
 
-            int harmLow = clampInt(Math.round(cutoff * 1.6f), 110, 260);
-            int harmHigh = clampInt(Math.round(cutoff * 5.2f), harmLow + 120, 650);
+            int harmLow = clampInt(Math.round(cutoff * 1.35f), 95, 260);
+            int harmHigh = clampInt(Math.round(cutoff * 6.5f), harmLow + 180, 780);
 
             extractHighPass = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.HIGH_PASS, true, 25, 0, 70),
@@ -270,10 +271,11 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 75),
                     sampleRate);
 
-            harmonicMix = amount * 0.65f;
-            drive = 1.2f + amount * 2.1f;
-            harmonicCeiling = 0.16f + amount * 0.10f;
+            harmonicMix = amount * 1.25f;
+            drive = 1.45f + amount * 4.8f;
+            harmonicCeiling = 0.22f + amount * 0.18f;
 
+            envelope = 0f;
             dcBlockX = 0f;
             dcBlockY = 0f;
         }
@@ -301,16 +303,22 @@ final class PcmDspProcessor {
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float low = monoLow[frame];
-                float driven = low * drive;
+                float absLow = Math.abs(low);
+                envelope += (absLow - envelope) * (absLow > envelope ? 0.06f : 0.014f);
 
-                float saturated = fastTanh(driven);
-                float third = saturated - driven * 0.72f;
-                float second = saturated * saturated;
-                second = second - 0.18f;
+                float envDrive = 0.9f + Math.min(1f, envelope * 8.0f) * 0.45f;
+                float driven = low * drive * envDrive;
 
-                float shaped = third * 0.72f + second * 0.18f;
+                float sat1 = fastTanh(driven);
+                float sat2 = fastTanh(driven * 1.85f);
 
-                float dcBlocked = shaped - dcBlockX + 0.995f * dcBlockY;
+                float third = sat2 - driven * 0.55f;
+                float second = sat1 * sat1;
+                second -= 0.10f + Math.min(0.22f, envelope * 0.75f);
+
+                float shaped = third * 0.70f + second * 0.30f;
+
+                float dcBlocked = shaped - dcBlockX + 0.996f * dcBlockY;
                 dcBlockX = shaped;
                 dcBlockY = dcBlocked;
 
@@ -345,7 +353,7 @@ final class PcmDspProcessor {
         private static float softLimit(float value, float ceiling) {
             float safeCeiling = Math.max(0.05f, ceiling);
             float normalized = value / safeCeiling;
-            if (Math.abs(normalized) < 0.78f) {
+            if (Math.abs(normalized) < 1.05f) {
                 return value;
             }
             return fastTanh(normalized) * safeCeiling;
