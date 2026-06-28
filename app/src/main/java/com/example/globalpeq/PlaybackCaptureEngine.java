@@ -228,15 +228,6 @@ final class PlaybackCaptureEngine {
         publishStatus("Native capture is idle.", false);
     }
 
-    synchronized void pauseForShizukuIdle() {
-        stopPipelineLocked();
-        if (mediaProjection != null) {
-            publishStatus("Capture authorized for system audio.", false);
-        } else {
-            publishStatus("Native capture is idle.", false);
-        }
-    }
-
     private int resolveTargetUid(String packageName) {
         try {
             ApplicationInfo info = packageManager.getApplicationInfo(packageName, 0);

@@ -69,6 +69,7 @@ public final class GlobalEqForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         repository = new PresetRepository(this);
+        repository.saveServiceActive(true);
         engine = GlobalEqRuntime.engine();
         currentProcessingMode = repository.loadProcessingMode();
         currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
@@ -169,8 +170,22 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        refreshSavedPresetState();
+        if (currentProcessingMode == ProcessingMode.SHIZUKU_MUTE
+                && currentPreset != null
+                && currentPreset.enabled) {
+            requestPauseShizukuAndStopService();
+        }
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
     public void onDestroy() {
         deviceMonitor.stop();
+        if (repository != null) {
+            repository.saveServiceActive(false);
+        }
         if (captureControlHandler != null) {
             captureControlHandler.removeCallbacksAndMessages(null);
         }
@@ -274,7 +289,7 @@ public final class GlobalEqForegroundService extends Service {
             content = currentDevice.label;
         }
         return builder
-                .setSmallIcon(R.drawable.ic_eq)
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(state)
                 .setContentText(content)
                 .setContentIntent(pendingIntent)
@@ -352,11 +367,6 @@ public final class GlobalEqForegroundService extends Service {
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
         handler.post(() -> shizukuMuteEngine.stopAll());
-    }
-
-    private void schedulePauseShizukuSession() {
-        scheduleCaptureStopAll();
-        scheduleShizukuStopAll();
     }
 
     private void requestPauseShizukuAndStopService() {

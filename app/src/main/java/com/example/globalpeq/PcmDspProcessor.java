@@ -65,10 +65,8 @@ final class PcmDspProcessor {
                     if (!band.enabled) {
                         continue;
                     }
-                    if (band.type == FilterType.HIGH_PASS
-                            || band.type == FilterType.LOW_PASS
-                            || band.gainMb != 0) {
-                        filters.add(Biquad.fromBand(band, sampleRate, channelCount));
+                    for (ParametricBand effectiveBand : PeqMath.effectiveResponseBands(band)) {
+                        filters.add(Biquad.fromBand(effectiveBand, sampleRate, channelCount));
                     }
                 }
             }
@@ -159,70 +157,12 @@ final class PcmDspProcessor {
 
         static Biquad fromBand(ParametricBand band, int sampleRate, int channelCount) {
             Biquad biquad = new Biquad(channelCount);
-            double frequency = Math.max(20.0, Math.min(sampleRate * 0.45, band.frequencyHz));
-            double omega = 2.0 * Math.PI * frequency / sampleRate;
-            double sin = Math.sin(omega);
-            double cos = Math.cos(omega);
-            double q = Math.max(0.2, band.qHundred / 100.0);
-            double a = Math.pow(10.0, band.gainMb / 4000.0);
-            double alpha = sin / (2.0 * q);
-            double beta = Math.sqrt(a) / q;
-            double b0;
-            double b1;
-            double b2;
-            double a0;
-            double a1;
-            double a2;
-
-            switch (band.type) {
-                case LOW_SHELF:
-                    b0 = a * ((a + 1.0) - (a - 1.0) * cos + beta * sin);
-                    b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos);
-                    b2 = a * ((a + 1.0) - (a - 1.0) * cos - beta * sin);
-                    a0 = (a + 1.0) + (a - 1.0) * cos + beta * sin;
-                    a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos);
-                    a2 = (a + 1.0) + (a - 1.0) * cos - beta * sin;
-                    break;
-                case HIGH_SHELF:
-                    b0 = a * ((a + 1.0) + (a - 1.0) * cos + beta * sin);
-                    b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos);
-                    b2 = a * ((a + 1.0) + (a - 1.0) * cos - beta * sin);
-                    a0 = (a + 1.0) - (a - 1.0) * cos + beta * sin;
-                    a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos);
-                    a2 = (a + 1.0) - (a - 1.0) * cos - beta * sin;
-                    break;
-                case LOW_PASS:
-                    b0 = (1.0 - cos) * 0.5;
-                    b1 = 1.0 - cos;
-                    b2 = (1.0 - cos) * 0.5;
-                    a0 = 1.0 + alpha;
-                    a1 = -2.0 * cos;
-                    a2 = 1.0 - alpha;
-                    break;
-                case HIGH_PASS:
-                    b0 = (1.0 + cos) * 0.5;
-                    b1 = -(1.0 + cos);
-                    b2 = (1.0 + cos) * 0.5;
-                    a0 = 1.0 + alpha;
-                    a1 = -2.0 * cos;
-                    a2 = 1.0 - alpha;
-                    break;
-                case PEAK:
-                default:
-                    b0 = 1.0 + alpha * a;
-                    b1 = -2.0 * cos;
-                    b2 = 1.0 - alpha * a;
-                    a0 = 1.0 + alpha / a;
-                    a1 = -2.0 * cos;
-                    a2 = 1.0 - alpha / a;
-                    break;
-            }
-
-            biquad.b0 = (float) (b0 / a0);
-            biquad.b1 = (float) (b1 / a0);
-            biquad.b2 = (float) (b2 / a0);
-            biquad.a1 = (float) (a1 / a0);
-            biquad.a2 = (float) (a2 / a0);
+            double[] coefficients = PeqMath.normalizedBiquadCoefficients(band, sampleRate);
+            biquad.b0 = (float) coefficients[0];
+            biquad.b1 = (float) coefficients[1];
+            biquad.b2 = (float) coefficients[2];
+            biquad.a1 = (float) coefficients[3];
+            biquad.a2 = (float) coefficients[4];
             if (!Float.isFinite(biquad.b0)
                     || !Float.isFinite(biquad.b1)
                     || !Float.isFinite(biquad.b2)

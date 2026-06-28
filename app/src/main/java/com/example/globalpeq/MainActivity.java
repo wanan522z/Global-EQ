@@ -2,6 +2,7 @@ package com.example.globalpeq;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
@@ -42,6 +43,8 @@ import android.view.ViewTreeObserver;
 import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -534,6 +537,10 @@ public final class MainActivity extends Activity {
         }
     };
     private boolean awaitingInitialDeviceMonitorEvent;
+    private boolean suppressInitialDeviceReapply;
+    private boolean hasStartedDeviceMonitorOnce;
+    private OnBackInvokedCallback systemBackCallback;
+    private boolean systemBackCallbackRegistered;
 
     private static final class PeqBandRowHolder {
         View enable;
@@ -577,6 +584,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        registerSystemBackCallback();
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
         supported = true;
@@ -606,14 +614,8 @@ public final class MainActivity extends Activity {
         runningPreset = loadedPreset.withEnabled(masterEnabled && supported);
         modeVisualEnabled = runningPreset.enabled;
         curveVisualEnabled = runningPreset.enabled;
-        Preset draftPreset = repository.loadDraftPreset();
-        editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
-        if (editingPreset != null && runningPreset != null && editingPreset.name.equals(runningPreset.name)) {
-            editingPreset = editingPreset.withEnabled(runningPreset.enabled);
-        }
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        editingPreset = runningPreset;
+        syncEditingStateFromPreset();
 
         requestRuntimePermissions();
         setContentView(buildContent());
@@ -632,6 +634,11 @@ public final class MainActivity extends Activity {
         refreshActivePlaybackPackageFromRepository();
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.post(activePlaybackPackageRefreshRunnable);
+        boolean serviceActive = repository != null
+                && hasStartedDeviceMonitorOnce
+                && syncRuntimeStateWithServiceProcess();
+        suppressInitialDeviceReapply = serviceActive;
+        hasStartedDeviceMonitorOnce = true;
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
     }
@@ -649,7 +656,6 @@ public final class MainActivity extends Activity {
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
         flushPendingPresetPersistence();
-        pauseShizukuCaptureIfClosing();
         activePlaybackPackageName = "";
         deviceMonitor.stop();
         ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
@@ -666,7 +672,9 @@ public final class MainActivity extends Activity {
                     ShizukuCompat.hasPermission());
         }
         refreshActivePlaybackPackageFromRepository();
-        renderAll();
+        refreshRuntimeStatusUi();
+        refreshDeviceSelectionUi();
+        updateEditStateLabels();
         maybeAutoResumeShizukuCapture();
     }
 
@@ -698,6 +706,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        unregisterSystemBackCallback();
         shimmerTargetViews.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         uiHandler.removeCallbacks(commitPeqToggleRunnable);
@@ -708,7 +717,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(persistPresetStateRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
-        pauseShizukuCaptureIfClosing();
+        requestShizukuStopIfClosing();
         super.onDestroy();
     }
 
@@ -755,33 +764,15 @@ public final class MainActivity extends Activity {
             pendingMonitorCaptureAuthorization = false;
             if (resultCode != RESULT_OK || data == null) {
                 repository.saveMonitorCaptureStatus("Capture authorization was cancelled.", false);
-                renderAll();
+                refreshRuntimeStatusUi();
                 return;
             }
             repository.saveMonitorCaptureStatus("Starting native capture...", false);
-            renderAll();
-            Intent service = new Intent(this, GlobalEqForegroundService.class);
-            service.setAction(GlobalEqForegroundService.ACTION_BOOTSTRAP_CAPTURE);
+            refreshRuntimeStatusUi();
+            Intent service = buildRunningPresetServiceIntent(GlobalEqForegroundService.ACTION_BOOTSTRAP_CAPTURE);
             service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_RESULT_CODE, resultCode);
             service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_DATA, new Intent(data));
-            if (runningPreset != null) {
-                service.putExtra(GlobalEqForegroundService.EXTRA_PRESET_JSON, runningPreset.toJson());
-            }
-            if (currentDevice != null) {
-                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_KEY, currentDevice.key);
-                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_LABEL, currentDevice.label);
-            }
-            if (processingMode != null) {
-                service.putExtra(GlobalEqForegroundService.EXTRA_PROCESSING_MODE, processingMode.key);
-            }
-            if (advancedModeConfig != null) {
-                service.putExtra(GlobalEqForegroundService.EXTRA_ADVANCED_MODE_CONFIG_JSON, advancedModeConfig.toJson());
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(service);
-            } else {
-                startService(service);
-            }
+            startCompatibleForegroundService(service);
             return;
         }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
@@ -860,24 +851,30 @@ public final class MainActivity extends Activity {
             awaitingInitialDeviceMonitorEvent = false;
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
+            if (suppressInitialDeviceReapply) {
+                suppressInitialDeviceReapply = false;
+                adoptDevicePresetForCurrentMode(currentDevice, true);
+                renderAll();
+                return;
+            }
             if (!autoSwitchOutput) {
-                renderDeviceSpinner();
+                refreshDeviceSelectionUi();
                 return;
             }
             if (sameDevice) {
-                renderDeviceSpinner();
+                refreshDeviceSelectionUi();
                 return;
             }
         }
         if (!autoSwitchOutput) {
-            renderDeviceSpinner();
+            refreshDeviceSelectionUi();
             return;
         }
 
         if (sameDevice) {
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
-            renderDeviceSpinner();
+            refreshDeviceSelectionUi();
             return;
         }
 
@@ -1147,8 +1144,8 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 String name = String.valueOf(parent.getItemAtPosition(position));
-                if (editingPreset != null && !name.equals(editingPreset.name)) {
-                    loadPresetForEditing(name);
+                if (runningPreset != null && !samePresetSelection(name, presetName(runningPreset))) {
+                    loadMatchedPreset(name);
                 }
             }
 
@@ -2037,6 +2034,41 @@ public final class MainActivity extends Activity {
         updateBottomNavSelection(activeMainPageIndex);
     }
 
+    private boolean handleBackNavigation() {
+        if (monitorSettingsOpen) {
+            hideAdvancedSettingsSubpage();
+            return true;
+        }
+        return false;
+    }
+
+    private void registerSystemBackCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || systemBackCallbackRegistered) {
+            return;
+        }
+        if (systemBackCallback == null) {
+            systemBackCallback = () -> {
+                if (!handleBackNavigation()) {
+                    MainActivity.super.onBackPressed();
+                }
+            };
+        }
+        getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                systemBackCallback);
+        systemBackCallbackRegistered = true;
+    }
+
+    private void unregisterSystemBackCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || !systemBackCallbackRegistered
+                || systemBackCallback == null) {
+            return;
+        }
+        getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(systemBackCallback);
+        systemBackCallbackRegistered = false;
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -2058,8 +2090,7 @@ public final class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (monitorSettingsOpen) {
-            hideAdvancedSettingsSubpage();
+        if (handleBackNavigation()) {
             return;
         }
         super.onBackPressed();
@@ -2146,12 +2177,12 @@ public final class MainActivity extends Activity {
         }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (!granted) {
-            renderAll();
+            refreshRuntimeStatusUi();
             return;
         }
         applyRunningPreset();
         if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
-            renderAll();
+            refreshRuntimeStatusUi();
             return;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -2162,7 +2193,7 @@ public final class MainActivity extends Activity {
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             pendingMonitorCaptureAuthorization = true;
             repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
-            renderAll();
+            refreshRuntimeStatusUi();
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
             return;
         }
@@ -3330,17 +3361,8 @@ public final class MainActivity extends Activity {
     private void renderAll() {
         updatingUi = true;
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
-        updateMonitoredAppIcon();
-        if (statusText != null) {
-            setTextIfChanged(statusText, statusLabel(hasClip));
-            styleStatusText(hasClip);
-            statusText.postInvalidate();
-        }
-        if (engineStatusValueView != null) {
-            setTextIfChanged(engineStatusValueView, engineStatusText());
-            styleGradientTitle(engineStatusValueView);
-        }
-        renderDeviceSpinner();
+        refreshRuntimeStatusUi(hasClip);
+        refreshDeviceSelectionUi();
         if (modeSpinner != null) {
             setTextIfChanged(modeSpinner, editingPreset.mode.label);
             styleModeText();
@@ -3381,7 +3403,7 @@ public final class MainActivity extends Activity {
                     : advancedModeConfig.monitoredAppLabel);
         }
         if (presetSelectButton != null) {
-            setTextIfChanged(presetSelectButton, presetDisplayName(runningPreset));
+            setTextIfChanged(presetSelectButton, presetDisplayName(editingPreset));
         }
         if (enabledSwitch != null) {
             enabledSwitch.setChecked(runningPreset.enabled);
@@ -3424,7 +3446,18 @@ public final class MainActivity extends Activity {
         updatingUi = false;
     }
 
-    private void refreshMonitorStatusViews() {
+    private void refreshRuntimeStatusUi() {
+        boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
+        refreshRuntimeStatusUi(hasClip);
+    }
+
+    private void refreshRuntimeStatusUi(boolean hasClip) {
+        updateMonitoredAppIcon();
+        if (statusText != null) {
+            setTextIfChanged(statusText, statusLabel(hasClip));
+            styleStatusText(hasClip);
+            statusText.postInvalidate();
+        }
         if (engineStatusValueView != null) {
             setTextIfChanged(engineStatusValueView, engineStatusText());
             styleGradientTitle(engineStatusValueView);
@@ -3432,6 +3465,9 @@ public final class MainActivity extends Activity {
         if (processingModeButton != null) {
             setTextIfChanged(processingModeButton, engineStatusText());
             styleGradientTitle(processingModeButton);
+        }
+        if (advancedModeDetailButton != null) {
+            advancedModeDetailButton.setVisibility(AudioProcessingPolicy.advancedModeEnabled(processingMode) ? View.VISIBLE : View.GONE);
         }
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
@@ -3454,12 +3490,41 @@ public final class MainActivity extends Activity {
             shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
         }
         if (advancedMonitorAppButton != null) {
-            setTextIfChanged(advancedMonitorAppButton,
-                    advancedModeConfig.monitoredAppLabel.isEmpty()
-                            ? chooseAppText()
-                            : advancedModeConfig.monitoredAppLabel);
+            setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
+                    ? chooseAppText()
+                    : advancedModeConfig.monitoredAppLabel);
         }
-        updateMonitoredAppIcon();
+    }
+
+    private void refreshDeviceSelectionUi() {
+        renderDeviceSpinner();
+        if (autoSwitchOutputSwitch != null) {
+            autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
+        }
+        renderSavedPresetSpinner();
+    }
+
+    private void refreshEditingPresetUi() {
+        updatingUi = true;
+        if (modeSpinner != null) {
+            setTextIfChanged(modeSpinner, editingPreset.mode.label);
+            styleModeText();
+        }
+        if (pregainInput != null) {
+            setEditTextIfChanged(pregainInput, formatDecimal(editingPreset.pregainMb / 100f));
+        }
+        refreshDeviceSelectionUi();
+        renderCurveButtons();
+        refreshCurveView();
+        renderHeader();
+        renderRows();
+        updateExtraControls();
+        updateEditStateLabels();
+        updatingUi = false;
+    }
+
+    private void refreshMonitorStatusViews() {
+        refreshRuntimeStatusUi();
     }
 
     private Preset curveDisplayPreset() {
@@ -3646,19 +3711,20 @@ public final class MainActivity extends Activity {
     }
 
     private void showSavedPresetChoiceMenu() {
-        if (savedPresetSpinner == null || editingPreset == null) {
+        if (savedPresetSpinner == null || runningPreset == null) {
             return;
         }
         List<String> names = repository.loadNamedPresetNames();
-        if (!names.contains(editingPreset.name)) {
+        String matchedName = presetDisplayName(runningPreset);
+        if (!names.contains(matchedName)) {
             names = new ArrayList<>(names);
-            names.add(0, editingPreset.name);
+            names.add(0, matchedName);
         }
         String[] labels = names.toArray(new String[0]);
-        int selected = Math.max(0, names.indexOf(editingPreset.name));
+        int selected = Math.max(0, names.indexOf(matchedName));
         showLimitedChoiceMenu(savedPresetSpinner, labels, selected, position -> {
-            if (position >= 0 && position < labels.length && !labels[position].equals(editingPreset.name)) {
-                loadPresetForEditing(labels[position]);
+            if (position >= 0 && position < labels.length && !samePresetSelection(labels[position], matchedName)) {
+                loadMatchedPreset(labels[position]);
             }
         });
     }
@@ -4007,7 +4073,7 @@ public final class MainActivity extends Activity {
         add.setLayoutParams(params);
         add.setOnClickListener(v -> {
             setEditingPreset(editingPreset.withAddedBand(), true);
-            renderAll();
+            refreshEditingPresetUi();
         });
         return add;
     }
@@ -4076,7 +4142,7 @@ public final class MainActivity extends Activity {
 
         holder.q = createNumberInput(formatDecimal(band.qHundred / 100f), "Q", value -> {
             int qHundred = Math.round(value * 100f);
-            updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 20, 1000)));
+            updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 0, 1000)));
         });
         attachEqEditFocus(holder.q, index, EQ_EDIT_FIELD_Q);
         row.addView(holder.q, cellParams(1f, 36));
@@ -4444,7 +4510,7 @@ public final class MainActivity extends Activity {
         });
         overlay.addView(gainInput);
         EditText qInput = createEqOverlayInput(formatDecimal(band.qHundred / 100f), "Q", 1f, value -> {
-            int qHundred = clamp(Math.round(value * 100f), 20, 1000);
+            int qHundred = clamp(Math.round(value * 100f), 0, 1000);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withQHundred(qHundred));
         });
         overlay.addView(qInput);
@@ -4613,7 +4679,7 @@ public final class MainActivity extends Activity {
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", (d, which) -> {
                     setEditingPreset(editingPreset.withoutBand(index), true);
-                    renderAll();
+                    refreshEditingPresetUi();
                 })
                 .create();
         dialog.show();
@@ -4637,7 +4703,7 @@ public final class MainActivity extends Activity {
             deviceCurveSmoothing = "Default";
             refreshDeviceCurveCache();
             syncCurrentCurveSettingsToEditingPreset(true);
-            renderAll();
+            refreshEditingPresetUi();
         }, item -> imported.contains(item), item -> {
             repository.deleteDeviceCurve(item);
             if (item.equals(selectedDeviceCurveName)) {
@@ -4646,7 +4712,7 @@ public final class MainActivity extends Activity {
                 deviceCurveSmoothing = "Default";
                 refreshDeviceCurveCache();
                 syncCurrentCurveSettingsToEditingPreset(true);
-                renderAll();
+                refreshEditingPresetUi();
             }
         });
     }
@@ -4670,7 +4736,7 @@ public final class MainActivity extends Activity {
             targetCurveSmoothing = "Default";
             refreshTargetCurveCache();
             syncCurrentCurveSettingsToEditingPreset(true);
-            renderAll();
+            refreshEditingPresetUi();
         }, item -> imported.contains(item), item -> {
             repository.deleteTargetCurve(item);
             if (item.equals(selectedTargetCurveName)) {
@@ -4679,7 +4745,7 @@ public final class MainActivity extends Activity {
                 targetCurveSmoothing = "Default";
                 refreshTargetCurveCache();
                 syncCurrentCurveSettingsToEditingPreset(true);
-                renderAll();
+                refreshEditingPresetUi();
             }
         });
     }
@@ -5557,17 +5623,12 @@ public final class MainActivity extends Activity {
 
     private void applyImportedPreset(Preset imported, boolean applyLive) {
         Preset limited = limitPresetForHeadroom(imported);
-        editingPreset = limited;
         runningPreset = limited.withEnabled(currentMasterEnabled());
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(limited, true);
         repository.saveDraftPreset(editingPreset);
         if (editingPreset.name != null && !editingPreset.name.trim().isEmpty()) {
             repository.saveNamedPreset(editingPreset);
         }
-        undoStack.clear();
-        redoStack.clear();
         renderAll();
         if (applyLive) {
             applyRunningPreset(true);
@@ -5637,13 +5698,8 @@ public final class MainActivity extends Activity {
         }
         Preset activeDevicePreset = loadScopedPreset(currentDevice, processingMode);
         runningPreset = activeDevicePreset.withEnabled(masterEnabled);
-        editingPreset = resolveImportedEditingPreset(config.stateFor(processingMode), runningPreset);
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(resolveImportedEditingPreset(config.stateFor(processingMode), runningPreset), true);
         repository.saveDraftPreset(editingPreset);
-        undoStack.clear();
-        redoStack.clear();
         renderDeviceSpinner();
         renderAll();
         applyRunningPreset(shouldForceFullResetForCurrentMode());
@@ -5835,7 +5891,7 @@ public final class MainActivity extends Activity {
     }
 
     private View createPresetMenuRow(String name, AlertDialog[] dialogHolder) {
-        boolean active = samePresetSelection(name, presetName(runningPreset));
+        boolean active = samePresetSelection(name, presetName(editingPreset));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5861,13 +5917,13 @@ public final class MainActivity extends Activity {
             if (dialogHolder[0] != null) {
                 dialogHolder[0].dismiss();
             }
-            loadPresetLive(name);
+            loadPresetForEditing(name);
         });
         row.setOnClickListener(v -> {
             if (dialogHolder[0] != null) {
                 dialogHolder[0].dismiss();
             }
-            loadPresetLive(name);
+            loadPresetForEditing(name);
         });
         row.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1f));
 
@@ -5920,16 +5976,11 @@ public final class MainActivity extends Activity {
                 ? Preset.flat(runningPreset != null && runningPreset.enabled).withName("Default")
                 : repository.loadNamedPreset(names.get(0));
         fallback = limitPresetForHeadroom(fallback);
-        editingPreset = fallback;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(fallback, true);
         if (deletedRunning) {
             runningPreset = editingPreset.withEnabled(runningPreset != null && runningPreset.enabled && supported);
             applyRunningPreset();
         }
-        undoStack.clear();
-        redoStack.clear();
         renderAll();
     }
 
@@ -5940,9 +5991,6 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        boolean updatesRunningPreset = runningPreset != null
-                && (runningPreset.name.equals(finalName)
-                || (oldTargetName != null && runningPreset.name.equals(oldTargetName)));
         Preset savedPreset = withCurrentCurveSettings(editingPreset).withName(finalName);
 
         if (oldTargetName != null && !oldTargetName.equals(finalName)) {
@@ -5951,33 +5999,19 @@ public final class MainActivity extends Activity {
             repository.saveNamedPreset(savedPreset);
         }
 
-        editingPreset = savedPreset;
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(savedPreset, true);
         repository.saveDraftPreset(editingPreset);
-        if (updatesRunningPreset) {
-            runningPreset = editingPreset.withEnabled(runningPreset.enabled && supported);
-            applyRunningPreset();
-        }
-        undoStack.clear();
-        redoStack.clear();
-        renderAll();
+        refreshEditingPresetUi();
         Toast.makeText(this, tr("Preset saved", "预设已保存"), Toast.LENGTH_SHORT).show();
     }
 
-    private void loadPresetLive(String name) {
+    private void loadMatchedPreset(String name) {
         flushPendingPresetPersistence();
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
-        runningPreset = selected.withEnabled(currentMasterEnabled());
-        editingPreset = runningPreset;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateMatchedPreset(selected, true);
         repository.saveDraftPreset(editingPreset);
-        undoStack.clear();
-        redoStack.clear();
-        renderAll();
+        refreshEditingPresetUi();
         applyRunningPreset(true);
     }
 
@@ -6015,12 +6049,11 @@ public final class MainActivity extends Activity {
                         return;
                     }
                     editingPreset = withCurrentCurveSettings(Preset.flat(runningPreset != null && runningPreset.enabled)).withName(name);
-                    syncSelectedVirtualBassModeFromPreset();
+                    syncEditingStateFromPreset();
                     repository.saveNamedPreset(editingPreset);
-                    undoStack.clear();
-                    redoStack.clear();
+                    clearPresetHistory();
                     persistEditingPreset();
-                    renderAll();
+                    refreshEditingPresetUi();
                 })
                 .create();
         dialog.show();
@@ -6031,15 +6064,9 @@ public final class MainActivity extends Activity {
         flushPendingPresetPersistence();
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
-        editingPreset = selected;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
-        undoStack.clear();
-        redoStack.clear();
-        renderAll();
+        activateEditingPreset(selected, true);
+        refreshEditingPresetUi();
         persistEditingPreset();
-        updateEditStateLabels();
     }
 
     private String nextPresetName() {
@@ -6084,7 +6111,7 @@ public final class MainActivity extends Activity {
         if (autoSwitchOutput) {
             handleDetectedOutputDevice(deviceMonitor.currentOutputDevice());
         } else {
-            renderDeviceSpinner();
+            refreshDeviceSelectionUi();
         }
     }
 
@@ -6128,15 +6155,7 @@ public final class MainActivity extends Activity {
 
     private void adoptDevicePresetForCurrentMode(AudioOutputDevice device, boolean clearHistory) {
         Preset loadedPreset = loadScopedPreset(device, processingMode);
-        runningPreset = loadedPreset.withEnabled(currentMasterEnabled());
-        editingPreset = runningPreset;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
-        if (clearHistory) {
-            undoStack.clear();
-            redoStack.clear();
-        }
+        activateMatchedPreset(loadedPreset, clearHistory);
     }
 
     private boolean shouldForceFullResetForCurrentMode() {
@@ -6156,34 +6175,75 @@ public final class MainActivity extends Activity {
             return;
         }
         try {
-            Preset persistedRunningPreset = withCurrentCurveSettings(runningPreset);
-            if (persistedRunningPreset != null) {
-                runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
-            }
-            repository.saveMasterEnabled(runningPreset.enabled);
-            scheduleRunningPresetPersistence();
-            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, runningPreset.virtualBassModeIndex);
-            if (forceFullReset && effectivePreset.enabled && shouldForceFullResetForCurrentMode()) {
-                engine.applyWithFullReset(effectivePreset);
-            } else {
-                engine.apply(effectivePreset);
-            }
+            prepareRunningPresetForApply();
+            applyRunningPresetToEngine(forceFullReset);
             if (notifyService) {
-                Intent service = new Intent(this, GlobalEqForegroundService.class);
-                service.setAction(GlobalEqForegroundService.ACTION_APPLY);
-                service.putExtra(GlobalEqForegroundService.EXTRA_PRESET_JSON, runningPreset.toJson());
-                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_KEY, currentDevice.key);
-                service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_LABEL, currentDevice.label);
-                service.putExtra(GlobalEqForegroundService.EXTRA_PROCESSING_MODE, processingMode.key);
-                service.putExtra(GlobalEqForegroundService.EXTRA_ADVANCED_MODE_CONFIG_JSON, advancedModeConfig.toJson());
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(service);
-                } else {
-                    startService(service);
-                }
+                notifyServiceAboutRunningPreset();
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    private void prepareRunningPresetForApply() {
+        Preset persistedRunningPreset = withCurrentCurveSettings(runningPreset);
+        if (persistedRunningPreset != null) {
+            runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
+        }
+        repository.saveMasterEnabled(runningPreset.enabled);
+        scheduleRunningPresetPersistence();
+    }
+
+    private void applyRunningPresetToEngine(boolean forceFullReset) {
+        Preset effectivePreset = effectiveRunningPreset();
+        if (forceFullReset && effectivePreset.enabled && shouldForceFullResetForCurrentMode()) {
+            engine.applyWithFullReset(effectivePreset);
+            return;
+        }
+        engine.apply(effectivePreset);
+    }
+
+    private Preset effectiveRunningPreset() {
+        return AudioProcessingPolicy.effectiveSystemPreset(
+                runningPreset,
+                processingMode,
+                runningPreset.virtualBassModeIndex);
+    }
+
+    private void notifyServiceAboutRunningPreset() {
+        Intent service = buildRunningPresetServiceIntent(GlobalEqForegroundService.ACTION_APPLY);
+        startCompatibleForegroundService(service);
+    }
+
+    private Intent buildRunningPresetServiceIntent(String action) {
+        Intent service = buildServiceIntent(action);
+        if (runningPreset != null) {
+            service.putExtra(GlobalEqForegroundService.EXTRA_PRESET_JSON, runningPreset.toJson());
+        }
+        if (currentDevice != null) {
+            service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_KEY, currentDevice.key);
+            service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_LABEL, currentDevice.label);
+        }
+        if (processingMode != null) {
+            service.putExtra(GlobalEqForegroundService.EXTRA_PROCESSING_MODE, processingMode.key);
+        }
+        if (advancedModeConfig != null) {
+            service.putExtra(GlobalEqForegroundService.EXTRA_ADVANCED_MODE_CONFIG_JSON, advancedModeConfig.toJson());
+        }
+        return service;
+    }
+
+    private Intent buildServiceIntent(String action) {
+        Intent service = new Intent(this, GlobalEqForegroundService.class);
+        service.setAction(action);
+        return service;
+    }
+
+    private void startCompatibleForegroundService(Intent service) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(service);
+            return;
+        }
+        startService(service);
     }
 
     private void scheduleEnabledToggleCommit() {
@@ -6229,24 +6289,57 @@ public final class MainActivity extends Activity {
                 || !runningPreset.enabled) {
             return;
         }
+        boolean serviceActive = syncRuntimeStateWithServiceProcess();
+        if (serviceActive
+                && repository.loadShizukuMuteActive()
+                && repository.loadMonitorCaptureActive()) {
+            return;
+        }
         ensureShizukuModeReady(true);
     }
 
-    private void pauseShizukuCaptureIfClosing() {
-        if (!isFinishing()
+    private boolean syncRuntimeStateWithServiceProcess() {
+        boolean active = isGlobalEqForegroundServiceRunning();
+        if (!active) {
+            repository.clearRuntimeAudioState(ShizukuCompat.describeState(this));
+        } else {
+            repository.saveServiceActive(true);
+        }
+        return active;
+    }
+
+    private boolean isGlobalEqForegroundServiceRunning() {
+        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        if (activityManager == null) {
+            return repository.loadServiceActive();
+        }
+        try {
+            for (ActivityManager.RunningServiceInfo serviceInfo
+                    : activityManager.getRunningServices(Integer.MAX_VALUE)) {
+                if (serviceInfo == null || serviceInfo.service == null) {
+                    continue;
+                }
+                if (getPackageName().equals(serviceInfo.service.getPackageName())
+                        && GlobalEqForegroundService.class.getName()
+                        .equals(serviceInfo.service.getClassName())) {
+                    return true;
+                }
+            }
+        } catch (SecurityException ignored) {
+            return repository.loadServiceActive();
+        }
+        return false;
+    }
+
+    private void requestShizukuStopIfClosing() {
+        if (isChangingConfigurations()
                 || processingMode != ProcessingMode.SHIZUKU_MUTE
                 || runningPreset == null
                 || !runningPreset.enabled) {
             return;
         }
         try {
-            Intent service = new Intent(this, GlobalEqForegroundService.class);
-            service.setAction(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(service);
-            } else {
-                startService(service);
-            }
+            startCompatibleForegroundService(buildServiceIntent(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU));
         } catch (Throwable ignored) {
         }
     }
@@ -6285,9 +6378,7 @@ public final class MainActivity extends Activity {
     private void stopShizukuCaptureNow() {
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         try {
-            Intent service = new Intent(this, GlobalEqForegroundService.class);
-            service.setAction(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU);
-            startService(service);
+            startService(buildServiceIntent(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU));
         } catch (Throwable ignored) {
         }
     }
@@ -6497,9 +6588,7 @@ public final class MainActivity extends Activity {
         if (savedPresetSpinner == null) {
             return;
         }
-        String activeName = editingPreset != null
-                ? editingPreset.name
-                : (runningPreset == null ? "Default" : runningPreset.name);
+        String activeName = presetDisplayName(runningPreset);
         List<String> names = repository.loadNamedPresetNames();
         if (!names.contains(activeName)) {
             names = new ArrayList<>(names);
@@ -6555,14 +6644,37 @@ public final class MainActivity extends Activity {
             redoStack.clear();
         }
         editingPreset = nextPreset;
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        syncEditingStateFromPreset();
         if (curveView != null) {
             refreshCurveView();
         }
         syncRunningIfEditingPresetIsActive();
         updateExtraControls();
         updateEditStateLabels();
+    }
+
+    private void activateMatchedPreset(Preset preset, boolean clearHistory) {
+        runningPreset = preset.withEnabled(currentMasterEnabled());
+        activateEditingPreset(runningPreset, clearHistory);
+    }
+
+    private void activateEditingPreset(Preset preset, boolean clearHistory) {
+        editingPreset = preset;
+        syncEditingStateFromPreset();
+        if (clearHistory) {
+            clearPresetHistory();
+        }
+    }
+
+    private void syncEditingStateFromPreset() {
+        applyPresetCurveSettings(editingPreset);
+        syncSelectedVirtualBassModeFromPreset();
+        syncExtraBassEnabledFromPreset();
+    }
+
+    private void clearPresetHistory() {
+        undoStack.clear();
+        redoStack.clear();
     }
 
     private boolean samePresetSelection(Preset first, Preset second) {
@@ -6596,11 +6708,9 @@ public final class MainActivity extends Activity {
             return;
         }
         pushHistory(redoStack, editingPreset);
-        editingPreset = undoStack.remove(undoStack.size() - 1);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(undoStack.remove(undoStack.size() - 1), false);
         syncRunningIfEditingPresetIsActive();
-        renderAll();
+        refreshEditingPresetUi();
     }
 
     private void redoEdit() {
@@ -6610,11 +6720,9 @@ public final class MainActivity extends Activity {
             return;
         }
         pushHistory(undoStack, editingPreset);
-        editingPreset = redoStack.remove(redoStack.size() - 1);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(redoStack.remove(redoStack.size() - 1), false);
         syncRunningIfEditingPresetIsActive();
-        renderAll();
+        refreshEditingPresetUi();
     }
 
     private void persistEditingPreset() {
@@ -6724,7 +6832,7 @@ public final class MainActivity extends Activity {
 
     private void updateEditStateLabels() {
         if (presetSelectButton != null) {
-            setTextIfChanged(presetSelectButton, presetDisplayName(runningPreset));
+            setTextIfChanged(presetSelectButton, presetDisplayName(editingPreset));
         }
         if (undoButton != null) {
             styleButton(undoButton, false, !undoStack.isEmpty() && supported);
@@ -11343,7 +11451,7 @@ public final class MainActivity extends Activity {
             applyRunningPreset();
             ensureShizukuModeReady(true);
         }
-        renderAll();
+        refreshRuntimeStatusUi();
     }
 
     private void handleShizukuPermissionResult(int requestCode, int grantResult) {
@@ -11362,7 +11470,7 @@ public final class MainActivity extends Activity {
         } else {
             Toast.makeText(this, tr("Shizuku access was denied", "Shizuku \u6388\u6743\u88ab\u62d2\u7edd"), Toast.LENGTH_SHORT).show();
         }
-        renderAll();
+        refreshRuntimeStatusUi();
     }
 
     private void handleShizukuStateChanged() {
@@ -11372,7 +11480,7 @@ public final class MainActivity extends Activity {
         repository.saveShizukuMuteStatus(
                 ShizukuCompat.describeState(this),
                 ShizukuCompat.hasPermission());
-        uiHandler.post(this::renderAll);
+        uiHandler.post(this::refreshRuntimeStatusUi);
     }
 
     private static int clamp(int value, int min, int max) {

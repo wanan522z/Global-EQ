@@ -375,7 +375,7 @@ final class ShizukuSessionMuteEngine {
     }
 
     private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
-        if (configuration == null || !configuration.isActive()) {
+        if (configuration == null) {
             return false;
         }
         try {
@@ -568,6 +568,12 @@ final class ShizukuSessionMuteEngine {
         DynamicsProcessing effect = muteEffects.remove(sessionId);
         if (effect == null) {
             return;
+        }
+        try {
+            effect.setInputGainAllChannelsTo(0f);
+            effect.setEnabled(false);
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Error disabling mute effect for session: " + sessionId, ex);
         }
         try {
             effect.release();

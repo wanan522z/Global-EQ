@@ -7,28 +7,15 @@
 - `Default`：走系统 `Equalizer` / 系统音效链，兼容性更高，能力更保守。
 - `Shizuku Mode`：走 `MediaProjection + DSP + Shizuku` 的高级链路，支持更完整的 DSP 处理。
 
-## 当前构建状态
-
-本地已经确认：
-
-- 工作区中存在历史成功构建的调试包：
-  - [app-debug.apk](/C:/Users/31855/Documents/New%20project/GlobalPEQ/app/build/intermediates/apk/debug/app-debug.apk)
-- 这次已把离线 Gradle/插件仓库尽量补齐，但在当前受限环境下，`release` 构建仍被系统对 Android SDK 平台目录的读取权限拦住，卡在 `android-35/package.xml` 访问阶段。
-
-也就是说：
-
-- 项目代码和 README 已整理完成。
-- `release apk` 在这台受限环境里还没有成功产出。
-- 如果在 Android Studio 或有正常 SDK 读权限的机器上打开本项目，继续执行 `assembleRelease` 即可验证最终 `release` 包。
 
 ## 功能总览
 
 - 全局 PEQ / GEQ 调音。
-- 设备级预设保存与自动切换。
+- 设备预设保存与自动切换。
 - 命名预设、草稿预设、导入导出。
 - `Shizuku Mode` 下的系统音频捕获与 DSP 处理。
 - 虚拟低音、额外低音增强、混响。
-- 监听目标 App 选择与高级引擎参数调节。
+- 高级引擎参数调节。
 - 开机恢复、前台服务常驻、蓝牙/有线/扬声器路由跟踪。
 
 ## 界面与按钮说明
@@ -36,6 +23,7 @@
 下面按实际使用顺序梳理主要控件。
 
 ### 1. 顶部主控制区
+
 
 - `Enable` 总开关
   - 控制当前运行中的音效链是否启用。

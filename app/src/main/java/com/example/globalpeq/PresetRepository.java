@@ -39,6 +39,7 @@ final class PresetRepository {
     private static final String SHIZUKU_MUTE_STATUS = "shizuku_mute_status";
     private static final String SHIZUKU_MUTE_ACTIVE = "shizuku_mute_active";
     private static final String ACTIVE_PLAYBACK_PACKAGE = "active_playback_package";
+    private static final String SERVICE_ACTIVE = "service_active";
     private static final String DEVICE_SEPARATOR = "\t";
 
     private final Context appContext;
@@ -55,11 +56,6 @@ final class PresetRepository {
 
     void saveGlobalPreset(Preset preset) {
         prefs.edit().putString(GLOBAL_PRESET, stripRuntimeEnabled(preset).toJson()).apply();
-    }
-
-    Preset loadDraftPreset() {
-        String json = prefs.getString(DRAFT_PRESET, null);
-        return json == null ? null : stripRuntimeEnabled(Preset.fromJson(json));
     }
 
     void saveDraftPreset(Preset preset) {
@@ -198,6 +194,25 @@ final class PresetRepository {
     void saveActivePlaybackPackage(String packageName) {
         prefs.edit()
                 .putString(ACTIVE_PLAYBACK_PACKAGE, packageName == null ? "" : packageName.trim())
+                .apply();
+    }
+
+    boolean loadServiceActive() {
+        return prefs.getBoolean(SERVICE_ACTIVE, false);
+    }
+
+    void saveServiceActive(boolean active) {
+        prefs.edit().putBoolean(SERVICE_ACTIVE, active).apply();
+    }
+
+    void clearRuntimeAudioState(String shizukuStatus) {
+        prefs.edit()
+                .putString(MONITOR_CAPTURE_STATUS, "Native capture is idle.")
+                .putBoolean(MONITOR_CAPTURE_ACTIVE, false)
+                .putString(SHIZUKU_MUTE_STATUS, shizukuStatus == null ? "Shizuku mute is idle." : shizukuStatus)
+                .putBoolean(SHIZUKU_MUTE_ACTIVE, false)
+                .putString(ACTIVE_PLAYBACK_PACKAGE, "")
+                .putBoolean(SERVICE_ACTIVE, false)
                 .apply();
     }
 
