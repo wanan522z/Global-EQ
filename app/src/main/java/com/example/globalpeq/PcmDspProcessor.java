@@ -270,10 +270,8 @@ final class PcmDspProcessor {
             }
             uiCutoff = Math.min(220, Math.max(40, uiCutoff));
 
-            int cutoff = uiCutoff;
-
-            float beastAmount = (float) (Math.pow(virtualAmount, 0.65) * 0.70
-                    + Math.pow(virtualAmount, 4.0) * 2.30);
+            float beastAmount = (float) (Math.pow(virtualAmount, 0.5) * 1.20
+                    + Math.pow(virtualAmount, 3.0) * 3.80);
             float boostComp = 1.0f + (1.0f - (float) uiCutoff / 220f) * 0.5f;
             this.virtualAmount = virtualAmount;
             this.beastAmount = beastAmount;
@@ -284,20 +282,16 @@ final class PcmDspProcessor {
             this.envFast = 0.0f;
             this.envSlow = 0.0f;
 
+            int seedCutoff = (int) (uiCutoff * 0.55f);
+            seedCutoff = Math.max(20, seedCutoff);
             sourceLowPass1 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
+                    new ParametricBand(FilterType.LOW_PASS, true, seedCutoff, 0, 72),
                     sampleRate);
             sourceLowPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
+                    new ParametricBand(FilterType.LOW_PASS, true, seedCutoff, 0, 72),
                     sampleRate);
 
-            int mainHpCutoff;
-            if (dspAmount > 0f) {
-                mainHpCutoff = (int) (uiCutoff * 0.7f);
-            } else {
-                mainHpCutoff = 20;
-            }
-            mainHpCutoff = Math.max(20, Math.min(220, mainHpCutoff));
+            int mainHpCutoff = 20;
             int safetySubsonicCutoff = 20;
 
             mainHighPassL1 = new MonoBiquad[] {
@@ -333,7 +327,7 @@ final class PcmDspProcessor {
                             sampleRate)
             };
 
-            int hpHmHz = (int) (uiCutoff * 0.8f);
+            int hpHmHz = (int) (uiCutoff * 0.9f);
             int lpHmHz = Math.min(4800, (int) (uiCutoff * 8.0f));
             harmonicHighPass1 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 72),
