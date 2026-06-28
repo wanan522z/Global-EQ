@@ -230,6 +230,9 @@ final class PcmDspProcessor {
         private float drive;
         private float harmonicCeiling;
 
+        private float midCutoffBlend;
+        private float lowCutoffPunch;
+
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
@@ -252,11 +255,26 @@ final class PcmDspProcessor {
 
             int cutoff = clampInt(requestedCutoff, 35, 220);
 
-            int harmLow = clampInt(Math.round(cutoff * 1.55f), 65, 260);
-            int harmHigh = clampInt(Math.round(cutoff * 5.5f), harmLow + 160, 950);
+            midCutoffBlend = clamp01((cutoff - 70f) / 60f);
+            lowCutoffPunch = 1f - clamp01((cutoff - 35f) / 45f);
+
+            int harmLow = clampInt(
+                    Math.round(cutoff * (1.55f + midCutoffBlend * 0.45f)),
+                    65,
+                    280);
+
+            int harmHigh = clampInt(
+                    Math.round(cutoff * (5.5f + midCutoffBlend * 1.2f)),
+                    harmLow + 180,
+                    980);
 
             extractHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(25, Math.round(cutoff * 0.38f)), 0, 70),
+                    new ParametricBand(
+                            FilterType.HIGH_PASS,
+                            true,
+                            Math.max(25, Math.round(cutoff * 0.38f)),
+                            0,
+                            70),
                     sampleRate);
 
             extractLowPass = MonoBiquad.fromBand(
@@ -271,9 +289,9 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 72),
                     sampleRate);
 
-            harmonicMix = amount * 1.45f;
-            drive = 1.45f + amount * 5.2f;
-            harmonicCeiling = 0.20f + amount * 0.18f;
+            harmonicMix = amount * (1.18f + lowCutoffPunch * 0.34f - midCutoffBlend * 0.10f);
+            drive = 1.35f + amount * (4.55f + lowCutoffPunch * 1.15f - midCutoffBlend * 0.35f);
+            harmonicCeiling = 0.19f + amount * (0.15f + lowCutoffPunch * 0.05f);
 
             envelope = 0f;
             dcBlockX = 0f;
@@ -304,25 +322,28 @@ final class PcmDspProcessor {
             for (int frame = 0; frame < frameCount; frame++) {
                 float low = monoLow[frame];
                 float absLow = Math.abs(low);
-                envelope += (absLow - envelope) * (absLow > envelope ? 0.045f : 0.010f);
+                envelope += (absLow - envelope) * (absLow > envelope ? 0.050f : 0.011f);
 
-                float dynamic = Math.min(1f, envelope * 8.0f);
-                float driven = low * drive * (0.78f + dynamic * 0.50f);
+                float dynamic = Math.min(1f, envelope * (7.0f + lowCutoffPunch * 2.2f));
+                float driveScale = 0.80f + dynamic * (0.44f + lowCutoffPunch * 0.18f);
+                float driven = low * drive * driveScale;
 
-                // Do not use abs-based rectification to avoid "puffing".
                 float softA = fastTanh(driven);
-                float softB = fastTanh(driven * 2.05f);
-                float harmonic = softB - softA * 0.70f;
+                float softB = fastTanh(driven * (1.82f + midCutoffBlend * 0.28f));
+                float harmonic = softB - softA * (0.76f - lowCutoffPunch * 0.05f);
 
-                // Add a little second-order warmth without making it the main source.
-                float warmth = softA * softA - envelope * 0.18f;
-                harmonic += warmth * 0.10f;
+                // Keep warmth secondary, especially around 80-120 Hz where "puffing" is easier.
+                float warmthAmount = 0.04f + lowCutoffPunch * 0.07f - midCutoffBlend * 0.02f;
+                float warmth = (softA * softA - envelope * (0.12f + midCutoffBlend * 0.05f)) * warmthAmount;
+                harmonic += warmth;
 
-                float dcBlocked = harmonic - dcBlockX + 0.993f * dcBlockY;
+                float dcBlocked = harmonic - dcBlockX + (0.9935f + midCutoffBlend * 0.001f) * dcBlockY;
                 dcBlockX = harmonic;
                 dcBlockY = dcBlocked;
 
-                float gate = clamp01((envelope - 0.004f) / 0.028f);
+                float gateStart = 0.0035f + midCutoffBlend * 0.0020f;
+                float gateRange = 0.022f - lowCutoffPunch * 0.004f + midCutoffBlend * 0.004f;
+                float gate = clamp01((envelope - gateStart) / Math.max(0.010f, gateRange));
                 float shaped = dcBlocked * gate;
 
                 harmonicBand[frame] = softLimit(shaped, harmonicCeiling);
@@ -356,7 +377,7 @@ final class PcmDspProcessor {
         private static float softLimit(float value, float ceiling) {
             float safeCeiling = Math.max(0.05f, ceiling);
             float normalized = value / safeCeiling;
-            if (Math.abs(normalized) < 1.12f) {
+            if (Math.abs(normalized) < 1.10f) {
                 return value;
             }
             return fastTanh(normalized) * safeCeiling;
