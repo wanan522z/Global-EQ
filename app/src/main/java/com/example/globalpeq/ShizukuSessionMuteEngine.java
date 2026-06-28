@@ -33,6 +33,18 @@ final class ShizukuSessionMuteEngine {
     private static final Pattern SESSION_REGEX_33 = Pattern.compile(
             "Session ID:\\s*(\\d+);\\s*uid\\s*(\\d+);[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern SESSION_BLOCK_START_REGEX = Pattern.compile(
+            "Session\\s+I(?:d|D)\\s*:?\\s*(\\d+)(?:\\s*;)?",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SESSION_UID_REGEX = Pattern.compile(
+            "\\buid\\b\\s*:?\\s*(\\d+)",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SESSION_CONTENT_REGEX = Pattern.compile(
+            "Content\\s+type\\s*:?\\s*([A-Z0-9_]+)",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SESSION_USAGE_REGEX = Pattern.compile(
+            "Usage\\s*:?\\s*([A-Z0-9_]+)",
+            Pattern.CASE_INSENSITIVE);
 
     interface SessionIdProvider {
         Set<Integer> getOwnedAudioSessionIds();
@@ -336,6 +348,9 @@ final class ShizukuSessionMuteEngine {
             collectSessionsWithPattern(output, SESSION_REGEX_33, sessions);
         }
         if (sessions.isEmpty()) {
+            collectSessionsByBlocks(output, sessions);
+        }
+        if (sessions.isEmpty()) {
             Log.w(TAG, "No audio sessions matched the audio_policy dump");
         }
         return sessions;
@@ -360,10 +375,68 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
+    private void collectSessionsByBlocks(String output, List<SessionInfo> sessions) {
+        Matcher matcher = SESSION_BLOCK_START_REGEX.matcher(output);
+        List<int[]> blocks = new ArrayList<>();
+        while (matcher.find()) {
+            int sessionId = safeParseInt(matcher.group(1));
+            if (sessionId > 0) {
+                blocks.add(new int[]{sessionId, matcher.start()});
+            }
+        }
+
+        for (int i = 0; i < blocks.size(); i++) {
+            int sessionId = blocks.get(i)[0];
+            int start = blocks.get(i)[1];
+            int end = i + 1 < blocks.size() ? blocks.get(i + 1)[1] : output.length();
+            if (start < 0 || end <= start || end > output.length()) {
+                continue;
+            }
+
+            String block = output.substring(start, end);
+            int uid = findBlockInt(block, SESSION_UID_REGEX);
+            if (uid <= 0) {
+                continue;
+            }
+
+            String content = findBlockValue(block, SESSION_CONTENT_REGEX);
+            String usage = findBlockValue(block, SESSION_USAGE_REGEX);
+            if (usage.isEmpty()) {
+                continue;
+            }
+
+            String packageName = getPackageNameForUid(uid);
+            sessions.add(new SessionInfo(sessionId, uid, usage, content, packageName));
+        }
+    }
+
+    private int findBlockInt(String block, Pattern pattern) {
+        String value = findBlockValue(block, pattern);
+        return safeParseInt(value);
+    }
+
+    private String findBlockValue(String block, Pattern pattern) {
+        if (block == null || block.isEmpty()) {
+            return "";
+        }
+        Matcher matcher = pattern.matcher(block);
+        if (!matcher.find()) {
+            return "";
+        }
+        for (int i = 1; i <= matcher.groupCount(); i++) {
+            String value = matcher.group(i);
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
     private String muteOtherSessions(List<SessionInfo> sessions,
                                      ActivePlaybackSnapshot activePlayback,
                                      boolean applyMuteEffects) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
+        Set<Integer> desiredMuteSessionIds = new LinkedHashSet<>();
         String firstActivePackageName = activePlayback == null ? "" : activePlayback.primaryPackageName;
         for (SessionInfo session : sessions) {
             currentSessionIds.add(session.sessionId);
@@ -389,9 +462,7 @@ final class ShizukuSessionMuteEngine {
             if (currentAppSessionIds.contains(session.sessionId)) {
                 continue;
             }
-            String usage = session.usage.toUpperCase(Locale.US).trim();
-            if (!usage.contains("USAGE_MEDIA")
-                    && !usage.contains("USAGE_GAME")) {
+            if (!isEligibleSessionUsage(session.usage)) {
                 continue;
             }
             if (activePlayback != null
@@ -401,6 +472,23 @@ final class ShizukuSessionMuteEngine {
             }
             if (firstActivePackageName.isEmpty() && !session.packageName.isEmpty()) {
                 firstActivePackageName = session.packageName;
+            }
+            desiredMuteSessionIds.add(session.sessionId);
+        }
+
+        List<Integer> staleMutedSessions = new ArrayList<>();
+        for (Integer sid : muteEffects.keySet()) {
+            if (!applyMuteEffects || !desiredMuteSessionIds.contains(sid)) {
+                staleMutedSessions.add(sid);
+            }
+        }
+        for (Integer sid : staleMutedSessions) {
+            releaseEffect(sid);
+        }
+
+        for (SessionInfo session : sessions) {
+            if (!desiredMuteSessionIds.contains(session.sessionId)) {
+                continue;
             }
             if (!applyMuteEffects) {
                 continue;
@@ -441,11 +529,19 @@ final class ShizukuSessionMuteEngine {
             }
             int usage = attributes.getUsage();
             return usage == android.media.AudioAttributes.USAGE_MEDIA
-                    || usage == android.media.AudioAttributes.USAGE_GAME;
+                    || usage == android.media.AudioAttributes.USAGE_GAME
+                    || usage == android.media.AudioAttributes.USAGE_UNKNOWN;
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to inspect playback attributes", ex);
             return false;
         }
+    }
+
+    private boolean isEligibleSessionUsage(String usageValue) {
+        String usage = usageValue == null ? "" : usageValue.toUpperCase(Locale.US).trim();
+        return usage.contains("USAGE_MEDIA")
+                || usage.contains("USAGE_GAME")
+                || usage.contains("USAGE_UNKNOWN");
     }
 
     private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
