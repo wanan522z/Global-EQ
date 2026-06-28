@@ -56,7 +56,7 @@ final class AudioProcessingPolicy {
         }
         Preset effective = preset.withReverbType("Default");
         if (!systemVirtualBassAllowed(virtualBassModeIndex)) {
-            effective = effective.withVirtualBassAmountPercent(0);
+            effective = effective.withSystemVirtualBassAmountPercent(0);
         }
         return effective;
     }
