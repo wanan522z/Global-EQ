@@ -31,7 +31,6 @@
         <service
             android:name=".GlobalEqForegroundService"
             android:exported="false"
-            android:process=":audio"
             android:foregroundServiceType="mediaPlayback|mediaProjection" />
 
         <receiver
