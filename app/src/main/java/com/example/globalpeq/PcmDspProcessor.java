@@ -121,10 +121,10 @@ final class PcmDspProcessor {
             float input = finiteOrZero(samples[i]);
             samples[i] = clampSample(input * pregain * effectHeadroom);
         }
-        psychoacousticBass.process(samples, sampleCount, channelCount);
         for (Biquad filter : filters) {
             filter.process(samples, sampleCount, channelCount);
         }
+        psychoacousticBass.process(samples, sampleCount, channelCount);
         try {
             reverb.process(samples, sampleCount, channelCount);
         } catch (RuntimeException e) {
