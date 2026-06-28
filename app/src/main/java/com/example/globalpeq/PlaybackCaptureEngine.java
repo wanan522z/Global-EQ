@@ -505,6 +505,12 @@ final class PlaybackCaptureEngine {
         boolean enableDspBass = AudioProcessingPolicy.dspVirtualBassAllowed(
                 currentMode,
                 currentVirtualBassModeIndex);
+        Log.i(TAG, "reconfigureEffects mode=" + currentMode.key
+                + " modeIndex=" + currentVirtualBassModeIndex
+                + " enableDspBass=" + enableDspBass
+                + " activeAmount=" + (currentPreset == null ? -1 : currentPreset.virtualBassAmountPercent)
+                + " systemAmount=" + (currentPreset == null ? -1 : currentPreset.systemVirtualBassAmountPercent)
+                + " dspAmount=" + (currentPreset == null ? -1 : currentPreset.dspVirtualBassAmountPercent));
         synchronized (dspLock) {
             dspProcessor.configure(
                     effectiveDspPreset,
