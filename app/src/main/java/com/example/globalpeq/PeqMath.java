@@ -5,8 +5,9 @@ final class PeqMath {
     private static final int VISUAL_RESPONSE_SAMPLE_RATE = 48000;
     private static final double MIN_RESPONSE_MAGNITUDE = 1.0e-9;
     private static final int PASS_SECOND_ORDER_Q_HUNDRED = 71;
-    private static final int PASS_GAIN_Q_HUNDRED = 100;
-    private static final int PASS_MAX_SLOPE_STEP = 16;
+    private static final int PASS_GAIN_Q_HUNDRED = 71;
+    private static final int PASS_MAX_SLOPE_STEP = 32;
+    private static final int PASS_MIN_SLOPE_STEP = 1;
     private static final ParametricBand[] EMPTY_BANDS = new ParametricBand[0];
 
     private PeqMath() {
@@ -221,8 +222,9 @@ final class PeqMath {
     }
 
     private static int passSlopeStepCountFromQ(int qHundred) {
-        double normalized = Math.max(0.0, Math.min(1.0, qHundred / 1000.0));
-        return 1 + (int) Math.round(normalized * (PASS_MAX_SLOPE_STEP - 1));
+        double normalized = Math.max(0.0, Math.min(1.0, qHundred / (double) ParametricBand.MAX_Q_HUNDRED));
+        return PASS_MAX_SLOPE_STEP
+                - (int) Math.round(normalized * (PASS_MAX_SLOPE_STEP - PASS_MIN_SLOPE_STEP));
     }
 
     static double[] normalizedBiquadCoefficients(ParametricBand band, int sampleRate) {
