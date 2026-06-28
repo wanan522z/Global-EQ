@@ -74,9 +74,7 @@ final class PcmDspProcessor {
                 psychoacousticBass = new PsychoacousticBassProcessor(sampleRate, channelCount);
             }
             psychoacousticBass.configure(
-                    preset.virtualBassCutoffHz,
-                    0,
-                    preset.virtualBassCutoffHz,
+                    preset.dspVirtualBassCutoffHz,
                     enableDspBass ? preset.virtualBassAmountPercent : 0,
                     false);
             if (reverb.sampleRate != sampleRate || reverb.channelCount != channelCount) {
@@ -91,7 +89,7 @@ final class PcmDspProcessor {
                     preset.reverbMainMb,
                     false);
         } else {
-            psychoacousticBass.configure(95, 0, 95, 0, false);
+            psychoacousticBass.configure(95, 0, false);
             reverb.configure("Default", 0, 0, 0, 0, 0, false);
         }
 
@@ -233,19 +231,12 @@ final class PcmDspProcessor {
             configure(95, 0, 95, 0, false);
         }
 
-        void configure(int virtualCutoffHz,
-                       int virtualAmountPercent,
-                       int dspCutoffHz,
+        void configure(int dspCutoffHz,
                        int dspAmountPercent,
                        boolean lowCpuMode) {
-            float virtualAmount = clamp01(virtualAmountPercent / 100f);
             float dspAmount = clamp01(dspAmountPercent / 100f);
-            float amount = Math.max(virtualAmount, dspAmount);
-            int requestedCutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
-            if (requestedCutoff <= 0) {
-                requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
-            }
-            int cutoff = clampInt(requestedCutoff, 30, 250);
+            float amount = dspAmount;
+            int cutoff = clampInt(dspCutoffHz, 30, 250);
             int harmLow = clampInt(Math.round(cutoff * 1.5f), 60, 380);
             int harmHigh = clampInt(Math.round(cutoff * 4.0f), harmLow + 1, 380);
 
