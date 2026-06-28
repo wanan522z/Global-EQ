@@ -2169,10 +2169,6 @@ public final class MainActivity extends Activity {
     }
 
     private void ensureShizukuModeReady(boolean autoLaunchCapture) {
-        Log.i(TAG, "ensureShizukuModeReady mode=" + processingMode
-                + " autoLaunch=" + autoLaunchCapture
-                + " pendingCapture=" + pendingMonitorCaptureAuthorization
-                + " captureAuthorized=" + (repository != null && repository.loadMonitorCaptureAuthorized()));
         if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
             return;
         }
