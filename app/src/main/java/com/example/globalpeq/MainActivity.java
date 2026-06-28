@@ -2021,7 +2021,12 @@ public final class MainActivity extends Activity {
             hideAdvancedSettingsSubpage();
             return true;
         }
-        return false;
+        if (activeMainPageIndex != 0) {
+            showEqPage();
+            return true;
+        }
+        moveTaskToBack(false);
+        return true;
     }
 
     private void registerSystemBackCallback() {
