@@ -232,6 +232,8 @@ final class PcmDspProcessor {
 
         private float midCutoffBlend;
         private float lowCutoffPunch;
+        private float gateState;
+        private float fartZoneBlend;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
@@ -257,6 +259,7 @@ final class PcmDspProcessor {
 
             midCutoffBlend = clamp01((cutoff - 70f) / 60f);
             lowCutoffPunch = 1f - clamp01((cutoff - 35f) / 45f);
+            fartZoneBlend = clamp01((cutoff - 45f) / 35f);
 
             int harmLow = clampInt(
                     Math.round(cutoff * (1.55f + midCutoffBlend * 0.45f)),
@@ -289,13 +292,14 @@ final class PcmDspProcessor {
                     new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 72),
                     sampleRate);
 
-            harmonicMix = amount * (1.18f + lowCutoffPunch * 0.34f - midCutoffBlend * 0.10f);
-            drive = 1.35f + amount * (4.55f + lowCutoffPunch * 1.15f - midCutoffBlend * 0.35f);
-            harmonicCeiling = 0.19f + amount * (0.15f + lowCutoffPunch * 0.05f);
+            harmonicMix = amount * (1.42f + lowCutoffPunch * 0.18f);
+            drive = 1.38f + amount * (4.85f + lowCutoffPunch * 0.90f - fartZoneBlend * 0.55f);
+            harmonicCeiling = 0.20f + amount * (0.17f + lowCutoffPunch * 0.04f);
 
             envelope = 0f;
             dcBlockX = 0f;
             dcBlockY = 0f;
+            gateState = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
