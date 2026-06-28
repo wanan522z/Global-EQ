@@ -622,7 +622,11 @@ public final class MainActivity extends Activity {
         installKeyboardVisibilityListener();
         renderAll();
         if (loadedWasLimited && runningPreset.enabled) {
-            applyRunningPreset();
+            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+                applyRunningPreset(false, false);
+            } else {
+                applyRunningPreset();
+            }
         }
     }
 
