@@ -215,22 +215,27 @@ final class PcmDspProcessor {
         private final int sampleRate;
         private final int channelCount;
 
+        // 严格级联4阶分频滤波器
         private MonoBiquad sourceLowPass1;
         private MonoBiquad sourceLowPass2;
         private MonoBiquad[] mainHighPassL1;
         private MonoBiquad[] mainHighPassL2;
         private MonoBiquad[] mainHighPassR1;
         private MonoBiquad[] mainHighPassR2;
+
+        // 谐波带通
         private MonoBiquad harmonicHighPass1;
         private MonoBiquad harmonicHighPass2;
         private MonoBiquad harmonicLowPass;
 
+        // 缓冲区
         private float[] monoSource = new float[0];
         private float[] monoLow = new float[0];
         private float[] harmonicBand = new float[0];
         private float[] leftChannelBuffer = new float[0];
         private float[] rightChannelBuffer = new float[0];
 
+        // 控制参数
         private float harmonicMix;
         private float inputDrive;
         private float originalLowMix;
@@ -238,7 +243,7 @@ final class PcmDspProcessor {
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
             this.channelCount = channelCount;
-            configure(120, 0, 120, 0, false);
+            configure(60, 0, 60, 0, false);
         }
 
         void configure(int virtualCutoffHz,
@@ -254,62 +259,62 @@ final class PcmDspProcessor {
             if (uiCutoff <= 0) {
                 uiCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
-            uiCutoff = Math.min(250, Math.max(40, uiCutoff));
+            uiCutoff = Math.min(220, Math.max(40, uiCutoff));
 
-            int cutoff = uiCutoff / 2;
+            int cutoff = uiCutoff * 2;
 
-            float freqComp = 1.0f + (1.0f - (float) cutoff / 125f) * 0.5f;
-            this.harmonicMix = virtualAmount * 9.0f * freqComp;
-            this.inputDrive = 1.0f + virtualAmount * 4.0f;
+            float boostComp = 1.0f + (1.0f - (float) uiCutoff / 220f) * 0.6f;
+            this.harmonicMix = virtualAmount * 9.5f * boostComp;
+            this.inputDrive = 1.2f + virtualAmount * 4.3f;
             this.originalLowMix = dspAmount > 0f ? (dspAmount * 1.5f) : 0.0f;
 
             sourceLowPass1 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70),
+                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
                     sampleRate);
             sourceLowPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70),
+                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 72),
                     sampleRate);
 
             mainHighPassL1 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate)
             };
             mainHighPassL2 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate)
             };
             mainHighPassR1 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate)
             };
             mainHighPassR2 = new MonoBiquad[] {
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate),
                     MonoBiquad.fromBand(
-                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 72),
+                            new ParametricBand(FilterType.HIGH_PASS, true, cutoff, 0, 74),
                             sampleRate)
             };
 
             int hpHmHz = (int) (cutoff * 0.95f);
-            int lpHmHz = Math.min(2200, uiCutoff * 3);
+            int lpHmHz = Math.min(2400, uiCutoff * 6);
             harmonicHighPass1 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 72),
                     sampleRate);
             harmonicHighPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, hpHmHz, 0, 72),
                     sampleRate);
             harmonicLowPass = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, lpHmHz, 0, 68),
@@ -342,9 +347,9 @@ final class PcmDspProcessor {
 
                 float secondHarmonic = (2.0f * x * x) - 0.5f;
                 float thirdHarmonic = (4.0f * x * x * x) - (3.0f * x);
-                float highOrder = Math.abs(x) * 1.8f - 0.5f;
+                float highOrder = Math.abs(x) * 2.0f - 0.6f;
 
-                harmonicBand[frame] = secondHarmonic * 1.5f + thirdHarmonic * 1.0f + highOrder * 0.6f;
+                harmonicBand[frame] = secondHarmonic * 1.6f + thirdHarmonic * 1.1f + highOrder * 0.7f;
             }
 
             harmonicHighPass1.process(harmonicBand, frameCount);
