@@ -212,356 +212,335 @@ final class PcmDspProcessor {
     }
 
     private static final class PsychoacousticBassProcessor {
-    private static final int LANE_COUNT = 3;
+        private static final float PI = (float) Math.PI;
+        private static final float TWO_PI = (float) (Math.PI * 2.0);
 
-    private final int sampleRate;
-    private final int channelCount;
-    private final HarmonicLane[] lanes = new HarmonicLane[LANE_COUNT];
-
-    private MonoBiquad harmonicHighPass;
-    private MonoBiquad harmonicHighPass2;
-    private MonoBiquad harmonicLowPass;
-    private MonoBiquad harmonicLowPass2;
-
-    private float[] monoSource = new float[0];
-    private float[] harmonicSum = new float[0];
-
-    private float wetLimiterEnvelope;
-    private float wetLimiterGain = 1f;
-
-    private float harmonicMix;
-    private float wetCeiling;
-
-    PsychoacousticBassProcessor(int sampleRate, int channelCount) {
-        this.sampleRate = sampleRate;
-        this.channelCount = channelCount;
-        for (int i = 0; i < lanes.length; i++) {
-            lanes[i] = new HarmonicLane(sampleRate);
-        }
-        configure(95, 0, 95, 0, false);
-    }
-
-    void configure(int virtualCutoffHz,
-                   int virtualAmountPercent,
-                   int dspCutoffHz,
-                   int dspAmountPercent,
-                   boolean lowCpuMode) {
-        float virtualAmount = clamp01(virtualAmountPercent / 100f);
-        float dspAmount = clamp01(dspAmountPercent / 100f);
-        float amount = Math.max(virtualAmount, dspAmount);
-
-        int requestedCutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
-        if (requestedCutoff <= 0) {
-            requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
-        }
-
-        int cutoff = clampInt(requestedCutoff, 30, 220);
-
-        float lowCutoffBlend = 1f - clamp01((cutoff - 30f) / 65f);
-        float midCutoffBlend = clamp01((cutoff - 70f) / 75f);
-
-        // 50~90Hz 是最容易“放屁”的区域。
-        // 这里不是削掉它，而是降低二次谐波比例，减少 120Hz 一坨的感觉。
-        float fartRise = clamp01((cutoff - 45f) / 22f);
-        float fartFall = 1f - clamp01((cutoff - 90f) / 48f);
-        float fartZoneBlend = fartRise * fartFall;
-
-        // 三个窄带源。
-        // 目的：减少不同低频音符一起进 NLD 产生的互调。
-        float source0Low = Math.max(16f, cutoff * 0.24f);
-        float source0High = cutoff * 0.56f;
-
-        float source1Low = cutoff * 0.44f;
-        float source1High = cutoff * 0.82f;
-
-        float source2Low = cutoff * 0.68f;
-        float source2High = cutoff * 1.06f;
-
-        float baseDrive = 0.95f + amount * (0.95f + lowCutoffBlend * 0.18f - fartZoneBlend * 0.10f);
-
-        lanes[0].configure(
-                source0Low,
-                source0High,
-                baseDrive * (1.05f + lowCutoffBlend * 0.12f),
-                1.00f,
-                0.95f + lowCutoffBlend * 0.34f - fartZoneBlend * 0.30f,
-                0.62f + fartZoneBlend * 0.22f,
-                0.12f + fartZoneBlend * 0.08f,
-                7.5f + fartZoneBlend * 2.0f,
-                85f + lowCutoffBlend * 20f + fartZoneBlend * 15f);
-
-        lanes[1].configure(
-                source1Low,
-                source1High,
-                baseDrive,
-                0.88f,
-                0.72f + lowCutoffBlend * 0.18f - fartZoneBlend * 0.36f,
-                0.86f + fartZoneBlend * 0.36f,
-                0.18f + fartZoneBlend * 0.12f,
-                8.0f + fartZoneBlend * 2.5f,
-                80f + fartZoneBlend * 20f);
-
-        lanes[2].configure(
-                source2Low,
-                source2High,
-                baseDrive * 0.92f,
-                0.72f,
-                0.48f + lowCutoffBlend * 0.10f - fartZoneBlend * 0.24f,
-                0.95f + fartZoneBlend * 0.30f,
-                0.24f + fartZoneBlend * 0.14f + midCutoffBlend * 0.06f,
-                8.5f + fartZoneBlend * 3.0f,
-                75f + fartZoneBlend * 20f);
-
-        // 合并后的谐波整形。
-        // 30Hz: 大概保留 50Hz~230Hz 内的谐波存在感。
-        // 60Hz: 大概保留 70Hz~380Hz，靠窄带 NLD 减少互调，不靠强行削没。
-        // 90Hz+: 自然上移，但不冲得过高。
-        int harmonicHpHz = clampInt(
-                Math.round(cutoff * (1.18f + midCutoffBlend * 0.22f)),
-                48,
-                280);
-
-        int harmonicLpHz = clampInt(
-                Math.round(cutoff * (5.20f + lowCutoffBlend * 1.10f + midCutoffBlend * 0.55f)),
-                harmonicHpHz + 150,
-                920);
-
-        harmonicHighPass = MonoBiquad.fromBand(
-                new ParametricBand(FilterType.HIGH_PASS, true, harmonicHpHz, 0, 70),
-                sampleRate);
-
-        harmonicHighPass2 = MonoBiquad.fromBand(
-                new ParametricBand(FilterType.HIGH_PASS, true, harmonicHpHz, 0, 70),
-                sampleRate);
-
-        harmonicLowPass = MonoBiquad.fromBand(
-                new ParametricBand(FilterType.LOW_PASS, true, harmonicLpHz, 0, 68),
-                sampleRate);
-
-        harmonicLowPass2 = MonoBiquad.fromBand(
-                new ParametricBand(FilterType.LOW_PASS, true, harmonicLpHz, 0, 68),
-                sampleRate);
-
-        // 总强度。
-        // 这里比上一版强，但因为分了窄带，互调会少很多。
-        harmonicMix = amount * (3.15f + lowCutoffBlend * 0.75f - fartZoneBlend * 0.10f);
-        wetCeiling = 0.46f + amount * 0.26f;
-
-        wetLimiterEnvelope = 0f;
-        wetLimiterGain = 1f;
-    }
-
-    void process(float[] samples, int sampleCount, int channelCount) {
-        if (!isActive()) {
-            return;
-        }
-
-        int frameCount = sampleCount / channelCount;
-        ensureCapacity(frameCount);
-
-        for (int frame = 0; frame < frameCount; frame++) {
-            int frameOffset = frame * channelCount;
-            float mono = 0f;
-            for (int channel = 0; channel < channelCount; channel++) {
-                mono += samples[frameOffset + channel];
-            }
-            monoSource[frame] = mono / channelCount;
-            harmonicSum[frame] = 0f;
-        }
-
-        for (HarmonicLane lane : lanes) {
-            lane.process(monoSource, harmonicSum, frameCount);
-        }
-
-        harmonicHighPass.process(harmonicSum, frameCount);
-        harmonicHighPass2.process(harmonicSum, frameCount);
-        harmonicLowPass.process(harmonicSum, frameCount);
-        harmonicLowPass2.process(harmonicSum, frameCount);
-
-        for (int frame = 0; frame < frameCount; frame++) {
-            float wet = harmonicSum[frame] * harmonicMix;
-
-            float wetAbs = Math.abs(wet);
-            wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                    * (wetAbs > wetLimiterEnvelope ? 0.070f : 0.0042f);
-
-            float targetGain = wetLimiterEnvelope > wetCeiling
-                    ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
-                    : 1f;
-
-            float limiterCoeff = targetGain < wetLimiterGain ? 0.11f : 0.0065f;
-            wetLimiterGain += (targetGain - wetLimiterGain) * limiterCoeff;
-
-            float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.45f);
-
-            int frameOffset = frame * channelCount;
-            for (int channel = 0; channel < channelCount; channel++) {
-                float original = samples[frameOffset + channel];
-                samples[frameOffset + channel] = finiteOrZero(original + generated);
-            }
-        }
-    }
-
-    boolean isActive() {
-        return harmonicMix > 0.0001f;
-    }
-
-    private void ensureCapacity(int frameCount) {
-        if (monoSource.length < frameCount) {
-            monoSource = new float[frameCount];
-            harmonicSum = new float[frameCount];
-        }
-    }
-
-    private static float onePoleCoeff(float timeMs, int sampleRate) {
-        float safeMs = Math.max(0.1f, timeMs);
-        float safeSampleRate = Math.max(8000f, sampleRate);
-        return 1f - (float) Math.exp(-1.0 / (safeSampleRate * safeMs / 1000f));
-    }
-
-    private static float softClipUnit(float value, float ceiling) {
-        float safe = Math.max(0.1f, ceiling);
-        float normalized = value / safe;
-        if (Math.abs(normalized) < 0.92f) {
-            return value;
-        }
-        return fastTanh(normalized) * safe;
-    }
-
-    private static float softLimitWet(float value, float ceiling) {
-        float safe = Math.max(0.05f, ceiling);
-        float normalized = value / safe;
-        if (Math.abs(normalized) < 1.0f) {
-            return value;
-        }
-        return fastTanh(normalized) * safe;
-    }
-
-    private static final class HarmonicLane {
         private final int sampleRate;
+        private final int channelCount;
 
         private MonoBiquad sourceHighPass;
         private MonoBiquad sourceLowPass;
+        private MonoBiquad sourceLowPass2;
 
-        private float[] work = new float[0];
+        private MonoBiquad harmonicHighPass;
+        private MonoBiquad harmonicLowPass;
+        private MonoBiquad harmonicLowPass2;
 
-        private float envelope;
-        private float attackCoeff;
-        private float releaseCoeff;
+        private float[] monoSource = new float[0];
+        private float[] monoLow = new float[0];
+        private float[] harmonicBand = new float[0];
 
-        private float dcX;
-        private float dcY;
+        private float sourceEnvelope;
+        private float envelopeAttackCoeff;
+        private float envelopeReleaseCoeff;
 
-        private float drive;
-        private float laneGain;
+        private float previousLow;
+        private int samplesSinceCrossing;
+        private int minPeriodSamples;
+        private int maxPeriodSamples;
+
+        private float minTrackHz;
+        private float maxTrackHz;
+        private float targetHz;
+        private float trackedHz;
+        private float periodSmooth;
+        private float trackingReliability;
+        private float frequencySmoothCoeff;
+
+        private float phase;
+
+        private float harmonicMix;
+        private float sourceScale;
+        private float wetCeiling;
+
         private float h2Mix;
         private float h3Mix;
         private float h4Mix;
 
-        HarmonicLane(int sampleRate) {
-            this.sampleRate = Math.max(8000, sampleRate);
+        private float wetLimiterEnvelope;
+        private float wetLimiterGain = 1f;
+
+        PsychoacousticBassProcessor(int sampleRate, int channelCount) {
+            this.sampleRate = sampleRate;
+            this.channelCount = channelCount;
+            configure(95, 0, 95, 0, false);
         }
 
-        void configure(float lowHz,
-                       float highHz,
-                       float drive,
-                       float laneGain,
-                       float h2Mix,
-                       float h3Mix,
-                       float h4Mix,
-                       float attackMs,
-                       float releaseMs) {
-            float safeHigh = clamp(highHz, 24f, this.sampleRate * 0.42f);
-            float safeLow = clamp(lowHz, 14f, safeHigh - 4f);
-            if (safeHigh < safeLow + 6f) {
-                safeHigh = safeLow + 6f;
+        void configure(int virtualCutoffHz,
+                       int virtualAmountPercent,
+                       int dspCutoffHz,
+                       int dspAmountPercent,
+                       boolean lowCpuMode) {
+            float virtualAmount = clamp01(virtualAmountPercent / 100f);
+            float dspAmount = clamp01(dspAmountPercent / 100f);
+            float amount = Math.max(virtualAmount, dspAmount);
+
+            int requestedCutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
+            if (requestedCutoff <= 0) {
+                requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
+
+            int cutoff = clampInt(requestedCutoff, 30, 220);
+
+            float lowCutoffBlend = 1f - clamp01((cutoff - 30f) / 70f);
+            float midCutoffBlend = clamp01((cutoff - 70f) / 75f);
+
+            float fartRise = clamp01((cutoff - 45f) / 22f);
+            float fartFall = 1f - clamp01((cutoff - 90f) / 50f);
+            float fartZoneBlend = fartRise * fartFall;
 
             sourceHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.HIGH_PASS,
                             true,
-                            Math.round(safeLow),
+                            Math.max(18, Math.round(cutoff * 0.30f)),
                             0,
-                            62),
-                    this.sampleRate);
+                            70),
+                    sampleRate);
 
             sourceLowPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.LOW_PASS,
                             true,
-                            Math.round(safeHigh),
+                            cutoff,
                             0,
                             62),
-                    this.sampleRate);
+                    sampleRate);
 
-            this.drive = drive;
-            this.laneGain = laneGain;
-            this.h2Mix = Math.max(0f, h2Mix);
-            this.h3Mix = Math.max(0f, h3Mix);
-            this.h4Mix = Math.max(0f, h4Mix);
+            sourceLowPass2 = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            cutoff,
+                            0,
+                            62),
+                    sampleRate);
 
-            attackCoeff = onePoleCoeff(attackMs, this.sampleRate);
-            releaseCoeff = onePoleCoeff(releaseMs, this.sampleRate);
+            int harmonicHpHz = clampInt(
+                    Math.round(cutoff * (1.18f + midCutoffBlend * 0.24f)),
+                    48,
+                    280);
 
-            envelope = 0f;
-            dcX = 0f;
-            dcY = 0f;
+            int harmonicLpHz = clampInt(
+                    Math.round(cutoff * (5.25f + lowCutoffBlend * 1.05f + midCutoffBlend * 0.45f)),
+                    harmonicHpHz + 150,
+                    900);
+
+            harmonicHighPass = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.HIGH_PASS,
+                            true,
+                            harmonicHpHz,
+                            0,
+                            70),
+                    sampleRate);
+
+            harmonicLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            harmonicLpHz,
+                            0,
+                            68),
+                    sampleRate);
+
+            harmonicLowPass2 = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            harmonicLpHz,
+                            0,
+                            68),
+                    sampleRate);
+
+            minTrackHz = clamp(cutoff * 0.42f, 22f, 160f);
+            maxTrackHz = clamp(cutoff * 1.15f, minTrackHz + 8f, 260f);
+
+            minPeriodSamples = Math.max(8, Math.round(sampleRate / maxTrackHz));
+            maxPeriodSamples = Math.max(minPeriodSamples + 4, Math.round(sampleRate / minTrackHz));
+
+            targetHz = clamp(cutoff * 0.82f, minTrackHz, maxTrackHz);
+            trackedHz = targetHz;
+            periodSmooth = 0f;
+            trackingReliability = 0f;
+            samplesSinceCrossing = maxPeriodSamples;
+            previousLow = 0f;
+            phase = 0f;
+
+            envelopeAttackCoeff = onePoleCoeff(8.0f + fartZoneBlend * 4.0f, sampleRate);
+            envelopeReleaseCoeff = onePoleCoeff(90.0f + lowCutoffBlend * 30.0f + fartZoneBlend * 25.0f, sampleRate);
+            frequencySmoothCoeff = onePoleCoeff(42.0f + fartZoneBlend * 25.0f, sampleRate);
+
+            h2Mix = 0.96f + lowCutoffBlend * 0.22f - fartZoneBlend * 0.10f;
+            h3Mix = 0.72f + fartZoneBlend * 0.10f + lowCutoffBlend * 0.06f;
+            h4Mix = 0.28f + midCutoffBlend * 0.08f + fartZoneBlend * 0.04f;
+
+            sourceScale = 0.88f + amount * (0.42f + lowCutoffBlend * 0.12f);
+            harmonicMix = amount * (3.10f + lowCutoffBlend * 0.85f - fartZoneBlend * 0.06f);
+            wetCeiling = 0.46f + amount * 0.26f;
+
+            sourceEnvelope = 0f;
+            wetLimiterEnvelope = 0f;
+            wetLimiterGain = 1f;
         }
 
-        void process(float[] input, float[] output, int frameCount) {
+        void process(float[] samples, int sampleCount, int channelCount) {
+            if (!isActive()) {
+                return;
+            }
+
+            int frameCount = sampleCount / channelCount;
             ensureCapacity(frameCount);
-            System.arraycopy(input, 0, work, 0, frameCount);
 
-            sourceHighPass.process(work, frameCount);
-            sourceLowPass.process(work, frameCount);
+            for (int frame = 0; frame < frameCount; frame++) {
+                int frameOffset = frame * channelCount;
+                float mono = 0f;
+                for (int channel = 0; channel < channelCount; channel++) {
+                    mono += samples[frameOffset + channel];
+                }
+                monoSource[frame] = mono / channelCount;
+            }
 
-            for (int i = 0; i < frameCount; i++) {
-                float low = work[i];
+            System.arraycopy(monoSource, 0, monoLow, 0, frameCount);
+            sourceHighPass.process(monoLow, frameCount);
+            sourceLowPass.process(monoLow, frameCount);
+            sourceLowPass2.process(monoLow, frameCount);
+
+            for (int frame = 0; frame < frameCount; frame++) {
+                float low = monoLow[frame];
                 float absLow = Math.abs(low);
 
-                envelope += (absLow - envelope)
-                        * (absLow > envelope ? attackCoeff : releaseCoeff);
+                sourceEnvelope += (absLow - sourceEnvelope)
+                        * (absLow > sourceEnvelope ? envelopeAttackCoeff : envelopeReleaseCoeff);
 
-                float level = Math.max(0.004f, envelope);
+                updateFrequencyTracker(low, absLow);
 
-                // ALC：每个窄带自己归一化，减少不同音符之间互调。
-                float x = low / level;
-                x = clamp(x * drive, -1.18f, 1.18f);
-                x = softClipUnit(x, 0.98f);
+                trackedHz += (targetHz - trackedHz) * frequencySmoothCoeff;
+                trackedHz = clamp(trackedHz, minTrackHz, maxTrackHz);
 
-                float x2 = x * x;
-                float x3 = x2 * x;
-                float x4 = x2 * x2;
+                float step = TWO_PI * trackedHz / sampleRate;
+                phase += step;
+                if (phase >= TWO_PI) {
+                    phase -= TWO_PI;
+                }
 
-                // Chebyshev 多谐波。
-                // 窄带后再做这个，比整段低频一起做干净很多。
-                float h2 = 2f * x2 - 1f;
-                float h3 = 4f * x3 - 3f * x;
-                float h4 = 8f * x4 - 8f * x2 + 1f;
+                float levelGate = clamp01((sourceEnvelope - 0.0028f) / 0.020f);
+                float reliable = clamp01(trackingReliability) * levelGate;
 
-                float harmonic = h2 * h2Mix
-                        + h3 * h3Mix
-                        + h4 * h4Mix;
+                float amp = sourceEnvelope * sourceScale * reliable;
 
-                float raw = harmonic * envelope * laneGain;
+                float h2 = fastSin(phase * 2f);
+                float h3 = fastSin(phase * 3f);
+                float h4 = fastSin(phase * 4f);
 
-                // DC blocker，清掉 h2/h4 带来的偏置。
-                float dcBlocked = raw - dcX + 0.995f * dcY;
-                dcX = raw;
-                dcY = dcBlocked;
+                float generated = amp * (h2 * h2Mix + h3 * h3Mix + h4 * h4Mix);
 
-                output[i] += finiteOrZero(dcBlocked);
+                harmonicBand[frame] = finiteOrZero(generated);
             }
+
+            harmonicHighPass.process(harmonicBand, frameCount);
+            harmonicLowPass.process(harmonicBand, frameCount);
+            harmonicLowPass2.process(harmonicBand, frameCount);
+
+            for (int frame = 0; frame < frameCount; frame++) {
+                float wet = harmonicBand[frame] * harmonicMix;
+
+                float wetAbs = Math.abs(wet);
+                wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
+                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.0042f);
+
+                float targetGain = wetLimiterEnvelope > wetCeiling
+                        ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
+                        : 1f;
+
+                float limiterCoeff = targetGain < wetLimiterGain ? 0.12f : 0.0065f;
+                wetLimiterGain += (targetGain - wetLimiterGain) * limiterCoeff;
+
+                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.50f);
+
+                int frameOffset = frame * channelCount;
+                for (int channel = 0; channel < channelCount; channel++) {
+                    float original = samples[frameOffset + channel];
+                    samples[frameOffset + channel] = finiteOrZero(original + generated);
+                }
+            }
+        }
+
+        private void updateFrequencyTracker(float low, float absLow) {
+            samplesSinceCrossing++;
+
+            float threshold = Math.max(0.0008f, sourceEnvelope * 0.10f);
+            boolean risingCrossing = previousLow < 0f && low >= 0f && absLow > threshold;
+
+            if (risingCrossing) {
+                int period = samplesSinceCrossing;
+
+                if (period >= minPeriodSamples && period <= maxPeriodSamples) {
+                    if (periodSmooth <= 0f) {
+                        periodSmooth = period;
+                    } else {
+                        periodSmooth += (period - periodSmooth) * 0.20f;
+                    }
+
+                    float measuredHz = sampleRate / Math.max(1f, periodSmooth);
+                    targetHz = clamp(measuredHz, minTrackHz, maxTrackHz);
+
+                    trackingReliability += (1f - trackingReliability) * 0.22f;
+                    samplesSinceCrossing = 0;
+                } else if (period > maxPeriodSamples * 2) {
+                    trackingReliability *= 0.992f;
+                    samplesSinceCrossing = 0;
+                }
+            }
+
+            if (samplesSinceCrossing > maxPeriodSamples * 3) {
+                trackingReliability *= 0.9985f;
+                samplesSinceCrossing = maxPeriodSamples * 3;
+            }
+
+            previousLow = low;
+        }
+
+        boolean isActive() {
+            return harmonicMix > 0.0001f;
         }
 
         private void ensureCapacity(int frameCount) {
-            if (work.length < frameCount) {
-                work = new float[frameCount];
+            if (monoSource.length < frameCount) {
+                monoSource = new float[frameCount];
+                monoLow = new float[frameCount];
+                harmonicBand = new float[frameCount];
             }
         }
+
+        private static float onePoleCoeff(float timeMs, int sampleRate) {
+            float safeMs = Math.max(0.1f, timeMs);
+            float safeSampleRate = Math.max(8000f, sampleRate);
+            return 1f - (float) Math.exp(-1.0 / (safeSampleRate * safeMs / 1000f));
+        }
+
+        private static float softLimitWet(float value, float ceiling) {
+            float safe = Math.max(0.05f, ceiling);
+            float normalized = value / safe;
+            if (Math.abs(normalized) < 1.0f) {
+                return value;
+            }
+            return fastTanh(normalized) * safe;
+        }
+
+        private static float fastSin(float value) {
+            float x = value;
+            while (x > PI) {
+                x -= TWO_PI;
+            }
+            while (x < -PI) {
+                x += TWO_PI;
+            }
+
+            float y = 1.27323954f * x - 0.405284735f * x * Math.abs(x);
+            return 0.225f * (y * Math.abs(y) - y) + y;
+        }
     }
-}
 
     private static final class MonoBiquad {
         private float z1;
