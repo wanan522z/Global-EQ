@@ -243,7 +243,6 @@ public final class MainActivity extends Activity {
     private TextView settingsStatusLabelView;
     private TextView advancedModeDetailButton;
     private TextView advancedMonitorAppButton;
-    private TextView monitorCaptureButton;
     private TextView monitorCaptureStatusView;
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
@@ -256,7 +255,6 @@ public final class MainActivity extends Activity {
     private TextView monitorSettingsBackButton;
     private TextView monitorSettingsTitleView;
     private TextView monitorSettingsDetailView;
-    private TextView monitorCaptureLabelView;
     private TextView shizukuAccessLabelView;
     private TextView monitoredAppLabelView;
     private TextView latencyLabelView;
