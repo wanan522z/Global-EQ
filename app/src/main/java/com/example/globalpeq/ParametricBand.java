@@ -4,6 +4,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 final class ParametricBand {
+    static final int MAX_GAIN_MB = 1800;
+    static final int MAX_Q_HUNDRED = 1800;
+
     final FilterType type;
     final boolean enabled;
     final int frequencyHz;
@@ -14,8 +17,8 @@ final class ParametricBand {
         this.type = type == null ? FilterType.PEAK : type;
         this.enabled = enabled;
         this.frequencyHz = clamp(frequencyHz, 20, 20000);
-        this.gainMb = clamp(gainMb, -1800, 1800);
-        this.qHundred = clamp(qHundred, 0, 1000);
+        this.gainMb = clamp(gainMb, -MAX_GAIN_MB, MAX_GAIN_MB);
+        this.qHundred = clamp(qHundred, 0, MAX_Q_HUNDRED);
     }
 
     ParametricBand withType(FilterType nextType) {
