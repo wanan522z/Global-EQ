@@ -6280,10 +6280,6 @@ public final class MainActivity extends Activity {
     }
 
     private void maybeEnsureProcessingActive() {
-        Log.i(TAG, "maybeEnsureProcessingActive enabled="
-                + (runningPreset != null && runningPreset.enabled)
-                + " startupPending=" + startupProcessingRecoveryPending
-                + " mode=" + processingMode);
         if (repository == null || runningPreset == null || !runningPreset.enabled) {
             startupProcessingRecoveryPending = false;
             return;
