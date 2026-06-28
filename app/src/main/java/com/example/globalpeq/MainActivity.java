@@ -6284,7 +6284,7 @@ public final class MainActivity extends Activity {
     }
 
     private void maybeEnsureProcessingActive() {
-        if (repository == null || runningPreset == null || !runningPreset.enabled) {
+        if (repository == null || runningPreset == null || !currentMasterEnabled()) {
             startupProcessingRecoveryPending = false;
             return;
         }
@@ -6293,11 +6293,14 @@ public final class MainActivity extends Activity {
             return;
         }
         startupProcessingRecoveryPending = false;
-        if (serviceActive) {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            if (serviceActive && repository.loadMonitorCaptureAuthorized()) {
+                return;
+            }
+            ensureShizukuModeReady(true);
             return;
         }
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-            ensureShizukuModeReady(true);
+        if (serviceActive) {
             return;
         }
         notifyServiceAboutRunningPreset();
