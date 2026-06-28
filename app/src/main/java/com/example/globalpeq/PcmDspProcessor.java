@@ -217,25 +217,30 @@ final class PcmDspProcessor {
 
         private MonoBiquad extractHighPass;
         private MonoBiquad extractLowPass;
+
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicHighPass2;
         private MonoBiquad harmonicLowPass;
+        private MonoBiquad harmonicLowPass2;
+
         private float[] monoSource = new float[0];
         private float[] monoLow = new float[0];
         private float[] harmonicBand = new float[0];
+
         private float envelope;
         private float dcBlockX;
         private float dcBlockY;
 
+        private float wetLimiterEnvelope;
+        private float wetLimiterGain = 1f;
+
         private float harmonicMix;
-        private float drive;
-        private float harmonicCeiling;
+        private float inputDrive;
+        private float wetCeiling;
 
         private float midCutoffBlend;
         private float lowCutoffPunch;
-        private float gateState;
         private float fartZoneBlend;
-        private float wetDuckingState;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
@@ -257,56 +262,94 @@ final class PcmDspProcessor {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
 
-            int cutoff = clampInt(requestedCutoff, 35, 220);
+            int cutoff = clampInt(requestedCutoff, 30, 220);
 
-            midCutoffBlend = clamp01((cutoff - 70f) / 60f);
-            lowCutoffPunch = 1f - clamp01((cutoff - 35f) / 45f);
-            fartZoneBlend = clamp01((cutoff - 45f) / 35f);
+            // Low cutoff keeps thickness; mid cutoff avoids the 60~90 Hz "farting" zone.
+            this.midCutoffBlend = clamp01((cutoff - 70f) / 60f);
+            this.lowCutoffPunch = 1f - clamp01((cutoff - 30f) / 55f);
+            this.fartZoneBlend = clamp01((cutoff - 45f) / 40f) * (1f - clamp01((cutoff - 105f) / 55f));
 
+            // Keep the cutoff-driven lower-bound logic instead of hard-fixing above 140 Hz.
             int harmLow = clampInt(
                     Math.round(cutoff * (1.55f + midCutoffBlend * 0.45f)),
                     65,
                     280);
 
+            // Tighten the upper bound. Pushing to 900~1000 Hz sounded too airy/harsh.
+            // Keep the harmonics around roughly 2~4.5x for a stronger missing-fundamental effect.
             int harmHigh = clampInt(
-                    Math.round(cutoff * (5.5f + midCutoffBlend * 1.2f)),
-                    harmLow + 180,
-                    980);
+                    Math.round(cutoff * (3.9f + lowCutoffPunch * 0.45f + midCutoffBlend * 0.50f)),
+                    harmLow + 120,
+                    620);
 
             extractHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.HIGH_PASS,
                             true,
-                            Math.max(25, Math.round(cutoff * 0.38f)),
+                            Math.max(20, Math.round(cutoff * 0.35f)),
                             0,
                             70),
                     sampleRate);
 
             extractLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 68),
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            cutoff,
+                            0,
+                            66),
                     sampleRate);
 
+            // Dual high-pass: keep the same cutoff, just increase slope below the lower bound
+            // so fundamental bleed and slow envelope motion leak less into the wet branch.
             harmonicHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, harmLow, 0, 76),
+                    new ParametricBand(
+                            FilterType.HIGH_PASS,
+                            true,
+                            harmLow,
+                            0,
+                            72),
                     sampleRate);
 
             harmonicHighPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, harmLow, 0, 70),
+                    new ParametricBand(
+                            FilterType.HIGH_PASS,
+                            true,
+                            harmLow,
+                            0,
+                            72),
                     sampleRate);
 
+            // Dual low-pass keeps the harmonics from getting too hairy/bright.
             harmonicLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, harmHigh, 0, 72),
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            harmHigh,
+                            0,
+                            70),
                     sampleRate);
 
-            harmonicMix = amount * (1.32f + lowCutoffPunch * 0.14f);
-            drive = 1.32f + amount * (4.35f + lowCutoffPunch * 0.75f - fartZoneBlend * 0.75f);
-            harmonicCeiling = 0.18f + amount * (0.15f + lowCutoffPunch * 0.035f);
+            harmonicLowPass2 = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            harmHigh,
+                            0,
+                            70),
+                    sampleRate);
+
+            // This version avoids relying on extreme drive/gate behavior.
+            // Generate a cleaner, stabler wet branch first, then mix it back into dry.
+            inputDrive = 1.20f + amount * (3.30f + lowCutoffPunch * 0.55f - fartZoneBlend * 0.45f);
+            harmonicMix = amount * (1.28f + lowCutoffPunch * 0.16f - fartZoneBlend * 0.10f);
+            wetCeiling = 0.22f + amount * 0.14f;
 
             envelope = 0f;
             dcBlockX = 0f;
             dcBlockY = 0f;
-            gateState = 0f;
-            wetDuckingState = 1f;
+            wetLimiterEnvelope = 0f;
+            wetLimiterGain = 1f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -332,50 +375,74 @@ final class PcmDspProcessor {
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float low = monoLow[frame];
+
                 float absLow = Math.abs(low);
-                envelope += (absLow - envelope) * (absLow > envelope ? 0.032f : 0.0075f);
+                envelope += (absLow - envelope) * (absLow > envelope ? 0.026f : 0.0065f);
 
-                float dynamic = Math.min(1f, envelope * (6.0f + lowCutoffPunch * 1.6f));
+                // Stable input protection: when LF peaks get extreme, do not let the harmonic
+                // generator blow up from a single burst. This is not a gate and does not duck dry.
+                float density = clamp01(envelope * (5.5f + lowCutoffPunch * 1.8f));
+                float driveTrim = 1f - density * (0.14f + fartZoneBlend * 0.12f);
 
-                float dynamicDrive = 0.72f + dynamic * (0.32f + lowCutoffPunch * 0.10f - fartZoneBlend * 0.12f);
-                dynamicDrive = clamp(dynamicDrive, 0.62f, 1.18f);
+                float x = low * inputDrive * driveTrim;
 
-                float driven = low * drive * dynamicDrive;
+                // Pre-soft-clip: flatten the very largest LF peaks a bit to reduce transient "puffs".
+                x = softClipUnit(x, 0.82f);
 
-                float softA = fastTanh(driven);
-                float softB = fastTanh(driven * (1.92f + lowCutoffPunch * 0.20f));
-                float softC = fastTanh(driven * 2.85f);
+                // Asymmetric soft-clipping harmonic generator:
+                // no abs-based output, no square warmth. Generate controllable even/odd content
+                // by making positive/negative half-cycles slightly different.
+                float positiveDrive = 1.45f + lowCutoffPunch * 0.18f;
+                float negativeDrive = 1.12f - fartZoneBlend * 0.08f;
 
-                float harmonic = softB - softA * (0.74f - lowCutoffPunch * 0.035f);
+                float asym;
+                if (x >= 0f) {
+                    asym = fastTanh(x * positiveDrive);
+                } else {
+                    asym = -fastTanh(-x * negativeDrive);
+                }
 
-                float edge = softC - softA;
-                harmonic += edge * (0.045f + lowCutoffPunch * 0.075f - fartZoneBlend * 0.020f);
+                // Remove part of the fundamental so the branch stays mainly harmonic.
+                float harmonic = asym - x * (0.66f + fartZoneBlend * 0.06f);
 
-                float bite = softC - softB;
-                harmonic += bite * (0.020f + lowCutoffPunch * 0.030f - fartZoneBlend * 0.014f);
+                // Higher-order edge only provides "solidity" and "clarity"; keep it limited.
+                float edgeA = fastTanh(x * (2.15f + lowCutoffPunch * 0.22f));
+                float edgeB = fastTanh(x * 3.10f);
+                harmonic += (edgeA - asym) * (0.16f + lowCutoffPunch * 0.06f - fartZoneBlend * 0.05f);
+                harmonic += (edgeB - edgeA) * (0.055f + lowCutoffPunch * 0.035f);
 
-                float dcBlocked = harmonic - dcBlockX + 0.984f * dcBlockY;
+                // DC blocker removes bias and slow asymmetry drift from the soft clipper.
+                float dcBlocked = harmonic - dcBlockX + 0.982f * dcBlockY;
                 dcBlockX = harmonic;
                 dcBlockY = dcBlocked;
 
-                float gateThreshold = 0.0038f + fartZoneBlend * 0.0060f - lowCutoffPunch * 0.0008f;
-                float gateRange = 0.034f + fartZoneBlend * 0.016f;
-                float gateTarget = clamp01((envelope - gateThreshold) / gateRange);
-
-                float gateCoeff = gateTarget > gateState ? 0.012f : 0.0035f;
-                gateState += (gateTarget - gateState) * gateCoeff;
-
-                float duckTarget = 1f - clamp01((envelope - 0.020f) / 0.080f) * (0.18f + fartZoneBlend * 0.22f);
-                wetDuckingState += (duckTarget - wetDuckingState) * 0.006f;
-
-                float shaped = dcBlocked * gateState * wetDuckingState;
-
-                harmonicBand[frame] = softLimit(shaped, harmonicCeiling);
+                harmonicBand[frame] = finiteOrZero(dcBlocked);
             }
 
             harmonicHighPass.process(harmonicBand, frameCount);
             harmonicHighPass2.process(harmonicBand, frameCount);
             harmonicLowPass.process(harmonicBand, frameCount);
+            harmonicLowPass2.process(harmonicBand, frameCount);
+
+            // Independent limiter for the wet branch.
+            // Goal: stop virtual-bass wet peaks from hitting the main limiter first
+            // and making the dry fundamental feel masked.
+            for (int frame = 0; frame < frameCount; frame++) {
+                float wet = harmonicBand[frame];
+
+                float wetAbs = Math.abs(wet);
+                wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
+                        * (wetAbs > wetLimiterEnvelope ? 0.12f : 0.006f);
+
+                float targetGain = wetLimiterEnvelope > wetCeiling
+                        ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
+                        : 1f;
+
+                float coeff = targetGain < wetLimiterGain ? 0.18f : 0.004f;
+                wetLimiterGain += (targetGain - wetLimiterGain) * coeff;
+
+                harmonicBand[frame] = softLimitWet(wet * wetLimiterGain, wetCeiling);
+            }
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float generated = harmonicBand[frame] * harmonicMix;
@@ -399,13 +466,22 @@ final class PcmDspProcessor {
             }
         }
 
-        private static float softLimit(float value, float ceiling) {
-            float safeCeiling = Math.max(0.05f, ceiling);
-            float normalized = value / safeCeiling;
-            if (Math.abs(normalized) < 1.00f) {
+        private static float softClipUnit(float value, float ceiling) {
+            float safe = Math.max(0.1f, ceiling);
+            float normalized = value / safe;
+            if (Math.abs(normalized) < 0.92f) {
                 return value;
             }
-            return fastTanh(normalized) * safeCeiling;
+            return fastTanh(normalized) * safe;
+        }
+
+        private static float softLimitWet(float value, float ceiling) {
+            float safe = Math.max(0.05f, ceiling);
+            float normalized = value / safe;
+            if (Math.abs(normalized) < 1.0f) {
+                return value;
+            }
+            return fastTanh(normalized) * safe;
         }
     }
 
