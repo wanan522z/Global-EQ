@@ -380,64 +380,22 @@ final class PcmDspProcessor {
                     envSlow += relS * (absLow - envSlow);
                 }
 
-                float attF = 600.0f / sampleRate;
-                if (attF > 0.8f) {
-                    attF = 0.8f;
-                }
-                if (absLow > envFast) {
-                    envFast += attF * (absLow - envFast);
+                float drive = inputDrive * (1.0f + virtualAmount * 2.0f);
+                float x = lowVal * drive;
+
+                float h2 = Math.abs(x) - envSlow * 0.8f;
+                float h3 = x * x * x * 0.25f;
+
+                float mixed = h2 * 0.7f + h3 * 1.3f;
+
+                float harmonics;
+                if (mixed > 0.0f) {
+                    harmonics = mixed / (1.0f + 0.3f * mixed);
                 } else {
-                    envFast += relS * 2.0f * (absLow - envFast);
+                    harmonics = mixed / (1.0f - 0.9f * mixed);
                 }
 
-                float transientRatio = 1.0f;
-                if (envSlow > 1e-4f) {
-                    transientRatio = envFast / envSlow;
-                }
-                transientRatio = Math.max(1.0f, Math.min(2.5f, transientRatio));
-
-                float normScale = 1.0f / (envSlow + 0.012f);
-                float xNorm = lowVal * normScale;
-
-                float dynDrive = inputDrive * (1.0f + (transientRatio - 1.0f) * 2.2f * virtualAmount);
-                float driveVal = xNorm * dynDrive;
-
-                float xClip;
-                if (driveVal >= 1.0f) {
-                    xClip = 1.0f;
-                } else if (driveVal <= -1.0f) {
-                    xClip = -1.0f;
-                } else {
-                    xClip = driveVal * (1.5f - 0.5f * driveVal * driveVal);
-                }
-
-                float x2 = xClip * xClip;
-                float x3 = x2 * xClip;
-                float x4 = x2 * x2;
-                float x5 = x4 * xClip;
-                float x6 = x4 * x2;
-
-                float h2 = 2.0f * x2 - 1.0f;
-                float h3 = 4.0f * x3 - 3.0f * xClip;
-                float h4 = 8.0f * x4 - 8.0f * x2 + 1.0f;
-                float h5 = 16.0f * x5 - 20.0f * x3 + 5.0f * xClip;
-                float h6 = 32.0f * x6 - 48.0f * x4 + 18.0f * x2 - 1.0f;
-
-                float w2 = 1.0f;
-                float w3 = (1.0f + virtualAmount * 1.8f) * (0.8f + 0.4f * uScale);
-                float w4 = (0.6f + virtualAmount * 2.2f) * (0.4f + 0.9f * uScale);
-                float w5 = (0.4f + virtualAmount * 3.5f) * (0.2f + 1.4f * uScale);
-                float w6 = (0.2f + virtualAmount * 4.0f) * (0.1f + 1.8f * uScale);
-                float harmonicsSum = h2 * w2 + h3 * w3 + h4 * w4 + h5 * w5 + h6 * w6;
-                float harmonics = harmonicsSum * (0.35f + virtualAmount * 0.75f);
-
-                float noiseGate = envSlow / (envSlow + 0.005f);
-                float gainComp = 1.0f + virtualAmount * 3.5f * (1.0f - Math.min(1.0f, envSlow)) * noiseGate;
-
-                float saturatedEnv = envSlow * (0.8f + virtualAmount * 1.5f);
-                float compressedEnv = saturatedEnv / (1.0f + saturatedEnv * 0.15f * dynDrive);
-                float rawHarmonics = harmonics * compressedEnv * envComp * harmonicMix * gainComp;
-                harmonicBand[frame] = rawHarmonics / (1.0f + 0.25f * Math.abs(rawHarmonics));
+                harmonicBand[frame] = harmonics * envComp * harmonicMix * (1.2f + virtualAmount * 3.0f);
             }
 
             harmonicHighPass1.process(harmonicBand, frameCount);
