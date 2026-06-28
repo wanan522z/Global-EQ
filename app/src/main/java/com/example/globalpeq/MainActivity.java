@@ -94,6 +94,8 @@ public final class MainActivity extends Activity {
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS = 280L;
+    private static final long ENABLE_TOGGLE_INTERACTION_LOCK_MS = 260L;
+    private static final long ENABLE_TOGGLE_SHIZUKU_INTERACTION_LOCK_MS = 720L;
     private static final long EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS = 320L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
