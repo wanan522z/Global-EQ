@@ -6088,6 +6088,11 @@ public final class MainActivity extends Activity {
         if (updatingUi) {
             return;
         }
+        if (enabledToggleInteractionLocked) {
+            setEnabledSwitchChecked(runningPreset != null && runningPreset.enabled);
+            return;
+        }
+        lockEnabledToggleInteraction();
         boolean enabling = isChecked && supported;
         repository.saveMasterEnabled(enabling);
         runningPreset = runningPreset.withEnabled(enabling);
