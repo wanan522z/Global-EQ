@@ -319,9 +319,9 @@ final class PcmDspProcessor {
                     280);
 
             int harmonicLpHz = clampInt(
-                    Math.round(cutoff * (5.00f + lowCutoffPunch * 1.15f + midCutoffBlend * 0.50f)),
-                    harmonicHpHz + 160,
-                    850);
+                    Math.round(cutoff * (5.80f + lowCutoffPunch * 1.35f + midCutoffBlend * 0.65f)),
+                    harmonicHpHz + 190,
+                    1050);
 
             harmonicHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
@@ -359,24 +359,24 @@ final class PcmDspProcessor {
 
             // Normalize by ALC before NLD.
             // Do not rely on huge drive; rely on stable 2/3/4 harmonics instead.
-            normalizeDrive = 0.86f + amount * (0.56f + lowCutoffPunch * 0.08f - fartZoneBlend * 0.06f);
+            normalizeDrive = 1.02f + amount * (0.82f + lowCutoffPunch * 0.12f - fartZoneBlend * 0.05f);
 
             // Scale applied when multiplying the bass envelope back in.
-            sourceScale = 0.86f + amount * (0.32f + lowCutoffPunch * 0.08f);
+            sourceScale = 1.00f + amount * (0.52f + lowCutoffPunch * 0.12f);
 
             // Overall output strength. Full knob should be obvious.
-            harmonicMix = amount * (3.05f + lowCutoffPunch * 0.75f - fartZoneBlend * 0.14f);
+            harmonicMix = amount * (4.35f + lowCutoffPunch * 0.95f - fartZoneBlend * 0.10f);
 
             // Wet branch limiter ceiling. Only limit wet, never dry.
-            wetCeiling = 0.42f + amount * 0.24f;
+            wetCeiling = 0.56f + amount * 0.30f;
 
             // Chebyshev harmonic ratios:
             // h2 = 2nd harmonic, very important at 30 Hz;
             // in the 60 Hz fart zone automatically reduce h2 and increase h3/h4;
             // this swaps harmonic structure instead of just cutting frequency.
-            h2Mix = 0.82f + lowCutoffPunch * 0.28f - fartZoneBlend * 0.46f;
-            h3Mix = 0.78f + fartZoneBlend * 0.42f + lowCutoffPunch * 0.08f;
-            h4Mix = 0.18f + fartZoneBlend * 0.20f + midCutoffBlend * 0.06f;
+            h2Mix = 1.05f + lowCutoffPunch * 0.36f - fartZoneBlend * 0.38f;
+            h3Mix = 1.12f + fartZoneBlend * 0.48f + lowCutoffPunch * 0.14f;
+            h4Mix = 0.34f + fartZoneBlend * 0.28f + midCutoffBlend * 0.10f;
 
             // Stronger DC suppression in the 60 Hz zone, but not so strong that 30 Hz turns soft.
             outputDcCoeff = clamp(0.996f - fartZoneBlend * 0.006f - midCutoffBlend * 0.0015f, 0.988f, 0.997f);
@@ -471,10 +471,10 @@ final class PcmDspProcessor {
 
                 float src = sourceLevel[frame];
                 float targetMatch = src > 0.003f
-                        ? clamp((src * 0.78f) / Math.max(0.0015f, harmonicEnvelope), 0.42f, 3.20f)
+                        ? clamp((src * 1.08f) / Math.max(0.0012f, harmonicEnvelope), 0.55f, 4.60f)
                         : 1f;
 
-                float matchCoeff = targetMatch < levelMatchGain ? 0.018f : 0.004f;
+                float matchCoeff = targetMatch < levelMatchGain ? 0.024f : 0.0065f;
                 levelMatchGain += (targetMatch - levelMatchGain) * matchCoeff;
 
                 wet *= levelMatchGain;
@@ -483,13 +483,13 @@ final class PcmDspProcessor {
                 // and mask the original fundamental.
                 float limitedAbs = Math.abs(wet);
                 wetLimiterEnvelope += (limitedAbs - wetLimiterEnvelope)
-                        * (limitedAbs > wetLimiterEnvelope ? 0.080f : 0.0045f);
+                        * (limitedAbs > wetLimiterEnvelope ? 0.060f : 0.0035f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
 
-                float limiterCoeff = targetGain < wetLimiterGain ? 0.13f : 0.006f;
+                float limiterCoeff = targetGain < wetLimiterGain ? 0.095f : 0.0075f;
                 wetLimiterGain += (targetGain - wetLimiterGain) * limiterCoeff;
 
                 harmonicBand[frame] = softLimitWet(wet * wetLimiterGain, wetCeiling);
@@ -497,7 +497,7 @@ final class PcmDspProcessor {
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float generated = harmonicBand[frame] * harmonicMix;
-                generated = softLimitWet(generated, wetCeiling * 1.55f);
+                generated = softLimitWet(generated, wetCeiling * 1.95f);
 
                 int frameOffset = frame * channelCount;
                 for (int channel = 0; channel < channelCount; channel++) {
