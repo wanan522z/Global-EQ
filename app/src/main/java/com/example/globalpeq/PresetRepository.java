@@ -56,11 +56,11 @@ final class PresetRepository {
     }
 
     void saveGlobalPreset(Preset preset) {
-        prefs.edit().putString(GLOBAL_PRESET, stripRuntimeEnabled(preset).toJson()).apply();
+        prefs.edit().putString(GLOBAL_PRESET, stripRuntimeEnabled(preset).toJson()).commit();
     }
 
     void saveDraftPreset(Preset preset) {
-        prefs.edit().putString(DRAFT_PRESET, stripRuntimeEnabled(preset).toJson()).apply();
+        prefs.edit().putString(DRAFT_PRESET, stripRuntimeEnabled(preset).toJson()).commit();
     }
 
     Preset loadPreset(AudioOutputDevice device) {
@@ -277,7 +277,7 @@ final class PresetRepository {
                 .putString(deviceKey(device, mode), stripRuntimeEnabled(preset).toJson())
                 .putString(LAST_DEVICE_KEY, device.key)
                 .putString(LAST_DEVICE_LABEL, device.label)
-                .apply();
+                .commit();
     }
 
     void saveNamedPreset(Preset preset) {
