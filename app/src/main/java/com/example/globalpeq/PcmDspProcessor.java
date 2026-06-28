@@ -215,31 +215,41 @@ final class PcmDspProcessor {
         private final int sampleRate;
         private final int channelCount;
 
-        private MonoBiquad extractHighPass;
-        private MonoBiquad extractLowPass;
+        private MonoBiquad sourceHighPass;
+        private MonoBiquad sourceLowPass;
+        private MonoBiquad sourceLowPass2;
+
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
+        private MonoBiquad harmonicLowPass2;
 
         private float[] monoSource = new float[0];
         private float[] monoLow = new float[0];
+        private float[] sourceLevel = new float[0];
         private float[] harmonicBand = new float[0];
 
-        private float envelope;
-        private float evenDcState;
-        private float dcBlockX;
-        private float dcBlockY;
+        private float bassEnvelope;
+        private float bassAttackCoeff;
+        private float bassReleaseCoeff;
+
+        private float outputDcX;
+        private float outputDcY;
+        private float outputDcCoeff;
+
+        private float harmonicEnvelope;
+        private float levelMatchGain = 1f;
 
         private float wetLimiterEnvelope;
         private float wetLimiterGain = 1f;
 
+        private float normalizeDrive;
+        private float sourceScale;
         private float harmonicMix;
-        private float inputDrive;
         private float wetCeiling;
-        private float dcCoeff;
 
-        private float lowCutoffPunch;
-        private float midCutoffBlend;
-        private float fartZoneBlend;
+        private float h2Mix;
+        private float h3Mix;
+        private float h4Mix;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = sampleRate;
@@ -263,80 +273,119 @@ final class PcmDspProcessor {
 
             int cutoff = clampInt(requestedCutoff, 30, 220);
 
-            // Low cutoff: preserve thickness and depth impression.
-            lowCutoffPunch = 1f - clamp01((cutoff - 30f) / 55f);
+            float lowCutoffPunch = 1f - clamp01((cutoff - 30f) / 60f);
+            float midCutoffBlend = clamp01((cutoff - 70f) / 75f);
 
-            // Mid/high cutoff: shift the harmonic range upward naturally.
-            midCutoffBlend = clamp01((cutoff - 70f) / 60f);
+            // 50~90 Hz is the zone most prone to "farting".
+            // Only adjust harmonic ratios here; do not touch dry.
+            float fartRise = clamp01((cutoff - 45f) / 22f);
+            float fartFall = 1f - clamp01((cutoff - 90f) / 48f);
+            float fartZoneBlend = fartRise * fartFall;
 
-            // 45~90 Hz is the zone most prone to "farting", strongest around ~60 Hz.
-            float fartRise = clamp01((cutoff - 42f) / 22f);
-            float fartFall = 1f - clamp01((cutoff - 82f) / 38f);
-            fartZoneBlend = fartRise * fartFall;
-
-            int harmLow = clampInt(
-                    Math.round(cutoff * (1.55f + midCutoffBlend * 0.45f)),
-                    65,
-                    280);
-
-            int harmHigh = clampInt(
-                    Math.round(cutoff * (5.25f + lowCutoffPunch * 0.45f + midCutoffBlend * 0.95f)),
-                    harmLow + 150,
-                    900);
-
-            extractHighPass = MonoBiquad.fromBand(
+            sourceHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.HIGH_PASS,
                             true,
-                            Math.max(20, Math.round(cutoff * 0.35f)),
+                            Math.max(18, Math.round(cutoff * 0.30f)),
                             0,
                             70),
                     sampleRate);
 
-            extractLowPass = MonoBiquad.fromBand(
+            sourceLowPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.LOW_PASS,
                             true,
                             cutoff,
                             0,
-                            66),
+                            60),
                     sampleRate);
+
+            sourceLowPass2 = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            cutoff,
+                            0,
+                            60),
+                    sampleRate);
+
+            // Harmonic shaping band:
+            // 30 Hz: keep 60/90/120 Hz low-order harmonics.
+            // 60 Hz: keep 2nd/3rd/4th, but reduce 2nd to avoid a big 120 Hz puff.
+            // 90 Hz+: naturally shifts upward, but not too far.
+            int harmonicHpHz = clampInt(
+                    Math.round(cutoff * (1.35f + midCutoffBlend * 0.35f)),
+                    58,
+                    280);
+
+            int harmonicLpHz = clampInt(
+                    Math.round(cutoff * (5.00f + lowCutoffPunch * 1.15f + midCutoffBlend * 0.50f)),
+                    harmonicHpHz + 160,
+                    850);
 
             harmonicHighPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.HIGH_PASS,
                             true,
-                            harmLow,
+                            harmonicHpHz,
                             0,
-                            72),
+                            70),
                     sampleRate);
 
             harmonicLowPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.LOW_PASS,
                             true,
-                            harmHigh,
+                            harmonicLpHz,
                             0,
-                            72),
+                            68),
                     sampleRate);
 
-            // Low cutoff needs to be fuller; the 60 Hz fart zone should not push drive too hard.
-            inputDrive = 1.18f + amount * (5.10f + lowCutoffPunch * 0.85f - fartZoneBlend * 0.55f);
+            harmonicLowPass2 = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            harmonicLpHz,
+                            0,
+                            68),
+                    sampleRate);
 
-            // Make the effect obvious, but trim slightly in the 60 Hz zone.
-            harmonicMix = amount * (2.10f + lowCutoffPunch * 0.38f - fartZoneBlend * 0.16f);
+            // ALC detection speeds.
+            // Do not go too fast or it will follow bass cycles and sound like puffing.
+            float attackMs = 7.0f + fartZoneBlend * 3.0f - lowCutoffPunch * 1.2f;
+            float releaseMs = 75.0f + lowCutoffPunch * 18.0f + fartZoneBlend * 18.0f;
+            bassAttackCoeff = onePoleCoeff(Math.max(3.0f, attackMs), sampleRate);
+            bassReleaseCoeff = onePoleCoeff(Math.max(25.0f, releaseMs), sampleRate);
 
-            // Wet branch ceiling keeps virtual bass from pinning the main limiter.
-            wetCeiling = 0.36f + amount * 0.22f;
+            // Normalize by ALC before NLD.
+            // Do not rely on huge drive; rely on stable 2/3/4 harmonics instead.
+            normalizeDrive = 0.86f + amount * (0.56f + lowCutoffPunch * 0.08f - fartZoneBlend * 0.06f);
 
-            // 30 Hz needs more 60~90 Hz harmonics, so DC blocking cannot be too aggressive.
-            // The 60 Hz fart zone gets slightly stronger DC / slow-envelope suppression.
-            dcCoeff = clamp(0.996f - fartZoneBlend * 0.006f - midCutoffBlend * 0.002f, 0.988f, 0.997f);
+            // Scale applied when multiplying the bass envelope back in.
+            sourceScale = 0.86f + amount * (0.32f + lowCutoffPunch * 0.08f);
 
-            envelope = 0f;
-            evenDcState = 0f;
-            dcBlockX = 0f;
-            dcBlockY = 0f;
+            // Overall output strength. Full knob should be obvious.
+            harmonicMix = amount * (3.05f + lowCutoffPunch * 0.75f - fartZoneBlend * 0.14f);
+
+            // Wet branch limiter ceiling. Only limit wet, never dry.
+            wetCeiling = 0.42f + amount * 0.24f;
+
+            // Chebyshev harmonic ratios:
+            // h2 = 2nd harmonic, very important at 30 Hz;
+            // in the 60 Hz fart zone automatically reduce h2 and increase h3/h4;
+            // this swaps harmonic structure instead of just cutting frequency.
+            h2Mix = 0.82f + lowCutoffPunch * 0.28f - fartZoneBlend * 0.46f;
+            h3Mix = 0.78f + fartZoneBlend * 0.42f + lowCutoffPunch * 0.08f;
+            h4Mix = 0.18f + fartZoneBlend * 0.20f + midCutoffBlend * 0.06f;
+
+            // Stronger DC suppression in the 60 Hz zone, but not so strong that 30 Hz turns soft.
+            outputDcCoeff = clamp(0.996f - fartZoneBlend * 0.006f - midCutoffBlend * 0.0015f, 0.988f, 0.997f);
+
+            bassEnvelope = 0f;
+            outputDcX = 0f;
+            outputDcY = 0f;
+            harmonicEnvelope = 0f;
+            levelMatchGain = 1f;
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
         }
@@ -359,89 +408,96 @@ final class PcmDspProcessor {
             }
 
             System.arraycopy(monoSource, 0, monoLow, 0, frameCount);
-            extractHighPass.process(monoLow, frameCount);
-            extractLowPass.process(monoLow, frameCount);
+            sourceHighPass.process(monoLow, frameCount);
+            sourceLowPass.process(monoLow, frameCount);
+            sourceLowPass2.process(monoLow, frameCount);
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float low = monoLow[frame];
                 float absLow = Math.abs(low);
 
-                // No gate: generate continuously to avoid open/close "puffing".
-                float attack = 0.030f - fartZoneBlend * 0.006f;
-                float release = 0.0065f;
-                envelope += (absLow - envelope) * (absLow > envelope ? attack : release);
+                bassEnvelope += (absLow - bassEnvelope)
+                        * (absLow > bassEnvelope ? bassAttackCoeff : bassReleaseCoeff);
 
-                float dynamic = Math.min(1f, envelope * (6.2f + lowCutoffPunch * 2.0f));
-                float driveTrim = 1f - dynamic * (0.10f + fartZoneBlend * 0.16f);
+                sourceLevel[frame] = bassEnvelope;
 
-                float x = low * inputDrive * driveTrim;
+                // ALC: normalize by LF envelope first, generate harmonics, then multiply back by envelope.
+                // This stabilizes harmonic ratio across levels: not "no effect when quiet / farting when loud".
+                float level = Math.max(0.0045f, bassEnvelope);
+                float x = low / level;
+                x = clamp(x * normalizeDrive, -1.30f, 1.30f);
+                x = softClipUnit(x, 0.98f);
 
-                // Input pre-limiting so LF bursts do not blow up the harmonic generator.
-                x = softClipUnit(x, 0.90f);
-
-                // 2nd harmonic: important at 30 Hz for thickness and LF presence.
-                // Around the 60 Hz fart zone, reduce it automatically to avoid a boomy 120 Hz "puff".
-                float evenRaw = x * x;
-                float evenDcSpeed = 0.0013f + fartZoneBlend * 0.0011f;
-                evenDcState += (evenRaw - evenDcState) * evenDcSpeed;
-                float even = evenRaw - evenDcState;
-
-                // 3rd harmonic: harder/denser than 2nd, used more in the 60 Hz zone.
+                // Chebyshev NLD:
+                // T2/T3/T4 generate clean 2/3/4 harmonics on a sine.
+                // This sounds more like normal virtual bass than hard square/abs/tanh clipping.
                 float x2 = x * x;
                 float x3 = x2 * x;
-                float odd = x3 - x * (0.42f + fartZoneBlend * 0.08f);
+                float x4 = x2 * x2;
 
-                // Higher-order edge adds clarity, but is not the main bass body.
-                float edgeA = fastTanh(x * (2.25f + lowCutoffPunch * 0.22f));
-                float edgeB = fastTanh(x * 3.30f);
-                float edge = edgeA - fastTanh(x * 0.95f);
-                float bite = edgeB - edgeA;
+                float h2 = 2f * x2 - 1f;
+                float h3 = 4f * x3 - 3f * x;
+                float h4 = 8f * x4 - 8f * x2 + 1f;
 
-                float evenMix = 0.74f + lowCutoffPunch * 0.28f - fartZoneBlend * 0.52f;
-                float oddMix = 0.50f + fartZoneBlend * 0.34f + lowCutoffPunch * 0.08f;
-                float edgeMix = 0.11f + lowCutoffPunch * 0.13f - fartZoneBlend * 0.035f;
-                float biteMix = 0.050f + lowCutoffPunch * 0.035f + fartZoneBlend * 0.020f;
+                float harmonic = h2 * h2Mix
+                        + h3 * h3Mix
+                        + h4 * h4Mix;
 
-                float harmonic = even * evenMix
-                        + odd * oddMix
-                        + edge * edgeMix
-                        + bite * biteMix;
+                // Multiply back by the original bass envelope to preserve source dynamics.
+                float raw = harmonic * bassEnvelope * sourceScale;
 
-                // Final DC / slow-envelope suppression.
-                float dcBlocked = harmonic - dcBlockX + dcCoeff * dcBlockY;
-                dcBlockX = harmonic;
-                dcBlockY = dcBlocked;
+                // DC blocker: remove NLD bias and slow drift.
+                float dcBlocked = raw - outputDcX + outputDcCoeff * outputDcY;
+                outputDcX = raw;
+                outputDcY = dcBlocked;
 
                 harmonicBand[frame] = finiteOrZero(dcBlocked);
             }
 
+            // Harmonic shaping bandpass.
+            // This is critical: keep target harmonics, remove LF IMD and HF fuzz.
             harmonicHighPass.process(harmonicBand, frameCount);
             harmonicLowPass.process(harmonicBand, frameCount);
+            harmonicLowPass2.process(harmonicBand, frameCount);
 
-            // Independent wet-branch limiting so virtual bass does not pin the main limiter
-            // and mask the original fundamental.
+            // Secondary ALC: lightly match loudness after bandpass.
+            // This is a simplified version of the "harmonic loudness match" stage.
             for (int frame = 0; frame < frameCount; frame++) {
                 float wet = harmonicBand[frame];
-                float wetAbs = Math.abs(wet);
 
-                wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.085f : 0.0045f);
+                float wetAbs = Math.abs(wet);
+                harmonicEnvelope += (wetAbs - harmonicEnvelope)
+                        * (wetAbs > harmonicEnvelope ? 0.045f : 0.0035f);
+
+                float src = sourceLevel[frame];
+                float targetMatch = src > 0.003f
+                        ? clamp((src * 0.78f) / Math.max(0.0015f, harmonicEnvelope), 0.42f, 3.20f)
+                        : 1f;
+
+                float matchCoeff = targetMatch < levelMatchGain ? 0.018f : 0.004f;
+                levelMatchGain += (targetMatch - levelMatchGain) * matchCoeff;
+
+                wet *= levelMatchGain;
+
+                // Independent wet limiter so generated harmonics do not hit the main limiter
+                // and mask the original fundamental.
+                float limitedAbs = Math.abs(wet);
+                wetLimiterEnvelope += (limitedAbs - wetLimiterEnvelope)
+                        * (limitedAbs > wetLimiterEnvelope ? 0.080f : 0.0045f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
 
-                float coeff = targetGain < wetLimiterGain ? 0.13f : 0.006f;
-                wetLimiterGain += (targetGain - wetLimiterGain) * coeff;
+                float limiterCoeff = targetGain < wetLimiterGain ? 0.13f : 0.006f;
+                wetLimiterGain += (targetGain - wetLimiterGain) * limiterCoeff;
 
                 harmonicBand[frame] = softLimitWet(wet * wetLimiterGain, wetCeiling);
             }
 
             for (int frame = 0; frame < frameCount; frame++) {
                 float generated = harmonicBand[frame] * harmonicMix;
-
-                // Only limit wet, not dry.
-                generated = softLimitWet(generated, wetCeiling * 1.40f);
+                generated = softLimitWet(generated, wetCeiling * 1.55f);
 
                 int frameOffset = frame * channelCount;
                 for (int channel = 0; channel < channelCount; channel++) {
@@ -459,8 +515,15 @@ final class PcmDspProcessor {
             if (monoSource.length < frameCount) {
                 monoSource = new float[frameCount];
                 monoLow = new float[frameCount];
+                sourceLevel = new float[frameCount];
                 harmonicBand = new float[frameCount];
             }
+        }
+
+        private static float onePoleCoeff(float timeMs, int sampleRate) {
+            float safeMs = Math.max(0.1f, timeMs);
+            float safeSampleRate = Math.max(8000f, sampleRate);
+            return 1f - (float) Math.exp(-1.0 / (safeSampleRate * safeMs / 1000f));
         }
 
         private static float softClipUnit(float value, float ceiling) {
