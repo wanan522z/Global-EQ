@@ -34,16 +34,19 @@ final class ShizukuSessionMuteEngine {
             "Session ID:\\s*(\\d+);\\s*uid\\s*(\\d+);[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern SESSION_BLOCK_START_REGEX = Pattern.compile(
-            "Session\\s+I(?:d|D)\\s*:?\\s*(\\d+)(?:\\s*;)?",
+            "\\bSession(?:\\s+I(?:d|D))?\\s*[:=]?\\s*(\\d+)(?:\\s*;)?",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern SESSION_UID_REGEX = Pattern.compile(
             "\\buid\\b\\s*:?\\s*(\\d+)",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern SESSION_CONTENT_REGEX = Pattern.compile(
-            "Content\\s+type\\s*:?\\s*([A-Z0-9_]+)",
+            "Content\\s+type\\s*:?\\s*([A-Z0-9_()/-]+)",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern SESSION_USAGE_REGEX = Pattern.compile(
-            "Usage\\s*:?\\s*([A-Z0-9_]+)",
+            "Usage\\s*:?\\s*([A-Z0-9_()/-]+)",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern PLAYBACK_SESSION_REGEX = Pattern.compile(
+            "\\bsession(?:Id)?\\b\\s*[:=]\\s*(\\d+)",
             Pattern.CASE_INSENSITIVE);
 
     interface SessionIdProvider {
@@ -338,18 +341,21 @@ final class ShizukuSessionMuteEngine {
 
     private List<SessionInfo> dumpPolicySessions() {
         String output = ShizukuCompat.dumpSystemService("media.audio_policy");
+        List<SessionInfo> sessions = new ArrayList<>();
         if (output == null || output.trim().isEmpty()) {
             Log.w(TAG, "Audio policy dump was empty");
-            return new ArrayList<>();
+        } else {
+            collectSessionsWithPattern(output, SESSION_REGEX, sessions);
+            if (sessions.isEmpty()) {
+                collectSessionsWithPattern(output, SESSION_REGEX_33, sessions);
+            }
+            if (sessions.isEmpty()) {
+                collectSessionsByBlocks(output, sessions);
+            }
         }
-        List<SessionInfo> sessions = new ArrayList<>();
-        collectSessionsWithPattern(output, SESSION_REGEX, sessions);
-        if (sessions.isEmpty()) {
-            collectSessionsWithPattern(output, SESSION_REGEX_33, sessions);
-        }
-        if (sessions.isEmpty()) {
-            collectSessionsByBlocks(output, sessions);
-        }
+
+        mergeActivePlaybackSessions(sessions);
+
         if (sessions.isEmpty()) {
             Log.w(TAG, "No audio sessions matched the audio_policy dump");
         }
@@ -407,6 +413,44 @@ final class ShizukuSessionMuteEngine {
 
             String packageName = getPackageNameForUid(uid);
             sessions.add(new SessionInfo(sessionId, uid, usage, content, packageName));
+        }
+    }
+
+    private void mergeActivePlaybackSessions(List<SessionInfo> sessions) {
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+
+        Set<Integer> knownSessionIds = new LinkedHashSet<>();
+        for (SessionInfo session : sessions) {
+            knownSessionIds.add(session.sessionId);
+        }
+
+        try {
+            List<AudioPlaybackConfiguration> configs = audioManager.getActivePlaybackConfigurations();
+            if (configs == null) {
+                return;
+            }
+            for (AudioPlaybackConfiguration configuration : configs) {
+                if (configuration == null || !isRelevantActivePlayback(configuration)) {
+                    continue;
+                }
+
+                int sessionId = readPlaybackSessionId(configuration);
+                int uid = readPlaybackClientUid(configuration);
+                if (sessionId <= 0 || uid <= 0 || knownSessionIds.contains(sessionId)) {
+                    continue;
+                }
+
+                String packageName = getPackageNameForUid(uid);
+                String usage = playbackUsageToString(readPlaybackUsage(configuration));
+                sessions.add(new SessionInfo(sessionId, uid, usage, "", packageName));
+                knownSessionIds.add(sessionId);
+                Log.d(TAG, "Recovered active playback session from AudioPlaybackConfiguration: sid="
+                        + sessionId + ", uid=" + uid + ", package=" + packageName);
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to merge active playback sessions", ex);
         }
     }
 
@@ -534,6 +578,62 @@ final class ShizukuSessionMuteEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to inspect playback attributes", ex);
             return false;
+        }
+    }
+
+    private int readPlaybackSessionId(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return -1;
+        }
+
+        String[] methodNames = new String[]{
+                "getSessionId",
+                "getAudioSessionId",
+                "getClientSessionId",
+                "getClientAudioSessionId"
+        };
+        for (String methodName : methodNames) {
+            try {
+                java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod(methodName);
+                Object value = method.invoke(configuration);
+                if (value instanceof Integer) {
+                    int sessionId = (Integer) value;
+                    if (sessionId > 0) {
+                        return sessionId;
+                    }
+                }
+            } catch (NoSuchMethodException ignored) {
+            } catch (ReflectiveOperationException ex) {
+                Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#" + methodName, ex);
+            } catch (RuntimeException ex) {
+                Log.w(TAG, "Unable to read playback session id via " + methodName, ex);
+            }
+        }
+
+        return parseSessionIdFromPlaybackConfig(configuration.toString());
+    }
+
+    private int parseSessionIdFromPlaybackConfig(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return -1;
+        }
+        Matcher matcher = PLAYBACK_SESSION_REGEX.matcher(text);
+        if (!matcher.find()) {
+            return -1;
+        }
+        return safeParseInt(matcher.group(1));
+    }
+
+    private String playbackUsageToString(int usage) {
+        switch (usage) {
+            case android.media.AudioAttributes.USAGE_MEDIA:
+                return "USAGE_MEDIA";
+            case android.media.AudioAttributes.USAGE_GAME:
+                return "USAGE_GAME";
+            case android.media.AudioAttributes.USAGE_UNKNOWN:
+                return "USAGE_UNKNOWN";
+            default:
+                return usage <= 0 ? "" : "USAGE_" + usage;
         }
     }
 
