@@ -539,6 +539,7 @@ public final class MainActivity extends Activity {
     private boolean awaitingInitialDeviceMonitorEvent;
     private boolean suppressInitialDeviceReapply;
     private boolean hasStartedDeviceMonitorOnce;
+    private boolean startupProcessingRecoveryPending = true;
     private OnBackInvokedCallback systemBackCallback;
     private boolean systemBackCallbackRegistered;
 
@@ -1995,7 +1996,7 @@ public final class MainActivity extends Activity {
             }
             applyRunningPreset(true);
         } else {
-            applyRunningPreset();
+            applyRunningPreset(false, false);
             if (runningPreset != null && runningPreset.enabled) {
                 ensureShizukuModeReady(true);
             }
@@ -2178,8 +2179,8 @@ public final class MainActivity extends Activity {
             refreshRuntimeStatusUi();
             return;
         }
-        applyRunningPreset();
         if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
+            applyRunningPreset();
             refreshRuntimeStatusUi();
             return;
         }
@@ -6260,7 +6261,7 @@ public final class MainActivity extends Activity {
                 && applyPreset.enabled == runningPreset.enabled) {
             if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
                 if (applyPreset.enabled) {
-                    applyRunningPreset();
+                    applyRunningPreset(false, false);
                     scheduleDelayedShizukuReady();
                 } else {
                     applyRunningPreset(false, false);
@@ -6274,18 +6275,19 @@ public final class MainActivity extends Activity {
 
     private void maybeEnsureProcessingActive() {
         if (repository == null || runningPreset == null || !runningPreset.enabled) {
+            startupProcessingRecoveryPending = false;
             return;
         }
         boolean serviceActive = syncRuntimeStateWithServiceProcess();
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-            if (serviceActive && repository.loadMonitorCaptureAuthorized()) {
-                return;
-            }
-            repository.saveMonitorCaptureAuthorized(false);
-            ensureShizukuModeReady(true);
+        if (!startupProcessingRecoveryPending) {
             return;
         }
+        startupProcessingRecoveryPending = false;
         if (serviceActive) {
+            return;
+        }
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            ensureShizukuModeReady(true);
             return;
         }
         notifyServiceAboutRunningPreset();
@@ -11428,7 +11430,6 @@ public final class MainActivity extends Activity {
         if (!granted) {
             Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
         } else {
-            applyRunningPreset();
             ensureShizukuModeReady(true);
         }
         refreshRuntimeStatusUi();
@@ -11444,7 +11445,6 @@ public final class MainActivity extends Activity {
         }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (granted) {
-            applyRunningPreset();
             ensureShizukuModeReady(true);
             Toast.makeText(this, tr("Shizuku access granted", "Shizuku \u6388\u6743\u5df2\u6210\u529f"), Toast.LENGTH_SHORT).show();
         } else {

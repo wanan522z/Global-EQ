@@ -70,7 +70,6 @@ public final class GlobalEqForegroundService extends Service {
         super.onCreate();
         repository = new PresetRepository(this);
         repository.saveServiceActive(true);
-        repository.saveMonitorCaptureAuthorized(false);
         engine = GlobalEqRuntime.engine();
         currentProcessingMode = repository.loadProcessingMode();
         currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
