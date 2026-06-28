@@ -244,6 +244,7 @@ final class ShizukuSessionMuteEngine {
                 + ", activeMuteEffects=" + muteEffects.size()
                 + ", muteMode=" + applyMuteEffects
                 + ", activePlaybackUids=" + activePlayback.activeUids.size());
+        logSessionSnapshot("scanSessionsAndRefreshState", sessions);
         String activePackageName = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
         updateActivePackageName(activePackageName);
         if (wantsMuteEffects && !applyMuteEffects) {
@@ -288,6 +289,7 @@ final class ShizukuSessionMuteEngine {
                         + ", usage=" + usage
                         + ", playerState=" + playerState
                         + ", relevant=" + relevant);
+                Log.d(TAG, "Playback config raw=" + summarizeConfig(configuration));
                 if (!relevant) {
                     continue;
                 }
@@ -355,11 +357,20 @@ final class ShizukuSessionMuteEngine {
             Log.w(TAG, "Audio policy dump was empty");
         } else {
             collectSessionsWithPattern(output, SESSION_REGEX, sessions);
+            if (!sessions.isEmpty()) {
+                Log.d(TAG, "audio_policy matched with SESSION_REGEX count=" + sessions.size());
+            }
             if (sessions.isEmpty()) {
                 collectSessionsWithPattern(output, SESSION_REGEX_33, sessions);
+                if (!sessions.isEmpty()) {
+                    Log.d(TAG, "audio_policy matched with SESSION_REGEX_33 count=" + sessions.size());
+                }
             }
             if (sessions.isEmpty()) {
                 collectSessionsByBlocks(output, sessions);
+                if (!sessions.isEmpty()) {
+                    Log.d(TAG, "audio_policy matched with block parser count=" + sessions.size());
+                }
             }
         }
 
@@ -384,6 +395,11 @@ final class ShizukuSessionMuteEngine {
                 }
                 String pkgName = getPackageNameForUid(uid);
                 sessions.add(new SessionInfo(sessionId, uid, usage, content, pkgName));
+                Log.d(TAG, "Parsed audio_policy session sid=" + sessionId
+                        + ", uid=" + uid
+                        + ", pkg=" + pkgName
+                        + ", usage=" + usage
+                        + ", content=" + content);
             } catch (RuntimeException ex) {
                 Log.w(TAG, "Unable to parse audio policy session", ex);
             }
@@ -422,6 +438,11 @@ final class ShizukuSessionMuteEngine {
 
             String packageName = getPackageNameForUid(uid);
             sessions.add(new SessionInfo(sessionId, uid, usage, content, packageName));
+            Log.d(TAG, "Parsed audio_policy block session sid=" + sessionId
+                    + ", uid=" + uid
+                    + ", pkg=" + packageName
+                    + ", usage=" + usage
+                    + ", content=" + content);
         }
     }
 
@@ -448,6 +469,10 @@ final class ShizukuSessionMuteEngine {
                 int sessionId = readPlaybackSessionId(configuration);
                 int uid = readPlaybackClientUid(configuration);
                 if (sessionId <= 0 || uid <= 0 || knownSessionIds.contains(sessionId)) {
+                    Log.d(TAG, "Skipped active playback merge sid=" + sessionId
+                            + ", uid=" + uid
+                            + ", known=" + knownSessionIds.contains(sessionId)
+                            + ", raw=" + summarizeConfig(configuration));
                     continue;
                 }
 
@@ -456,7 +481,8 @@ final class ShizukuSessionMuteEngine {
                 sessions.add(new SessionInfo(sessionId, uid, usage, "", packageName));
                 knownSessionIds.add(sessionId);
                 Log.d(TAG, "Recovered active playback session from AudioPlaybackConfiguration: sid="
-                        + sessionId + ", uid=" + uid + ", package=" + packageName);
+                        + sessionId + ", uid=" + uid + ", package=" + packageName
+                        + ", usage=" + usage + ", raw=" + summarizeConfig(configuration));
             }
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to merge active playback sessions", ex);
@@ -510,23 +536,34 @@ final class ShizukuSessionMuteEngine {
         for (SessionInfo session : sessions) {
             knownSessions.put(session.sessionId, session);
             if (session.packageName.equals(appContext.getPackageName()) || session.uid == ownUid) {
+                Log.d(TAG, "Skip session sid=" + session.sessionId + " because it belongs to our app");
                 continue;
             }
             if (currentAppSessionIds.contains(session.sessionId)) {
+                Log.d(TAG, "Skip session sid=" + session.sessionId + " because it is an owned capture session");
                 continue;
             }
             if (!isEligibleSessionUsage(session.usage)) {
+                Log.d(TAG, "Skip session sid=" + session.sessionId + " due to usage=" + session.usage);
                 continue;
             }
             if (activePlayback != null
                     && activePlayback.hasResolvedActiveUids()
                     && !activePlayback.containsUid(session.uid)) {
+                Log.d(TAG, "Skip session sid=" + session.sessionId
+                        + " because activePlaybackUids=" + activePlayback.activeUids
+                        + " does not include uid=" + session.uid
+                        + " pkg=" + session.packageName);
                 continue;
             }
             if (firstActivePackageName.isEmpty() && !session.packageName.isEmpty()) {
                 firstActivePackageName = session.packageName;
             }
             desiredMuteSessionIds.add(session.sessionId);
+            Log.d(TAG, "Session selected for mute sid=" + session.sessionId
+                    + ", uid=" + session.uid
+                    + ", pkg=" + session.packageName
+                    + ", usage=" + session.usage);
         }
 
         List<Integer> staleMutedSessions = new ArrayList<>();
@@ -628,6 +665,7 @@ final class ShizukuSessionMuteEngine {
         }
         Matcher matcher = PLAYBACK_SESSION_REGEX.matcher(text);
         if (!matcher.find()) {
+            Log.d(TAG, "Playback config text had no session token: " + summarizeText(text));
             return -1;
         }
         return safeParseInt(matcher.group(1));
@@ -639,6 +677,7 @@ final class ShizukuSessionMuteEngine {
         }
         Matcher matcher = PLAYBACK_UID_REGEX.matcher(text);
         if (!matcher.find()) {
+            Log.d(TAG, "Playback config text had no uid token: " + summarizeText(text));
             return -1;
         }
         return safeParseInt(matcher.group(1));
@@ -668,6 +707,7 @@ final class ShizukuSessionMuteEngine {
 
         Matcher valueMatcher = PLAYBACK_USAGE_VALUE_REGEX.matcher(text);
         if (!valueMatcher.find()) {
+            Log.d(TAG, "Playback config text had no usage token: " + summarizeText(text));
             return -1;
         }
         return safeParseInt(valueMatcher.group(1));
@@ -691,6 +731,43 @@ final class ShizukuSessionMuteEngine {
         return usage.contains("USAGE_MEDIA")
                 || usage.contains("USAGE_GAME")
                 || usage.contains("USAGE_UNKNOWN");
+    }
+
+    private void logSessionSnapshot(String label, List<SessionInfo> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            Log.d(TAG, label + " sessions=[]");
+            return;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (SessionInfo session : sessions) {
+            if (builder.length() > 0) {
+                builder.append(" | ");
+            }
+            builder.append("sid=").append(session.sessionId)
+                    .append(",uid=").append(session.uid)
+                    .append(",pkg=").append(session.packageName)
+                    .append(",usage=").append(session.usage)
+                    .append(",content=").append(session.content);
+        }
+        Log.d(TAG, label + " sessions=[" + builder + "]");
+    }
+
+    private String summarizeConfig(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return "null";
+        }
+        return summarizeText(configuration.toString());
+    }
+
+    private String summarizeText(String text) {
+        if (text == null) {
+            return "null";
+        }
+        String normalized = text.replace('\n', ' ').replace('\r', ' ').trim();
+        if (normalized.length() <= 240) {
+            return normalized;
+        }
+        return normalized.substring(0, 240) + "...";
     }
 
     private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
