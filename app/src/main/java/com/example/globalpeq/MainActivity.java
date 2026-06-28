@@ -6767,6 +6767,7 @@ public final class MainActivity extends Activity {
         if (currentDevice == null || runningPreset == null) {
             return;
         }
+        persistVirtualBassUiState();
         Preset persistedPreset = withCurrentCurveSettings(runningPreset);
         if (persistedPreset != null && !persistedPreset.toJson().equals(runningPreset.toJson())) {
             runningPreset = persistedPreset.withEnabled(runningPreset.enabled);
@@ -6776,6 +6777,7 @@ public final class MainActivity extends Activity {
     }
 
     private void persistEditingPresetNow() {
+        persistVirtualBassUiState();
         Preset persistedPreset = withCurrentCurveSettings(editingPreset);
         if (persistedPreset == null) {
             return;
