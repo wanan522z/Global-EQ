@@ -33,6 +33,7 @@ import android.text.InputType;
 import android.text.Layout;
 import android.text.TextPaint;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -77,6 +78,7 @@ import java.util.Set;
 import org.json.JSONException;
 
 public final class MainActivity extends Activity {
+    private static final String TAG = "GlobalPeqMain";
     private static final int HISTORY_LIMIT = 30;
     private static final int REQUEST_IMPORT_DEVICE_CURVE = 4101;
     private static final int REQUEST_IMPORT_TARGET_CURVE = 4102;
@@ -6250,6 +6252,7 @@ public final class MainActivity extends Activity {
     }
 
     private void startCompatibleForegroundService(Intent service) {
+        Log.d(TAG, "startCompatibleForegroundService action=" + (service == null ? "null" : service.getAction()));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(service);
             return;
