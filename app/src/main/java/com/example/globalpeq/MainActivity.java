@@ -3694,6 +3694,7 @@ public final class MainActivity extends Activity {
             if (selectedBassModeIndex == nextIndex) {
                 return;
             }
+            persistVirtualBassUiState();
             setEditingPreset(editingPreset.withVirtualBassModeIndex(nextIndex), true);
         });
     }
