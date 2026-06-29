@@ -94,7 +94,7 @@ public final class MainActivity extends Activity {
     private static final int PEQ_BAND_COMMIT_DELAY_MS = 160;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
     private static final long LIVE_EQ_PREVIEW_DELAY_MS = 24L;
-    private static final long EQ_TEXT_INPUT_APPLY_DELAY_MS = 260L;
+    private static final long EQ_TEXT_INPUT_APPLY_DELAY_MS = 140L;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS = 280L;
     private static final long ENABLE_TOGGLE_INTERACTION_LOCK_MS = 260L;
@@ -287,13 +287,13 @@ public final class MainActivity extends Activity {
     // software text redraw cost while keeping the motion visually smooth.
     private static final int SHIMMER_FPS_DELAY = 66;
     private long lastShimmerTime = 0L;
-    // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每�?GC 与重分配
+    // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleVisualStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
-    // 流光速度：每秒平�?0.05 个视图宽度（�?20 秒一个周期）�?
-    // 极致缓慢滚动，营造静谧高雅的流光氛围�?
+    // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
+    // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
     private static final float TAB_SHIMMER_SPEED_MULTIPLIER = 4.2f;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
@@ -320,11 +320,11 @@ public final class MainActivity extends Activity {
                     }
                 }
 
-                // 关键修复：每帧把 phase 偏移直接 baked �?LinearGradient 的坐标参数，
-                // 而非�?setLocalMatrix。硬件加速下 TextView 文字�?glyph atlas 渲染�?
-                // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化�?
-                // 导致 matrix 更新了但 glyph 不重绘（视觉不动）�?
-                // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘�?
+                // 关键修复：每帧把 phase 偏移直接 baked 进 LinearGradient 的坐标参数，
+                // 而非用 setLocalMatrix。硬件加速下 TextView 文字走 glyph atlas 渲染，
+                // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化，
+                // 导致 matrix 更新了但 glyph 不重绘（视觉不动）。
+                // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘。
                 applyShimmerFrame(view, width, currentShimmerPhaseForView(view));
             }
             if (!shimmerTargetViews.isEmpty()) {
@@ -335,9 +335,9 @@ public final class MainActivity extends Activity {
         }
     };
 
-    // 每帧调用：根�?view 类型 + 状态选色阶，�?phase 偏移 baked 进渐变坐标�?
+    // 每帧调用：根据 view 类型 + 状态选色阶，把 phase 偏移 baked 进渐变坐标。
     // 恢复原始状态判定（isEditingPresetActive / runningPreset.enabled），
-    // 不同状态用不同色阶，但都用 baked offset 方式（不�?setLocalMatrix）�?
+    // 不同状态用不同色阶，但都用 baked offset 方式（不用 setLocalMatrix）。
     private void applyShimmerFrame(TextView view, int width, float phase) {
         if (view == null || width <= 0) {
         }
@@ -426,26 +426,26 @@ public final class MainActivity extends Activity {
         return phase;
     }
 
-    // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销�?
+    // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
 
-    // 亮色阶：超高亮炽白冰蓝流光——压掉绿色、加大浅亮蓝与超白核心占比，整体发光亮度直接拉满�?
+    // 亮色阶：超高亮炽白冰蓝流光——压掉绿色、加大浅亮蓝与超白核心占比，整体发光亮度直接拉满！
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(150, 235, 255),  // 浅亮蓝白 (B>G，偏蓝的发光�?
+            Color.rgb(150, 235, 255),  // 浅亮蓝白 (B>G，偏蓝的发光白)
             Color.rgb(50, 210, 255),   // 极亮电光冰蓝 (B>>G，纯净冰蓝，零绿色)
-            Color.rgb(255, 255, 255),  // 纯白超炽亮核�?(Super HotCore White)
+            Color.rgb(255, 255, 255),  // 纯白超炽亮核心 (Super HotCore White)
             Color.rgb(50, 210, 255),   // 极亮电光冰蓝
             Color.rgb(150, 235, 255)   // 浅亮蓝白
     };
     // Live 模式 statusText：同亮色阶（极亮冰蓝与炽白光晕，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
-    // Edit 模式 statusText：高雅通透、极其明亮的浅冰蓝白（去绿，偏蓝与白�?
+    // Edit 模式 statusText：高雅通透、极其明亮的浅冰蓝白（去绿，偏蓝与白）
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(180, 230, 255),  // 极亮淡蓝�?
-            Color.rgb(110, 210, 255),  // 极高亮冰�?
+            Color.rgb(180, 230, 255),  // 极亮淡蓝白
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
             Color.rgb(255, 255, 255),  // 纯白核心
-            Color.rgb(110, 210, 255),  // 极高亮冰�?
-            Color.rgb(180, 230, 255)   // 极亮淡蓝�?
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
+            Color.rgb(180, 230, 255)   // 极亮淡蓝白
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
@@ -700,9 +700,9 @@ public final class MainActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (!hasFocus) return;
-        // 窗口获得焦点时所�?view 已完成布局，getWidth() 返回真实值�?
-        // 此时强制重建 modeSpinner �?active tab �?shader，确保流光用正确宽度运行�?
-        // 解决 onCreate 中注册时 getWidth()==0 导致 shader width=1 的问题�?
+        // 窗口获得焦点时所有 view 已完成布局，getWidth() 返回真实值。
+        // 此时强制重建 modeSpinner 和 active tab 的 shader，确保流光用正确宽度运行。
+        // 解决 onCreate 中注册时 getWidth()==0 导致 shader width=1 的问题。
         if (modeSpinner != null && modeSpinner.getWidth() > 0) {
             styleSettingsTitleText(modeSpinner);
             registerShimmerView(modeSpinner);
@@ -1074,8 +1074,8 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setPadding(iconPad, iconPad, iconPad, iconPad);
         monitoredAppIconView.setBackground(iconGlowDrawable(Color.argb(178, 120, 220, 255)));
         monitoredAppIconView.setClipToOutline(false);
-        // 注意：不能再�?LAYER_TYPE_SOFTWARE——软件图层会把绘制裁剪到 View 尺寸�?
-        // 导致超出 36dp View 边界的光晕被切掉。新光晕用预模糊位图，无需软件渲染�?
+        // 注意：不能再设 LAYER_TYPE_SOFTWARE——软件图层会把绘制裁剪到 View 尺寸，
+        // 导致超出 36dp View 边界的光晕被切掉。新光晕用预模糊位图，无需软件渲染。
         monitoredAppIconView.setVisibility(View.GONE);
         FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
                 monitoredAppIconHostSizePx(),
@@ -1407,8 +1407,8 @@ public final class MainActivity extends Activity {
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(title);
         LinearLayout.LayoutParams engineTitleParams = blockParams(0);
-        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都�?panel 内容区左边开始）�?
-        // title view 左移进入 panel padding 区的 22dp 正好是空�?leftPadding，shadow 半径 5.5dp 仍落�?panel 16dp padding 内，不裁剪�?
+        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都从 panel 内容区左边开始）。
+        // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，shadow 半径 5.5dp 仍落在 panel 16dp padding 内，不裁剪。
         engineTitleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(title, 12);
         panel.addView(title, engineTitleParams);
@@ -1503,7 +1503,7 @@ public final class MainActivity extends Activity {
         aboutTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(aboutTitleView);
         LinearLayout.LayoutParams aboutTitleParams = blockParams(0);
-        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都�?panel 内容区左边开始）�?
+        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都从 panel 内容区左边开始）。
         aboutTitleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(aboutTitleView, 12);
         aboutPanel.addView(aboutTitleView, aboutTitleParams);
@@ -1709,12 +1709,12 @@ public final class MainActivity extends Activity {
         /*
         return tr(
                 "Use the System Processing control below to switch backend mode.",
-                "点击上方标题即可切换后端模式�?);
+                "点击上方标题即可切换后端模式。");
         */
     }
 
     private String settingsStatusLabelText() {
-        return tr("System Processing:", "系统处理�?);
+        return tr("System Processing:", "系统处理：");
     }
 
     private String settingsLanguageLabelText() {
@@ -1747,7 +1747,7 @@ public final class MainActivity extends Activity {
     private String aboutBodyText() {
         return tr(
                 "Global PEQ is a low-latency, audiophile-grade Parametric Equalizer running natively on Android's high-performance audio routing engine. Enjoy tailored, professional equalization for all your playback devices.",
-                "Global PEQ 是一款原生运行在 Android 高性能音频路由引擎上的低延迟发烧级 Parametric Equalizer，可为你的所有播放设备提供更细致、更专业的均衡调音�?);
+                "Global PEQ 是一款原生运行在 Android 高性能音频路由引擎上的低延迟发烧级 Parametric Equalizer，可为你的所有播放设备提供更细致、更专业的均衡调音。");
     }
 
     private String footerText() {
@@ -1761,7 +1761,7 @@ public final class MainActivity extends Activity {
     private String monitorSettingsDetailText() {
         return tr(
                 "Authorize Shizuku, then Android playback capture. Shizuku Mode captures system audio globally and tries to mute the original playback sessions automatically.",
-                "选择目标应用，完�?Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加�?);
+                "选择目标应用，完成 Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加。");
     }
 
     private String monitoredAppLabelText() {
@@ -1802,7 +1802,7 @@ public final class MainActivity extends Activity {
 
     private String engineStatusText() {
         if (!supported) {
-            return isChineseUi() ? "不支�? : "UNSUPPORTED";
+            return isChineseUi() ? "不支持" : "UNSUPPORTED";
         }
         return processingModeDisplayLabel(processingMode);
     }
@@ -1819,31 +1819,31 @@ public final class MainActivity extends Activity {
         if (!isChineseUi()) {
             return safe;
         }
-        if ("Native capture is idle.".equals(safe)) return "原生捕获空闲中�?;
-        if ("Capture authorization was cancelled.".equals(safe)) return "捕获授权已取消�?;
+        if ("Native capture is idle.".equals(safe)) return "原生捕获空闲中。";
+        if ("Capture authorization was cancelled.".equals(safe)) return "捕获授权已取消。";
         if ("Starting native capture...".equals(safe)) return "正在启动原生捕获...";
-        if ("Record-audio permission was denied.".equals(safe)) return "录音权限已被拒绝�?;
-        if ("Grant record-audio permission to continue.".equals(safe)) return "请先授予录音权限再继续�?;
+        if ("Record-audio permission was denied.".equals(safe)) return "录音权限已被拒绝。";
+        if ("Grant record-audio permission to continue.".equals(safe)) return "请先授予录音权限再继续。";
         if ("Waiting for capture authorization...".equals(safe)) return "正在等待捕获授权...";
-        if ("Native capture requires Android 10 or later.".equals(safe)) return "原生捕获需�?Android 10 或更高版本�?;
-        if ("Capture authorization could not be initialized.".equals(safe)) return "无法初始化捕获授权�?;
-        if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "捕获权限已失效，请重新授权后恢复�?;
-        if ("Default mode active. Native capture disabled.".equals(safe)) return "当前�?Default 模式，原生捕获已禁用�?;
-        if ("Choose an app to monitor.".equals(safe)) return "请选择要监听的应用�?;
-        if ("Native capture is not authorized.".equals(safe)) return "原生捕获尚未授权�?;
-        if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "原生捕获已停止，如会话中断请重新授权�?;
-        if (safe.startsWith("Capture authorized. Choose an app to monitor.")) return "捕获已授权，请选择要监听的应用�?;
+        if ("Native capture requires Android 10 or later.".equals(safe)) return "原生捕获需要 Android 10 或更高版本。";
+        if ("Capture authorization could not be initialized.".equals(safe)) return "无法初始化捕获授权。";
+        if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "捕获权限已失效，请重新授权后恢复。";
+        if ("Default mode active. Native capture disabled.".equals(safe)) return "当前为 Default 模式，原生捕获已禁用。";
+        if ("Choose an app to monitor.".equals(safe)) return "请选择要监听的应用。";
+        if ("Native capture is not authorized.".equals(safe)) return "原生捕获尚未授权。";
+        if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "原生捕获已停止，如会话中断请重新授权。";
+        if (safe.startsWith("Capture authorized. Choose an app to monitor.")) return "捕获已授权，请选择要监听的应用。";
         if (safe.startsWith("Capture authorized for ") && safe.endsWith(".")) {
-            return "已为 " + safe.substring("Capture authorized for ".length(), safe.length() - 1) + " 完成捕获授权�?;
+            return "已为 " + safe.substring("Capture authorized for ".length(), safe.length() - 1) + " 完成捕获授权。";
         }
         if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture.")) {
-            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture.".length()) + "�?;
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture.".length()) + "。";
         }
         if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture. Mute the source app.")) {
-            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture. Mute the source app.".length()) + "。请将源应用静音�?;
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture. Mute the source app.".length()) + "。请将源应用静音。";
         }
         if (safe.startsWith("Armed for ") && safe.endsWith(" - waiting for playback.")) {
-            return "已为 " + safe.substring("Armed for ".length(), safe.length() - " - waiting for playback.".length()) + " 就绪，等待播放中�?;
+            return "已为 " + safe.substring("Armed for ".length(), safe.length() - " - waiting for playback.".length()) + " 就绪，等待播放中。";
         }
         return safe;
     }
@@ -1852,7 +1852,7 @@ public final class MainActivity extends Activity {
         if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
             return tr(
                     "Native capture is only used by Shizuku Mode.",
-                    "原生捕获仅在第二套后端模式下使用�?);
+                    "原生捕获仅在第二套后端模式下使用。");
         }
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
     }
@@ -1861,13 +1861,14 @@ public final class MainActivity extends Activity {
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             return tr(
                     "Default mode keeps the existing system EQ, virtual bass, and extra bass paths unchanged.",
-                    "Default 模式会保持现有的系统 EQ、virtual bass �?extra bass 路径不变�?);
+                    "Default 模式会保持现有的系统 EQ、virtual bass 和 extra bass 路径不变。");
         }
         String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? tr("No app selected", "未选择应用")
                 : advancedModeConfig.monitoredAppLabel;
         return String.format(Locale.US,
-                tr("App: %s  |  %d ms  |  %d frames  |  poll %d ms", "应用：%s  |  %d ms  |  %d frames  |  轮询 %d ms"),
+                tr("App: %s  |  %d ms  |  %d frames  |  poll %d ms",
+                        "应用：%s  |  %d ms  |  %d frames  |  轮询 %d ms"),
                 appLabel,
                 advancedModeConfig.latencyMs,
                 advancedModeConfig.bufferSizeFrames,
@@ -2082,7 +2083,7 @@ public final class MainActivity extends Activity {
             pendingMonitorCaptureAuthorization = false;
             repository.saveMonitorCaptureStatus("Record-audio permission was denied.", false);
             renderAll();
-            Toast.makeText(this, tr("Record audio permission is required for native capture", "原生捕获需要录音权�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Record audio permission is required for native capture", "原生捕获需要录音权限"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (pendingMonitorCaptureAuthorization) {
@@ -2119,12 +2120,12 @@ public final class MainActivity extends Activity {
         pendingMonitorCaptureAuthorization = true;
         repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
         renderAll();
-        Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 现在会请求回放捕获授�?), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 现在会请求回放捕获授权"), Toast.LENGTH_SHORT).show();
         android.media.projection.MediaProjectionManager manager =
                 (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (manager == null) {
             pendingMonitorCaptureAuthorization = false;
-            Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 服务不可�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 服务不可用"), Toast.LENGTH_SHORT).show();
             return;
         }
         startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MONITOR_CAPTURE);
@@ -2183,7 +2184,7 @@ public final class MainActivity extends Activity {
 
             EditText searchInput = new EditText(this);
             searchInput.setSingleLine(true);
-            searchInput.setHint(tr("Search added apps", "搜索已添加应�?));
+            searchInput.setHint(tr("Search added apps", "搜索已添加应用"));
             searchInput.setTextSize(13);
             searchInput.setTextColor(Color.WHITE);
             searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
@@ -2274,7 +2275,7 @@ public final class MainActivity extends Activity {
             AlertDialog dialog = new AlertDialog.Builder(this)
                     .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
                     .setView(shell)
-                    .setNegativeButton(tr("Close", "??"), null)
+                    .setNegativeButton(tr("Close", "关闭"), null)
                     .create();
             dialogHolder[0] = dialog;
             dialog.show();
@@ -2303,7 +2304,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "??"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         */
     }
@@ -2366,7 +2367,7 @@ public final class MainActivity extends Activity {
             TextView empty = new TextView(this);
             empty.setText(tr(
                     "No suggested media apps were detected. Use Add to pick any installed app.",
-                    "没有检测到推荐的媒体应用。可以通过 Add 选择任意已安装应用�?));
+                    "没有检测到推荐的媒体应用。可以通过 Add 选择任意已安装应用。"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -2451,7 +2452,7 @@ public final class MainActivity extends Activity {
 
         EditText searchInput = new EditText(this);
         searchInput.setSingleLine(true);
-        searchInput.setHint(tr("Search app or package", "搜索应用或包�?));
+        searchInput.setHint(tr("Search app or package", "搜索应用或包名"));
         searchInput.setTextSize(13);
         searchInput.setTextColor(Color.WHITE);
         searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
@@ -2540,9 +2541,9 @@ public final class MainActivity extends Activity {
         showIndexedLoadingState(list, indexBar, tr("Loading installed apps...", "正在加载已安装应用..."));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应�?)))
+                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应用")))
                 .setView(shell)
-                .setNegativeButton(tr("Close", "??"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -2712,8 +2713,8 @@ public final class MainActivity extends Activity {
         if (matchCount == 0) {
             TextView empty = new TextView(this);
             empty.setText(monitoredApps.isEmpty()
-                    ? tr("No monitored apps yet. Use Add to build your own list.", "还没有监听应用，先用 Add 手动添加�?)
-                    : tr("No added apps match your search.", "没有匹配当前搜索的已添加应用�?));
+                    ? tr("No monitored apps yet. Use Add to build your own list.", "还没有监听应用，先用 Add 手动添加。")
+                    : tr("No added apps match your search.", "没有匹配当前搜索的已添加应用。"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -2808,7 +2809,7 @@ public final class MainActivity extends Activity {
 
         if (matchCount == 0) {
             TextView empty = new TextView(this);
-            empty.setText(tr("No apps match your search.", "没有匹配搜索的应�?));
+            empty.setText(tr("No apps match your search.", "没有匹配搜索的应用"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -2894,7 +2895,7 @@ public final class MainActivity extends Activity {
     /*
         String normalizedLabel = label == null ? "" : label.trim().toLowerCase(Locale.US);
         String normalizedPackage = packageName == null ? "" : packageName.trim().toLowerCase(Locale.US);
-        if (normalizedLabel.contains("网易�?) || normalizedPackage.contains("cloudmusic")) {
+        if (normalizedLabel.contains("网易云") || normalizedPackage.contains("cloudmusic")) {
             return "N";
         }
         if (normalizedLabel.contains("qq音乐") || normalizedPackage.contains("qqmusic")) {
@@ -3077,8 +3078,8 @@ public final class MainActivity extends Activity {
         Drawable icon = getResources().getDrawable(android.R.drawable.ic_menu_close_clear_cancel);
         return createMonitoredAppMenuRow(
                 icon,
-                tr("No monitored app", "不监听应�?),
-                tr("Disable app-targeted monitor routing", "关闭面向指定应用的监听路�?),
+                tr("No monitored app", "不监听应用"),
+                tr("Disable app-targeted monitor routing", "关闭面向指定应用的监听路由"),
                 active,
                 dialogHolder,
                 () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp("", ""))
@@ -3996,7 +3997,7 @@ public final class MainActivity extends Activity {
         row.setTag(holder);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dp(2), dp(6), dp(2), dp(6));
-        // 关键修复：关�?EQ 条目行的子视图裁剪，确保条目左侧开关和右侧删除按钮的光晕能够完好展示，绝不被裁切！
+        // 关键修复：关闭 EQ 条目行的子视图裁剪，确保条目左侧开关和右侧删除按钮的光晕能够完好展示，绝不被裁切！
         row.setClipChildren(false);
         row.setClipToPadding(false);
         if (PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB)) {
@@ -4233,10 +4234,11 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (updatingUi) {
+                if (updatingUi || !input.hasFocus()) {
                     return;
                 }
                 uiHandler.removeCallbacks(commitRunnable);
+                uiHandler.postDelayed(commitRunnable, DEFERRED_INTEGER_INPUT_COMMIT_DELAY_MS);
             }
 
             @Override
@@ -4518,7 +4520,7 @@ public final class MainActivity extends Activity {
         overlay.setPadding(dp(8), dp(6), dp(8), dp(6));
         overlay.setBackground(createGlassCard(88));
         overlay.setElevation(dp(12));
-        // 关键修复：关闭输入参数弹�?overlay 的子视图裁剪�?
+        // 关键修复：关闭输入参数弹窗 overlay 的子视图裁剪。
         // 开关和右侧小×作为该容器的直接子代，其自身发出的高斯模糊边缘可以直接突破容器边界溢出，展现高亮完整光效！
         overlay.setClipChildren(false);
         overlay.setClipToPadding(false);
@@ -4618,7 +4620,7 @@ public final class MainActivity extends Activity {
 
     private View wrapEqOverlaySwitch(View button, float weight) {
         FrameLayout container = new FrameLayout(this);
-        // 关键修复：关闭裁剪，允许内部具有高斯模糊（MaskFilter、shadowLayer）的开关按钮的扩散边缘自由绘制不被截断�?
+        // 关键修复：关闭裁剪，允许内部具有高斯模糊（MaskFilter、shadowLayer）的开关按钮的扩散边缘自由绘制不被截断！
         container.setClipChildren(false);
         container.setClipToPadding(false);
         FrameLayout.LayoutParams switchParams = new FrameLayout.LayoutParams(dp(22), dp(22));
@@ -5186,7 +5188,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(title))
                 .setView(layout)
-                .setNegativeButton(tr("Close", "??"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialog.setOnDismissListener(d -> removeCurveGainDim());
         dialog.show();
@@ -5259,7 +5261,7 @@ public final class MainActivity extends Activity {
     private void showCurveRenameDialog(boolean targetCurve, TextView nameView) {
         String currentName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         if ("Default".equals(currentName)) {
-            Toast.makeText(this, tr("Default curve can't be renamed", "Default 曲线不能重命�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default curve can't be renamed", "Default 曲线不能重命名"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -5291,7 +5293,7 @@ public final class MainActivity extends Activity {
                         : tr("Rename device curve", "重命名 Device curve")))
                 .setView(container)
                 .setNegativeButton(tr("Cancel", "取消"), null)
-                .setPositiveButton(tr("Rename", "重命�?), null)
+                .setPositiveButton(tr("Rename", "重命名"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -5316,17 +5318,17 @@ public final class MainActivity extends Activity {
         String oldName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         String nextName = rawName == null ? "" : rawName.trim();
         if (nextName.isEmpty()) {
-            Toast.makeText(this, tr("Curve name required", "需要填写曲线名�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name required", "需要填写曲线名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         if ("Default".equals(nextName)) {
-            Toast.makeText(this, tr("Default is reserved", "Default 是保留名�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default is reserved", "Default 是保留名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         boolean sameName = oldName.equals(nextName);
         boolean exists = targetCurve ? repository.hasTargetCurveName(nextName) : repository.hasDeviceCurveName(nextName);
         if (!sameName && exists) {
-            Toast.makeText(this, tr("Curve name already exists", "曲线名称已存�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name already exists", "曲线名称已存在"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -5334,7 +5336,7 @@ public final class MainActivity extends Activity {
                 ? repository.renameTargetCurve(oldName, nextName)
                 : repository.renameDeviceCurve(oldName, nextName);
         if (!renamed) {
-            Toast.makeText(this, tr("Curve rename failed", "曲线重命名失�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve rename failed", "曲线重命名失败"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -5556,7 +5558,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(title))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "??"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -5719,7 +5721,7 @@ public final class MainActivity extends Activity {
     private void importPresetJsonFromUri(Uri uri) throws IOException {
         String json = readTextFromUri(uri);
         if (json.isEmpty()) {
-            Toast.makeText(this, tr("Preset file is empty", "??????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset file is empty", "预设文件为空"), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
@@ -5728,42 +5730,42 @@ public final class MainActivity extends Activity {
                 handleImportedPreset(imported, true);
                 return;
             }
-            Toast.makeText(this, tr("Preset imported", "?????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
-            Toast.makeText(this, tr("Invalid JSON file", "JSON ????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Invalid JSON file", "JSON 文件无效"), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void importDeviceConfigJsonFromUri(Uri uri) throws IOException {
         String json = readTextFromUri(uri);
         if (json.isEmpty()) {
-            Toast.makeText(this, tr("Global config file is empty", "????????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config file is empty", "全局配置文件为空"), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
             DeviceConfigFile config = DeviceConfigFile.fromJson(json);
             applyImportedDeviceConfig(config);
-            Toast.makeText(this, tr("Global config imported", "???????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config imported", "全局配置已导入"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
-            Toast.makeText(this, tr("Unrecognized global config JSON", "????????? JSON"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Unrecognized global config JSON", "无法识别的全局配置 JSON"), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void exportCurrentPresetJson() {
         Preset preset = repository.loadNamedPreset(presetName(editingPreset));
         if (preset == null) {
-            Toast.makeText(this, tr("No preset to export", "????????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
-        pendingExportSuccessMessage = tr("Preset exported", "?????");
+        pendingExportSuccessMessage = tr("Preset exported", "预设已导出");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
     private void showExportPresetChoiceDialog() {
         List<String> names = repository.loadNamedPresetNames();
         if (names.isEmpty()) {
-            Toast.makeText(this, tr("No saved presets to export", "???????????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No saved presets to export", "没有可导出的已保存预设"), Toast.LENGTH_SHORT).show();
             return;
         }
         String currentName = presetName(editingPreset);
@@ -5780,9 +5782,9 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Export preset", "????")))
+                .setCustomTitle(dialogTitleView(tr("Export preset", "导出预设")))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "??"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -5792,57 +5794,43 @@ public final class MainActivity extends Activity {
     private void exportPresetJsonForName(String name) {
         Preset preset = repository.loadNamedPreset(name);
         if (preset == null) {
-            Toast.makeText(this, tr("No preset to export", "????????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
-        pendingExportSuccessMessage = tr("Preset exported", "?????");
+        pendingExportSuccessMessage = tr("Preset exported", "棰勮宸插鍑?");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
     private void handleImportedPreset(Preset imported, boolean applyLive) {
         if (imported == null) {
-            Toast.makeText(this, tr("Invalid preset file", "??????"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Invalid preset file", "预设文件无效"), Toast.LENGTH_SHORT).show();
             return;
         }
-        flushPendingPresetPersistence();
         String importedName = presetName(imported);
         Preset existing = importedName == null ? null : repository.loadNamedPreset(importedName);
         if (existing != null) {
             showImportedPresetConflictDialog(imported, existing, applyLive);
             return;
         }
-        finishImportedPreset(imported, applyLive, "Preset imported");
+        applyImportedPreset(imported, applyLive);
+        Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
     }
 
     private void showImportedPresetConflictDialog(Preset imported, Preset existing, boolean applyLive) {
         String importedName = presetDisplayName(imported);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Preset already exists", "???????")))
+                .setCustomTitle(dialogTitleView(tr("Preset already exists", "预设名称已存在")))
                 .setMessage(tr(
-                        "A preset named "" + importedName + "" already exists. Replace it or rename the existing preset first?",
-                        "???" + importedName + "?????????????????????????"))
-                .setNegativeButton(tr("Cancel", "??"), null)
-                .setNeutralButton(tr("Rename current", "???????"), null)
-                .setPositiveButton(tr("Replace", "????"), null)
+                        "A preset named \"" + importedName + "\" already exists. Replace it or rename the existing preset first?",
+                        "名为“" + importedName + "”的预设已存在。要直接替换，还是先重命名现有预设？"))
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setNeutralButton(tr("Rename current", "重命名当前预设"), (d, which) -> showRenameExistingPresetDialog(imported, existing, applyLive))
+                .setPositiveButton(tr("Replace", "直接替换"), (d, which) -> {
+                    applyImportedPreset(imported, applyLive);
+                    Toast.makeText(this, tr("Preset replaced", "预设已替换"), Toast.LENGTH_SHORT).show();
+                })
                 .create();
-        dialog.setOnShowListener(d -> {
-            Button replaceButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            if (replaceButton != null) {
-                replaceButton.setOnClickListener(v -> {
-                    setDialogButtonsEnabled(dialog, false);
-                    dialog.dismiss();
-                    uiHandler.post(() -> finishImportedPreset(imported, applyLive, "Preset replaced"));
-                });
-            }
-            Button renameButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
-            if (renameButton != null) {
-                renameButton.setOnClickListener(v -> {
-                    dialog.dismiss();
-                    uiHandler.post(() -> showRenameExistingPresetDialog(imported, existing, applyLive));
-                });
-            }
-        });
         dialog.show();
         styleDialog(dialog);
     }
@@ -5855,7 +5843,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "????"));
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5869,10 +5857,10 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Rename existing preset", "???????")))
+                .setCustomTitle(dialogTitleView(tr("Rename existing preset", "重命名现有预设")))
                 .setView(container)
-                .setNegativeButton(tr("Cancel", "??"), null)
-                .setPositiveButton(tr("Rename and import", "??????"), null)
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Rename and import", "重命名后导入"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -5880,47 +5868,22 @@ public final class MainActivity extends Activity {
                 positive.setOnClickListener(v -> {
                     String renamed = input.getText() == null ? "" : input.getText().toString().trim();
                     if (renamed.isEmpty()) {
-                        Toast.makeText(this, tr("Preset name required", "????????"), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     if (repository.loadNamedPreset(renamed) != null) {
-                        Toast.makeText(this, tr("Preset name already exists", "???????"), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name already exists", "预设名称已存在"), Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    setDialogButtonsEnabled(dialog, false);
                     repository.renameNamedPreset(existing.name, existing.withName(renamed));
                     dialog.dismiss();
-                    uiHandler.post(() -> finishImportedPreset(imported, applyLive, "Preset imported"));
+                    applyImportedPreset(imported, applyLive);
+                    Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
                 });
             }
         });
         dialog.show();
         styleDialog(dialog);
-    }
-
-    private void finishImportedPreset(Preset imported, boolean applyLive, String successMessage) {
-        flushPendingPresetPersistence();
-        applyImportedPreset(imported, applyLive);
-        if (successMessage != null && !successMessage.isEmpty()) {
-            Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void setDialogButtonsEnabled(AlertDialog dialog, boolean enabled) {
-        if (dialog == null) {
-            return;
-        }
-        int[] buttonTypes = new int[] {
-                AlertDialog.BUTTON_POSITIVE,
-                AlertDialog.BUTTON_NEGATIVE,
-                AlertDialog.BUTTON_NEUTRAL
-        };
-        for (int buttonType : buttonTypes) {
-            Button button = dialog.getButton(buttonType);
-            if (button != null) {
-                button.setEnabled(enabled);
-            }
-        }
     }
 
     private void applyImportedPreset(Preset imported, boolean applyLive) {
@@ -5941,7 +5904,7 @@ public final class MainActivity extends Activity {
         Preset exportEditingPreset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
         Preset exportRunningPreset = withCurrentCurveSettings(runningPreset);
         if (currentDevice == null || exportRunningPreset == null) {
-            Toast.makeText(this, tr("No global config to export", "娌℃湁鍙鍑虹殑鍏ㄥ眬閰嶇�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No global config to export", "娌℃湁鍙鍑虹殑鍏ㄥ眬閰嶇疆"), Toast.LENGTH_SHORT).show();
             return;
         }
         Preset systemDevicePreset = processingMode == ProcessingMode.SYSTEM_EQ
@@ -5967,7 +5930,7 @@ public final class MainActivity extends Activity {
                 exportPresetLibrary(exportEditingPreset)
         );
         pendingExportJson = config.toJson();
-        pendingExportSuccessMessage = tr("Global config exported", "???????");
+        pendingExportSuccessMessage = tr("Global config exported", "鍏ㄥ眬閰嶇疆宸插鍑?");
         openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
     }
 
@@ -6072,7 +6035,7 @@ public final class MainActivity extends Activity {
         layout.setPadding(dp(20), dp(16), dp(20), dp(8));
 
         TextView targetLabel = new TextView(this);
-        targetLabel.setText(tr("Save to", "ä¿å­å°"));
+        targetLabel.setText(tr("Save to", "保存到"));
         targetLabel.setTextSize(12);
         targetLabel.setTextColor(Color.rgb(142, 154, 168));
         targetLabel.setPadding(dp(2), 0, dp(2), dp(6));
@@ -6097,7 +6060,7 @@ public final class MainActivity extends Activity {
         ));
 
         TextView nameLabel = new TextView(this);
-        nameLabel.setText(tr("Preset name", "????"));
+        nameLabel.setText(tr("Preset name", "预设名称"));
         nameLabel.setTextSize(12);
         nameLabel.setTextColor(Color.rgb(142, 154, 168));
         nameLabel.setPadding(dp(2), 0, dp(2), dp(6));
@@ -6115,7 +6078,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "????"));
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -6181,7 +6144,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Select preset", "选择预设")))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "??"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -6283,7 +6246,7 @@ public final class MainActivity extends Activity {
     private void confirmDeletePreset(String name, AlertDialog[] menuDialogHolder) {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Delete preset", "删除预设")))
-                .setMessage(tr("Delete preset \"", "删除预设�?) + name + tr("\"?", "”？"))
+                .setMessage(tr("Delete preset \"", "删除预设“") + name + tr("\"?", "”？"))
                 .setNegativeButton(tr("Cancel", "取消"), null)
                 .setPositiveButton(tr("Delete", "删除"), (d, which) -> {
                     deletePreset(name);
@@ -6323,7 +6286,7 @@ public final class MainActivity extends Activity {
     private void saveDraftToPreset(String oldTargetName, String rawName) {
         String finalName = rawName == null ? "" : rawName.trim();
         if (finalName.isEmpty()) {
-            Toast.makeText(this, tr("Preset name required", "éè¦å¡«åé¢è®¾åç§°"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -6338,7 +6301,7 @@ public final class MainActivity extends Activity {
         activateEditingPreset(savedPreset, true);
         repository.saveDraftPreset(editingPreset);
         refreshEditingPresetUi();
-        Toast.makeText(this, tr("Preset saved", "预设已保�?), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Preset saved", "预设已保存"), Toast.LENGTH_SHORT).show();
     }
 
     private void loadMatchedPreset(String name) {
@@ -6359,7 +6322,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "????"));
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -6381,7 +6344,7 @@ public final class MainActivity extends Activity {
                 .setPositiveButton(tr("Add", "新增"), (d, which) -> {
                     String name = input.getText().toString() == null ? "" : input.getText().toString().trim();
                     if (name.isEmpty()) {
-                        Toast.makeText(this, tr("Preset name required", "éè¦å¡«åé¢è®¾åç§°"), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     editingPreset = withCurrentCurveSettings(Preset.flat(runningPreset != null && runningPreset.enabled)).withName(name);
@@ -6867,7 +6830,7 @@ public final class MainActivity extends Activity {
             return;
         }
         peqBandVisualEnabled = new boolean[editingPreset.bands.length];
-        // 总开关打开前先由延迟点亮序列接管，这样不会先整排亮一帧再暗下去�?
+        // 总开关打开前先由延迟点亮序列接管，这样不会先整排亮一帧再暗下去。
         peqVisualSequenceRunning = !enabled;
         pendingPeqVisualIndex = 0;
         if (enabled) {
@@ -7537,9 +7500,9 @@ public final class MainActivity extends Activity {
         title.setTranslationY(-dp(1));
         applyInactiveExtraSectionTitleStyle(title);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        // 抵消 gradientTitleView 的左 padding(22dp) 后再额外右移 2dp，让文字视觉左缘�?panel 内容区左�?2dp�?
-        // 使标题距 panel 左外�?dp18) 与右侧复选框背景�?panel 右外�?dp16) 视觉近似对称（标题侧�?2dp 留白）�?
-        // title view 左移进入 panel padding 区的 20dp 正好是空�?leftPadding，裁剪不影响文字�?shimmer�?
+        // 抵消 gradientTitleView 的左 padding(22dp) 后再额外右移 2dp，让文字视觉左缘距 panel 内容区左边 2dp，
+        // 使标题距 panel 左外边(dp18) 与右侧复选框背景距 panel 右外边(dp16) 视觉近似对称（标题侧多 2dp 留白）。
+        // title view 左移进入 panel padding 区的 20dp 正好是空白 leftPadding，裁剪不影响文字与 shimmer。
         titleParams.leftMargin = -dp(20);
         row.addView(title, titleParams);
         return row;
@@ -7620,7 +7583,7 @@ public final class MainActivity extends Activity {
     }
 
 
-        // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断�?
+        // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断裂
     private LinearLayout createExtraBassControl(String label, boolean cutoff) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -7637,7 +7600,7 @@ public final class MainActivity extends Activity {
             knob.configure(0, 100, editingPreset.extraBassAmountPercent, "%", value ->
                     setEditingPreset(editingPreset.withExtraBassAmountPercent(value), true));
         }
-        // 旋钮中间数字可点击：弹出数值输入对话框，写入新�?
+        // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(6);
@@ -7691,7 +7654,7 @@ public final class MainActivity extends Activity {
         VerticalReverbSlider slider = new VerticalReverbSlider(this);
         slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin,
                 mapper == null ? LINEAR_SLIDER_MAPPER : mapper, listener::onChanged);
-        // 强制方形：弧形填�?view，标题紧贴弧形下�?
+        // 强制方形：弧形填满 view，标题紧贴弧形下方
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(4);
         knobParams.bottomMargin = dp(2);
@@ -7713,7 +7676,7 @@ public final class MainActivity extends Activity {
         return column;
     }
 
-    // 旋钮数字点击：弹出数值输入对话框，确认后写入 knob（触�?listener 链路�?
+    // 旋钮数字点击：弹出数值输入对话框，确认后写入 knob（触发 listener 链路）
     private void showKnobInputDialog(KnobView knob) {
         if (knob == null) return;
         final EditText input = new EditText(this);
@@ -7726,7 +7689,7 @@ public final class MainActivity extends Activity {
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setGravity(android.view.Gravity.CENTER);
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("数值输�?)
+                .setTitle("数值输入")
                 .setView(input)
                 .setPositiveButton("确定", (d, w) -> {
                     try {
@@ -8044,7 +8007,7 @@ public final class MainActivity extends Activity {
                 ringPaint.setStrokeWidth(strokeWidth);
                 ringPaint.clearShadowLayer();
                 // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
-                // 先画一层粗描边光晕底（大半�?FILL �?+ BlurMaskFilter），再画 ring 描边
+                // 先画一层粗描边光晕底（大半径 FILL 圆 + BlurMaskFilter），再画 ring 描边
                 float glowRadius = radius + dpf(0.9f);
                 dotPaint.setStyle(Paint.Style.STROKE);
                 dotPaint.setStrokeWidth(dpf(2.1f));
@@ -8183,7 +8146,7 @@ public final class MainActivity extends Activity {
 
     private View wrapCircularButton(View button, float weight, int sizeDp, int leftDp, int rightDp, int translationXDp) {
         FrameLayout container = new FrameLayout(this);
-        // 关键修复：关闭该容器的子视图裁剪，否则内部圆形按钮画出的高阶模糊霓虹光晕阴影会在 22dp �?24dp 边框外边缘直接切平，看起来十分不美观�?
+        // 关键修复：关闭该容器的子视图裁剪，否则内部圆形按钮画出的高阶模糊霓虹光晕阴影会在 22dp 或 24dp 边框外边缘直接切平，看起来十分不美观。
         container.setClipChildren(false);
         container.setClipToPadding(false);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
@@ -8605,9 +8568,9 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * BassBoost 横向推子：水平轨�?+ 左右滑动�?thumb�?
-     * 视觉风格�?GeqSliderView 一致（neon 发光、胶�?thumb、LED 指示），
-     * 但方向为水平，用于节省垂直空间�?
+     * BassBoost 横向推子：水平轨道 + 左右滑动的 thumb。
+     * 视觉风格与 GeqSliderView 一致（neon 发光、胶囊 thumb、LED 指示），
+     * 但方向为水平，用于节省垂直空间。
      */
     private final class VerticalReverbSlider extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -9011,7 +8974,7 @@ public final class MainActivity extends Activity {
             paint.setColor(Color.argb(25, 255, 255, 255));
             canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
 
-            // 2. 活动段发光（�?trackLeft �?thumb�?
+            // 2. 活动段发光（从 trackLeft 到 thumb）
             if (active) {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(4f));
@@ -9054,7 +9017,7 @@ public final class MainActivity extends Activity {
             canvas.drawRoundRect(indRect, dpf(1.5f), dpf(1.5f), paint);
             paint.clearShadowLayer();
 
-            // 5. 标签与数�?
+            // 5. 标签与数值
             paint.setStyle(Paint.Style.FILL);
             paint.setTextAlign(Paint.Align.LEFT);
             paint.setFakeBoldText(true);
@@ -9296,12 +9259,12 @@ public final class MainActivity extends Activity {
         switchView.setMinHeight(dp(30));
         switchView.setMinimumHeight(dp(30));
         switchView.setSwitchMinWidth(dp(60));
-        // 去掉开关外围的圈圈动画：清除默�?background �?stateListAnimator
+        // 去掉开关外围的圈圈动画：清除默认 background 和 stateListAnimator
         switchView.setBackground(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             switchView.setStateListAnimator(null);
         }
-        // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光�?
+        // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光）
         switchView.setThumbDrawable(switchThumbDrawable(
                 autoSwitch ? Color.rgb(150, 168, 198) : Color.rgb(162, 180, 208),
                 Color.rgb(76, 210, 228)
@@ -9709,9 +9672,9 @@ public final class MainActivity extends Activity {
         };
     }
 
-    // 图标光晕：以图标自身 alpha 为蒙版做高斯外发光，视觉�?GlowTitleTextView
-    // 的标题光晕同源（模糊后的剪影 + 取色），图标本体�?ImageView 锐利绘制在上层，
-    // 保持清晰度。光晕只在图�?/ 尺寸变化时重建，避免每帧 GC�?
+    // 图标光晕：以图标自身 alpha 为蒙版做高斯外发光，视觉与 GlowTitleTextView
+    // 的标题光晕同源（模糊后的剪影 + 取色），图标本体由 ImageView 锐利绘制在上层，
+    // 保持清晰度。光晕只在图标 / 尺寸变化时重建，避免每帧 GC。
     private class IconGlowDrawable extends Drawable {
         private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.RectF dstRect = new android.graphics.RectF();
@@ -9752,7 +9715,7 @@ public final class MainActivity extends Activity {
             if (b.width() <= 0 || b.height() <= 0 || sourceIcon == null) {
                 return;
             }
-            // 图标显示�?= bounds 减去宿主 ImageView �?padding（FIT_CENTER 居中�?
+            // 图标显示区 = bounds 减去宿主 ImageView 的 padding（FIT_CENTER 居中）
             int pl = 0, pt = 0, pr = 0, pb = 0;
             android.graphics.drawable.Drawable.Callback cb = getCallback();
             if (cb instanceof View) {
@@ -9764,8 +9727,8 @@ public final class MainActivity extends Activity {
             }
             int aw = Math.max(1, b.width() - pl - pr);
             int ah = Math.max(1, b.height() - pt - pb);
-            // 光晕半径：稍大，让光晕更饱满、扩散更明显�?
-            // pad 需 >= 3*blurPx 才能完整容纳 3 趟盒式模糊的扩散，避免边缘硬切�?
+            // 光晕半径：稍大，让光晕更饱满、扩散更明显；
+            // pad 需 >= 3*blurPx 才能完整容纳 3 趟盒式模糊的扩散，避免边缘硬切。
             int blurPx = Math.max(1, (int) Math.ceil(dpf(1.9f)));
             int pad = blurPx * 3 + 2;
             int key = (aw << 16) | (ah & 0xFFFF);
@@ -9776,8 +9739,8 @@ public final class MainActivity extends Activity {
             if (haloBitmap == null) {
                 return;
             }
-            // haloBitmap 中图标区域居�?[pad, pad+aw]，与 ImageView 绘制的图标重合；
-            // 整张光晕按此偏移贴齐，模糊溢出部分自然环绕图标四周�?
+            // haloBitmap 中图标区域居于 [pad, pad+aw]，与 ImageView 绘制的图标重合；
+            // 整张光晕按此偏移贴齐，模糊溢出部分自然环绕图标四周。
             float left = b.left + pl - pad;
             float top = b.top + pt - pad;
             dstRect.set(left, top, left + haloBitmap.getWidth(), top + haloBitmap.getHeight());
@@ -9791,22 +9754,22 @@ public final class MainActivity extends Activity {
             if (bw <= 0 || bh <= 0) {
                 return;
             }
-            // 1. 把图�?FIT_CENTER 渲染到画布中心区域（四周�?pad 给模糊溢出）
+            // 1. 把图标 FIT_CENTER 渲染到画布中心区域（四周留 pad 给模糊溢出）
             android.graphics.Bitmap src = android.graphics.Bitmap.createBitmap(
                     bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
             android.graphics.Canvas c = new android.graphics.Canvas(src);
             android.graphics.Rect fit = fitCenter(sourceIcon, aw, ah);
             fit.offset(pad, pad);
-            // 保存并恢复宿�?ImageView 共享�?bounds，避免影响上层锐利绘�?
+            // 保存并恢复宿主 ImageView 共享的 bounds，避免影响上层锐利绘制
             android.graphics.Rect saved = new android.graphics.Rect(sourceIcon.getBounds());
             sourceIcon.setBounds(fit);
             sourceIcon.draw(c);
             sourceIcon.setBounds(saved);
-            // 2. 形态学边缘提取：图标是实心矩形，直接着色会把整块填成实心色块�?
-            //    先腐蚀（min 滤波）得到缩小的 alpha，再 edge = alpha - 腐蚀alpha�?
-            //    图标内部 edge=0（不发光）、只在图标轮廓一�?edge>0、外�?edge=0�?
-            //    对这"轮廓�?做高斯模糊，得到与标题文字光晕同源的轮廓光晕�?
-            //    而不是一坨实心色块；图标本体由上�?ImageView 锐利覆盖�?
+            // 2. 形态学边缘提取：图标是实心矩形，直接着色会把整块填成实心色块。
+            //    先腐蚀（min 滤波）得到缩小的 alpha，再 edge = alpha - 腐蚀alpha：
+            //    图标内部 edge=0（不发光）、只在图标轮廓一圈 edge>0、外部 edge=0。
+            //    对这"轮廓环"做高斯模糊，得到与标题文字光晕同源的轮廓光晕，
+            //    而不是一坨实心色块；图标本体由上层 ImageView 锐利覆盖。
             int[] px = new int[bw * bh];
             src.getPixels(px, 0, bw, 0, 0, bw, bh);
             src.recycle();
@@ -9823,26 +9786,26 @@ public final class MainActivity extends Activity {
                 int e = alpha[i] - eroded[i];
                 edge[i] = e < 0 ? 0 : e;
             }
-            // 对轮廓环�?3 趟可分离盒式模糊（近似高斯），向外柔和扩散成光晕
+            // 对轮廓环做 3 趟可分离盒式模糊（近似高斯），向外柔和扩散成光晕
             int[] tmp = new int[bw * bh];
             for (int p = 0; p < 3; p++) {
                 boxBlurH(edge, tmp, bw, bh, blurPx);
                 boxBlurV(tmp, edge, bw, bh, blurPx);
             }
-            // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后轮�?alpha），图标本体由上层锐利覆盖�?
-            //    gamma=1.0 不提亮，保留模糊本身的快速衰减；尾端�?C�?软乘�?
-            //    M(a)=1-(1-a)^p 平滑吻接�?0，中�?alpha �?M�? 忠实保留衰减形状�?
+            // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后轮廓 alpha），图标本体由上层锐利覆盖。
+            //    gamma=1.0 不提亮，保留模糊本身的快速衰减；尾端用 C∞ 软乘子
+            //    M(a)=1-(1-a)^p 平滑吻接到 0，中高 alpha 区 M≈1 忠实保留衰减形状。
             int r = (glowColor >> 16) & 0xFF;
             int g = (glowColor >> 8) & 0xFF;
             int bl = glowColor & 0xFF;
             int ga = (glowColor >>> 24) & 0xFF;
             final float baseGain = 0.34f;    // 继续降低亮度，避免贴边形成实色圈
             final float gamma = 1.35f;       // 再压一档中高亮，让光晕更像柔光
-            final float fadeSharp = 3.0f;    // 收边略放软，减少边界�?
+            final float fadeSharp = 3.0f;    // 收边略放软，减少边界感
             for (int i = 0; i < edge.length; i++) {
                 float nf = edge[i] / 255f;
                 float a = (float) Math.pow(nf, gamma);
-                // 软乘�?M = 1 - (1-a)^p，全�?C�?单条函数，无分段无折�?
+                // 软乘子 M = 1 - (1-a)^p，全程 C∞ 单条函数，无分段无折点
                 float m = 1f - (float) Math.pow(1f - a, fadeSharp);
                 float contentMask = 1f - (alpha[i] / 255f);
                 float tail = a * (0.18f + 0.82f * m) * contentMask * contentMask;
@@ -9866,7 +9829,7 @@ public final class MainActivity extends Activity {
 
         @Override
         public void setColorFilter(ColorFilter colorFilter) {
-            // 保留图标取色逻辑，忽略外�?colorFilter 以维持光晕配色稳�?
+            // 保留图标取色逻辑，忽略外部 colorFilter 以维持光晕配色稳定
         }
 
         @Override
@@ -9875,8 +9838,8 @@ public final class MainActivity extends Activity {
         }
     }
 
-    // ---- 图标光晕辅助：取�?/ 居中 / 盒式模糊 ----
-    // 取软件图标平均色并把最亮通道拉满，保留色相的同时让光晕通透鲜�?
+    // ---- 图标光晕辅助：取色 / 居中 / 盒式模糊 ----
+    // 取软件图标平均色并把最亮通道拉满，保留色相的同时让光晕通透鲜亮
     private int extractIconGlowColor(Drawable icon) {
         int width = icon.getIntrinsicWidth();
         int height = icon.getIntrinsicHeight();
@@ -10320,9 +10283,9 @@ public final class MainActivity extends Activity {
     private TextView gradientTitleView(String text) {
         TextView title = new GlowTitleTextView(this);
         title.setText(text);
-        // 关键修复：大半径模糊/光晕被截断的原因�?TextView 本身没有足够的水平边距和垂直边距�?
-        // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂�?
-        // 通过设置充足的水�?Padding (左右 16dp) 和垂�?Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
+        // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
+        // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
+        // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
         title.setPadding(dp(22), dp(5), dp(22), dp(5));
         styleGradientTitle(title);
         return title;
@@ -10516,8 +10479,8 @@ public final class MainActivity extends Activity {
             return;
         }
         final int styleVersion = bumpTextStyleVersion(view);
-        // 关键优化：为了能够让完美丝滑�?shadowLayer (大半径高斯模�? 在静态状态下同样发挥效果�?
-        // 同样将文字样式设置切换为精密�?SOFTWARE 图层，消�?GPU 渲染产生的颗粒伪影�?
+        // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
+        // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
         boolean usesCustomGlow = view instanceof GlowTitleTextView;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             if (usesCustomGlow) {
@@ -10534,7 +10497,7 @@ public final class MainActivity extends Activity {
         applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
-        // 缩小一圈，但保留完整衰减空�?
+        // 缩小一圈，但保留完整衰减空间
         view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
         view.invalidate();
         if (view.getWidth() <= 0) {
@@ -10587,7 +10550,7 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 色阶重构：超高亮炽白冰蓝流光——去绿，浅亮�?超白，亮度拉�?
+        // 色阶重构：超高亮炽白冰蓝流光——去绿，浅亮蓝+超白，亮度拉满
         int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
         int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
@@ -10611,7 +10574,7 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 状态文字统一精简5色标超炽白冰蓝色阶（去绿，浅亮蓝+超白�?
+        // 状态文字统一精简5色标超炽白冰蓝色阶（去绿，浅亮蓝+超白）
         int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
         int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
@@ -10638,8 +10601,8 @@ public final class MainActivity extends Activity {
         int viewWidth = Math.max(1, view.getWidth());
         CharSequence text = view.getText();
         if (text != null && text.length() > 0) {
-            // 关键修复：计算渐变宽度时，应减去我们为了预留光晕空间所增加�?padding�?
-            // 否则渐变计算会以增加�?Padding 后的总宽度为准，导致流光渐变视觉中心发生偏移�?
+            // 关键修复：计算渐变宽度时，应减去我们为了预留光晕空间所增加的 padding，
+            // 否则渐变计算会以增加了 Padding 后的总宽度为准，导致流光渐变视觉中心发生偏移。
             int textWidth = (int) Math.ceil(view.getPaint().measureText(text.toString()));
             return Math.max(1, Math.min(viewWidth, textWidth));
         }
@@ -10822,9 +10785,9 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 绘制上一�?下一步用的圆弧箭头图标。isRedo �?true 时水平镜像得到下一步箭头�?
-     * 仅绘制白色描�?+ 填充主体（避免宽描边光晕在硬件加速下产生锯齿）；
-     * 通过 ColorFilter 在禁用时整体变暗�?
+     * 绘制上一步/下一步用的圆弧箭头图标。isRedo 为 true 时水平镜像得到下一步箭头。
+     * 仅绘制白色描边 + 填充主体（避免宽描边光晕在硬件加速下产生锯齿）；
+     * 通过 ColorFilter 在禁用时整体变暗。
      */
     private Drawable makeCurvedArrowDrawable(boolean isRedo) {
         return new Drawable() {
@@ -10850,7 +10813,7 @@ public final class MainActivity extends Activity {
                 float r = sizePx * 0.40f;
                 float strokeW = dpf(1.4f);
                 arcRect.set(-r, -r, r, r);
-                // 上一步箭头：�?165° 逆时针扫�?300°，缺口位于左侧，箭尖收在 225°（左上）并指向左侧�?
+                // 上一步箭头：从 165° 逆时针扫过 300°，缺口位于左侧，箭尖收在 225°（左上）并指向左侧。
                 float startAngle = 165f;
                 float sweepAngle = -300f;
                 arcPath.reset();
@@ -10859,7 +10822,7 @@ public final class MainActivity extends Activity {
                 double endRad = Math.toRadians(startAngle + sweepAngle);
                 float tipX = r * (float) Math.cos(endRad);
                 float tipY = r * (float) Math.sin(endRad);
-                // 逆时针运动在角度 θ 处的切向�?sin θ, -cos θ)
+                // 逆时针运动在角度 θ 处的切向：(sin θ, -cos θ)
                 float tanX = (float) Math.sin(endRad);
                 float tanY = -(float) Math.cos(endRad);
                 float arrowLen = r * 0.62f;
@@ -10878,7 +10841,7 @@ public final class MainActivity extends Activity {
                 paint.setStrokeCap(Paint.Cap.ROUND);
                 paint.setStrokeJoin(Paint.Join.ROUND);
 
-                // 白色主体（描�?+ 填充�?
+                // 白色主体（描边 + 填充）
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(strokeW);
                 paint.setColor(Color.WHITE);
@@ -11303,9 +11266,9 @@ public final class MainActivity extends Activity {
         if (tab == null || bottomTabStrip == null) {
             return 0f;
         }
-        // indicator �?strip 同为 nav(FrameLayout)�?view，leftMargin 相对 nav 内容�?已含 padding)�?
-        // tab.getLeft() 已是相对 strip 的位置，直接用即可，不能再加 strip.getLeft()�?
-        // 否则会多偏移一�?nav �?padding，导�?indicator 框整体右移与 tab 不对齐�?
+        // indicator 与 strip 同为 nav(FrameLayout)子 view，leftMargin 相对 nav 内容区(已含 padding)。
+        // tab.getLeft() 已是相对 strip 的位置，直接用即可，不能再加 strip.getLeft()，
+        // 否则会多偏移一个 nav 的 padding，导致 indicator 框整体右移与 tab 不对齐。
         float buttonLeftInStrip = tab.getLeft();
         float indicatorWidth = tabIndicatorWidthForTab(tab);
         return buttonLeftInStrip + (tab.getWidth() - indicatorWidth) / 2f;
@@ -11315,8 +11278,8 @@ public final class MainActivity extends Activity {
         if (tab == null || tab.getWidth() <= 0) {
             return 0f;
         }
-        // 统一�?tab 宽度的固定比例，保证三个 tab �?indicator 框宽度完全一致，
-        // 视觉对齐整齐。基本占�?1/3 位置（留少量边距）�?
+        // 统一为 tab 宽度的固定比例，保证三个 tab 的 indicator 框宽度完全一致，
+        // 视觉对齐整齐。基本占据 1/3 位置（留少量边距）。
         return tab.getWidth() * 0.92f;
     }
 
@@ -11691,13 +11654,13 @@ public final class MainActivity extends Activity {
                         dp(3),
                         Color.argb(85, 0, 245, 212)
                 ));
-                // 底部 Tab 流光：与所有标题共享蓝绿亮�?+ 深蓝点缀 + 白热核心的统一主题
+                // 底部 Tab 流光：与所有标题共享蓝绿亮色 + 深蓝点缀 + 白热核心的统一主题
                 applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
                         Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
                 tab.setTextColor(Color.WHITE);
-                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触�?TextView �?software
-                // path 渲染文字，导�?paint shader 不生效（流光不动�? GPU blur 锯齿�?
-                // hotCore 白热核心已作视觉焦点�?
+                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
+                // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
+                // hotCore 白热核心已作视觉焦点。
                 tab.getPaint().clearShadowLayer();
                 tab.invalidate();
                 registerShimmerView(tab);
