@@ -496,6 +496,7 @@ public final class MainActivity extends Activity {
     private int activeEqEditBandIndex = -1;
     private int activeEqEditField = EQ_EDIT_FIELD_FREQ;
     private boolean keyboardVisible;
+    private boolean suppressEqOverlayHideOnKeyboardDismiss;
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener;
     private boolean extraBassEnabledState;
     private int activeMainPageIndex;
