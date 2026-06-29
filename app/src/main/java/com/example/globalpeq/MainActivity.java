@@ -5730,7 +5730,6 @@ public final class MainActivity extends Activity {
                 handleImportedPreset(imported, true);
                 return;
             }
-            Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
             Toast.makeText(this, tr("Invalid JSON file", "JSON 文件无效"), Toast.LENGTH_SHORT).show();
         }
@@ -5871,7 +5870,7 @@ public final class MainActivity extends Activity {
                         Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    if (repository.loadNamedPreset(renamed) != null) {
+                    if (repository.hasNamedPreset(renamed)) {
                         Toast.makeText(this, tr("Preset name already exists", "预设名称已存在"), Toast.LENGTH_SHORT).show();
                         return;
                     }
@@ -6383,7 +6382,7 @@ public final class MainActivity extends Activity {
         String normalizedBase = (baseName == null || baseName.trim().isEmpty()) ? "Preset" : baseName.trim();
         String candidate = normalizedBase + " 2";
         int index = 3;
-        while (repository.loadNamedPreset(candidate) != null) {
+        while (repository.hasNamedPreset(candidate)) {
             candidate = normalizedBase + " " + index;
             index++;
         }
@@ -6394,7 +6393,7 @@ public final class MainActivity extends Activity {
         String baseName = presetDisplayName(imported);
         String candidate = baseName + " Imported";
         int index = 2;
-        while (repository.loadNamedPreset(candidate) != null) {
+        while (repository.hasNamedPreset(candidate)) {
             candidate = baseName + " Imported " + index;
             index++;
         }
@@ -7133,7 +7132,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean isNamedPreset(String name) {
-        return name != null && repository.loadNamedPresetNames().contains(name);
+        return name != null && repository.hasNamedPreset(name);
     }
 
     private String joinStrings(String[] values) {
@@ -11763,4 +11762,3 @@ public final class MainActivity extends Activity {
         return Math.max(min, Math.min(max, value));
     }
 }
-
