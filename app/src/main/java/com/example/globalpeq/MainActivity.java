@@ -6649,6 +6649,9 @@ public final class MainActivity extends Activity {
         if (pendingGeqHistorySnapshot != null) {
             commitPendingGeqUpdate();
         }
+        if (pendingPeqBandHistorySnapshot != null) {
+            commitPendingPeqBandUpdate();
+        }
         if (pendingPeqToggleHistorySnapshot != null) {
             commitPendingPeqToggle();
         }
@@ -6719,6 +6722,7 @@ public final class MainActivity extends Activity {
 
     private void undoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqBandUpdate();
         commitPendingPeqToggle();
         if (undoStack.isEmpty()) {
             return;
@@ -6731,6 +6735,7 @@ public final class MainActivity extends Activity {
 
     private void redoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqBandUpdate();
         commitPendingPeqToggle();
         if (redoStack.isEmpty()) {
             return;
