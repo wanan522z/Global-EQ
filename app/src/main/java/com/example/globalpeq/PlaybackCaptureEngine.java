@@ -41,6 +41,9 @@ final class PlaybackCaptureEngine {
     private static final int MAX_BLUETOOTH_CHUNK_FRAMES = 640;
     private static final int BLUETOOTH_HEAVY_DSP_CHUNK_FRAMES = 384;
     private static final int BLUETOOTH_PREFILL_CHUNKS = 4;
+    private static final int STALLED_READ_LIMIT = 6;
+    private static final long ACTIVE_PLAYBACK_RECOVERY_MIN_MS = 1800L;
+    private static final long AUTO_RESTART_COOLDOWN_MS = 1500L;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -72,10 +75,12 @@ final class PlaybackCaptureEngine {
     private int configuredChunkFrames = -1;
     private int configuredLatencyMs = -1;
     private String configuredOutputDeviceKey = "";
+    private String configuredPreferredDeviceSignature = "none";
     private boolean captureSignalLogged;
     private boolean captureWaitingLogged;
     private String publishedStatus = "";
     private boolean publishedActive;
+    private long lastAutoRestartAtMs;
     PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
         this.appContext = context.getApplicationContext();
         this.audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
@@ -193,13 +198,18 @@ final class PlaybackCaptureEngine {
             return;
         }
 
-        boolean outputRouteRestartRequired = currentMode != ProcessingMode.SHIZUKU_MUTE
-                && !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
+        boolean outputRouteRestartRequired =
+                !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
+        String desiredPreferredDeviceSignature =
+                describeResolvedDeviceSignature(resolvePreferredOutputDeviceInfo());
+        boolean preferredRouteRestartRequired =
+                !desiredPreferredDeviceSignature.equals(configuredPreferredDeviceSignature);
         boolean requiresRestart = !running
                 || configuredTargetUid != currentTargetUid
                 || configuredBufferFrames != currentConfig.bufferSizeFrames
                 || configuredLatencyMs != currentConfig.latencyMs
-                || outputRouteRestartRequired;
+                || outputRouteRestartRequired
+                || preferredRouteRestartRequired;
         if (requiresRestart) {
             startPipelineLocked();
         } else {
@@ -373,6 +383,8 @@ final class PlaybackCaptureEngine {
             configuredChunkFrames = processingChunkFrames;
             configuredLatencyMs = currentConfig.latencyMs;
             configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
+            configuredPreferredDeviceSignature =
+                    describeResolvedDeviceSignature(preferredOutputDevice);
             running = true;
             reconfigureEffectsLocked();
 
@@ -427,6 +439,10 @@ final class PlaybackCaptureEngine {
         captureWaitingLogged = false;
         int silentReadCount = 0;
         int nonZeroReadCount = 0;
+        int stalledReadCount = 0;
+        long nextRecoveryCheckAt = 0L;
+        boolean requestRestart = false;
+        String restartReason = null;
 
         while (running) {
             int read;
@@ -437,9 +453,20 @@ final class PlaybackCaptureEngine {
                 break;
             }
             if (read <= 0) {
+                stalledReadCount++;
                 if (!captureWaitingLogged) {
                     Log.i(TAG, "Capture read returned " + read + " while waiting for playback");
                     captureWaitingLogged = true;
+                }
+                boolean deadObject = read == AudioRecord.ERROR_DEAD_OBJECT;
+                boolean stalledWhilePlaybackActive = stalledReadCount >= STALLED_READ_LIMIT
+                        && (signaledLive || hasRecoverableActivePlayback());
+                if (deadObject || stalledWhilePlaybackActive) {
+                    requestRestart = true;
+                    restartReason = "capture read stalled with code=" + read
+                            + ", stalledReadCount=" + stalledReadCount;
+                    running = false;
+                    break;
                 }
                 if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs) {
                     publishStatus(waitingStatusText(), false);
@@ -447,6 +474,7 @@ final class PlaybackCaptureEngine {
                 }
                 continue;
             }
+            stalledReadCount = 0;
 
             float peak = 0f;
             for (int i = 0; i < read; i++) {
@@ -488,6 +516,16 @@ final class PlaybackCaptureEngine {
                     publishStatus(waitingStatusText(), false);
                     signaledLive = false;
                 }
+                long now = SystemClock.elapsedRealtime();
+                if (now >= nextRecoveryCheckAt) {
+                    nextRecoveryCheckAt = now + 450L;
+                    restartReason = detectSilentCaptureStall(now, lastSignalAt);
+                    if (restartReason != null) {
+                        requestRestart = true;
+                        running = false;
+                        break;
+                    }
+                }
             }
 
             synchronized (dspLock) {
@@ -509,20 +547,26 @@ final class PlaybackCaptureEngine {
             }
         }
 
-        finishCaptureLoop(workerToken);
+        finishCaptureLoop(workerToken, requestRestart, restartReason);
     }
 
-    private void finishCaptureLoop(Object workerToken) {
+    private void finishCaptureLoop(Object workerToken, boolean requestRestart, String restartReason) {
         if (workerToken == null || activeWorkerToken != workerToken) {
             return;
         }
+        boolean restarted = false;
         synchronized (this) {
             if (activeWorkerToken != workerToken || workerThread != Thread.currentThread()) {
                 return;
             }
             stopPipelineLocked();
+            if (requestRestart) {
+                restarted = restartPipelineLocked(restartReason);
+            }
         }
-        publishStatus("Native capture stopped. Re-authorize if the session was interrupted.", false);
+        if (!restarted) {
+            publishStatus("Native capture stopped. Re-authorize if the session was interrupted.", false);
+        }
     }
 
     private void reconfigureEffectsLocked() {
@@ -648,6 +692,7 @@ final class PlaybackCaptureEngine {
         configuredChunkFrames = -1;
         configuredLatencyMs = -1;
         configuredOutputDeviceKey = "";
+        configuredPreferredDeviceSignature = "none";
     }
 
     private void bindTrackToPreferredOutputLocked(AudioTrack track, AudioDeviceInfo preferredDevice) {
@@ -784,6 +829,73 @@ final class PlaybackCaptureEngine {
         return null;
     }
 
+    private String detectSilentCaptureStall(long now, long lastSignalAt) {
+        long silentForMs = now - lastSignalAt;
+        long recoveryThresholdMs = Math.max(
+                ACTIVE_PLAYBACK_RECOVERY_MIN_MS,
+                Math.max(currentConfig.monitorIntervalMs * 2L, currentConfig.latencyMs * 6L));
+        if (silentForMs < recoveryThresholdMs) {
+            return null;
+        }
+        String resolvedSignature =
+                describeResolvedDeviceSignature(resolvePreferredOutputDeviceInfo());
+        if (!resolvedSignature.equals(configuredPreferredDeviceSignature)) {
+            return "preferred output changed from " + configuredPreferredDeviceSignature
+                    + " to " + resolvedSignature;
+        }
+        if (!hasRecoverableActivePlayback()) {
+            return null;
+        }
+        return "active playback is present but capture stayed silent for " + silentForMs + "ms";
+    }
+
+    private boolean hasRecoverableActivePlayback() {
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return false;
+        }
+        try {
+            for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                if (configuration == null) {
+                    continue;
+                }
+                int clientUid = readPlaybackClientUid(configuration);
+                if (clientUid == android.os.Process.myUid()) {
+                    continue;
+                }
+                if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+                    return true;
+                }
+                if (clientUid == currentTargetUid) {
+                    return true;
+                }
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to inspect active playback for capture recovery", ex);
+        }
+        return false;
+    }
+
+    private boolean restartPipelineLocked(String reason) {
+        if (mediaProjection == null || !AudioProcessingPolicy.advancedModeEnabled(currentMode)) {
+            return false;
+        }
+        if (currentPreset == null || !currentPreset.enabled) {
+            return false;
+        }
+        if (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0) {
+            return false;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastAutoRestartAtMs < AUTO_RESTART_COOLDOWN_MS) {
+            Log.i(TAG, "Skipping capture auto-restart during cooldown, reason=" + reason);
+            return false;
+        }
+        lastAutoRestartAtMs = now;
+        Log.i(TAG, "Auto-restarting capture pipeline, reason=" + reason);
+        startPipelineLocked();
+        return running;
+    }
+
     private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
         if (configuration == null) {
             return -1;
@@ -841,6 +953,13 @@ final class PlaybackCaptureEngine {
                 ? "default"
                 : product.toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]+", "_");
         return device.getType() + ":" + keyProduct;
+    }
+
+    private String describeResolvedDeviceSignature(AudioDeviceInfo device) {
+        if (device == null) {
+            return "none";
+        }
+        return describeOutputDeviceKey(device) + "#" + device.getId();
     }
 
     private String safeDeviceKey(AudioOutputDevice outputDevice) {

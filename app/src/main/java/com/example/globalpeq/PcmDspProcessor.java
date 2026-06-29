@@ -214,33 +214,29 @@ final class PcmDspProcessor {
     private static final class PsychoacousticBassProcessor {
         private static final int MIN_CUTOFF_HZ = 30;
         private static final int MAX_CUTOFF_HZ = 300;
+        private static final int Q15_SHIFT = 15;
+        private static final int COEF_SHIFT = 14;
+        private static final int Q15_ONE = 1 << Q15_SHIFT;
         private static final int INTENSITY_Q15_MAX = 32767;
         private static final int[] INTENSITY_COEF = buildIntensityCoef();
+        private static final int CROSSOVER_LP_ROW = 0;
+        private static final int CROSSOVER_BIQUAD_ROW = 1;
+        private static final int POST_FILTER_ROW = 2;
 
         private final int sampleRate;
         private final int channelCount;
-        private final int configuredChannelCount;
-
-        private OnePoleLowPass extractLowPreFilter;
-        private MonoBiquad extractLowPostFilter;
-        private MonoBiquad bassHighPass;
-        private MonoBiquad bassLowPass;
-
-        private float[] lowBuffer = new float[0];
-        private float[] bassBuffer = new float[0];
-
-        private float rectifiedMean;
-        private float drive;
-        private float harmonicTrim;
-        private float lowReplace;
+        private final VBContext context = new VBContext();
         private int cutoffHz = 120;
         private int intensityQ15;
+        private int harmonicDriveQ14;
+        private int harmonicTrimQ15;
+        private int lowKeepQ15;
+        private int outputTrimQ15;
         private boolean lowCpuMode;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = Math.max(8000, sampleRate);
             this.channelCount = Math.max(1, channelCount);
-            this.configuredChannelCount = this.channelCount;
             configure(95, 0, 95, 0, false);
         }
 
@@ -258,6 +254,10 @@ final class PcmDspProcessor {
 
             if (amountPercent <= 0) {
                 intensityQ15 = 0;
+                harmonicDriveQ14 = 0;
+                harmonicTrimQ15 = 0;
+                lowKeepQ15 = 0;
+                outputTrimQ15 = 0;
                 resetRuntime();
                 return;
             }
@@ -269,34 +269,16 @@ final class PcmDspProcessor {
             cutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
             intensityQ15 = INTENSITY_COEF[amountPercent];
 
-            extractLowPreFilter = new OnePoleLowPass(sampleRate, cutoffHz);
-            extractLowPostFilter = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, cutoffHz, 0, 70),
-                    sampleRate
-            );
-            bassHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(65, cutoffHz - 8), 0, 72),
-                    sampleRate
-            );
-            bassLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(
-                            FilterType.LOW_PASS,
-                            true,
-                            Math.min(lowCpuMode ? 360 : 460, Math.max(170, cutoffHz * 3 + 40)),
-                            0,
-                            68),
-                    sampleRate
-            );
-
             float amount = amountPercent / 100f;
-            drive = 1.20f + amount * 0.32f;
-            harmonicTrim = 0.78f + amount * 0.24f;
-            lowReplace = 0.08f + amount * 0.14f;
+            harmonicDriveQ14 = Math.round((1.45f + amount * 0.95f) * (1 << COEF_SHIFT));
+            harmonicTrimQ15 = clampInt(Math.round((0.98f + amount * 0.42f) * Q15_ONE), 0, 45875);
+            lowKeepQ15 = clampInt(Math.round((0.06f + amount * 0.02f) * Q15_ONE), 0, INTENSITY_Q15_MAX);
+            outputTrimQ15 = clampInt(Math.round((0.98f + amount * 0.10f) * Q15_ONE), 0, 39322);
             if (lowCpuMode) {
-                harmonicTrim *= 0.94f;
+                harmonicTrimQ15 = mulQ15(harmonicTrimQ15, 30802);
             }
 
-            resetRuntime();
+            vbInit();
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -304,62 +286,33 @@ final class PcmDspProcessor {
                 return;
             }
 
-            int safeChannelCount = Math.max(1, channelCount > 0 ? channelCount : configuredChannelCount);
+            int safeChannelCount = Math.max(1, channelCount > 0 ? channelCount : this.channelCount);
             int safeSampleCount = Math.min(sampleCount, samples.length);
             int frameCount = safeSampleCount / safeChannelCount;
             if (frameCount <= 0) {
                 return;
             }
 
-            ensureCapacity(frameCount);
-
             for (int frame = 0; frame < frameCount; frame++) {
                 int frameOffset = frame * safeChannelCount;
-                float mono = 0f;
+                int monoQ15 = 0;
                 for (int ch = 0; ch < safeChannelCount; ch++) {
-                    mono += samples[frameOffset + ch];
+                    monoQ15 += floatToQ15(samples[frameOffset + ch]);
                 }
-                mono *= 1f / safeChannelCount;
-                mono = finiteOrZero(mono);
+                monoQ15 /= safeChannelCount;
 
-                lowBuffer[frame] = mono;
-                bassBuffer[frame] = 0f;
-            }
+                int low = processCrossoverLow(clampQ15(monoQ15));
+                int harmonic = generateHarmonics(low);
+                int bass = processPostFilter(harmonic);
+                context.state += (intensityQ15 - context.state) >> 5;
+                int wet = mulQ15(bass, context.state);
+                int preservedLow = mulQ15(low, lowKeepQ15);
 
-            if (extractLowPreFilter != null) {
-                extractLowPreFilter.process(lowBuffer, frameCount);
-            }
-            if (extractLowPostFilter != null) {
-                extractLowPostFilter.process(lowBuffer, frameCount);
-            }
-
-            for (int i = 0; i < frameCount; i++) {
-                float low = finiteOrZero(lowBuffer[i]);
-                float shaped = generateEvenHarmonics(low, drive);
-                bassBuffer[i] = finiteOrZero(shaped * harmonicTrim);
-            }
-
-            if (bassHighPass != null) {
-                bassHighPass.process(bassBuffer, frameCount);
-            }
-            if (bassLowPass != null) {
-                bassLowPass.process(bassBuffer, frameCount);
-            }
-
-            float intensityGain = intensityQ15 / 32768f;
-            for (int frame = 0; frame < frameCount; frame++) {
-                float low = finiteOrZero(lowBuffer[frame]);
-                float bass = finiteOrZero(bassBuffer[frame]);
-                float generated = bass * intensityGain;
-                float lowReduction = low * lowReplace * intensityGain;
-
-                int frameOffset = frame * safeChannelCount;
                 for (int ch = 0; ch < safeChannelCount; ch++) {
-                    samples[frameOffset + ch] = clamp(
-                            finiteOrZero(samples[frameOffset + ch] - lowReduction + generated),
-                            -1f,
-                            1f
-                    );
+                    int inputQ15 = floatToQ15(samples[frameOffset + ch]);
+                    int dry = inputQ15 - low + preservedLow;
+                    int outputQ15 = mulQ15(clampQ15(dry + wet), outputTrimQ15);
+                    samples[frameOffset + ch] = q15ToFloat(outputQ15);
                 }
             }
         }
@@ -368,114 +321,226 @@ final class PcmDspProcessor {
             return intensityQ15 > 0;
         }
 
+        private void vbInit() {
+            context.sampleRate = sampleRate;
+            context.numChannels = channelCount;
+            context.state = 0;
+            context.sd = 0;
+            context.cs = 0;
+            Arrays.fill(context.fco, 0);
+            Arrays.fill(context.ffb, 0);
+            for (int i = 0; i < context.d.length; i++) {
+                Arrays.fill(context.d[i], 0);
+            }
+            genButterworthFiltersOrder3(sampleRate, cutoffHz, context.fco);
+            genButterworthFiltersOrder2(sampleRate, cutoffHz, context.ffb);
+        }
+
         private void resetRuntime() {
-            rectifiedMean = 0f;
-            if (extractLowPreFilter != null) {
-                extractLowPreFilter.reset();
-            }
-            if (extractLowPostFilter != null) {
-                extractLowPostFilter.reset();
-            }
-            if (bassHighPass != null) {
-                bassHighPass.reset();
-            }
-            if (bassLowPass != null) {
-                bassLowPass.reset();
+            context.sampleRate = sampleRate;
+            context.numChannels = channelCount;
+            context.state = 0;
+            context.sd = 0;
+            context.cs = 0;
+            Arrays.fill(context.fco, 0);
+            Arrays.fill(context.ffb, 0);
+            for (int i = 0; i < context.d.length; i++) {
+                Arrays.fill(context.d[i], 0);
             }
         }
 
-        private void ensureCapacity(int frameCount) {
-            if (lowBuffer.length < frameCount) {
-                lowBuffer = new float[frameCount];
-                bassBuffer = new float[frameCount];
-            }
+        private int processCrossoverLow(int inputQ15) {
+            int firstOrder = onePoleLowPassQ15(inputQ15, context.fco[5], context.d[CROSSOVER_LP_ROW], 0);
+            return biquadQ15(firstOrder, context.fco, context.d[CROSSOVER_BIQUAD_ROW]);
         }
 
-        private float generateEvenHarmonics(float low, float drive) {
-            float normalized = clamp(low * drive, -1f, 1f);
-            float rectified = Math.abs(normalized);
-            rectifiedMean += (rectified - rectifiedMean)
-                    * (rectified > rectifiedMean ? 0.090f : 0.012f);
+        private int generateHarmonics(int lowQ15) {
+            int driven = clampQ15(mulQ14(lowQ15, harmonicDriveQ14));
+            int folded = Math.abs(driven);
+            if (folded > context.cs) {
+                context.cs += (folded - context.cs) >> 3;
+            } else {
+                context.cs += (folded - context.cs) >> 6;
+            }
+            context.sd += (Math.abs(lowQ15) - context.sd) >> 4;
 
-            float centered = rectified - rectifiedMean;
-            float shaped = fastTanh(centered * 2.10f);
-            return finiteOrZero(shaped);
+            int centered = folded - context.cs;
+            int shaped = softClipQ15(centered << 1);
+            if (lowQ15 < 0) {
+                shaped = -shaped;
+            }
+            int compensated = mulQ15(shaped, harmonicTrimQ15);
+            int envelopeTrim = clampInt(Q15_ONE - (context.sd >> 2), 22938, Q15_ONE);
+            return mulQ15(compensated, envelopeTrim);
         }
 
         private static int[] buildIntensityCoef() {
             int[] table = new int[101];
             for (int i = 0; i < table.length; i++) {
                 float x = i / 100f;
-                float curved = 1f - (float) Math.exp(-2.2f * x);
-                curved *= 0.58f;
+                float curved = 1f - (float) Math.exp(-4.8f * x);
+                curved *= 1.42f;
                 int coef = Math.round(curved * INTENSITY_Q15_MAX);
-                if (i >= 98) {
-                    coef = Math.min(INTENSITY_Q15_MAX, Math.round(INTENSITY_Q15_MAX * 0.72f));
+                if (i >= 90) {
+                    coef = INTENSITY_Q15_MAX;
                 }
                 table[i] = clampInt(coef, 0, INTENSITY_Q15_MAX);
             }
             return table;
         }
 
-        private static float fastTanh(float value) {
-            if (value > 3f) {
-                return 1f;
-            }
-            if (value < -3f) {
-                return -1f;
-            }
-            float x2 = value * value;
-            return value * (27f + x2) / (27f + 9f * x2);
+        private int processPostFilter(int sampleQ15) {
+            return bandPassQ15(sampleQ15, context.ffb, context.d[POST_FILTER_ROW]);
         }
 
-        private static float smoothStep(float edge0, float edge1, float value) {
-            if (edge0 == edge1) {
-                return value >= edge1 ? 1f : 0f;
+        private static void genButterworthFiltersOrder3(int sampleRate, int cutoffHz, int[] out) {
+            float safeCutoff = clamp(cutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.22f));
+            float alpha = onePoleAlpha(sampleRate, safeCutoff);
+            float[] biquad = rbjLowPass(sampleRate, safeCutoff, 0.7071f);
+            out[0] = toCoefQ14(biquad[0]);
+            out[1] = toCoefQ14(biquad[1]);
+            out[2] = toCoefQ14(biquad[2]);
+            out[3] = toCoefQ14(biquad[3]);
+            out[4] = toCoefQ14(biquad[4]);
+            out[5] = clampInt(Math.round(alpha * Q15_ONE), 0, INTENSITY_Q15_MAX);
+            out[6] = clampInt(Q15_ONE - out[5], 0, Q15_ONE);
+        }
+
+        private static void genButterworthFiltersOrder2(int sampleRate, int cutoffHz, int[] out) {
+            float upperLimit = Math.min(sampleRate * 0.22f, 460f);
+            float center = clamp(cutoffHz * (cutoffHz < 80 ? 2.7f : 2.35f), 110f, upperLimit);
+            float q = cutoffHz < 75 ? 0.84f : 0.92f;
+            float[] biquad = rbjBandPass(sampleRate, center, q);
+            out[0] = toCoefQ14(biquad[0]);
+            out[1] = toCoefQ14(biquad[2]);
+            out[2] = toCoefQ14(biquad[3]);
+            out[3] = toCoefQ14(biquad[4]);
+        }
+
+        private static int onePoleLowPassQ15(int inputQ15, int alphaQ15, int[] stateRow, int stateIndex) {
+            int state = stateRow[stateIndex];
+            state += mulQ15(inputQ15 - state, alphaQ15);
+            state = clampQ15(state);
+            stateRow[stateIndex] = state;
+            return state;
+        }
+
+        private static int biquadQ15(int inputQ15, int[] coefficients, int[] delay) {
+            int output = clampQ15(mulQ14(inputQ15, coefficients[0]) + delay[0]);
+            int nextZ1 = mulQ14(inputQ15, coefficients[1]) - mulQ14(output, coefficients[3]) + delay[1];
+            int nextZ2 = mulQ14(inputQ15, coefficients[2]) - mulQ14(output, coefficients[4]);
+            delay[0] = clampQ15(nextZ1);
+            delay[1] = clampQ15(nextZ2);
+            return output;
+        }
+
+        private static int bandPassQ15(int inputQ15, int[] coefficients, int[] delay) {
+            int output = clampQ15(mulQ14(inputQ15, coefficients[0]) + delay[0]);
+            int nextZ1 = -mulQ14(output, coefficients[2]) + delay[1];
+            int nextZ2 = mulQ14(inputQ15, coefficients[1]) - mulQ14(output, coefficients[3]);
+            delay[0] = clampQ15(nextZ1);
+            delay[1] = clampQ15(nextZ2);
+            return output;
+        }
+
+        private static int softClipQ15(int sampleQ15) {
+            int x = clampQ15(sampleQ15);
+            int x2 = mulQ15(x, x);
+            int numerator = x * 27 + mulQ15(x, x2);
+            int denominator = 27 * Q15_ONE + 9 * x2;
+            if (denominator == 0) {
+                return 0;
             }
-            float t = clamp01((value - edge0) / Math.max(1.0e-9f, edge1 - edge0));
-            return t * t * (3f - 2f * t);
+            return clampQ15((int) (((long) numerator << Q15_SHIFT) / denominator));
+        }
+
+        private static int mulQ15(int sampleQ15, int gainQ15) {
+            return (int) ((((long) sampleQ15 * gainQ15) + (1 << (Q15_SHIFT - 1))) >> Q15_SHIFT);
+        }
+
+        private static int mulQ14(int sampleQ15, int coefQ14) {
+            return (int) ((((long) sampleQ15 * coefQ14) + (1 << (COEF_SHIFT - 1))) >> COEF_SHIFT);
+        }
+
+        private static int toCoefQ14(float value) {
+            return clampInt(Math.round(value * (1 << COEF_SHIFT)), -(1 << 18), 1 << 18);
+        }
+
+        private static int floatToQ15(float sample) {
+            return clampQ15(Math.round(clamp(sample, -1f, 1f) * 32767f));
+        }
+
+        private static float q15ToFloat(int sampleQ15) {
+            return clamp(sampleQ15 / 32768f, -1f, 1f);
+        }
+
+        private static int clampQ15(int value) {
+            return clampInt(value, -32768, 32767);
+        }
+
+        private static float[] rbjLowPass(int sampleRate, float cutoffHz, float q) {
+            float w0 = (float) (2.0 * Math.PI * cutoffHz / Math.max(1, sampleRate));
+            float cosW0 = (float) Math.cos(w0);
+            float sinW0 = (float) Math.sin(w0);
+            float alpha = sinW0 / (2f * Math.max(0.15f, q));
+
+            float b0 = (1f - cosW0) * 0.5f;
+            float b1 = 1f - cosW0;
+            float b2 = (1f - cosW0) * 0.5f;
+            float a0 = 1f + alpha;
+            float a1 = -2f * cosW0;
+            float a2 = 1f - alpha;
+            return normalizeBiquad(b0, b1, b2, a0, a1, a2);
+        }
+
+        private static float[] rbjBandPass(int sampleRate, float centerHz, float q) {
+            float w0 = (float) (2.0 * Math.PI * centerHz / Math.max(1, sampleRate));
+            float cosW0 = (float) Math.cos(w0);
+            float sinW0 = (float) Math.sin(w0);
+            float alpha = sinW0 / (2f * Math.max(0.15f, q));
+
+            float b0 = alpha;
+            float b1 = 0f;
+            float b2 = -alpha;
+            float a0 = 1f + alpha;
+            float a1 = -2f * cosW0;
+            float a2 = 1f - alpha;
+            return normalizeBiquad(b0, b1, b2, a0, a1, a2);
+        }
+
+        private static float[] normalizeBiquad(float b0, float b1, float b2, float a0, float a1, float a2) {
+            float invA0 = Math.abs(a0) < 1.0e-9f ? 1f : 1f / a0;
+            return new float[]{
+                    b0 * invA0,
+                    b1 * invA0,
+                    b2 * invA0,
+                    a1 * invA0,
+                    a2 * invA0
+            };
+        }
+
+        private static float onePoleAlpha(int sampleRate, float cutoffHz) {
+            float omega = (float) (2.0 * Math.PI * cutoffHz / Math.max(1, sampleRate));
+            return omega / (1f + omega);
         }
 
         private static float clamp(float value, float min, float max) {
             return Math.max(min, Math.min(max, value));
         }
 
-        private static float clamp01(float value) {
-            return clamp(value, 0f, 1f);
-        }
-
         private static int clampInt(int value, int min, int max) {
             return Math.max(min, Math.min(max, value));
         }
 
-        private static float finiteOrZero(float value) {
-            return value == value
-                    && value != Float.POSITIVE_INFINITY
-                    && value != Float.NEGATIVE_INFINITY
-                    ? value
-                    : 0f;
-        }
-
-        private static final class OnePoleLowPass {
-            private final float alpha;
-            private float state;
-
-            OnePoleLowPass(int sampleRate, float cutoffHz) {
-                float safeCutoff = clamp(cutoffHz, 20f, sampleRate * 0.20f);
-                float omega = (float) (2.0 * Math.PI * safeCutoff / Math.max(1, sampleRate));
-                this.alpha = omega / (1f + omega);
-            }
-
-            void process(float[] samples, int sampleCount) {
-                for (int i = 0; i < sampleCount; i++) {
-                    state += (samples[i] - state) * alpha;
-                    samples[i] = finiteOrZero(state);
-                }
-            }
-
-            void reset() {
-                state = 0f;
-            }
+        private static final class VBContext {
+            int sampleRate;
+            int numChannels;
+            int state;
+            int sd;
+            int cs;
+            final int[] fco = new int[7];
+            final int[] ffb = new int[4];
+            final int[][] d = new int[11][4];
         }
     }
 
