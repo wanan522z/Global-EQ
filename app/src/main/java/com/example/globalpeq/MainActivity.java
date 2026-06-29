@@ -3772,6 +3772,10 @@ public final class MainActivity extends Activity {
     }
 
     private void showLimitedChoiceMenu(View anchor, String[] labels, int selected, ChoiceCallback callback) {
+        showLimitedChoiceMenu(anchor, labels, selected, callback, true);
+    }
+
+    private void showLimitedChoiceMenu(View anchor, String[] labels, int selected, ChoiceCallback callback, boolean focusable) {
         if (anchor == null || labels == null || labels.length == 0) {
             return;
         }
@@ -3827,7 +3831,7 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 listHeight
         ));
-        PopupWindow popup = new PopupWindow(shell, width, listHeight, true);
+        PopupWindow popup = new PopupWindow(shell, width, listHeight, focusable);
         popup.setOutsideTouchable(true);
         popup.setBackgroundDrawable(solidColorDrawable(Color.TRANSPARENT));
         popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
@@ -5136,7 +5140,8 @@ public final class MainActivity extends Activity {
                     String nextLabel = CURVE_SMOOTHING_LABELS[nextIndex];
                     smoothingButton.setText(nextLabel);
                     setCurveSmoothing(targetCurve, nextLabel);
-                }
+                },
+                false
         ));
         LinearLayout.LayoutParams smoothingParams = new LinearLayout.LayoutParams(dp(84), dp(28));
         smoothingParams.leftMargin = dp(8);
