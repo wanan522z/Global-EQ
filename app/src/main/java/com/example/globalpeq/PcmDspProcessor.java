@@ -270,8 +270,8 @@ final class PcmDspProcessor {
             rebuildFilters(cutoffHz, amount);
 
             float shapedAmount = (float) Math.pow(amount, 1.12f);
-            drive = 1.14f + shapedAmount * 1.92f;
-            wetMix = 0.16f + (float) Math.pow(amount, 1.24f) * 2.05f;
+            drive = 1.16f + shapedAmount * 2.05f;
+            wetMix = 0.24f + (float) Math.pow(amount, 1.10f) * 2.85f;
 
             float riseMs = 0.20f;
             float fallMs = 4.8f - amount * 1.2f;
@@ -282,7 +282,7 @@ final class PcmDspProcessor {
             detectorTrimFloor = 0.70f - amount * 0.06f;
 
             if (lowCpuMode) {
-                wetMix *= 0.95f;
+                wetMix *= 0.97f;
                 drive *= 0.98f;
             }
 
@@ -315,7 +315,7 @@ final class PcmDspProcessor {
 
                 float lowBand = monoLowStageB.process(monoLowStageA.process(mono));
                 float harmonic = shapeHarmonics(lowBand);
-                smoothedMix += (wetMix - smoothedMix) * 0.060f;
+                smoothedMix += (wetMix - smoothedMix) * 0.080f;
                 float wet = harmonic * smoothedMix;
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
