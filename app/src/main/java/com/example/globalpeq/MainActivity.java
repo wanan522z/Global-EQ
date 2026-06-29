@@ -91,7 +91,10 @@ public final class MainActivity extends Activity {
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
     private static final int GEQ_COMMIT_DELAY_MS = 160;
+    private static final int PEQ_BAND_COMMIT_DELAY_MS = 160;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
+    private static final long LIVE_EQ_PREVIEW_DELAY_MS = 24L;
+    private static final long EQ_TEXT_INPUT_APPLY_DELAY_MS = 140L;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS = 280L;
     private static final long ENABLE_TOGGLE_INTERACTION_LOCK_MS = 260L;
@@ -449,8 +452,16 @@ public final class MainActivity extends Activity {
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
     private Preset pendingGeqHistorySnapshot;
+    private Preset pendingPeqBandHistorySnapshot;
     private Preset pendingPeqToggleHistorySnapshot;
+    private int pendingGeqPreviewIndex = -1;
+    private int pendingGeqPreviewGainMb;
+    private int pendingPeqPreviewIndex = -1;
+    private ParametricBand pendingPeqPreviewBand;
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
+    private final Runnable previewGeqUpdateRunnable = this::flushPendingGeqPreview;
+    private final Runnable commitPeqBandUpdateRunnable = this::commitPendingPeqBandUpdate;
+    private final Runnable previewPeqBandUpdateRunnable = this::flushPendingPeqBandPreview;
     private final Runnable commitPeqToggleRunnable = this::commitPendingPeqToggle;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
     private final Runnable commitExtraBassToggleRunnable = this::commitPendingExtraBassToggle;
