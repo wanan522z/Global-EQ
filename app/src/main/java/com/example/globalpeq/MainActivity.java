@@ -5719,7 +5719,7 @@ public final class MainActivity extends Activity {
     private void importPresetJsonFromUri(Uri uri) throws IOException {
         String json = readTextFromUri(uri);
         if (json.isEmpty()) {
-            Toast.makeText(this, tr("Preset file is empty", "预设文件为空"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset file is empty", "é¢è®¾æä»¶ä¸ºç©º"), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
@@ -5730,14 +5730,14 @@ public final class MainActivity extends Activity {
             }
             Toast.makeText(this, tr("Preset imported", "é¢è®¾å·²å¯¼å¥"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
-            Toast.makeText(this, tr("Invalid JSON file", "JSON 文件无效"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Invalid JSON file", "JSON æä»¶æ æ"), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void importDeviceConfigJsonFromUri(Uri uri) throws IOException {
         String json = readTextFromUri(uri);
         if (json.isEmpty()) {
-            Toast.makeText(this, tr("Global config file is empty", "全局配置文件为空"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config file is empty", "å¨å±éç½®æä»¶ä¸ºç©º"), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
@@ -5745,14 +5745,14 @@ public final class MainActivity extends Activity {
             applyImportedDeviceConfig(config);
             Toast.makeText(this, tr("Global config imported", "å¨å±éç½®å·²å¯¼å¥"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
-            Toast.makeText(this, tr("Unrecognized global config JSON", "无法识别的全局配置 JSON"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Unrecognized global config JSON", "æ æ³è¯å«çå¨å±éç½® JSON"), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void exportCurrentPresetJson() {
         Preset preset = repository.loadNamedPreset(presetName(editingPreset));
         if (preset == null) {
-            Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No preset to export", "æ²¡æå¯å¯¼åºçé¢è®¾"), Toast.LENGTH_SHORT).show();
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
@@ -5780,9 +5780,9 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Export preset", "导出预设")))
+                .setCustomTitle(dialogTitleView(tr("Export preset", "å¯¼åºé¢è®¾")))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "关闭"), null)
+                .setNegativeButton(tr("Close", "å³é­"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -5792,17 +5792,17 @@ public final class MainActivity extends Activity {
     private void exportPresetJsonForName(String name) {
         Preset preset = repository.loadNamedPreset(name);
         if (preset == null) {
-            Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No preset to export", "æ²¡æå¯å¯¼åºçé¢è®¾"), Toast.LENGTH_SHORT).show();
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
-        pendingExportSuccessMessage = tr("Preset exported", "预设已导出");
+        pendingExportSuccessMessage = tr("Preset exported", "é¢è®¾å·²å¯¼åº");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
     private void handleImportedPreset(Preset imported, boolean applyLive) {
         if (imported == null) {
-            Toast.makeText(this, tr("Invalid preset file", "预设文件无效"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Invalid preset file", "é¢è®¾æä»¶æ æ"), Toast.LENGTH_SHORT).show();
             return;
         }
         flushPendingPresetPersistence();
@@ -5820,9 +5820,9 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Preset already exists", "é¢è®¾åç§°å·²å­å¨")))
                 .setMessage(tr(
-                        "A preset named \"" + importedName + "\" already exists. Replace it or rename the existing preset first?",
+                        "A preset named "" + importedName + "" already exists. Replace it or rename the existing preset first?",
                         "åä¸ºâ" + importedName + "âçé¢è®¾å·²å­å¨ãè¦ç´æ¥æ¿æ¢ï¼è¿æ¯åéå½åç°æé¢è®¾ï¼"))
-                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setNegativeButton(tr("Cancel", "åæ¶"), null)
                 .setNeutralButton(tr("Rename current", "éå½åå½åé¢è®¾"), null)
                 .setPositiveButton(tr("Replace", "ç´æ¥æ¿æ¢"), null)
                 .create();
@@ -5855,7 +5855,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "预设名称"));
+        input.setHint(tr("Preset name", "é¢è®¾åç§°"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5871,8 +5871,8 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Rename existing preset", "éå½åç°æé¢è®¾")))
                 .setView(container)
-                .setNegativeButton(tr("Cancel", "取消"), null)
-                .setPositiveButton(tr("Rename and import", "重命名后导入"), null)
+                .setNegativeButton(tr("Cancel", "åæ¶"), null)
+                .setPositiveButton(tr("Rename and import", "éå½ååå¯¼å¥"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
