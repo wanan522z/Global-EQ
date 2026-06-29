@@ -4684,7 +4684,7 @@ public final class MainActivity extends Activity {
                     scrubbing[0] = false;
                     startValue[0] = parseFloatOrFallback(input.getText(), initialValue);
                     break;
-                case MotionEvent.ACTION_MOVE:
+                case MotionEvent.ACTION_MOVE: {
                     float dx = Math.abs(event.getX() - startX[0]);
                     float dy = Math.abs(event.getY() - startY[0]);
                     if (!scrubbing[0]) {
@@ -4692,9 +4692,9 @@ public final class MainActivity extends Activity {
                             break;
                         }
                         scrubbing[0] = true;
-                        ViewParent parent = view.getParent();
-                        if (parent != null) {
-                            parent.requestDisallowInterceptTouchEvent(true);
+                        ViewParent moveParent = view.getParent();
+                        if (moveParent != null) {
+                            moveParent.requestDisallowInterceptTouchEvent(true);
                         }
                         closeKeyboard(view);
                     }
@@ -4709,22 +4709,24 @@ public final class MainActivity extends Activity {
                         updatingUi = false;
                     }
                     listener.onChanged(nextValue);
-                    break;
+                    return true;
+                }
                 case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
+                case MotionEvent.ACTION_CANCEL: {
                     if (scrubbing[0]) {
                         listener.onChanged(parseFloatOrFallback(input.getText(), startValue[0]));
-                        ViewParent parent = view.getParent();
-                        if (parent != null) {
-                            parent.requestDisallowInterceptTouchEvent(false);
+                        ViewParent releaseParent = view.getParent();
+                        if (releaseParent != null) {
+                            releaseParent.requestDisallowInterceptTouchEvent(false);
                         }
                         return true;
                     }
-                    ViewParent parent = view.getParent();
-                    if (parent != null) {
-                        parent.requestDisallowInterceptTouchEvent(false);
+                    ViewParent releaseParent = view.getParent();
+                    if (releaseParent != null) {
+                        releaseParent.requestDisallowInterceptTouchEvent(false);
                     }
                     break;
+                }
                 default:
                     break;
             }
@@ -4732,7 +4734,7 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private int stepFrequencyScrub(float currentValue) {
+    private float stepFrequencyScrub(float currentValue) {
         int rounded = Math.max(20, Math.round(currentValue));
         if (rounded < 100) {
             return 1;
