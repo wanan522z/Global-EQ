@@ -5719,7 +5719,7 @@ public final class MainActivity extends Activity {
     private void importPresetJsonFromUri(Uri uri) throws IOException {
         String json = readTextFromUri(uri);
         if (json.isEmpty()) {
-            Toast.makeText(this, tr("Preset file is empty", "é¢è®¾æä»¶ä¸ºç©º"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset file is empty", "??????"), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
@@ -5728,42 +5728,42 @@ public final class MainActivity extends Activity {
                 handleImportedPreset(imported, true);
                 return;
             }
-            Toast.makeText(this, tr("Preset imported", "é¢è®¾å·²å¯¼å¥"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset imported", "?????"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
-            Toast.makeText(this, tr("Invalid JSON file", "JSON æä»¶æ æ"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Invalid JSON file", "JSON ????"), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void importDeviceConfigJsonFromUri(Uri uri) throws IOException {
         String json = readTextFromUri(uri);
         if (json.isEmpty()) {
-            Toast.makeText(this, tr("Global config file is empty", "å¨å±éç½®æä»¶ä¸ºç©º"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config file is empty", "????????"), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
             DeviceConfigFile config = DeviceConfigFile.fromJson(json);
             applyImportedDeviceConfig(config);
-            Toast.makeText(this, tr("Global config imported", "å¨å±éç½®å·²å¯¼å¥"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config imported", "???????"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
-            Toast.makeText(this, tr("Unrecognized global config JSON", "æ æ³è¯å«çå¨å±éç½® JSON"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Unrecognized global config JSON", "????????? JSON"), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void exportCurrentPresetJson() {
         Preset preset = repository.loadNamedPreset(presetName(editingPreset));
         if (preset == null) {
-            Toast.makeText(this, tr("No preset to export", "æ²¡æå¯å¯¼åºçé¢è®¾"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No preset to export", "????????"), Toast.LENGTH_SHORT).show();
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
-        pendingExportSuccessMessage = tr("Preset exported", "é¢è®¾å·²å¯¼åº");
+        pendingExportSuccessMessage = tr("Preset exported", "?????");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
     private void showExportPresetChoiceDialog() {
         List<String> names = repository.loadNamedPresetNames();
         if (names.isEmpty()) {
-            Toast.makeText(this, tr("No saved presets to export", "æ²¡æå¯å¯¼åºçå·²ä¿å­é¢è®¾"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No saved presets to export", "???????????"), Toast.LENGTH_SHORT).show();
             return;
         }
         String currentName = presetName(editingPreset);
@@ -5780,9 +5780,9 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Export preset", "å¯¼åºé¢è®¾")))
+                .setCustomTitle(dialogTitleView(tr("Export preset", "????")))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "å³é­"), null)
+                .setNegativeButton(tr("Close", "??"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -5792,17 +5792,17 @@ public final class MainActivity extends Activity {
     private void exportPresetJsonForName(String name) {
         Preset preset = repository.loadNamedPreset(name);
         if (preset == null) {
-            Toast.makeText(this, tr("No preset to export", "æ²¡æå¯å¯¼åºçé¢è®¾"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No preset to export", "????????"), Toast.LENGTH_SHORT).show();
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
-        pendingExportSuccessMessage = tr("Preset exported", "é¢è®¾å·²å¯¼åº");
+        pendingExportSuccessMessage = tr("Preset exported", "?????");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
     private void handleImportedPreset(Preset imported, boolean applyLive) {
         if (imported == null) {
-            Toast.makeText(this, tr("Invalid preset file", "é¢è®¾æä»¶æ æ"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Invalid preset file", "??????"), Toast.LENGTH_SHORT).show();
             return;
         }
         flushPendingPresetPersistence();
@@ -5818,13 +5818,13 @@ public final class MainActivity extends Activity {
     private void showImportedPresetConflictDialog(Preset imported, Preset existing, boolean applyLive) {
         String importedName = presetDisplayName(imported);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Preset already exists", "é¢è®¾åç§°å·²å­å¨")))
+                .setCustomTitle(dialogTitleView(tr("Preset already exists", "???????")))
                 .setMessage(tr(
                         "A preset named "" + importedName + "" already exists. Replace it or rename the existing preset first?",
-                        "åä¸ºâ" + importedName + "âçé¢è®¾å·²å­å¨ãè¦ç´æ¥æ¿æ¢ï¼è¿æ¯åéå½åç°æé¢è®¾ï¼"))
-                .setNegativeButton(tr("Cancel", "åæ¶"), null)
-                .setNeutralButton(tr("Rename current", "éå½åå½åé¢è®¾"), null)
-                .setPositiveButton(tr("Replace", "ç´æ¥æ¿æ¢"), null)
+                        "???" + importedName + "?????????????????????????"))
+                .setNegativeButton(tr("Cancel", "??"), null)
+                .setNeutralButton(tr("Rename current", "???????"), null)
+                .setPositiveButton(tr("Replace", "????"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button replaceButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -5855,7 +5855,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "é¢è®¾åç§°"));
+        input.setHint(tr("Preset name", "????"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5869,10 +5869,10 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Rename existing preset", "éå½åç°æé¢è®¾")))
+                .setCustomTitle(dialogTitleView(tr("Rename existing preset", "???????")))
                 .setView(container)
-                .setNegativeButton(tr("Cancel", "åæ¶"), null)
-                .setPositiveButton(tr("Rename and import", "éå½ååå¯¼å¥"), null)
+                .setNegativeButton(tr("Cancel", "??"), null)
+                .setPositiveButton(tr("Rename and import", "??????"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -5880,11 +5880,11 @@ public final class MainActivity extends Activity {
                 positive.setOnClickListener(v -> {
                     String renamed = input.getText() == null ? "" : input.getText().toString().trim();
                     if (renamed.isEmpty()) {
-                        Toast.makeText(this, tr("Preset name required", "éè¦å¡«åé¢è®¾åç§°"), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "????????"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     if (repository.loadNamedPreset(renamed) != null) {
-                        Toast.makeText(this, tr("Preset name already exists", "é¢è®¾åç§°å·²å­å¨"), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name already exists", "???????"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     setDialogButtonsEnabled(dialog, false);
