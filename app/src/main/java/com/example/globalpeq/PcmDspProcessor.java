@@ -226,7 +226,6 @@ final class PcmDspProcessor {
         private MonoBiquad wetHighPass;
         private MonoBiquad wetLowPass;
 
-        private float[] monoSource = new float[0];
         private float[] lowBuffer = new float[0];
         private float[] wetBuffer = new float[0];
 
@@ -236,6 +235,7 @@ final class PcmDspProcessor {
         private float wetCeiling;
         private float wetLimiterEnvelope;
         private float wetLimiterGain = 1f;
+        private float wetSmoother;
         private int cutoffHz = 120;
         private int intensityQ15;
         private boolean lowCpuMode;
@@ -281,21 +281,21 @@ final class PcmDspProcessor {
                     sampleRate
             );
             wetHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(70, cutoffHz - 10), 0, 72),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(80, cutoffHz - 6), 0, 72),
                     sampleRate
             );
             wetLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 480 : 620, 0, 68),
+                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 420 : 560, 0, 68),
                     sampleRate
             );
 
             float amount = amountPercent / 100f;
-            drive = 1.18f + amount * 0.52f;
-            harmonicTrim = 0.18f + amount * 0.18f;
+            drive = 1.10f + amount * 0.38f;
+            harmonicTrim = 0.14f + amount * 0.14f;
             if (lowCpuMode) {
-                harmonicTrim *= 0.92f;
+                harmonicTrim *= 0.90f;
             }
-            wetCeiling = 0.06f + amount * 0.08f;
+            wetCeiling = 0.05f + amount * 0.06f;
 
             resetRuntime();
         }
@@ -323,7 +323,6 @@ final class PcmDspProcessor {
                 mono *= 1f / safeChannelCount;
                 mono = finiteOrZero(mono);
 
-                monoSource[frame] = mono;
                 lowBuffer[frame] = mono;
                 wetBuffer[frame] = 0f;
             }
@@ -339,15 +338,18 @@ final class PcmDspProcessor {
                 float low = finiteOrZero(lowBuffer[i]);
                 float absLow = Math.abs(low);
                 lowLevelFollower += (absLow - lowLevelFollower)
-                        * (absLow > lowLevelFollower ? 0.055f : 0.006f);
+                        * (absLow > lowLevelFollower ? 0.040f : 0.0045f);
 
-                float normalized = clamp(low * drive, -1f, 1f);
-                float softClip = fastTanh(normalized * 1.15f);
-                float cubicResidual = softClip - normalized;
-                float shaped = cubicResidual + softClip * Math.abs(softClip) * 0.05f;
-                float gate = smoothStep(0.0012f, 0.018f, lowLevelFollower);
+                float driveCompensation = 1f - 0.24f * smoothStep(0.05f, 0.22f, lowLevelFollower);
+                float normalized = clamp(low * drive * driveCompensation, -1f, 1f);
+                float shaped = generateSymmetricResidual(normalized);
+                float gate = smoothStep(0.0015f, 0.022f, lowLevelFollower);
+                float crestControl = 1f - 0.16f * smoothStep(0.08f, 0.26f, absLow);
+                float wetTarget = shaped * harmonicTrim * gate * crestControl;
+                wetSmoother += (wetTarget - wetSmoother)
+                        * (Math.abs(wetTarget) > Math.abs(wetSmoother) ? 0.16f : 0.07f);
 
-                wetBuffer[i] = finiteOrZero(shaped * harmonicTrim * gate);
+                wetBuffer[i] = finiteOrZero(wetSmoother);
             }
 
             if (wetHighPass != null) {
@@ -362,15 +364,15 @@ final class PcmDspProcessor {
                 float wet = finiteOrZero(wetBuffer[frame]);
                 float wetAbs = Math.abs(wet);
                 wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.004f);
+                        * (wetAbs > wetLimiterEnvelope ? 0.045f : 0.006f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
                 wetLimiterGain += (targetGain - wetLimiterGain)
-                        * (targetGain < wetLimiterGain ? 0.18f : 0.010f);
+                        * (targetGain < wetLimiterGain ? 0.09f : 0.014f);
 
-                float bass = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.10f);
+                float bass = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.04f);
                 float generated = bass * intensityGain;
 
                 int frameOffset = frame * safeChannelCount;
@@ -392,14 +394,22 @@ final class PcmDspProcessor {
             lowLevelFollower = 0f;
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
+            wetSmoother = 0f;
         }
 
         private void ensureCapacity(int frameCount) {
-            if (monoSource.length < frameCount) {
-                monoSource = new float[frameCount];
+            if (lowBuffer.length < frameCount) {
                 lowBuffer = new float[frameCount];
                 wetBuffer = new float[frameCount];
             }
+        }
+
+        private static float generateSymmetricResidual(float normalized) {
+            float dense = fastTanh(normalized * 1.28f);
+            float gentle = fastTanh(normalized * 0.64f);
+            float residual = dense - gentle;
+            float contour = 1f - 0.12f * Math.abs(normalized);
+            return finiteOrZero(residual * contour);
         }
 
         private static int[] buildIntensityCoef() {
