@@ -4522,16 +4522,19 @@ public final class MainActivity extends Activity {
             int frequencyHz = clamp(Math.round(value), 20, 20000);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withFrequencyHz(frequencyHz));
         });
+        attachEqOverlayNumberScrub(frequencyInput, band.frequencyHz, 20f, 20000f, 0, this::stepFrequencyScrub, false);
         overlay.addView(frequencyInput);
         EditText gainInput = createEqOverlayInput(formatDecimal(band.gainMb / 100f), "dB", 1f, value -> {
             int gainMb = clamp(Math.round(value * 100f), -1800, 1800);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withGainMb(gainMb));
         });
+        attachEqOverlayNumberScrub(gainInput, band.gainMb / 100f, -18f, 18f, 2, current -> 0.1f, true);
         overlay.addView(gainInput);
         EditText qInput = createEqOverlayInput(formatDecimal(band.qHundred / 100f), "Q", 1f, value -> {
             int qHundred = clamp(Math.round(value * 100f), 0, ParametricBand.MAX_Q_HUNDRED);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withQHundred(qHundred));
         });
+        attachEqOverlayNumberScrub(qInput, band.qHundred / 100f, 0f, ParametricBand.MAX_Q_HUNDRED / 100f, 2, current -> current < 1f ? 0.02f : 0.05f, true);
         overlay.addView(qInput);
 
         EditText focusTarget = field == EQ_EDIT_FIELD_GAIN ? gainInput : field == EQ_EDIT_FIELD_Q ? qInput : frequencyInput;
@@ -4618,36 +4621,132 @@ public final class MainActivity extends Activity {
                     && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                     && event.getAction() == KeyEvent.ACTION_UP;
             if (actionId == EditorInfo.IME_ACTION_DONE || enterUp) {
+                flushDebouncedFloatInput(input, listener);
                 closeKeyboard(view);
                 return true;
             }
             return false;
         });
-        input.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (updatingUi) {
-                    return;
-                }
-                try {
-                    listener.onChanged(Float.parseFloat(s.toString()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-            }
-        });
+        attachDebouncedFloatInput(input, EQ_TEXT_INPUT_APPLY_DELAY_MS, listener);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight);
         params.leftMargin = dp(2);
         params.rightMargin = dp(2);
         input.setLayoutParams(params);
         return input;
+    }
+
+    private interface EqOverlayStepProvider {
+        float stepFor(float currentValue);
+    }
+
+    private void attachEqOverlayNumberScrub(
+            EditText input,
+            float initialValue,
+            float min,
+            float max,
+            int decimals,
+            EqOverlayStepProvider stepProvider,
+            boolean forceFixedDecimals
+    ) {
+        if (input == null || stepProvider == null) {
+            return;
+        }
+        final float[] startValue = new float[]{initialValue};
+        final float[] startX = new float[1];
+        final float[] startY = new float[1];
+        final boolean[] scrubbing = new boolean[1];
+        final int scrubTouchSlop = dp(10);
+        final float pixelsPerStep = Math.max(12f, dpf(14f));
+
+        input.setOnTouchListener((view, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    startX[0] = event.getX();
+                    startY[0] = event.getY();
+                    scrubbing[0] = false;
+                    startValue[0] = parseFloatOrFallback(input.getText(), initialValue);
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = Math.abs(event.getX() - startX[0]);
+                    float dy = Math.abs(event.getY() - startY[0]);
+                    if (!scrubbing[0]) {
+                        if (dy <= scrubTouchSlop || dy < dx * 1.15f) {
+                            break;
+                        }
+                        scrubbing[0] = true;
+                        view.getParent().requestDisallowInterceptTouchEvent(true);
+                        closeKeyboard(view);
+                    }
+                    float step = Math.max(0.0001f, stepProvider.stepFor(startValue[0]));
+                    float deltaSteps = (startY[0] - event.getY()) / pixelsPerStep;
+                    float nextValue = clampFloat(startValue[0] + deltaSteps * step, min, max);
+                    String text = formatScrubValue(nextValue, decimals, forceFixedDecimals);
+                    if (!text.contentEquals(input.getText())) {
+                        updatingUi = true;
+                        input.setText(text);
+                        input.setSelection(text.length());
+                        updatingUi = false;
+                    }
+                    flushDebouncedFloatInput(input, value -> {});
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (scrubbing[0]) {
+                        flushDebouncedFloatInput(input, value -> {});
+                        view.getParent().requestDisallowInterceptTouchEvent(false);
+                        return true;
+                    }
+                    view.getParent().requestDisallowInterceptTouchEvent(false);
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        });
+    }
+
+    private int stepFrequencyScrub(float currentValue) {
+        int rounded = Math.max(20, Math.round(currentValue));
+        if (rounded < 100) {
+            return 1;
+        }
+        if (rounded < 1000) {
+            return 5;
+        }
+        if (rounded < 5000) {
+            return 25;
+        }
+        return 100;
+    }
+
+    private float parseFloatOrFallback(CharSequence text, float fallback) {
+        if (text == null) {
+            return fallback;
+        }
+        String raw = text.toString().trim();
+        if (raw.isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Float.parseFloat(raw);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private float clampFloat(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private String formatScrubValue(float value, int decimals, boolean forceFixedDecimals) {
+        if (decimals <= 0) {
+            return String.valueOf(Math.round(value));
+        }
+        if (forceFixedDecimals) {
+            return String.format(Locale.US, "%." + decimals + "f", value);
+        }
+        float scaled = Math.round(value * (float) Math.pow(10, decimals)) / (float) Math.pow(10, decimals);
+        return formatDecimal(scaled);
     }
 
     private void setBandFromEqOverlay(int index, ParametricBand band) {
