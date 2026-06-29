@@ -5768,16 +5768,27 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, tr("No saved presets to export", "没有可导出的已保存预设"), Toast.LENGTH_SHORT).show();
             return;
         }
-        String[] labels = names.toArray(new String[0]);
         String currentName = presetName(editingPreset);
-        int selected = currentName == null ? 0 : Math.max(0, names.indexOf(currentName));
-        View anchor = presetSelectButton != null ? presetSelectButton : settingsPage;
-        showLimitedChoiceMenu(anchor, labels, selected, position -> {
-            if (position < 0 || position >= labels.length) {
-                return;
-            }
-            exportPresetJsonForName(labels[position]);
-        });
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(14), dp(4), dp(14), dp(12));
+
+        AlertDialog[] dialogHolder = new AlertDialog[1];
+        for (String name : names) {
+            list.addView(createExportPresetMenuRow(name, samePresetSelection(name, currentName), dialogHolder),
+                    presetMenuRowParams(list.getChildCount() == 0 ? 0 : 8));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(tr("Export preset", "导出预设")))
+                .setView(scroll)
+                .setNegativeButton(tr("Close", "关闭"), null)
+                .create();
+        dialogHolder[0] = dialog;
+        dialog.show();
+        styleDialog(dialog);
     }
 
     private void exportPresetJsonForName(String name) {
