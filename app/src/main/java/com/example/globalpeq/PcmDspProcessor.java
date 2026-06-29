@@ -577,13 +577,12 @@ final class PcmDspProcessor {
 
 
     private static final class PsychoacousticBassProcessor {
-        private static final int LANE_COUNT = 3;
-
         private final int sampleRate;
         private final int channelCount;
         private final int configuredChannelCount;
-        private final HybridLane[] lanes = new HybridLane[LANE_COUNT];
 
+        private MonoBiquad sourceLowPass;
+        private MonoBiquad sourceLowPass2;
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicHighPass2;
         private MonoBiquad harmonicLowPass;
@@ -592,21 +591,22 @@ final class PcmDspProcessor {
         private float[] monoSource = new float[0];
         private float[] harmonicSum = new float[0];
 
+        private float rmsEnvelope;
+        private float agcGain = 1f;
         private float wetLimiterEnvelope;
         private float wetLimiterGain = 1f;
 
         private float harmonicMix;
         private float wetCeiling;
+        private float drive;
+        private float h2Mix;
+        private float h3Mix;
+        private float h4Mix;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = Math.max(8000, sampleRate);
             this.channelCount = Math.max(1, channelCount);
             this.configuredChannelCount = this.channelCount;
-
-            for (int i = 0; i < lanes.length; i++) {
-                lanes[i] = new HybridLane(this.sampleRate);
-            }
-
             configure(95, 0, 95, 0, false);
         }
 
@@ -621,6 +621,8 @@ final class PcmDspProcessor {
 
             if (amount <= 0.0001f) {
                 harmonicMix = 0f;
+                rmsEnvelope = 0f;
+                agcGain = 1f;
                 wetLimiterEnvelope = 0f;
                 wetLimiterGain = 1f;
                 return;
@@ -634,96 +636,41 @@ final class PcmDspProcessor {
             int cutoff = clampInt(requestedCutoff, 30, 220);
 
             float lowCutoffBlend = 1f - clamp01((cutoff - 35f) / 70f);
-            float midCutoffBlend = clamp01((cutoff - 70f) / 85f);
+            float midCutoffBlend = clamp01((cutoff - 70f) / 90f);
 
-            float fartRise = clamp01((cutoff - 48f) / 24f);
-            float fartFall = 1f - clamp01((cutoff - 95f) / 55f);
-            float fartZoneBlend = fartRise * fartFall;
-
-            float source0Low = Math.max(14f, cutoff * 0.20f);
-            float source0High = cutoff * 0.58f;
-
-            float source1Low = cutoff * 0.42f;
-            float source1High = cutoff * 0.88f;
-
-            float source2Low = cutoff * 0.70f;
-            float source2High = cutoff * 1.18f;
-
-            float baseDrive = 0.88f
-                    + amount * 0.80f
-                    + lowCutoffBlend * 0.14f
-                    - fartZoneBlend * 0.10f;
-
-            lanes[0].configure(
-                    source0Low,
-                    source0High,
-                    baseDrive * (1.05f + lowCutoffBlend * 0.10f),
-                    lowCpuMode ? 0.70f : 1.00f,
-                    0.82f + lowCutoffBlend * 0.26f - fartZoneBlend * 0.30f,
-                    0.76f + fartZoneBlend * 0.24f,
-                    0.10f + lowCutoffBlend * 0.05f,
-                    5.8f,
-                    112f + lowCutoffBlend * 34f,
-                    0.38f - fartZoneBlend * 0.08f,
-                    0.78f + lowCutoffBlend * 0.15f + fartZoneBlend * 0.12f,
-                    0.82f + fartZoneBlend * 0.18f,
-                    lowCpuMode
+            sourceLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70),
+                    sampleRate
             );
 
-            lanes[1].configure(
-                    source1Low,
-                    source1High,
-                    baseDrive,
-                    0.98f,
-                    0.60f + lowCutoffBlend * 0.15f - fartZoneBlend * 0.30f,
-                    1.04f + fartZoneBlend * 0.28f,
-                    0.16f + fartZoneBlend * 0.08f,
-                    6.2f,
-                    98f + fartZoneBlend * 24f,
-                    0.36f - fartZoneBlend * 0.06f,
-                    0.88f + fartZoneBlend * 0.14f,
-                    0.90f + fartZoneBlend * 0.20f,
-                    lowCpuMode
-            );
-
-            lanes[2].configure(
-                    source2Low,
-                    source2High,
-                    baseDrive * 0.90f,
-                    lowCpuMode ? 0.00f : 0.76f,
-                    0.40f + lowCutoffBlend * 0.10f - fartZoneBlend * 0.22f,
-                    1.04f + fartZoneBlend * 0.22f,
-                    0.22f + fartZoneBlend * 0.10f + midCutoffBlend * 0.05f,
-                    7.2f,
-                    84f + fartZoneBlend * 20f,
-                    0.32f - fartZoneBlend * 0.05f,
-                    0.88f + fartZoneBlend * 0.12f,
-                    0.96f + fartZoneBlend * 0.12f,
-                    lowCpuMode
+            sourceLowPass2 = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70),
+                    sampleRate
             );
 
             /*
-             * v2.1：
-             * 不再把虚拟谐波限制在 130~320Hz。
-             * 60Hz 以上都允许保留/增强。
-             * 60Hz 以下主要靠 harmonicWeight() 压掉。
+             * 文章算法的核心是：
+             * 1. 提取低频；
+             * 2. 非线性产生谐波；
+             * 3. 去掉 DC 和极低频；
+             * 4. 只留下小喇叭/耳机容易放出来的谐波。
              *
-             * 这里的高通只是清 DC 和极低频垃圾，不负责“保守削低频”。
+             * 不照搬“减 0.85 去直流”，因为 PCM 实时处理会产生偏移和怪声。
              */
             harmonicHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 45, 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, 58, 0, 70),
                     sampleRate
             );
 
             harmonicHighPass2 = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 48, 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, 62, 0, 70),
                     sampleRate
             );
 
             int harmonicLpHz = clampInt(
-                    Math.round(cutoff * (5.60f + lowCutoffBlend * 1.10f + midCutoffBlend * 0.70f)),
-                    620,
-                    1450
+                    Math.round(cutoff * (4.8f + lowCutoffBlend * 0.8f + midCutoffBlend * 0.6f)),
+                    420,
+                    1200
             );
 
             harmonicLowPass = MonoBiquad.fromBand(
@@ -731,18 +678,26 @@ final class PcmDspProcessor {
                     sampleRate
             );
 
-            harmonicLowPass2 = MonoBiquad.fromBand(
+            harmonicLowPass2 = lowCpuMode ? null : MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, harmonicLpHz, 0, 66),
                     sampleRate
             );
 
-            harmonicMix = amount * (2.95f + lowCutoffBlend * 0.88f + midCutoffBlend * 0.20f);
+            drive = 1.15f + amount * 1.35f + lowCutoffBlend * 0.25f;
+
+            h2Mix = 0.88f + amount * 0.20f;
+            h3Mix = 0.62f + amount * 0.42f;
+            h4Mix = lowCpuMode ? 0f : 0.18f + amount * 0.20f;
+
+            harmonicMix = amount * (1.75f + lowCutoffBlend * 0.45f);
             if (lowCpuMode) {
-                harmonicMix *= 0.90f;
+                harmonicMix *= 0.82f;
             }
 
-            wetCeiling = 0.34f + amount * 0.22f;
+            wetCeiling = 0.30f + amount * 0.24f;
 
+            rmsEnvelope = 0f;
+            agcGain = 1f;
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
         }
@@ -767,38 +722,74 @@ final class PcmDspProcessor {
                 int frameOffset = frame * safeChannelCount;
 
                 float mono = 0f;
-                for (int channel = 0; channel < safeChannelCount; channel++) {
-                    mono += samples[frameOffset + channel];
+                for (int ch = 0; ch < safeChannelCount; ch++) {
+                    mono += samples[frameOffset + ch];
                 }
 
-                monoSource[frame] = mono / safeChannelCount;
-                harmonicSum[frame] = 0f;
+                monoSource[frame] = finiteOrZero(mono / safeChannelCount);
+                harmonicSum[frame] = monoSource[frame];
             }
 
-            int dominantLane = -1;
-            float dominantActivity = 0f;
-            for (int i = 0; i < lanes.length; i++) {
-                float activity = lanes[i].getActivityScore();
-                if (activity > dominantActivity) {
-                    dominantActivity = activity;
-                    dominantLane = i;
+            if (sourceLowPass != null) {
+                sourceLowPass.process(harmonicSum, frameCount);
+            }
+            if (sourceLowPass2 != null) {
+                sourceLowPass2.process(harmonicSum, frameCount);
+            }
+
+            float rmsAttack = onePoleCoeff(8.0f, sampleRate);
+            float rmsRelease = onePoleCoeff(180.0f, sampleRate);
+            float agcSmooth = onePoleCoeff(45.0f, sampleRate);
+
+            for (int i = 0; i < frameCount; i++) {
+                float low = finiteOrZero(harmonicSum[i]);
+
+                float absLow = Math.abs(low);
+                rmsEnvelope += (absLow - rmsEnvelope)
+                        * (absLow > rmsEnvelope ? rmsAttack : rmsRelease);
+
+                float db = 20f * (float) Math.log10(rmsEnvelope + 1.0e-9f);
+
+                float targetAgc;
+                if (db > -10f) {
+                    targetAgc = 0.38f;
+                } else if (db > -16f) {
+                    targetAgc = 0.56f;
+                } else if (db > -23f) {
+                    targetAgc = 0.78f;
+                } else {
+                    targetAgc = 1.00f;
                 }
-            }
 
-            for (int i = 0; i < lanes.length; i++) {
-                float duckGain = 1f;
+                agcGain += (targetAgc - agcGain) * agcSmooth;
 
                 /*
-                 * dominant lane ducking：
-                 * 低频复杂时，保留主 lane，其他 lane 自动压一点。
-                 * 这可以减少多个低频音高一起生成导致的糊和假。
+                 * 复刻文章的 |x| + x² 思路，但做成更适合音频的谐波结构：
+                 * h2：abs(x) / x² 类似偶次谐波；
+                 * h3：x³ 结构保留音高感；
+                 * h4：少量补边缘，不让声音太糊。
                  */
-                if (dominantLane >= 0 && dominantActivity > 0.00001f && i != dominantLane) {
-                    float relative = lanes[i].getActivityScore() / Math.max(0.00001f, dominantActivity);
-                    duckGain = 0.38f + 0.45f * clamp01(relative);
-                }
+                float level = Math.max(0.004f, rmsEnvelope);
+                float x = clamp(low / level, -1.25f, 1.25f);
+                x = softClipUnit(x * drive, 1.0f);
 
-                lanes[i].process(monoSource, harmonicSum, frameCount, duckGain);
+                float x2 = x * x;
+                float x3 = x2 * x;
+                float x4 = x2 * x2;
+
+                float h2 = 2f * x2 - 1f;
+                float h3 = 4f * x3 - 3f * x;
+                float h4 = 8f * x4 - 8f * x2 + 1f;
+
+                float weight2 = harmonicWeight(2f * estimateVirtualFundamental());
+                float weight3 = harmonicWeight(3f * estimateVirtualFundamental());
+                float weight4 = harmonicWeight(4f * estimateVirtualFundamental());
+
+                float harmonic = h2 * h2Mix * weight2
+                        + h3 * h3Mix * weight3
+                        + h4 * h4Mix * weight4;
+
+                harmonicSum[i] = finiteOrZero(harmonic * level * agcGain);
             }
 
             if (harmonicHighPass != null) {
@@ -819,41 +810,44 @@ final class PcmDspProcessor {
 
                 float wetAbs = Math.abs(wet);
                 wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.066f : 0.0038f);
+                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.004f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
 
-                float limiterCoeff = targetGain < wetLimiterGain ? 0.12f : 0.0055f;
-                wetLimiterGain += (targetGain - wetLimiterGain) * limiterCoeff;
+                wetLimiterGain += (targetGain - wetLimiterGain)
+                        * (targetGain < wetLimiterGain ? 0.14f : 0.006f);
 
-                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.42f);
+                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.35f);
 
                 int frameOffset = frame * safeChannelCount;
 
                 float originalPeak = 0f;
-                for (int channel = 0; channel < safeChannelCount; channel++) {
-                    originalPeak = Math.max(originalPeak, Math.abs(samples[frameOffset + channel]));
+                for (int ch = 0; ch < safeChannelCount; ch++) {
+                    originalPeak = Math.max(originalPeak, Math.abs(samples[frameOffset + ch]));
                 }
 
-                /*
-                 * headroom guard：
-                 * 不抬 EQ，但生成谐波加回去时也不能把后级打炸。
-                 * 这里只在原始信号已经接近满幅时轻微收 generated。
-                 */
-                float headroomProtect = 1f - smoothStep(0.90f, 0.995f, originalPeak) * 0.55f;
+                float headroomProtect = 1f - smoothStep(0.88f, 0.995f, originalPeak) * 0.65f;
                 generated *= headroomProtect;
 
-                for (int channel = 0; channel < safeChannelCount; channel++) {
-                    float original = samples[frameOffset + channel];
-                    samples[frameOffset + channel] = finiteOrZero(original + generated);
+                for (int ch = 0; ch < safeChannelCount; ch++) {
+                    float original = samples[frameOffset + ch];
+                    samples[frameOffset + ch] = finiteOrZero(original + generated);
                 }
             }
         }
 
         boolean isActive() {
             return harmonicMix > 0.0001f;
+        }
+
+        private float estimateVirtualFundamental() {
+            /*
+             * 这里不用复杂 pitch tracking。
+             * 只给 harmonicWeight 一个大致参考，避免 60Hz 以下谐波被放大。
+             */
+            return 70f;
         }
 
         private void ensureCapacity(int frameCount) {
@@ -863,612 +857,11 @@ final class PcmDspProcessor {
             }
         }
 
-        private static final class HybridLane {
-            private static final float PI = (float) Math.PI;
-            private static final float TWO_PI = (float) (Math.PI * 2.0);
-
-            private final int sampleRate;
-
-            private MonoBiquad sourceHighPass;
-            private MonoBiquad sourceLowPass;
-
-            private float[] work = new float[0];
-
-            private boolean active;
-            private boolean lowCpuMode;
-
-            private float lowHz;
-            private float highHz;
-
-            private float envelope;
-            private float attackCoeff;
-            private float releaseCoeff;
-
-            private float fastEnvelope;
-            private float slowEnvelope;
-            private float fastEnvCoeff;
-            private float slowEnvCoeff;
-
-            private float transientHold;
-            private float transientAttackCoeff;
-            private float transientReleaseCoeff;
-
-            private float pitchHz;
-            private float targetPitchHz;
-            private float pitchTarget;
-            private float pitchConfidence;
-            private float pitchAttackCoeff;
-            private float pitchReleaseCoeff;
-            private float pitchSmoothCoeff;
-
-            private int zeroCrossAge;
-            private int previousHalfPeriod;
-            private int minHalfPeriodSamples;
-            private int maxHalfPeriodSamples;
-            private int pitchHoldSamples;
-            private int pitchHoldMaxSamples;
-
-            private float[] pitchHistory = new float[0];
-            private int pitchWriteIndex;
-            private int pitchHistoryFilled;
-            private int pitchAnalysisLength;
-            private int pitchUpdateInterval;
-            private int pitchUpdateCountdown;
-            private int acMinLag;
-            private int acMaxLag;
-
-            private float phase;
-            private float lastLow;
-
-            private float dcX;
-            private float dcY;
-
-            private float drive;
-            private float laneGain;
-            private float h2Mix;
-            private float h3Mix;
-            private float h4Mix;
-            private float transientNldMix;
-            private float tonalSynthMix;
-            private float toneStrictness;
-
-            private float activityScore;
-
-            HybridLane(int sampleRate) {
-                this.sampleRate = Math.max(8000, sampleRate);
-            }
-
-            void configure(float lowHz,
-                           float highHz,
-                           float drive,
-                           float laneGain,
-                           float h2Mix,
-                           float h3Mix,
-                           float h4Mix,
-                           float attackMs,
-                           float releaseMs,
-                           float transientNldMix,
-                           float tonalSynthMix,
-                           float toneStrictness,
-                           boolean lowCpuMode) {
-                float nyquistLimit = this.sampleRate * 0.42f;
-
-                float safeHigh = clamp(highHz, 24f, nyquistLimit);
-                float safeLow = clamp(lowHz, 12f, safeHigh - 5f);
-                if (safeHigh < safeLow + 7f) {
-                    safeHigh = safeLow + 7f;
-                }
-
-                this.lowHz = safeLow;
-                this.highHz = safeHigh;
-                this.lowCpuMode = lowCpuMode;
-
-                this.active = laneGain > 0.0001f;
-
-                sourceHighPass = MonoBiquad.fromBand(
-                        new ParametricBand(
-                                FilterType.HIGH_PASS,
-                                true,
-                                Math.round(safeLow),
-                                0,
-                                62
-                        ),
-                        this.sampleRate
-                );
-
-                sourceLowPass = MonoBiquad.fromBand(
-                        new ParametricBand(
-                                FilterType.LOW_PASS,
-                                true,
-                                Math.round(safeHigh),
-                                0,
-                                62
-                        ),
-                        this.sampleRate
-                );
-
-                this.drive = Math.max(0.1f, drive);
-                this.laneGain = Math.max(0f, laneGain);
-                this.h2Mix = Math.max(0f, h2Mix);
-                this.h3Mix = Math.max(0f, h3Mix);
-                this.h4Mix = Math.max(0f, h4Mix);
-                this.transientNldMix = clamp01(transientNldMix);
-                this.tonalSynthMix = clamp01(tonalSynthMix);
-                this.toneStrictness = clamp(toneStrictness, 0.55f, 1.25f);
-
-                attackCoeff = onePoleCoeff(attackMs, this.sampleRate);
-                releaseCoeff = onePoleCoeff(releaseMs, this.sampleRate);
-
-                fastEnvCoeff = onePoleCoeff(3.8f, this.sampleRate);
-                slowEnvCoeff = onePoleCoeff(78.0f, this.sampleRate);
-
-                /*
-                 * v2.1：
-                 * 瞬态 NLD 更短，不让 kick 尾巴一直噗。
-                 */
-                transientAttackCoeff = onePoleCoeff(2.4f, this.sampleRate);
-                transientReleaseCoeff = onePoleCoeff(36.0f, this.sampleRate);
-
-                pitchAttackCoeff = onePoleCoeff(7.5f, this.sampleRate);
-                pitchReleaseCoeff = onePoleCoeff(120.0f, this.sampleRate);
-                pitchSmoothCoeff = onePoleCoeff(16.0f, this.sampleRate);
-
-                minHalfPeriodSamples = Math.max(
-                        3,
-                        Math.round(this.sampleRate / (2f * safeHigh * 1.35f))
-                );
-
-                maxHalfPeriodSamples = Math.max(
-                        minHalfPeriodSamples + 8,
-                        Math.round(this.sampleRate / (2f * safeLow * 0.72f))
-                );
-
-                pitchHoldMaxSamples = Math.max(
-                        Math.round(this.sampleRate * 0.065f),
-                        maxHalfPeriodSamples * 2
-                );
-
-                pitchAnalysisLength = this.sampleRate >= 32000 ? 192 : 96;
-                pitchUpdateInterval = lowCpuMode
-                        ? (this.sampleRate >= 32000 ? 640 : 320)
-                        : (this.sampleRate >= 32000 ? 384 : 192);
-                pitchUpdateCountdown = pitchUpdateInterval;
-
-                float minTrackHz = Math.max(20f, safeLow * 0.65f);
-                float maxTrackHz = Math.max(minTrackHz + 8f, safeHigh * 1.45f);
-
-                acMinLag = Math.max(4, Math.round(this.sampleRate / maxTrackHz));
-                acMaxLag = Math.max(acMinLag + 8, Math.round(this.sampleRate / minTrackHz));
-
-                int historySize = clampInt(acMaxLag + pitchAnalysisLength + 16, 768, 4096);
-                pitchHistory = new float[historySize];
-                pitchWriteIndex = 0;
-                pitchHistoryFilled = 0;
-
-                acMaxLag = Math.min(acMaxLag, historySize - pitchAnalysisLength - 4);
-                acMinLag = Math.min(acMinLag, acMaxLag - 4);
-
-                envelope = 0f;
-                fastEnvelope = 0f;
-                slowEnvelope = 0f;
-                transientHold = 0f;
-
-                pitchHz = (safeLow + safeHigh) * 0.5f;
-                targetPitchHz = pitchHz;
-                pitchTarget = 0f;
-                pitchConfidence = 0f;
-
-                zeroCrossAge = 0;
-                previousHalfPeriod = 0;
-                pitchHoldSamples = 0;
-
-                phase = 0f;
-                lastLow = 0f;
-
-                dcX = 0f;
-                dcY = 0f;
-
-                activityScore = 0f;
-            }
-
-            float getActivityScore() {
-                return active ? activityScore : 0f;
-            }
-
-            void process(float[] input, float[] output, int frameCount, float laneDuckGain) {
-                if (!active || frameCount <= 0) {
-                    return;
-                }
-
-                ensureCapacity(frameCount);
-                System.arraycopy(input, 0, work, 0, frameCount);
-
-                sourceHighPass.process(work, frameCount);
-                sourceLowPass.process(work, frameCount);
-
-                float blockActivity = 0f;
-
-                for (int i = 0; i < frameCount; i++) {
-                    float low = finiteOrZero(work[i]);
-                    float absLow = Math.abs(low);
-
-                    envelope += (absLow - envelope)
-                            * (absLow > envelope ? attackCoeff : releaseCoeff);
-
-                    fastEnvelope += (absLow - fastEnvelope) * fastEnvCoeff;
-                    slowEnvelope += (absLow - slowEnvelope) * slowEnvCoeff;
-
-                    updatePitchTracking(low, envelope);
-                    advancePhase();
-
-                    float transientTarget = 0f;
-                    if (slowEnvelope > 0.00005f) {
-                        float transientRatio = (fastEnvelope - slowEnvelope * 1.05f)
-                                / (slowEnvelope + 0.0015f);
-                        transientTarget = smoothStep(0.09f, 0.88f, transientRatio);
-                    }
-
-                    transientHold += (transientTarget - transientHold)
-                            * (transientTarget > transientHold
-                            ? transientAttackCoeff
-                            : transientReleaseCoeff);
-
-                    float toneGate = (float) Math.pow(clamp01(pitchConfidence), toneStrictness);
-                    float levelGate = smoothStep(0.00055f, 0.0105f, envelope);
-
-                    float tonalGate = levelGate
-                            * toneGate
-                            * (1f - transientHold * 0.40f)
-                            * tonalSynthMix;
-
-                    float transientGate = levelGate
-                            * clamp01(transientHold * 1.20f + toneGate * 0.10f)
-                            * transientNldMix;
-
-                    /*
-                     * noise / tail reject：
-                     * 没稳定音高，也不是明确瞬态，就基本不生成。
-                     */
-                    if (tonalGate <= 0.00001f && transientGate <= 0.00001f) {
-                        float rawZero = 0f;
-                        float dcBlockedZero = rawZero - dcX + 0.995f * dcY;
-                        dcX = rawZero;
-                        dcY = dcBlockedZero;
-                        output[i] += finiteOrZero(dcBlockedZero);
-                        lastLow = low;
-                        continue;
-                    }
-
-                    float h2Weight = harmonicWeight(pitchHz * 2f);
-                    float h3Weight = harmonicWeight(pitchHz * 3f);
-                    float h4Weight = harmonicWeight(pitchHz * 4f);
-
-                    float nld = 0f;
-                    if (transientGate > 0.00001f) {
-                        float level = Math.max(0.0035f, envelope);
-                        float x = low / level;
-                        x = clamp(x * drive, -1.16f, 1.16f);
-                        x = softClipUnit(x, 0.98f);
-
-                        float x2 = x * x;
-                        float x3 = x2 * x;
-                        float x4 = x2 * x2;
-
-                        float h2 = 2f * x2 - 1f;
-                        float h3 = 4f * x3 - 3f * x;
-                        float h4 = 8f * x4 - 8f * x2 + 1f;
-
-                        float transientReduceH2 = 1f - transientHold * 0.30f;
-                        float transientBoostH3 = 1f + transientHold * 0.22f;
-                        float transientBoostH4 = 1f + transientHold * 0.10f;
-
-                        nld = h2 * h2Mix * transientReduceH2 * h2Weight
-                                + h3 * h3Mix * transientBoostH3 * h3Weight
-                                + h4 * h4Mix * transientBoostH4 * h4Weight;
-                    }
-
-                    float synth = 0f;
-                    if (tonalGate > 0.00001f) {
-                        float level = Math.max(0.0035f, envelope);
-                        float texture = clamp(low / level, -1f, 1f);
-
-                        /*
-                         * 纹理化：
-                         * 不让稳态 oscillator 太像纯电子合成器。
-                         * 只加很小的相位/幅度纹理。
-                         */
-                        float phaseTexture = texture * 0.045f * (1f - transientHold * 0.45f);
-                        float ampTexture = 0.92f + 0.08f * Math.abs(texture);
-
-                        float p2 = wrapPi(phase * 2f + phaseTexture * 0.70f);
-                        float p3 = wrapPi(phase * 3f + phaseTexture * 0.95f);
-                        float p4 = wrapPi(phase * 4f + phaseTexture * 1.10f);
-
-                        float s2 = fastSin(p2);
-                        float s3 = fastSin(p3);
-                        float s4 = fastSin(p4);
-
-                        synth = (s2 * h2Mix * 0.70f * h2Weight
-                                + s3 * h3Mix * 1.00f * h3Weight
-                                + s4 * h4Mix * 0.62f * h4Weight)
-                                * ampTexture;
-                    }
-
-                    float unduckedRaw = (nld * transientGate + synth * tonalGate)
-                            * envelope
-                            * laneGain;
-
-                    float raw = unduckedRaw * laneDuckGain;
-
-                    float dcBlocked = raw - dcX + 0.995f * dcY;
-                    dcX = raw;
-                    dcY = dcBlocked;
-
-                    output[i] += finiteOrZero(dcBlocked);
-
-                    blockActivity += Math.abs(unduckedRaw)
-                            + (tonalGate + transientGate) * 0.0015f;
-
-                    lastLow = low;
-                }
-
-                float blockScore = blockActivity / Math.max(1, frameCount);
-                activityScore += (blockScore - activityScore)
-                        * (blockScore > activityScore ? 0.22f : 0.055f);
-            }
-
-            private void updatePitchTracking(float low, float env) {
-                pushPitchSample(low);
-
-                zeroCrossAge++;
-                if (zeroCrossAge > sampleRate) {
-                    zeroCrossAge = sampleRate;
-                }
-
-                boolean enoughLevel = env > 0.00042f;
-
-                boolean crossed = enoughLevel
-                        && low * lastLow < 0f
-                        && zeroCrossAge >= minHalfPeriodSamples;
-
-                if (crossed) {
-                    int interval = zeroCrossAge;
-                    zeroCrossAge = 0;
-
-                    if (interval <= maxHalfPeriodSamples) {
-                        float estimatedHz = sampleRate / (2f * interval);
-                        float rangeConfidence = rangeConfidenceForHz(estimatedHz);
-
-                        float stability;
-                        if (previousHalfPeriod > 0) {
-                            float diff = Math.abs(interval - previousHalfPeriod);
-                            float base = Math.max(interval, previousHalfPeriod);
-                            stability = 1f - clamp01(diff / Math.max(1f, base * 0.50f));
-                        } else {
-                            stability = 0.42f;
-                        }
-
-                        float candidate = rangeConfidence * (0.30f + stability * 0.70f);
-
-                        if (candidate > pitchTarget) {
-                            pitchTarget = candidate;
-                        } else {
-                            pitchTarget = pitchTarget * 0.72f + candidate * 0.28f;
-                        }
-
-                        targetPitchHz = clamp(estimatedHz, lowHz * 0.65f, highHz * 1.45f);
-
-                        boolean rising = lastLow <= 0f && low > 0f;
-                        float desiredPhase = rising ? 0f : PI;
-                        float phaseError = wrapPi(desiredPhase - phase);
-                        phase += phaseError * (0.010f + pitchConfidence * 0.018f);
-                        phase = wrapPi(phase);
-
-                        pitchHoldSamples = pitchHoldMaxSamples;
-                        previousHalfPeriod = interval;
-                    } else {
-                        pitchTarget *= 0.55f;
-                    }
-                }
-
-                pitchUpdateCountdown--;
-                if (pitchUpdateCountdown <= 0) {
-                    pitchUpdateCountdown = pitchUpdateInterval;
-                    refinePitchByAutocorrelation();
-                }
-
-                if (zeroCrossAge > maxHalfPeriodSamples * 2) {
-                    pitchTarget *= 0.987f;
-                }
-
-                if (pitchHoldSamples > 0) {
-                    pitchHoldSamples--;
-                } else {
-                    pitchTarget *= 0.99935f;
-                }
-
-                pitchTarget = clamp01(pitchTarget);
-
-                pitchConfidence += (pitchTarget - pitchConfidence)
-                        * (pitchTarget > pitchConfidence ? pitchAttackCoeff : pitchReleaseCoeff);
-
-                pitchConfidence = clamp01(pitchConfidence);
-
-                if (pitchConfidence > 0.02f && targetPitchHz > 1f) {
-                    pitchHz += (targetPitchHz - pitchHz) * pitchSmoothCoeff;
-                } else {
-                    float center = (lowHz + highHz) * 0.5f;
-                    pitchHz += (center - pitchHz) * 0.00045f;
-                }
-
-                pitchHz = clamp(pitchHz, lowHz * 0.62f, highHz * 1.50f);
-            }
-
-            private void refinePitchByAutocorrelation() {
-                int availableMaxLag = Math.min(acMaxLag, pitchHistoryFilled - pitchAnalysisLength - 2);
-                if (availableMaxLag <= acMinLag + 8) {
-                    return;
-                }
-
-                int searchMin = acMinLag;
-                int searchMax = availableMaxLag;
-
-                if (pitchConfidence > 0.12f && targetPitchHz > 1f) {
-                    int centerLag = Math.round(sampleRate / targetPitchHz);
-                    searchMin = clampInt(Math.round(centerLag * 0.68f), acMinLag, availableMaxLag);
-                    searchMax = clampInt(Math.round(centerLag * 1.42f), searchMin + 4, availableMaxLag);
-                }
-
-                int coarseStep = lowCpuMode ? 8 : 5;
-                if (searchMax - searchMin < 220) {
-                    coarseStep = lowCpuMode ? 5 : 3;
-                }
-
-                float bestScore = 0f;
-                int bestLag = 0;
-
-                for (int lag = searchMin; lag <= searchMax; lag += coarseStep) {
-                    float score = normalizedCorrelation(lag);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestLag = lag;
-                    }
-                }
-
-                if (bestLag <= 0) {
-                    return;
-                }
-
-                int refineStart = Math.max(searchMin, bestLag - coarseStep);
-                int refineEnd = Math.min(searchMax, bestLag + coarseStep);
-
-                for (int lag = refineStart; lag <= refineEnd; lag++) {
-                    float score = normalizedCorrelation(lag);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestLag = lag;
-                    }
-                }
-
-                if (bestScore < 0.28f) {
-                    return;
-                }
-
-                float estimatedHz = sampleRate / (float) bestLag;
-                float range = rangeConfidenceForHz(estimatedHz);
-                float corrConfidence = smoothStep(0.34f, 0.80f, bestScore) * range;
-
-                if (targetPitchHz > 1f) {
-                    float relativeDiff = Math.abs(estimatedHz - targetPitchHz)
-                            / Math.max(8f, targetPitchHz);
-                    float stability = 1f - clamp01(relativeDiff * 1.20f);
-                    corrConfidence *= 0.62f + stability * 0.38f;
-                }
-
-                if (corrConfidence <= 0.04f) {
-                    return;
-                }
-
-                if (corrConfidence > pitchTarget) {
-                    pitchTarget = corrConfidence;
-                } else {
-                    pitchTarget = pitchTarget * 0.74f + corrConfidence * 0.26f;
-                }
-
-                targetPitchHz = targetPitchHz > 1f
-                        ? targetPitchHz * 0.70f + estimatedHz * 0.30f
-                        : estimatedHz;
-
-                targetPitchHz = clamp(targetPitchHz, lowHz * 0.62f, highHz * 1.50f);
-                pitchHoldSamples = pitchHoldMaxSamples;
-            }
-
-            private float normalizedCorrelation(int lag) {
-                float sumAB = 0f;
-                float sumAA = 0f;
-                float sumBB = 0f;
-
-                for (int i = 0; i < pitchAnalysisLength; i++) {
-                    float a = getPitchHistory(i);
-                    float b = getPitchHistory(i + lag);
-
-                    sumAB += a * b;
-                    sumAA += a * a;
-                    sumBB += b * b;
-                }
-
-                float denom = (float) Math.sqrt(Math.max(1.0e-12f, sumAA * sumBB));
-                float score = sumAB / denom;
-
-                return score > 0f ? score : 0f;
-            }
-
-            private void pushPitchSample(float value) {
-                if (pitchHistory.length == 0) {
-                    return;
-                }
-
-                pitchHistory[pitchWriteIndex] = value;
-                pitchWriteIndex++;
-                if (pitchWriteIndex >= pitchHistory.length) {
-                    pitchWriteIndex = 0;
-                }
-
-                if (pitchHistoryFilled < pitchHistory.length) {
-                    pitchHistoryFilled++;
-                }
-            }
-
-            private float getPitchHistory(int delay) {
-                int index = pitchWriteIndex - 1 - delay;
-                while (index < 0) {
-                    index += pitchHistory.length;
-                }
-                while (index >= pitchHistory.length) {
-                    index -= pitchHistory.length;
-                }
-                return pitchHistory[index];
-            }
-
-            private void advancePhase() {
-                phase += TWO_PI * pitchHz / sampleRate;
-
-                if (phase > PI) {
-                    phase -= TWO_PI;
-                } else if (phase < -PI) {
-                    phase += TWO_PI;
-                }
-            }
-
-            private float rangeConfidenceForHz(float hz) {
-                float lowEdge = lowHz * 0.70f;
-                float lowFull = lowHz * 0.92f;
-                float highFull = highHz * 1.08f;
-                float highEdge = highHz * 1.42f;
-
-                float lowSide = smoothStep(lowEdge, lowFull, hz);
-                float highSide = 1f - smoothStep(highFull, highEdge, hz);
-
-                return clamp01(lowSide * highSide);
-            }
-
-            private static float harmonicWeight(float hz) {
-                /*
-                 * v2.1 按你的要求：
-                 * 60Hz 以下才明显压低；
-                 * 60Hz 以上都保留/加强；
-                 * 不再对 400Hz 以上主动衰减。
-                 */
-                float lowReject = smoothStep(52f, 62f, hz);
-                float above60Boost = 1.00f + 0.18f * smoothStep(60f, 95f, hz);
-                return lowReject * above60Boost;
-            }
-
-            private void ensureCapacity(int frameCount) {
-                if (work.length < frameCount) {
-                    work = new float[frameCount];
-                }
-            }
+        private static float harmonicWeight(float hz) {
+            float lowReject = smoothStep(52f, 62f, hz);
+            float presence = 1.00f + 0.12f * smoothStep(70f, 130f, hz);
+            float harshLimit = 1f - smoothStep(620f, 1200f, hz) * 0.35f;
+            return lowReject * presence * harshLimit;
         }
 
         private static float onePoleCoeff(float timeMs, int sampleRate) {
@@ -1518,29 +911,6 @@ final class PcmDspProcessor {
 
             float x2 = value * value;
             return value * (27f + x2) / (27f + 9f * x2);
-        }
-
-        private static float fastSin(float x) {
-            final float B = 1.27323954f;
-            final float C = -0.405284735f;
-            final float P = 0.225f;
-
-            float y = B * x + C * x * Math.abs(x);
-            return P * (y * Math.abs(y) - y) + y;
-        }
-
-        private static float wrapPi(float x) {
-            final float PI = (float) Math.PI;
-            final float TWO_PI = (float) (Math.PI * 2.0);
-
-            while (x > PI) {
-                x -= TWO_PI;
-            }
-            while (x < -PI) {
-                x += TWO_PI;
-            }
-
-            return x;
         }
 
         private static float clamp(float value, float min, float max) {
