@@ -507,6 +507,13 @@ final class PcmDspProcessor {
             }
         }
 
+        float process(float input) {
+            float output = finiteOrZero(b0 * input + z1);
+            z1 = finiteOrZero(b1 * input - a1 * output + z2);
+            z2 = finiteOrZero(b2 * input - a2 * output);
+            return output;
+        }
+
         void reset() {
             z1 = 0f;
             z2 = 0f;
@@ -1414,6 +1421,11 @@ final class PcmDspProcessor {
             z1 = finiteOrZero(b1 * input - a1 * output + z2);
             z2 = finiteOrZero(b2 * input - a2 * output);
             return output;
+        }
+
+        void reset() {
+            z1 = 0f;
+            z2 = 0f;
         }
     }
 
