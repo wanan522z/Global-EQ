@@ -660,22 +660,41 @@ final class PcmDspProcessor {
 
         private final int sampleRate;
         private final int channelCount;
+
         private final float[][] preDelayBuffers;
         private final int[] preDelayIndices;
+
+        /*
+         * 使用外部 StereoReverbCore。
+         * 不再在 AlgorithmicReverb 里内置重复实现。
+         */
         private final StereoReverbCore reverbCore;
+
+        /*
+         * 固定 wet frame，process 内不 new。
+         */
         private final float[] wetFrame = new float[2];
+
         private boolean activeWet;
-        private float dryGain;
-        private float wetGain;
+
+        private float dryGain = 1f;
+        private float wetGain = 0f;
+
+        private float currentDryGain = 1f;
+        private float currentWetGain = 0f;
+
         private int preDelayLength;
         private float tailLevel;
 
         AlgorithmicReverb(int sampleRate, int channelCount) {
-            this.sampleRate = sampleRate;
-            this.channelCount = channelCount;
-            this.preDelayBuffers = new float[Math.max(1, channelCount)][Math.max(1, sampleRate / 2)];
-            this.preDelayIndices = new int[Math.max(1, channelCount)];
-            this.reverbCore = new StereoReverbCore(sampleRate);
+            this.sampleRate = Math.max(8000, sampleRate);
+            this.channelCount = Math.max(1, channelCount);
+
+            this.preDelayBuffers = new float[this.channelCount][Math.max(1, this.sampleRate / 2)];
+            this.preDelayIndices = new int[this.channelCount];
+
+            this.reverbCore = new StereoReverbCore(this.sampleRate);
+
             configure("Default", 0, 0, 0, 0, 0, false);
         }
 
@@ -687,70 +706,163 @@ final class PcmDspProcessor {
                        int mainMb,
                        boolean lowCpuMode) {
             ReverbProfile profile = ReverbProfile.forType(type);
+
             float size = clamp01(sizePercent / 100f);
             float mix = clamp01(mixPercent / 100f);
+
+            /*
+             * 沿用你项目原来的 decay 映射，避免 UI 参数含义变掉。
+             */
             float decaySeconds = clamp(decayPercent / 100f, 0f, 12f);
             float decayShape = clamp01((Math.max(0.25f, decaySeconds) - 0.25f) / 11.75f);
-            activeWet = !"Default".equals(type) && mix > 0f;
+
+            activeWet = !"Default".equals(type) && mix > 0.0001f;
+
             dryGain = mainMb <= NEGATIVE_INFINITY_MB ? 0f : dbToLinear(mainMb / 100f);
+
+            /*
+             * mix 使用轻微曲线，低 mix 下也有存在感，高 mix 不至于炸。
+             */
             float wetMix = activeWet ? (float) Math.pow(mix, 0.72f) : 0f;
-            float sendDrive = activeWet ? (0.22f + 3.6f * wetMix + 2.9f * mix * mix) : 0f;
-            wetGain = activeWet
-                    ? profile.wetBoost * wetMix * sendDrive * (0.96f + size * 0.28f + decayShape * 0.22f)
+
+            /*
+             * 比旧版 drive 更收敛。
+             * 旧版湿声容易厚、糊、像低采样率。
+             */
+            float sendDrive = activeWet
+                    ? (0.30f + 2.40f * wetMix + 1.36f * mix * mix)
                     : 0f;
-            preDelayLength = Math.max(0, Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000));
+
+            wetGain = activeWet
+                    ? profile.wetBoost
+                      * wetMix
+                      * sendDrive
+                      * (0.92f + size * 0.20f + decayShape * 0.12f)
+                    : 0f;
+
+            preDelayLength = Math.max(
+                    0,
+                    Math.min(preDelayBuffers[0].length - 1, preDelayMs * sampleRate / 1000)
+            );
+
             float profileDecaySeconds = clamp(
-                    decaySeconds * (0.78f + profile.decayScale + size * 0.2f),
-                    0.28f,
-                    14f);
+                    decaySeconds * (0.78f + profile.decayScale + size * 0.20f),
+                    0.22f,
+                    14f
+            );
+
+            /*
+             * 这里调用外部 StereoReverbCore。
+             * 外部 StereoReverbCore 继续使用外部 ReverbProfile / FdnReverbTank。
+             */
             reverbCore.configure(profile, size, profileDecaySeconds, decayShape, lowCpuMode);
+
             tailLevel = 0f;
+
+            /*
+             * 不 new，只清空已有 predelay buffer。
+             * 避免切换 predelay 后旧尾巴突然冲出来。
+             */
             for (int channel = 0; channel < preDelayIndices.length; channel++) {
                 preDelayIndices[channel] = 0;
-                Arrays.fill(preDelayBuffers[channel], 0f);
+
+                float[] buffer = preDelayBuffers[channel];
+                for (int i = 0; i < buffer.length; i++) {
+                    buffer[i] = 0f;
+                }
             }
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
+            if (samples == null || samples.length == 0) {
+                return;
+            }
+
+            int safeChannelCount = Math.max(1, channelCount);
+            int safeSampleCount = Math.min(sampleCount, samples.length);
+            int frames = safeSampleCount / safeChannelCount;
+
+            if (frames <= 0) {
+                return;
+            }
+
             if (!activeWet && Math.abs(dryGain - 1f) < 0.0001f) {
                 return;
             }
 
-            int frames = sampleCount / channelCount;
             float inputPeak = 0f;
-            for (int i = 0; i < sampleCount; i++) {
-                inputPeak = Math.max(inputPeak, Math.abs(samples[i]));
+            for (int i = 0; i < safeSampleCount; i++) {
+                float abs = Math.abs(samples[i]);
+                if (abs > inputPeak) {
+                    inputPeak = abs;
+                }
             }
-            if (!activeWet || (inputPeak < 0.00012f && tailLevel < 0.00018f)) {
-                applyDryGainOnly(samples, sampleCount);
-                tailLevel *= 0.8f;
+
+            /*
+             * 无输入且尾巴已经很低时，不继续跑 reverbCore。
+             * 节省 CPU。
+             */
+            if (!activeWet || (inputPeak < 0.00012f && tailLevel < 0.00016f)) {
+                applyDryGainOnly(samples, safeSampleCount);
+                tailLevel *= 0.76f;
+                currentWetGain += (0f - currentWetGain) * 0.02f;
+                currentDryGain += (dryGain - currentDryGain) * 0.02f;
                 return;
             }
 
             float wetPeak = 0f;
+
+            /*
+             * 参数平滑。
+             * 防止 Mix / Main 改动时啪一下。
+             */
+            final float gainSmooth = 0.0025f;
+
             for (int frame = 0; frame < frames; frame++) {
-                int frameOffset = frame * channelCount;
+                currentDryGain += (dryGain - currentDryGain) * gainSmooth;
+                currentWetGain += (wetGain - currentWetGain) * gainSmooth;
+
+                int frameOffset = frame * safeChannelCount;
+
                 float leftDry = samples[frameOffset];
-                float rightDry = channelCount > 1 ? samples[frameOffset + 1] : leftDry;
+                float rightDry = safeChannelCount > 1 ? samples[frameOffset + 1] : leftDry;
+
                 float leftIn = preDelayProcess(leftDry, 0);
                 float rightIn = preDelayProcess(rightDry, Math.min(1, preDelayIndices.length - 1));
+
+                /*
+                 * 使用外部 StereoReverbCore。
+                 * 它应该负责 Early / FDN / Diffusion / highCut 等具体算法。
+                 */
                 reverbCore.process(leftIn, rightIn, wetFrame);
 
                 float wetLeft = softSaturate(wetFrame[0]);
-                float wetRight = channelCount > 1
+                float wetRight = safeChannelCount > 1
                         ? softSaturate(wetFrame[1])
                         : softSaturate((wetFrame[0] + wetFrame[1]) * 0.5f);
-                wetPeak = Math.max(wetPeak, Math.max(Math.abs(wetLeft), Math.abs(wetRight)));
-                samples[frameOffset] = finiteOrZero(leftDry * dryGain + wetLeft * wetGain);
-                if (channelCount > 1) {
-                    samples[frameOffset + 1] = finiteOrZero(rightDry * dryGain + wetRight * wetGain);
+
+                float absWet = Math.max(Math.abs(wetLeft), Math.abs(wetRight));
+                if (absWet > wetPeak) {
+                    wetPeak = absWet;
                 }
-                for (int channel = 2; channel < channelCount; channel++) {
-                    float dry = samples[frameOffset + channel];
-                    samples[frameOffset + channel] = finiteOrZero(dry * dryGain + (wetLeft + wetRight) * 0.5f * wetGain);
+
+                samples[frameOffset] = finiteOrZero(leftDry * currentDryGain + wetLeft * currentWetGain);
+
+                if (safeChannelCount > 1) {
+                    samples[frameOffset + 1] = finiteOrZero(rightDry * currentDryGain + wetRight * currentWetGain);
+                }
+
+                if (safeChannelCount > 2) {
+                    float wetMono = (wetLeft + wetRight) * 0.5f * currentWetGain;
+
+                    for (int channel = 2; channel < safeChannelCount; channel++) {
+                        float dry = samples[frameOffset + channel];
+                        samples[frameOffset + channel] = finiteOrZero(dry * currentDryGain + wetMono);
+                    }
                 }
             }
-            tailLevel = Math.max(wetPeak, tailLevel * 0.94f);
+
+            tailLevel = Math.max(wetPeak, tailLevel * 0.935f);
         }
 
         boolean isActive() {
@@ -761,15 +873,24 @@ final class PcmDspProcessor {
             if (preDelayLength <= 0) {
                 return input;
             }
+
             float[] buffer = preDelayBuffers[channel];
             int writeIndex = preDelayIndices[channel];
+
             int readIndex = writeIndex - preDelayLength;
             if (readIndex < 0) {
                 readIndex += buffer.length;
             }
+
             float output = buffer[readIndex];
             buffer[writeIndex] = input;
-            preDelayIndices[channel] = (writeIndex + 1) % buffer.length;
+
+            writeIndex++;
+            if (writeIndex >= buffer.length) {
+                writeIndex = 0;
+            }
+
+            preDelayIndices[channel] = writeIndex;
             return output;
         }
 
@@ -777,9 +898,46 @@ final class PcmDspProcessor {
             if (Math.abs(dryGain - 1f) < 0.0001f) {
                 return;
             }
+
+            final float gainSmooth = 0.004f;
+
             for (int i = 0; i < sampleCount; i++) {
-                samples[i] = finiteOrZero(samples[i] * dryGain);
+                currentDryGain += (dryGain - currentDryGain) * gainSmooth;
+                samples[i] = finiteOrZero(samples[i] * currentDryGain);
             }
+        }
+
+        private static float softSaturate(float value) {
+            if (value > 3f) {
+                return 1f;
+            }
+
+            if (value < -3f) {
+                return -1f;
+            }
+
+            float x2 = value * value;
+            return value * (27f + x2) / (27f + 9f * x2);
+        }
+
+        private static float dbToLinear(float db) {
+            return (float) Math.pow(10.0, db / 20.0);
+        }
+
+        private static float clamp(float value, float min, float max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        private static float clamp01(float value) {
+            return clamp(value, 0f, 1f);
+        }
+
+        private static float finiteOrZero(float value) {
+            return value == value
+                    && value != Float.POSITIVE_INFINITY
+                    && value != Float.NEGATIVE_INFINITY
+                    ? value
+                    : 0f;
         }
     }
 
@@ -1455,6 +1613,7 @@ final class PcmDspProcessor {
         final float[] earlyLeftMs;
         final float[] earlyRightMs;
         final float[] earlyGain;
+
         final float minSizeScale;
         final float sizeScaleRange;
         final float feedbackScale;
@@ -1471,6 +1630,154 @@ final class PcmDspProcessor {
         final float modRateHz;
         final float modSpreadHz;
         final float highCutHz;
+
+        /*
+         * 预创建 profile，避免每次 configure / 拖滑杆时 new 对象和 new float[]。
+         * 注意：这些数组不要在别处修改。
+         */
+        private static final ReverbProfile HALL = new ReverbProfile(
+                new float[] {29.8f, 34.7f, 39.2f, 43.6f, 49.1f, 56.4f, 63.7f, 72.3f},
+                new float[] {3.7f, 6.1f, 9.6f},
+                new float[] {7.1f, 11.3f, 16.8f, 22.5f, 31.8f, 42.2f},
+                new float[] {9.2f, 14.7f, 19.4f, 27.6f, 36.1f, 48.7f},
+                new float[] {0.38f, 0.29f, 0.24f, 0.20f, 0.16f, 0.13f},
+                0.86f,
+                0.82f,
+                0.98f,
+                0.28f,
+                0.30f,
+                0.70f,
+                0.24f,
+                0.92f,
+                0.30f,
+                1.02f,
+                1.05f,
+                0.28f,
+                0.045f,
+                0.12f,
+                0.007f,
+                11800f
+        );
+
+        private static final ReverbProfile PLATE = new ReverbProfile(
+                new float[] {23.9f, 27.8f, 31.6f, 36.2f, 40.9f, 46.4f, 52.7f, 59.8f},
+                new float[] {2.8f, 4.9f, 7.1f},
+                new float[] {5.4f, 8.1f, 12.0f, 16.7f, 23.6f, 31.9f},
+                new float[] {6.2f, 9.8f, 13.7f, 18.8f, 25.4f, 34.1f},
+                new float[] {0.42f, 0.33f, 0.27f, 0.21f, 0.17f, 0.14f},
+                0.74f,
+                0.58f,
+                0.95f,
+                0.20f,
+                0.34f,
+                0.72f,
+                0.18f,
+                0.98f,
+                0.28f,
+                1.00f,
+                0.98f,
+                0.24f,
+                0.034f,
+                0.18f,
+                0.010f,
+                15000f
+        );
+
+        private static final ReverbProfile CHAMBER = new ReverbProfile(
+                new float[] {21.3f, 24.7f, 28.6f, 33.1f, 37.4f, 42.9f, 48.5f, 55.9f},
+                new float[] {3.0f, 4.8f, 7.4f},
+                new float[] {5.8f, 9.1f, 13.9f, 19.7f, 28.1f, 37.3f},
+                new float[] {7.0f, 10.8f, 15.4f, 21.3f, 30.2f, 39.8f},
+                new float[] {0.39f, 0.31f, 0.25f, 0.20f, 0.16f, 0.13f},
+                0.76f,
+                0.62f,
+                0.96f,
+                0.22f,
+                0.31f,
+                0.69f,
+                0.22f,
+                0.95f,
+                0.29f,
+                0.98f,
+                1.00f,
+                0.25f,
+                0.036f,
+                0.14f,
+                0.009f,
+                12500f
+        );
+
+        private static final ReverbProfile ROOM = new ReverbProfile(
+                new float[] {14.2f, 17.1f, 19.8f, 22.9f, 26.3f, 29.8f, 34.2f, 38.7f},
+                new float[] {2.2f, 3.6f, 5.3f},
+                new float[] {3.9f, 6.2f, 9.7f, 13.8f, 18.5f, 24.2f},
+                new float[] {4.8f, 7.4f, 10.9f, 15.1f, 20.4f, 26.7f},
+                new float[] {0.44f, 0.35f, 0.28f, 0.22f, 0.17f, 0.13f},
+                0.64f,
+                0.40f,
+                0.90f,
+                0.16f,
+                0.36f,
+                0.66f,
+                0.30f,
+                0.86f,
+                0.32f,
+                0.90f,
+                0.92f,
+                0.21f,
+                0.028f,
+                0.12f,
+                0.008f,
+                10500f
+        );
+
+        private static final ReverbProfile STUDIO = new ReverbProfile(
+                new float[] {11.8f, 13.6f, 15.8f, 18.3f, 21.1f, 24.4f, 27.8f, 31.5f},
+                new float[] {1.8f, 2.9f, 4.4f},
+                new float[] {3.2f, 5.0f, 7.7f, 10.9f, 14.8f, 19.3f},
+                new float[] {3.8f, 5.9f, 8.5f, 11.9f, 15.7f, 20.9f},
+                new float[] {0.41f, 0.32f, 0.26f, 0.21f, 0.16f, 0.12f},
+                0.56f,
+                0.30f,
+                0.88f,
+                0.14f,
+                0.38f,
+                0.64f,
+                0.34f,
+                0.80f,
+                0.34f,
+                0.84f,
+                0.90f,
+                0.18f,
+                0.022f,
+                0.11f,
+                0.007f,
+                13200f
+        );
+
+        private static final ReverbProfile DEFAULT = new ReverbProfile(
+                new float[] {18.4f, 21.9f, 25.5f, 29.4f, 33.7f, 38.9f, 44.8f, 51.7f},
+                new float[] {2.9f, 4.7f, 6.9f},
+                new float[] {4.9f, 7.7f, 11.8f, 16.4f, 22.9f, 31.2f},
+                new float[] {6.0f, 9.4f, 13.2f, 18.5f, 25.8f, 34.7f},
+                new float[] {0.40f, 0.31f, 0.25f, 0.20f, 0.16f, 0.13f},
+                0.70f,
+                0.50f,
+                0.93f,
+                0.20f,
+                0.32f,
+                0.68f,
+                0.24f,
+                0.90f,
+                0.30f,
+                0.94f,
+                0.96f,
+                0.23f,
+                0.032f,
+                0.13f,
+                0.008f,
+                12000f
+        );
 
         ReverbProfile(float[] fdnDelayMs,
                       float[] diffusionMs,
@@ -1518,57 +1825,21 @@ final class PcmDspProcessor {
 
         static ReverbProfile forType(String type) {
             if ("Hall".equals(type)) {
-                return new ReverbProfile(
-                        new float[] {29.8f, 34.7f, 39.2f, 43.6f, 49.1f, 56.4f, 63.7f, 72.3f},
-                        new float[] {3.7f, 6.1f, 9.6f},
-                        new float[] {7.1f, 11.3f, 16.8f, 22.5f, 31.8f, 42.2f},
-                        new float[] {9.2f, 14.7f, 19.4f, 27.6f, 36.1f, 48.7f},
-                        new float[] {0.38f, 0.29f, 0.24f, 0.2f, 0.16f, 0.13f},
-                        0.86f, 0.82f, 0.98f, 0.28f, 0.24f, 0.7f, 0.24f, 0.92f, 0.3f, 1.02f, 1.05f, 0.28f, 0.045f, 0.12f, 0.007f, 5200f);
+                return HALL;
             }
             if ("Plate".equals(type)) {
-                return new ReverbProfile(
-                        new float[] {23.9f, 27.8f, 31.6f, 36.2f, 40.9f, 46.4f, 52.7f, 59.8f},
-                        new float[] {2.8f, 4.9f, 7.1f},
-                        new float[] {5.4f, 8.1f, 12.0f, 16.7f, 23.6f, 31.9f},
-                        new float[] {6.2f, 9.8f, 13.7f, 18.8f, 25.4f, 34.1f},
-                        new float[] {0.42f, 0.33f, 0.27f, 0.21f, 0.17f, 0.14f},
-                        0.74f, 0.58f, 0.95f, 0.2f, 0.2f, 0.72f, 0.18f, 0.98f, 0.28f, 1.0f, 0.98f, 0.24f, 0.034f, 0.18f, 0.01f, 6100f);
+                return PLATE;
             }
             if ("Chamber".equals(type)) {
-                return new ReverbProfile(
-                        new float[] {21.3f, 24.7f, 28.6f, 33.1f, 37.4f, 42.9f, 48.5f, 55.9f},
-                        new float[] {3.0f, 4.8f, 7.4f},
-                        new float[] {5.8f, 9.1f, 13.9f, 19.7f, 28.1f, 37.3f},
-                        new float[] {7.0f, 10.8f, 15.4f, 21.3f, 30.2f, 39.8f},
-                        new float[] {0.39f, 0.31f, 0.25f, 0.2f, 0.16f, 0.13f},
-                        0.76f, 0.62f, 0.96f, 0.22f, 0.22f, 0.69f, 0.22f, 0.95f, 0.29f, 0.98f, 1.0f, 0.25f, 0.036f, 0.14f, 0.009f, 5600f);
+                return CHAMBER;
             }
             if ("Room".equals(type)) {
-                return new ReverbProfile(
-                        new float[] {14.2f, 17.1f, 19.8f, 22.9f, 26.3f, 29.8f, 34.2f, 38.7f},
-                        new float[] {2.2f, 3.6f, 5.3f},
-                        new float[] {3.9f, 6.2f, 9.7f, 13.8f, 18.5f, 24.2f},
-                        new float[] {4.8f, 7.4f, 10.9f, 15.1f, 20.4f, 26.7f},
-                        new float[] {0.44f, 0.35f, 0.28f, 0.22f, 0.17f, 0.13f},
-                        0.64f, 0.4f, 0.9f, 0.16f, 0.28f, 0.66f, 0.28f, 0.88f, 0.32f, 0.9f, 0.92f, 0.21f, 0.028f, 0.12f, 0.008f, 4700f);
+                return ROOM;
             }
             if ("Studio".equals(type)) {
-                return new ReverbProfile(
-                        new float[] {11.8f, 13.6f, 15.8f, 18.3f, 21.1f, 24.4f, 27.8f, 31.5f},
-                        new float[] {1.8f, 2.9f, 4.4f},
-                        new float[] {3.2f, 5.0f, 7.7f, 10.9f, 14.8f, 19.3f},
-                        new float[] {3.8f, 5.9f, 8.5f, 11.9f, 15.7f, 20.9f},
-                        new float[] {0.41f, 0.32f, 0.26f, 0.21f, 0.16f, 0.12f},
-                        0.56f, 0.3f, 0.88f, 0.14f, 0.31f, 0.64f, 0.32f, 0.84f, 0.34f, 0.84f, 0.9f, 0.18f, 0.022f, 0.11f, 0.007f, 4200f);
+                return STUDIO;
             }
-            return new ReverbProfile(
-                    new float[] {18.4f, 21.9f, 25.5f, 29.4f, 33.7f, 38.9f, 44.8f, 51.7f},
-                    new float[] {2.9f, 4.7f, 6.9f},
-                    new float[] {4.9f, 7.7f, 11.8f, 16.4f, 22.9f, 31.2f},
-                    new float[] {6.0f, 9.4f, 13.2f, 18.5f, 25.8f, 34.7f},
-                    new float[] {0.4f, 0.31f, 0.25f, 0.2f, 0.16f, 0.13f},
-                    0.7f, 0.5f, 0.93f, 0.2f, 0.24f, 0.68f, 0.24f, 0.92f, 0.3f, 0.94f, 0.96f, 0.23f, 0.032f, 0.13f, 0.008f, 5000f);
+            return DEFAULT;
         }
     }
 
