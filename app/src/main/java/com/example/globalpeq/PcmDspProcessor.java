@@ -581,27 +581,37 @@ final class PcmDspProcessor {
         private final int channelCount;
         private final int configuredChannelCount;
 
-        private MonoBiquad lowPass120A;
-        private MonoBiquad lowPass120B;
-        private MonoBiquad compensationHighPass;
-        private MonoBiquad compensationHighPass2;
-        private MonoBiquad harmonicShapeLowPass;
+        private MonoBiquad sourceLowPass;
+        private MonoBiquad harmonicHighPass;
+        private MonoBiquad harmonicLowPass;
 
         private float[] monoSource = new float[0];
+        private float[] lowBuf = new float[0];
         private float[] harmonicBuf = new float[0];
 
-        private float slowLevel;
-        private float fastLevel;
-        private float agcGain = 1f;
-        private float harmonicGain;
-        private float mixAlpha;
-        private float targetPeak = 0.95f;
+        private float harmonicMix;
+        private float wetCeiling;
+
+        private float envelope;
+        private float fastEnvelope;
+        private float slowEnvelope;
+
+        private float pitchHz = 70f;
+        private float targetPitchHz = 70f;
+        private float pitchConfidence;
+
+        private float phase;
+        private float lastLow;
+        private int zeroCrossAge;
+        private int lastHalfPeriod;
+
+        private float wetLimiterEnvelope;
+        private float wetLimiterGain = 1f;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = Math.max(8000, sampleRate);
             this.channelCount = Math.max(1, channelCount);
             this.configuredChannelCount = this.channelCount;
-
             configure(95, 0, 95, 0, false);
         }
 
@@ -615,65 +625,61 @@ final class PcmDspProcessor {
             float amount = Math.max(virtualAmount, dspAmount);
 
             if (amount <= 0.0001f) {
-                harmonicGain = 0f;
-                mixAlpha = 0f;
-                slowLevel = 0f;
-                fastLevel = 0f;
-                agcGain = 1f;
+                harmonicMix = 0f;
+                wetLimiterEnvelope = 0f;
+                wetLimiterGain = 1f;
                 return;
             }
 
-            /*
-             * 文章固定 LPF=120Hz，BPF=120~400Hz，HPF=400Hz。
-             * 这里严格按它的核心低通 120Hz 做驱动，不再跟随 cutoff 大幅变化。
-             */
-            lowPass120A = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, 120, 0, 70),
-                    sampleRate
-            );
-            lowPass120B = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, 120, 0, 70),
-                    sampleRate
-            );
-
-            /*
-             * 文章说 y_nl 之后进动态补偿滤波器 Hc(z)，呈高通特性，
-             * 用于抑制低频能量堆积。
-             */
-            compensationHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 120, 0, 70),
-                    sampleRate
-            );
-
-            compensationHighPass2 = lowCpuMode ? null : MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 120, 0, 70),
-                    sampleRate
-            );
-
-            /*
-             * 谐波承载区 120~400Hz。
-             */
-            harmonicShapeLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, 400, 0, 70),
-                    sampleRate
-            );
-
-            /*
-             * 文章 G_harmonic 范围 0.3~1.2，alpha 典型 0.6~0.9。
-             */
-            harmonicGain = 0.30f + amount * 0.90f;
-            mixAlpha = 0.60f + amount * 0.30f;
-
-            if (lowCpuMode) {
-                harmonicGain *= 0.85f;
-                mixAlpha *= 0.88f;
+            int requestedCutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
+            if (requestedCutoff <= 0) {
+                requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
 
-            targetPeak = 0.95f;
+            int cutoff = clampInt(requestedCutoff, 45, 150);
 
-            slowLevel = 0f;
-            fastLevel = 0f;
-            agcGain = 1f;
+            sourceLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, cutoff, 0, 70),
+                    sampleRate
+            );
+
+            /*
+             * 这里不再用 abs(x)+x² 当主体。
+             * 主体谐波限定在 110~520Hz。
+             * 这样听起来更像“有音高的虚拟低音”，不是一团噗声。
+             */
+            harmonicHighPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, 90, 0, 70),
+                    sampleRate
+            );
+
+            harmonicLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 420 : 520, 0, 70),
+                    sampleRate
+            );
+
+            harmonicMix = amount * (1.45f + amount * 0.55f);
+            if (lowCpuMode) {
+                harmonicMix *= 0.82f;
+            }
+
+            wetCeiling = 0.26f + amount * 0.20f;
+
+            envelope = 0f;
+            fastEnvelope = 0f;
+            slowEnvelope = 0f;
+
+            pitchHz = clamp(cutoff * 0.72f, 45f, 110f);
+            targetPitchHz = pitchHz;
+            pitchConfidence = 0f;
+
+            phase = 0f;
+            lastLow = 0f;
+            zeroCrossAge = 0;
+            lastHalfPeriod = 0;
+
+            wetLimiterEnvelope = 0f;
+            wetLimiterGain = 1f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -701,96 +707,191 @@ final class PcmDspProcessor {
                 }
 
                 monoSource[frame] = finiteOrZero(mono / safeChannelCount);
-                harmonicBuf[frame] = monoSource[frame];
+                lowBuf[frame] = monoSource[frame];
+                harmonicBuf[frame] = 0f;
             }
 
-            lowPass120A.process(harmonicBuf, frameCount);
-            lowPass120B.process(harmonicBuf, frameCount);
+            if (sourceLowPass != null) {
+                sourceLowPass.process(lowBuf, frameCount);
+            }
 
-            float slowCoeff = onePoleCoeff(300f, sampleRate);
-            float fastCoeff = onePoleCoeff(20f, sampleRate);
-            float agcCoeff = onePoleCoeff(35f, sampleRate);
+            float envAttack = onePoleCoeff(5.0f, sampleRate);
+            float envRelease = onePoleCoeff(120.0f, sampleRate);
+            float fastCoeff = onePoleCoeff(3.5f, sampleRate);
+            float slowCoeff = onePoleCoeff(75.0f, sampleRate);
+            float pitchSmooth = onePoleCoeff(18.0f, sampleRate);
+
+            int minHalfPeriod = Math.max(3, Math.round(sampleRate / (2f * 160f)));
+            int maxHalfPeriod = Math.max(minHalfPeriod + 8, Math.round(sampleRate / (2f * 35f)));
 
             for (int i = 0; i < frameCount; i++) {
-                float x = finiteOrZero(harmonicBuf[i]);
+                float low = finiteOrZero(lowBuf[i]);
+                float absLow = Math.abs(low);
 
-                float abs = Math.abs(x);
+                envelope += (absLow - envelope) * (absLow > envelope ? envAttack : envRelease);
+                fastEnvelope += (absLow - fastEnvelope) * fastCoeff;
+                slowEnvelope += (absLow - slowEnvelope) * slowCoeff;
 
-                slowLevel += (abs - slowLevel) * slowCoeff;
-                fastLevel += (abs - fastLevel) * fastCoeff;
-
-                float inputRmsDb = 20f * (float) Math.log10(slowLevel + 1.0e-9f);
-
-                /*
-                 * 文章 AGC LUT：
-                 * > -12dBFS       0.4
-                 * -12 ~ -18dBFS   0.6
-                 * -18 ~ -24dBFS   0.8
-                 * < -24dBFS       1.0
-                 */
-                float targetAgc;
-                if (inputRmsDb > -12f) {
-                    targetAgc = 0.4f;
-                } else if (inputRmsDb > -18f) {
-                    targetAgc = 0.6f;
-                } else if (inputRmsDb > -24f) {
-                    targetAgc = 0.8f;
-                } else {
-                    targetAgc = 1.0f;
+                zeroCrossAge++;
+                if (zeroCrossAge > sampleRate) {
+                    zeroCrossAge = sampleRate;
                 }
 
-                agcGain += (targetAgc - agcGain) * agcCoeff;
+                boolean enoughLevel = envelope > 0.00045f;
+                boolean crossed = enoughLevel
+                        && low * lastLow < 0f
+                        && zeroCrossAge >= minHalfPeriod;
+
+                if (crossed) {
+                    int halfPeriod = zeroCrossAge;
+                    zeroCrossAge = 0;
+
+                    if (halfPeriod <= maxHalfPeriod) {
+                        float hz = sampleRate / (2f * halfPeriod);
+                        hz = clamp(hz, 35f, 150f);
+
+                        float stable = 0.45f;
+                        if (lastHalfPeriod > 0) {
+                            float diff = Math.abs(halfPeriod - lastHalfPeriod);
+                            stable = 1f - clamp01(diff / Math.max(1f, halfPeriod * 0.65f));
+                        }
+
+                        targetPitchHz = targetPitchHz * 0.55f + hz * 0.45f;
+                        pitchConfidence += ((0.35f + stable * 0.65f) - pitchConfidence) * 0.12f;
+
+                        boolean rising = lastLow <= 0f && low > 0f;
+                        float desiredPhase = rising ? 0f : (float) Math.PI;
+                        phase += wrapPi(desiredPhase - phase) * 0.025f;
+
+                        lastHalfPeriod = halfPeriod;
+                    } else {
+                        pitchConfidence *= 0.94f;
+                    }
+                } else {
+                    pitchConfidence *= 0.9996f;
+                }
+
+                pitchConfidence = clamp01(pitchConfidence);
+                pitchHz += (targetPitchHz - pitchHz) * pitchSmooth;
+                pitchHz = clamp(pitchHz, 35f, 150f);
+
+                float levelGate = smoothStep(0.0007f, 0.012f, envelope);
+                float toneGate = levelGate * pitchConfidence;
+
+                float transientRatio = 0f;
+                if (slowEnvelope > 0.00005f) {
+                    transientRatio = (fastEnvelope - slowEnvelope * 1.08f) / (slowEnvelope + 0.0015f);
+                }
+
+                float transientGate = smoothStep(0.15f, 0.90f, transientRatio) * levelGate;
+
+                phase += (float) (Math.PI * 2.0) * pitchHz / sampleRate;
+                phase = wrapPi(phase);
 
                 /*
-                 * 文章原公式：
-                 * harmonic = abs(x) + x * x;
-                 * return (harmonic - 0.85f) * 0.5f;
+                 * 主体：锁相 2/3 次正弦谐波。
+                 * 低频基波本身不输出，只输出能被手机/小音箱放出来的谐波。
                  */
-                float harmonic = Math.abs(x) + x * x;
-                harmonic = (harmonic - 0.85f) * 0.5f;
+                float h2Weight = harmonicWeight(pitchHz * 2f);
+                float h3Weight = harmonicWeight(pitchHz * 3f);
+                float h4Weight = harmonicWeight(pitchHz * 4f);
 
-                harmonicBuf[i] = finiteOrZero(harmonic * harmonicGain * agcGain);
+                float s2 = fastSin(wrapPi(phase * 2f));
+                float s3 = fastSin(wrapPi(phase * 3f));
+                float s4 = fastSin(wrapPi(phase * 4f));
+
+                float synth = s2 * 0.62f * h2Weight
+                        + s3 * 0.92f * h3Weight
+                        + s4 * 0.22f * h4Weight;
+
+                /*
+                 * 只在瞬态加一点 NLD 纹理。
+                 * 不用 abs(x)，避免放屁感。
+                 */
+                float nld = 0f;
+                if (transientGate > 0.00001f) {
+                    float normalized = low / Math.max(0.004f, envelope);
+                    normalized = softClipUnit(normalized * 0.85f, 1f);
+
+                    float x2 = normalized * normalized;
+                    float x3 = x2 * normalized;
+
+                    float h3 = 4f * x3 - 3f * normalized;
+                    nld = h3 * 0.18f * h3Weight;
+                }
+
+                /*
+                 * 越是瞬态，正弦主体略微退一点，避免 kick 变成“嘟”。
+                 */
+                float tonalPart = synth * toneGate * (1f - transientGate * 0.35f);
+                float transientPart = nld * transientGate;
+
+                harmonicBuf[i] = finiteOrZero((tonalPart + transientPart) * envelope * 2.6f);
+
+                lastLow = low;
             }
 
-            compensationHighPass.process(harmonicBuf, frameCount);
-            if (compensationHighPass2 != null) {
-                compensationHighPass2.process(harmonicBuf, frameCount);
+            if (harmonicHighPass != null) {
+                harmonicHighPass.process(harmonicBuf, frameCount);
             }
-            harmonicShapeLowPass.process(harmonicBuf, frameCount);
-
-            float currentPeak = 0f;
+            if (harmonicLowPass != null) {
+                harmonicLowPass.process(harmonicBuf, frameCount);
+            }
 
             for (int frame = 0; frame < frameCount; frame++) {
-                float wet = finiteOrZero(harmonicBuf[frame] * mixAlpha);
+                float wet = harmonicBuf[frame] * harmonicMix;
+
+                float wetAbs = Math.abs(wet);
+                wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
+                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.0045f);
+
+                float targetGain = wetLimiterEnvelope > wetCeiling
+                        ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
+                        : 1f;
+
+                wetLimiterGain += (targetGain - wetLimiterGain)
+                        * (targetGain < wetLimiterGain ? 0.16f : 0.006f);
+
+                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.25f);
 
                 int frameOffset = frame * safeChannelCount;
-                for (int ch = 0; ch < safeChannelCount; ch++) {
-                    float y = samples[frameOffset + ch] + wet;
-                    samples[frameOffset + ch] = finiteOrZero(y);
-                    currentPeak = Math.max(currentPeak, Math.abs(samples[frameOffset + ch]));
-                }
-            }
 
-            /*
-             * 文章峰值保护：detect_peak + apply_gain_reduction(target_peak=0.95)
-             */
-            if (currentPeak > targetPeak) {
-                float gain = targetPeak / Math.max(currentPeak, 1.0e-9f);
-                for (int i = 0; i < safeSampleCount; i++) {
-                    samples[i] = finiteOrZero(samples[i] * gain);
+                float originalPeak = 0f;
+                for (int ch = 0; ch < safeChannelCount; ch++) {
+                    originalPeak = Math.max(originalPeak, Math.abs(samples[frameOffset + ch]));
+                }
+
+                float headroomProtect = 1f - smoothStep(0.88f, 0.995f, originalPeak) * 0.60f;
+                generated *= headroomProtect;
+
+                for (int ch = 0; ch < safeChannelCount; ch++) {
+                    samples[frameOffset + ch] = finiteOrZero(samples[frameOffset + ch] + generated);
                 }
             }
         }
 
         boolean isActive() {
-            return harmonicGain > 0.0001f && mixAlpha > 0.0001f;
+            return harmonicMix > 0.0001f;
         }
 
         private void ensureCapacity(int frameCount) {
             if (monoSource.length < frameCount) {
                 monoSource = new float[frameCount];
+                lowBuf = new float[frameCount];
                 harmonicBuf = new float[frameCount];
             }
+        }
+
+        private static float harmonicWeight(float hz) {
+            /*
+             * 60Hz 以下基本不要。
+             * 100~360Hz 是主要有效区。
+             * 520Hz 以上逐渐压掉，避免塑料感。
+             */
+            float low = smoothStep(58f, 75f, hz);
+            float main = 1.0f + 0.18f * smoothStep(95f, 180f, hz);
+            float high = 1f - smoothStep(520f, 900f, hz) * 0.65f;
+            return low * main * high;
         }
 
         private static float onePoleCoeff(float timeMs, int sampleRate) {
@@ -799,12 +900,82 @@ final class PcmDspProcessor {
             return 1f - (float) Math.exp(-1.0 / (safeSampleRate * safeMs / 1000f));
         }
 
+        private static float smoothStep(float edge0, float edge1, float value) {
+            if (edge0 == edge1) {
+                return value >= edge1 ? 1f : 0f;
+            }
+
+            float t = clamp01((value - edge0) / (edge1 - edge0));
+            return t * t * (3f - 2f * t);
+        }
+
+        private static float softClipUnit(float value, float ceiling) {
+            float safe = Math.max(0.1f, ceiling);
+            float normalized = value / safe;
+
+            if (Math.abs(normalized) < 0.86f) {
+                return value;
+            }
+
+            return fastTanh(normalized) * safe;
+        }
+
+        private static float softLimitWet(float value, float ceiling) {
+            float safe = Math.max(0.05f, ceiling);
+            float normalized = value / safe;
+
+            if (Math.abs(normalized) < 1.0f) {
+                return value;
+            }
+
+            return fastTanh(normalized) * safe;
+        }
+
+        private static float fastTanh(float value) {
+            if (value > 3f) {
+                return 1f;
+            }
+            if (value < -3f) {
+                return -1f;
+            }
+
+            float x2 = value * value;
+            return value * (27f + x2) / (27f + 9f * x2);
+        }
+
+        private static float fastSin(float x) {
+            final float B = 1.27323954f;
+            final float C = -0.405284735f;
+            final float P = 0.225f;
+
+            float y = B * x + C * x * Math.abs(x);
+            return P * (y * Math.abs(y) - y) + y;
+        }
+
+        private static float wrapPi(float x) {
+            final float PI = (float) Math.PI;
+            final float TWO_PI = (float) (Math.PI * 2.0);
+
+            while (x > PI) {
+                x -= TWO_PI;
+            }
+            while (x < -PI) {
+                x += TWO_PI;
+            }
+
+            return x;
+        }
+
         private static float clamp(float value, float min, float max) {
             return Math.max(min, Math.min(max, value));
         }
 
         private static float clamp01(float value) {
             return clamp(value, 0f, 1f);
+        }
+
+        private static int clampInt(int value, int min, int max) {
+            return Math.max(min, Math.min(max, value));
         }
 
         private static float finiteOrZero(float value) {
