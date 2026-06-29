@@ -312,7 +312,7 @@ final class PcmDspProcessor {
                 return;
             }
 
-            int safeChannelCount = Math.max(1, channelCount > 0 ? channelCount : this.channelCount);
+            int safeChannelCount = Math.max(1, Math.min(this.channelCount, channelCount > 0 ? channelCount : this.channelCount));
             int safeSampleCount = Math.min(sampleCount, samples.length);
             int frameCount = safeSampleCount / safeChannelCount;
             if (frameCount <= 0) {
