@@ -23,6 +23,7 @@ final class PresetRepository {
     private static final String PROCESSING_MODE = "processing_mode";
     private static final String UI_LANGUAGE = "ui_language";
     private static final String ADVANCED_MODE_CONFIG = "advanced_mode_config";
+    private static final String MASTER_ENABLED = "master_enabled";
     private static final String NAMED_PRESETS = "named_presets";
     private static final String KNOWN_DEVICES = "known_devices";
     private static final String DEVICE_CURVES = "device_curves";
@@ -35,8 +36,11 @@ final class PresetRepository {
     private static final String TARGET_CURVE_SMOOTHING = "target_curve_smoothing";
     private static final String MONITOR_CAPTURE_STATUS = "monitor_capture_status";
     private static final String MONITOR_CAPTURE_ACTIVE = "monitor_capture_active";
+    private static final String MONITOR_CAPTURE_AUTHORIZED = "monitor_capture_authorized";
     private static final String SHIZUKU_MUTE_STATUS = "shizuku_mute_status";
     private static final String SHIZUKU_MUTE_ACTIVE = "shizuku_mute_active";
+    private static final String ACTIVE_PLAYBACK_PACKAGE = "active_playback_package";
+    private static final String SERVICE_ACTIVE = "service_active";
     private static final String DEVICE_SEPARATOR = "\t";
 
     private final Context appContext;
@@ -48,32 +52,31 @@ final class PresetRepository {
     }
 
     Preset loadGlobalPreset() {
-        return Preset.fromJson(prefs.getString(GLOBAL_PRESET, null));
+        return stripRuntimeEnabled(Preset.fromJson(prefs.getString(GLOBAL_PRESET, null)));
     }
 
     void saveGlobalPreset(Preset preset) {
-        prefs.edit().putString(GLOBAL_PRESET, preset.toJson()).apply();
-    }
-
-    Preset loadDraftPreset() {
-        String json = prefs.getString(DRAFT_PRESET, null);
-        return json == null ? null : Preset.fromJson(json);
+        prefs.edit().putString(GLOBAL_PRESET, stripRuntimeEnabled(preset).toJson()).apply();
     }
 
     void saveDraftPreset(Preset preset) {
-        prefs.edit().putString(DRAFT_PRESET, preset.toJson()).apply();
+        prefs.edit().putString(DRAFT_PRESET, stripRuntimeEnabled(preset).toJson()).apply();
     }
 
     Preset loadPreset(AudioOutputDevice device) {
-        String json = prefs.getString(deviceKey(device), null);
+        return loadPreset(device, ProcessingMode.SYSTEM_EQ);
+    }
+
+    Preset loadPreset(AudioOutputDevice device, ProcessingMode mode) {
+        String json = prefs.getString(deviceKey(device, mode), null);
         if (json != null) {
-            return Preset.fromJson(json);
+            return stripRuntimeEnabled(Preset.fromJson(json));
         }
         Preset preset = loadDefaultDevicePreset();
         if (device != null && device.key != null && !device.key.trim().isEmpty()) {
-            prefs.edit().putString(deviceKey(device), preset.toJson()).apply();
+            prefs.edit().putString(deviceKey(device, mode), stripRuntimeEnabled(preset).toJson()).apply();
         }
-        return preset;
+        return stripRuntimeEnabled(preset);
     }
 
     void saveKnownDevice(AudioOutputDevice device) {
@@ -151,10 +154,20 @@ final class PresetRepository {
         return prefs.getBoolean(MONITOR_CAPTURE_ACTIVE, false);
     }
 
+    boolean loadMonitorCaptureAuthorized() {
+        return prefs.getBoolean(MONITOR_CAPTURE_AUTHORIZED, false);
+    }
+
     void saveMonitorCaptureStatus(String status, boolean active) {
         prefs.edit()
                 .putString(MONITOR_CAPTURE_STATUS, status == null ? "Native capture is idle." : status)
                 .putBoolean(MONITOR_CAPTURE_ACTIVE, active)
+                .apply();
+    }
+
+    void saveMonitorCaptureAuthorized(boolean authorized) {
+        prefs.edit()
+                .putBoolean(MONITOR_CAPTURE_AUTHORIZED, authorized)
                 .apply();
     }
 
@@ -170,6 +183,45 @@ final class PresetRepository {
         prefs.edit()
                 .putString(SHIZUKU_MUTE_STATUS, status == null ? "Shizuku mute is idle." : status)
                 .putBoolean(SHIZUKU_MUTE_ACTIVE, active)
+                .apply();
+    }
+
+    boolean loadMasterEnabled() {
+        return prefs.getBoolean(MASTER_ENABLED, false);
+    }
+
+    void saveMasterEnabled(boolean enabled) {
+        prefs.edit().putBoolean(MASTER_ENABLED, enabled).apply();
+    }
+
+    String loadActivePlaybackPackage() {
+        String value = prefs.getString(ACTIVE_PLAYBACK_PACKAGE, "");
+        return value == null ? "" : value;
+    }
+
+    void saveActivePlaybackPackage(String packageName) {
+        prefs.edit()
+                .putString(ACTIVE_PLAYBACK_PACKAGE, packageName == null ? "" : packageName.trim())
+                .apply();
+    }
+
+    boolean loadServiceActive() {
+        return prefs.getBoolean(SERVICE_ACTIVE, false);
+    }
+
+    void saveServiceActive(boolean active) {
+        prefs.edit().putBoolean(SERVICE_ACTIVE, active).apply();
+    }
+
+    void clearRuntimeAudioState(String shizukuStatus) {
+        prefs.edit()
+                .putString(MONITOR_CAPTURE_STATUS, "Native capture is idle.")
+                .putBoolean(MONITOR_CAPTURE_ACTIVE, false)
+                .putBoolean(MONITOR_CAPTURE_AUTHORIZED, false)
+                .putString(SHIZUKU_MUTE_STATUS, shizukuStatus == null ? "Shizuku mute is idle." : shizukuStatus)
+                .putBoolean(SHIZUKU_MUTE_ACTIVE, false)
+                .putString(ACTIVE_PLAYBACK_PACKAGE, "")
+                .putBoolean(SERVICE_ACTIVE, false)
                 .apply();
     }
 
@@ -214,8 +266,12 @@ final class PresetRepository {
     }
 
     void savePreset(AudioOutputDevice device, Preset preset) {
+        savePreset(device, ProcessingMode.SYSTEM_EQ, preset);
+    }
+
+    void savePreset(AudioOutputDevice device, ProcessingMode mode, Preset preset) {
         prefs.edit()
-                .putString(deviceKey(device), preset.toJson())
+                .putString(deviceKey(device, mode), stripRuntimeEnabled(preset).toJson())
                 .putString(LAST_DEVICE_KEY, device.key)
                 .putString(LAST_DEVICE_LABEL, device.label)
                 .apply();
@@ -225,7 +281,7 @@ final class PresetRepository {
         Set<String> names = new HashSet<>(prefs.getStringSet(NAMED_PRESETS, Collections.emptySet()));
         names.add(preset.name);
         prefs.edit()
-                .putString(namedPresetKey(preset.name), preset.toJson())
+                .putString(namedPresetKey(preset.name), stripRuntimeEnabled(preset).toJson())
                 .putStringSet(NAMED_PRESETS, names)
                 .commit();
     }
@@ -236,7 +292,7 @@ final class PresetRepository {
         names.add(renamedPreset.name);
         prefs.edit()
                 .remove(namedPresetKey(oldName))
-                .putString(namedPresetKey(renamedPreset.name), renamedPreset.toJson())
+                .putString(namedPresetKey(renamedPreset.name), stripRuntimeEnabled(renamedPreset).toJson())
                 .putStringSet(NAMED_PRESETS, names)
                 .commit();
     }
@@ -251,7 +307,19 @@ final class PresetRepository {
     }
 
     Preset loadNamedPreset(String name) {
-        return Preset.fromJson(prefs.getString(namedPresetKey(name), null));
+        if (name == null || name.trim().isEmpty()) {
+            return null;
+        }
+        String json = prefs.getString(namedPresetKey(name), null);
+        if (json == null || json.trim().isEmpty()) {
+            return null;
+        }
+        Preset preset = Preset.fromJson(json);
+        return preset == null ? null : preset.withEnabled(false);
+    }
+
+    boolean hasNamedPreset(String name) {
+        return loadNamedPreset(name) != null;
     }
 
     List<String> loadNamedPresetNames() {
@@ -368,11 +436,14 @@ final class PresetRepository {
         if (key == null) {
             return loadGlobalPreset();
         }
-        return Preset.fromJson(prefs.getString("preset_" + key, null));
+        ProcessingMode mode = loadProcessingMode();
+        String json = prefs.getString("preset_" + key + "__" + mode.key, null);
+        return stripRuntimeEnabled(Preset.fromJson(json));
     }
 
-    private String deviceKey(AudioOutputDevice device) {
-        return "preset_" + device.key;
+    private String deviceKey(AudioOutputDevice device, ProcessingMode mode) {
+        String safeModeKey = mode == null ? ProcessingMode.SYSTEM_EQ.key : mode.key;
+        return "preset_" + device.key + "__" + safeModeKey;
     }
 
     private String namedPresetKey(String name) {
@@ -501,7 +572,8 @@ final class PresetRepository {
 
         String lastDeviceKey = prefs.getString(LAST_DEVICE_KEY, null);
         if (lastDeviceKey != null && !lastDeviceKey.trim().isEmpty()) {
-            updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey, oldName, newName, targetCurve);
+            updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey + "__" + ProcessingMode.SYSTEM_EQ.key, oldName, newName, targetCurve);
+            updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey + "__" + ProcessingMode.SHIZUKU_MUTE.key, oldName, newName, targetCurve);
         }
 
         Set<String> knownDevices = prefs.getStringSet(KNOWN_DEVICES, Collections.emptySet());
@@ -510,7 +582,9 @@ final class PresetRepository {
             if (separator <= 0) {
                 continue;
             }
-            updateCurveReferenceForPresetKey(editor, "preset_" + device.substring(0, separator), oldName, newName, targetCurve);
+            String deviceKey = device.substring(0, separator);
+            updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey + "__" + ProcessingMode.SYSTEM_EQ.key, oldName, newName, targetCurve);
+            updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey + "__" + ProcessingMode.SHIZUKU_MUTE.key, oldName, newName, targetCurve);
         }
 
         Set<String> presetNames = prefs.getStringSet(NAMED_PRESETS, Collections.emptySet());
@@ -580,6 +654,10 @@ final class PresetRepository {
 
     private String curveStorageName(String name) {
         return normalizeCurveName(name).toLowerCase().replaceAll("[^a-z0-9_\\-]+", "_");
+    }
+
+    private Preset stripRuntimeEnabled(Preset preset) {
+        return preset == null ? Preset.flat(false) : preset.withEnabled(false);
     }
 
 }

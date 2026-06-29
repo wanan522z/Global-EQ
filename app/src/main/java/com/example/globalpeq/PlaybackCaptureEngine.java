@@ -34,7 +34,13 @@ final class PlaybackCaptureEngine {
     private static final int DEFAULT_ASSISTANT_STREAM = 11;
     private static final int EXPERIMENTAL_PLAYBACK_STREAM = resolveAssistantStream();
     private static final int EXPERIMENTAL_PLAYBACK_USAGE = AudioAttributes.USAGE_ASSISTANT;
-    private static final int EXPERIMENTAL_MIN_TRACK_LATENCY_MS = 120;
+    private static final int MIN_PIPELINE_BUFFER_FRAMES = 128;
+    private static final int MIN_TRACK_LATENCY_MS = 40;
+    private static final int MIN_PROCESSING_CHUNK_FRAMES = 256;
+    private static final int MAX_PROCESSING_CHUNK_FRAMES = 2048;
+    private static final int MAX_BLUETOOTH_CHUNK_FRAMES = 640;
+    private static final int BLUETOOTH_HEAVY_DSP_CHUNK_FRAMES = 384;
+    private static final int BLUETOOTH_PREFILL_CHUNKS = 4;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -63,8 +69,11 @@ final class PlaybackCaptureEngine {
 
     private int configuredTargetUid = -1;
     private int configuredBufferFrames = -1;
+    private int configuredChunkFrames = -1;
     private int configuredLatencyMs = -1;
     private String configuredOutputDeviceKey = "";
+    private boolean captureSignalLogged;
+    private boolean captureWaitingLogged;
     private String publishedStatus = "";
     private boolean publishedActive;
 
@@ -79,16 +88,19 @@ final class PlaybackCaptureEngine {
 
     synchronized void bootstrapProjection(int resultCode, Intent data) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("Native capture requires Android 10 or later.", false);
             return;
         }
         if (resultCode != Activity.RESULT_OK || data == null) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("Capture authorization was cancelled.", false);
             return;
         }
 
         MediaProjectionManager manager = appContext.getSystemService(MediaProjectionManager.class);
         if (manager == null) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("MediaProjection service is unavailable.", false);
             return;
         }
@@ -101,6 +113,7 @@ final class PlaybackCaptureEngine {
             mediaProjection = null;
         }
         if (mediaProjection == null) {
+            repository.saveMonitorCaptureAuthorized(false);
             publishStatus("Capture authorization could not be initialized.", false);
             return;
         }
@@ -116,6 +129,7 @@ final class PlaybackCaptureEngine {
             }
         };
         mediaProjection.registerCallback(projectionCallback, mainHandler);
+        repository.saveMonitorCaptureAuthorized(true);
         if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
             publishStatus("Capture authorized for system audio.", false);
         } else {
@@ -180,16 +194,17 @@ final class PlaybackCaptureEngine {
             return;
         }
 
+        boolean outputRouteRestartRequired = currentMode != ProcessingMode.SHIZUKU_MUTE
+                && !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
         boolean requiresRestart = !running
                 || configuredTargetUid != currentTargetUid
                 || configuredBufferFrames != currentConfig.bufferSizeFrames
                 || configuredLatencyMs != currentConfig.latencyMs
-                || !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
+                || outputRouteRestartRequired;
         if (requiresRestart) {
             startPipelineLocked();
         } else {
             reconfigureEffectsLocked();
-            publishStatus(monitoringStatusText(), true);
         }
     }
 
@@ -239,7 +254,12 @@ final class PlaybackCaptureEngine {
         } else {
             builder.addMatchingUid(currentTargetUid);
         }
-        return builder.build();
+        AudioPlaybackCaptureConfiguration configuration = builder.build();
+        Log.i(TAG, "Built capture configuration mode=" + currentMode
+                + ", targetUid=" + currentTargetUid
+                + ", excludeOwnUid=" + (currentMode == ProcessingMode.SHIZUKU_MUTE)
+                + ", usages=[MEDIA,GAME]");
+        return configuration;
     }
 
     private String monitoringStatusText() {
@@ -254,6 +274,18 @@ final class PlaybackCaptureEngine {
             return "Armed for system audio - waiting for playback.";
         }
         return "Armed for " + currentTargetLabel + " - waiting for playback.";
+    }
+
+    private boolean isHeavyRealtimeDspEnabled() {
+        if (currentPreset == null || !currentPreset.enabled) {
+            return false;
+        }
+        boolean reverbEnabled = AudioProcessingPolicy.reverbAllowed(currentMode)
+                && !"Default".equals(currentPreset.reverbType)
+                && currentPreset.reverbMixPercent > 0;
+        boolean dspBassEnabled = AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentVirtualBassModeIndex)
+                && currentPreset.dspVirtualBassAmountPercent > 0;
+        return reverbEnabled || dspBassEnabled;
     }
 
     private void startPipelineLocked() {
@@ -272,15 +304,25 @@ final class PlaybackCaptureEngine {
             AudioPlaybackCaptureConfiguration captureConfiguration = buildCaptureConfiguration();
 
             int bytesPerFrame = CHANNEL_COUNT * 2;
-            int desiredFrames = Math.max(512, currentConfig.bufferSizeFrames);
+            boolean heavyRealtimeDsp = isHeavyRealtimeDspEnabled();
+            int desiredFrames = Math.max(MIN_PIPELINE_BUFFER_FRAMES, currentConfig.bufferSizeFrames);
+            AudioDeviceInfo preferredOutputDevice = resolvePreferredOutputDeviceInfo();
+            boolean bluetoothOutput = isBluetoothOutput(preferredOutputDevice);
+            int processingChunkFrames = chooseProcessingChunkFrames(
+                    desiredFrames,
+                    heavyRealtimeDsp,
+                    bluetoothOutput);
             int minRecordBytes = AudioRecord.getMinBufferSize(
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
             if (minRecordBytes <= 0) {
-                minRecordBytes = desiredFrames * bytesPerFrame * 4;
+                minRecordBytes = processingChunkFrames * bytesPerFrame * 4;
             }
-            int recordBufferBytes = Math.max(minRecordBytes * 2, desiredFrames * bytesPerFrame * 4);
+            int recordMultiplier = heavyRealtimeDsp ? 4 : 2;
+            int recordBufferBytes = Math.max(minRecordBytes * recordMultiplier,
+                    desiredFrames * bytesPerFrame * (heavyRealtimeDsp ? 6 : 3));
+            recordBufferBytes = Math.max(recordBufferBytes, processingChunkFrames * bytesPerFrame * 4);
 
             audioRecord = new AudioRecord.Builder()
                     .setAudioFormat(recordFormat)
@@ -300,12 +342,18 @@ final class PlaybackCaptureEngine {
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_OUT_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT);
-            int latencyMs = Math.max(EXPERIMENTAL_MIN_TRACK_LATENCY_MS, currentConfig.latencyMs);
-            int latencyFrames = Math.max(desiredFrames * 4, SAMPLE_RATE * latencyMs / 1000);
+            int latencyMs = Math.max(MIN_TRACK_LATENCY_MS, currentConfig.latencyMs);
+            int requestedLatencyFrames = Math.max(desiredFrames, SAMPLE_RATE * latencyMs / 1000);
+            int latencyFrames = Math.max(desiredFrames + desiredFrames / 2, requestedLatencyFrames);
             if (minTrackBytes <= 0) {
                 minTrackBytes = latencyFrames * bytesPerFrame;
             }
-            int trackBufferBytes = Math.max(minTrackBytes * 4, latencyFrames * bytesPerFrame * 2);
+            int trackMultiplier = bluetoothOutput
+                    ? (heavyRealtimeDsp ? 6 : 4)
+                    : (heavyRealtimeDsp ? 4 : 2);
+            int trackBufferBytes = Math.max(minTrackBytes * trackMultiplier,
+                    latencyFrames * bytesPerFrame * (bluetoothOutput ? 4 : (heavyRealtimeDsp ? 3 : 2)));
+            trackBufferBytes = Math.max(trackBufferBytes, processingChunkFrames * bytesPerFrame * (bluetoothOutput ? 8 : 6));
 
             AudioTrack.Builder trackBuilder = new AudioTrack.Builder()
                     .setAudioAttributes(buildTrackAttributesForCurrentMode())
@@ -319,17 +367,25 @@ final class PlaybackCaptureEngine {
             if (audioTrack.getState() != AudioTrack.STATE_INITIALIZED) {
                 throw new IllegalStateException("AudioTrack failed to initialize");
             }
-            bindTrackToPreferredOutputLocked(audioTrack);
+            bindTrackToPreferredOutputLocked(audioTrack, preferredOutputDevice);
 
             configuredTargetUid = currentTargetUid;
             configuredBufferFrames = currentConfig.bufferSizeFrames;
+            configuredChunkFrames = processingChunkFrames;
             configuredLatencyMs = currentConfig.latencyMs;
             configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
             running = true;
             reconfigureEffectsLocked();
 
-            audioRecord.startRecording();
             audioTrack.play();
+            Log.i(TAG, "AudioTrack playState after play()=" + audioTrack.getPlayState());
+            prefillTrackIfNeeded(audioTrack, processingChunkFrames, bluetoothOutput);
+            audioRecord.startRecording();
+            Log.i(TAG, "AudioRecord recordingState after startRecording()=" + audioRecord.getRecordingState());
+            Log.i(TAG, "Capture sessions recordSid=" + audioRecord.getAudioSessionId()
+                    + ", trackSid=" + audioTrack.getAudioSessionId()
+                    + ", targetLabel=" + currentTargetLabel
+                    + ", targetUid=" + currentTargetUid);
             Object workerToken = new Object();
             activeWorkerToken = workerToken;
             workerThread = new Thread(() -> runCaptureLoop(workerToken), "global-peq-capture");
@@ -339,10 +395,13 @@ final class PlaybackCaptureEngine {
                     + " trackUsage=MEDIA"
                     + " stream=" + EXPERIMENTAL_PLAYBACK_STREAM
                     + " desiredFrames=" + desiredFrames
+                    + " processingChunkFrames=" + processingChunkFrames
+                    + " heavyRealtimeDsp=" + heavyRealtimeDsp
+                    + " bluetoothOutput=" + bluetoothOutput
                     + " trackBufferBytes=" + trackBufferBytes
                     + " latencyMs=" + latencyMs
                     + " output=" + configuredOutputDeviceKey);
-            publishStatus(monitoringStatusText(), true);
+            publishStatus(waitingStatusText(), false);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to start playback capture pipeline", ex);
             stopPipelineLocked();
@@ -358,11 +417,17 @@ final class PlaybackCaptureEngine {
             return;
         }
 
-        short[] pcm = new short[Math.max(512, configuredBufferFrames) * CHANNEL_COUNT];
+        int chunkFrames = Math.max(MIN_PROCESSING_CHUNK_FRAMES,
+                configuredChunkFrames > 0 ? configuredChunkFrames : configuredBufferFrames);
+        short[] pcm = new short[chunkFrames * CHANNEL_COUNT];
         float[] samples = new float[pcm.length];
         short[] rendered = new short[pcm.length];
         long lastSignalAt = SystemClock.elapsedRealtime();
         boolean signaledLive = false;
+        captureSignalLogged = false;
+        captureWaitingLogged = false;
+        int silentReadCount = 0;
+        int nonZeroReadCount = 0;
 
         while (running) {
             int read;
@@ -373,6 +438,10 @@ final class PlaybackCaptureEngine {
                 break;
             }
             if (read <= 0) {
+                if (!captureWaitingLogged) {
+                    Log.i(TAG, "Capture read returned " + read + " while waiting for playback");
+                    captureWaitingLogged = true;
+                }
                 if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs) {
                     publishStatus(waitingStatusText(), false);
                     signaledLive = false;
@@ -389,15 +458,37 @@ final class PlaybackCaptureEngine {
                 }
             }
 
+            if (peak > 0f) {
+                nonZeroReadCount++;
+                if (nonZeroReadCount <= 5) {
+                    Log.i(TAG, "Capture read non-zero frame readSamples=" + read + ", peak=" + peak);
+                }
+            }
+
             if (peak > SIGNAL_THRESHOLD) {
                 lastSignalAt = SystemClock.elapsedRealtime();
+                silentReadCount = 0;
+                if (!captureSignalLogged) {
+                    Log.i(TAG, "Capture loop detected signal: readSamples=" + read + ", peak=" + peak);
+                    captureSignalLogged = true;
+                }
                 if (!signaledLive) {
                     publishStatus(monitoringStatusText(), true);
                     signaledLive = true;
                 }
-            } else if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs && signaledLive) {
-                publishStatus(waitingStatusText(), false);
-                signaledLive = false;
+            } else {
+                silentReadCount++;
+                if (silentReadCount == 1 || silentReadCount == 10 || silentReadCount == 30 || silentReadCount % 120 == 0) {
+                    Log.i(TAG, "Capture read below threshold readSamples=" + read
+                            + ", peak=" + peak
+                            + ", silentReadCount=" + silentReadCount
+                            + ", target=" + currentTargetLabel
+                            + ", targetUid=" + currentTargetUid);
+                }
+                if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs && signaledLive) {
+                    publishStatus(waitingStatusText(), false);
+                    signaledLive = false;
+                }
             }
 
             synchronized (dspLock) {
@@ -408,20 +499,14 @@ final class PlaybackCaptureEngine {
                 rendered[i] = (short) Math.round(clamped * 32767f);
             }
 
-            int written = 0;
-            while (running && written < read) {
-                int chunk;
-                try {
-                    chunk = track.write(rendered, written, read - written, AudioTrack.WRITE_BLOCKING);
-                } catch (RuntimeException ex) {
-                    Log.w(TAG, "Capture write failed", ex);
-                    running = false;
+            try {
+                if (!writeTrackFully(track, rendered, read)) {
                     break;
                 }
-                if (chunk <= 0) {
-                    break;
-                }
-                written += chunk;
+            } catch (RuntimeException ex) {
+                Log.w(TAG, "Capture write failed", ex);
+                running = false;
+                break;
             }
         }
 
@@ -442,16 +527,19 @@ final class PlaybackCaptureEngine {
     }
 
     private void reconfigureEffectsLocked() {
+        Preset effectiveDspPreset = AudioProcessingPolicy.effectiveDspPreset(
+                currentPreset,
+                currentMode,
+                currentVirtualBassModeIndex);
+        boolean enableDspBass = AudioProcessingPolicy.dspVirtualBassAllowed(
+                currentMode,
+                currentVirtualBassModeIndex);
         synchronized (dspLock) {
-            Preset effectiveDspPreset = AudioProcessingPolicy.effectiveDspPreset(
-                    currentPreset,
-                    currentMode,
-                    currentVirtualBassModeIndex);
             dspProcessor.configure(
                     effectiveDspPreset,
                     SAMPLE_RATE,
                     CHANNEL_COUNT,
-                    AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentVirtualBassModeIndex),
+                    enableDspBass,
                     currentConfig);
         }
         applyTrackVirtualBassLocked();
@@ -474,8 +562,9 @@ final class PlaybackCaptureEngine {
             releaseTrackVirtualBassLocked();
             return;
         }
+        int systemBassAmountPercent = currentPreset == null ? 0 : currentPreset.systemVirtualBassAmountPercent;
         boolean enableSystemBass = AudioProcessingPolicy.systemVirtualBassAllowed(currentVirtualBassModeIndex)
-                && currentPreset.virtualBassAmountPercent > 0;
+                && systemBassAmountPercent > 0;
         if (!enableSystemBass) {
             releaseTrackVirtualBassLocked();
             return;
@@ -485,7 +574,7 @@ final class PlaybackCaptureEngine {
                 trackBassBoost = new BassBoost(1000, audioTrack.getAudioSessionId());
             }
             trackBassBoost.setEnabled(false);
-            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, currentPreset.virtualBassAmountPercent * 10)));
+            trackBassBoost.setStrength((short) Math.max(0, Math.min(1000, systemBassAmountPercent * 10)));
             trackBassBoost.setEnabled(true);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Track virtual bass effect failed", ex);
@@ -557,22 +646,27 @@ final class PlaybackCaptureEngine {
 
         configuredTargetUid = -1;
         configuredBufferFrames = -1;
+        configuredChunkFrames = -1;
         configuredLatencyMs = -1;
         configuredOutputDeviceKey = "";
     }
 
-    private void bindTrackToPreferredOutputLocked(AudioTrack track) {
+    private void bindTrackToPreferredOutputLocked(AudioTrack track, AudioDeviceInfo preferredDevice) {
         if (track == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return;
         }
-        AudioDeviceInfo preferredDevice = resolvePreferredOutputDeviceInfo();
         if (preferredDevice == null) {
+            Log.i(TAG, "AudioTrack preferred device not set; using system default route");
             return;
         }
         try {
             boolean applied = track.setPreferredDevice(preferredDevice);
             if (!applied) {
                 Log.w(TAG, "AudioTrack preferred device was rejected: " + preferredDevice.getId());
+            } else {
+                Log.i(TAG, "AudioTrack preferred device applied: id=" + preferredDevice.getId()
+                        + ", type=" + preferredDevice.getType()
+                        + ", key=" + describeOutputDeviceKey(preferredDevice));
             }
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to bind AudioTrack to preferred output device", ex);
@@ -608,12 +702,72 @@ final class PlaybackCaptureEngine {
         return null;
     }
 
+    private int chooseProcessingChunkFrames(int desiredFrames,
+                                            boolean heavyRealtimeDsp,
+                                            boolean bluetoothOutput) {
+        int upperBound = bluetoothOutput ? MAX_BLUETOOTH_CHUNK_FRAMES : MAX_PROCESSING_CHUNK_FRAMES;
+        int chunkFrames = desiredFrames;
+        if (chunkFrames > 2048) {
+            chunkFrames = chunkFrames / 8;
+        } else if (chunkFrames > 1024) {
+            chunkFrames = chunkFrames / 4;
+        } else if (chunkFrames > 512) {
+            chunkFrames = chunkFrames / 2;
+        }
+        if (heavyRealtimeDsp) {
+            chunkFrames = Math.min(chunkFrames, bluetoothOutput ? BLUETOOTH_HEAVY_DSP_CHUNK_FRAMES : 1024);
+        }
+        return Math.max(MIN_PROCESSING_CHUNK_FRAMES, Math.min(upperBound, chunkFrames));
+    }
+
+    private void prefillTrackIfNeeded(AudioTrack track, int chunkFrames, boolean bluetoothOutput) {
+        if (track == null || chunkFrames <= 0) {
+            return;
+        }
+        int prefillChunks = bluetoothOutput ? BLUETOOTH_PREFILL_CHUNKS : 1;
+        short[] silence = new short[Math.max(MIN_PROCESSING_CHUNK_FRAMES, chunkFrames) * CHANNEL_COUNT];
+        for (int i = 0; i < prefillChunks; i++) {
+            if (!writeTrackFully(track, silence, silence.length)) {
+                break;
+            }
+        }
+    }
+
+    private boolean writeTrackFully(AudioTrack track, short[] buffer, int sampleCount) {
+        int written = 0;
+        while (running && written < sampleCount) {
+            int chunk = track.write(buffer, written, sampleCount - written, AudioTrack.WRITE_BLOCKING);
+            if (chunk <= 0) {
+                running = false;
+                return false;
+            }
+            written += chunk;
+        }
+        return true;
+    }
+
+    private boolean isBluetoothOutput(AudioDeviceInfo device) {
+        if (device == null) {
+            return false;
+        }
+        int type = device.getType();
+        return type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && type == AudioDeviceInfo.TYPE_BLE_HEADSET)
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && type == AudioDeviceInfo.TYPE_BLE_BROADCAST);
+    }
+
     private AudioDeviceInfo resolveActiveTargetPlaybackDeviceInfo() {
         if (audioManager == null || currentTargetUid <= 0 || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return null;
         }
         try {
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                Log.i(TAG, "Target route candidate raw=" + summarizeConfig(configuration));
                 if (configuration == null || readPlaybackClientUid(configuration) != currentTargetUid) {
                     continue;
                 }
@@ -641,7 +795,11 @@ final class PlaybackCaptureEngine {
             if (value instanceof Integer) {
                 return (Integer) value;
             }
-        } catch (ReflectiveOperationException ignored) {
+            Log.w(TAG, "Playback config returned non-integer client uid: " + value);
+        } catch (NoSuchMethodException ex) {
+            Log.w(TAG, "AudioPlaybackConfiguration#getClientUid is unavailable on this device", ex);
+        } catch (ReflectiveOperationException ex) {
+            Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#getClientUid", ex);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to read playback client uid", ex);
         }
@@ -695,6 +853,7 @@ final class PlaybackCaptureEngine {
         MediaProjection.Callback callback = projectionCallback;
         mediaProjection = null;
         projectionCallback = null;
+        repository.saveMonitorCaptureAuthorized(false);
         if (projection == null) {
             return;
         }
@@ -723,5 +882,20 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
+    }
+
+    private String summarizeConfig(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return "null";
+        }
+        String text = configuration.toString();
+        if (text == null) {
+            return "null";
+        }
+        String normalized = text.replace('\n', ' ').replace('\r', ' ').trim();
+        if (normalized.length() <= 240) {
+            return normalized;
+        }
+        return normalized.substring(0, 240) + "...";
     }
 }

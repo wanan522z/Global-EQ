@@ -1,4 +1,4 @@
-﻿package com.example.globalpeq;
+package com.example.globalpeq;
 
 import android.Manifest;
 import android.app.Activity;
@@ -42,6 +42,8 @@ import android.view.ViewTreeObserver;
 import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -63,12 +65,16 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import org.json.JSONException;
 
 public final class MainActivity extends Activity {
     private static final int HISTORY_LIMIT = 30;
@@ -77,26 +83,125 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_MONITOR_CAPTURE = 4103;
     private static final int REQUEST_MONITOR_AUDIO_PERMISSION = 4104;
     private static final int REQUEST_SHIZUKU_PERMISSION = 4105;
+    private static final int REQUEST_IMPORT_PRESET_JSON = 4106;
+    private static final int REQUEST_IMPORT_DEVICE_CONFIG_JSON = 4107;
+    private static final int REQUEST_EXPORT_PRESET_JSON = 4108;
+    private static final int REQUEST_EXPORT_DEVICE_CONFIG_JSON = 4109;
     private static final int EQ_EDIT_FIELD_FREQ = 0;
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
     private static final int GEQ_COMMIT_DELAY_MS = 160;
+    private static final int PEQ_BAND_COMMIT_DELAY_MS = 160;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
+    private static final long LIVE_EQ_PREVIEW_DELAY_MS = 24L;
+    private static final long EQ_TEXT_INPUT_APPLY_DELAY_MS = 140L;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
+    private static final long ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS = 280L;
+    private static final long ENABLE_TOGGLE_INTERACTION_LOCK_MS = 260L;
+    private static final long ENABLE_TOGGLE_SHIZUKU_INTERACTION_LOCK_MS = 720L;
+    private static final long EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS = 320L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
     private static final long ENABLE_NEON_CURVE_DELAY_MS = 460L;
     private static final long DISABLE_NEON_CURVE_DELAY_MS = 280L;
     private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 660L;
     private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 60L;
+    private static final long ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS = 140L;
+    private static final long DEFERRED_INTEGER_INPUT_COMMIT_DELAY_MS = 150L;
+    private static final long PRESET_PERSIST_DELAY_MS = 420L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
-    private static final String[] CURVE_RANGE_LABELS = {"卤6", "卤12", "卤18"};
+    private static final long ACTIVE_APP_REFRESH_INTERVAL_MS = 5000L;
+    private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
     private static final String[] VIRTUAL_BASS_MODE_LABELS = {"Default", "System", "DSP"};
     private static final String UI_LANGUAGE_EN = "en";
     private static final String UI_LANGUAGE_ZH = "zh";
+    private static final SliderValueMapper LINEAR_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            return (value - min) / Math.max(1f, max - min);
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            return Math.round(min + (max - min) * fraction);
+        }
+    };
+    private static final SliderValueMapper REVERB_MAIN_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= -300) {
+                float tailRange = Math.max(1f, -300f - min);
+                return Math.max(0f, Math.min(tailRange, value - min)) / tailRange * 0.2f;
+            }
+            return 0.2f + Math.max(0f, Math.min(600f, value + 300f)) / 600f * 0.8f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.2f) {
+                return clamp(Math.round(min + (t / 0.2f) * (-300f - min)), min, max);
+            }
+            return clamp(Math.round(-300f + ((t - 0.2f) / 0.8f) * 600f), min, max);
+        }
+    };
+    private static final SliderValueMapper REVERB_DECAY_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= 400) {
+                return Math.max(0f, Math.min(400f, value)) / 400f * 0.6f;
+            }
+            return 0.6f + Math.max(0f, Math.min(max - 400f, value - 400f)) / Math.max(1f, max - 400f) * 0.4f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.6f) {
+                return clamp(Math.round((t / 0.6f) * 400f), min, max);
+            }
+            return clamp(Math.round(400f + ((t - 0.6f) / 0.4f) * (max - 400f)), min, max);
+        }
+    };
+    private static final SliderValueMapper REVERB_MIX_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= 50) {
+                return Math.max(0f, Math.min(50f, value)) / 50f * 0.3f;
+            }
+            return 0.3f + Math.max(0f, Math.min(max - 50f, value - 50f)) / Math.max(1f, max - 50f) * 0.7f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.3f) {
+                return clamp(Math.round((t / 0.3f) * 50f), min, max);
+            }
+            return clamp(Math.round(50f + ((t - 0.3f) / 0.7f) * (max - 50f)), min, max);
+        }
+    };
+    private static final SliderValueMapper REVERB_PREDELAY_SLIDER_MAPPER = new SliderValueMapper() {
+        @Override
+        public float valueToFraction(int value, int min, int max) {
+            if (value <= 50) {
+                return Math.max(0f, Math.min(50f, value)) / 50f * 0.5f;
+            }
+            return 0.5f + Math.max(0f, Math.min(max - 50f, value - 50f)) / Math.max(1f, max - 50f) * 0.5f;
+        }
+
+        @Override
+        public int fractionToValue(float fraction, int min, int max) {
+            float t = Math.max(0f, Math.min(1f, fraction));
+            if (t <= 0.5f) {
+                return clamp(Math.round((t / 0.5f) * 50f), min, max);
+            }
+            return clamp(Math.round(50f + ((t - 0.5f) / 0.5f) * (max - 50f)), min, max);
+        }
+    };
 
     private PresetRepository repository;
     private GlobalEqualizerEngine engine;
@@ -117,10 +222,11 @@ public final class MainActivity extends Activity {
     private KnobView cutoffKnob;
     private KnobView amountKnob;
     private HorizontalBassSlider virtualBassSlider;
-    private KnobView reverbDecayKnob;
-    private KnobView reverbPredelayKnob;
-    private KnobView reverbSizeKnob;
-    private KnobView reverbMixKnob;
+    private VerticalReverbSlider reverbMainSlider;
+    private VerticalReverbSlider reverbDecaySlider;
+    private VerticalReverbSlider reverbPredelaySlider;
+    private VerticalReverbSlider reverbSizeSlider;
+    private VerticalReverbSlider reverbMixSlider;
     private TextView reverbTypeButton;
     private TextView bassModeButton;
     private EditText virtualBassCutoffInput;
@@ -141,7 +247,6 @@ public final class MainActivity extends Activity {
     private TextView settingsStatusLabelView;
     private TextView advancedModeDetailButton;
     private TextView advancedMonitorAppButton;
-    private TextView monitorCaptureButton;
     private TextView monitorCaptureStatusView;
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
@@ -151,17 +256,16 @@ public final class MainActivity extends Activity {
     private TextView aboutTitleView;
     private TextView aboutTextView;
     private TextView footerTextView;
-    private TextView monitorSettingsBackButton;
     private TextView monitorSettingsTitleView;
     private TextView monitorSettingsDetailView;
-    private TextView monitorCaptureLabelView;
     private TextView shizukuAccessLabelView;
     private TextView monitoredAppLabelView;
     private TextView latencyLabelView;
     private TextView bufferLabelView;
     private TextView pollIntervalLabelView;
     private TextView lookaheadLabelView;
-    private TextView wetMixLabelView;
+    private TextView limiterCeilingLabelView;
+    private TextView limiterReleaseLabelView;
     private LinearLayout settingsRootContent;
     private Button presetSelectButton;
     private Button undoButton;
@@ -183,13 +287,13 @@ public final class MainActivity extends Activity {
     // software text redraw cost while keeping the motion visually smooth.
     private static final int SHIMMER_FPS_DELAY = 66;
     private long lastShimmerTime = 0L;
-    // 璁板綍姣忎釜 view 涓婃鏋勫缓 shader 鏃舵墍鐢ㄧ殑瀹藉害锛涗粎鍦ㄥ昂瀵稿彉鍖栨椂閲嶅缓锛岄伩鍏嶆瘡甯?GC 涓庨噸鍒嗛厤
+    // 记录每个 view 上次构建 shader 时所用的宽度；仅在尺寸变化时重建，避免每帧 GC 与重分配
     private final java.util.Map<TextView, Integer> textStyleVersion = new java.util.HashMap<>();
     private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleVisualStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
-    // 娴佸厜閫熷害锛氭瘡绉掑钩绉?0.05 涓鍥惧搴︼紙绾?20 绉掍竴涓懆鏈燂級銆?
-    // 鏋佽嚧缂撴參婊氬姩锛岃惀閫犻潤璋ч珮闆呯殑娴佸厜姘涘洿銆?
+    // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
+    // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
     private static final float TAB_SHIMMER_SPEED_MULTIPLIER = 4.2f;
     private final Runnable shimmerAnimationRunnable = new Runnable() {
@@ -216,11 +320,11 @@ public final class MainActivity extends Activity {
                     }
                 }
 
-                // 鍏抽敭淇锛氭瘡甯ф妸 phase 鍋忕Щ鐩存帴 baked 杩?LinearGradient 鐨勫潗鏍囧弬鏁帮紝
-                // 鑰岄潪鐢?setLocalMatrix銆傜‖浠跺姞閫熶笅 TextView 鏂囧瓧璧?glyph atlas 娓叉煋锛?
-                // shader.setLocalMatrix() 鐨勫彉鍖栦笉琚枃瀛楁覆鏌撶绾胯瘑鍒负 paint 鍙樺寲锛?
-                // 瀵艰嚧 matrix 鏇存柊浜嗕絾 glyph 涓嶉噸缁橈紙瑙嗚涓嶅姩锛夈€?
-                // 姣忓抚鏂板缓 shader锛堝潗鏍囧惈鍋忕Щ锛夊己鍒剁‖浠跺眰鍒锋柊锛宨nvalidate 瑙﹀彂閲嶇粯銆?
+                // 关键修复：每帧把 phase 偏移直接 baked 进 LinearGradient 的坐标参数，
+                // 而非用 setLocalMatrix。硬件加速下 TextView 文字走 glyph atlas 渲染，
+                // shader.setLocalMatrix() 的变化不被文字渲染管线识别为 paint 变化，
+                // 导致 matrix 更新了但 glyph 不重绘（视觉不动）。
+                // 每帧新建 shader（坐标含偏移）强制硬件层刷新，invalidate 触发重绘。
                 applyShimmerFrame(view, width, currentShimmerPhaseForView(view));
             }
             if (!shimmerTargetViews.isEmpty()) {
@@ -231,9 +335,9 @@ public final class MainActivity extends Activity {
         }
     };
 
-    // 姣忓抚璋冪敤锛氭牴鎹?view 绫诲瀷 + 鐘舵€侀€夎壊闃讹紝鎶?phase 鍋忕Щ baked 杩涙笎鍙樺潗鏍囥€?
-    // 鎭㈠鍘熷鐘舵€佸垽瀹氾紙isEditingPresetActive / runningPreset.enabled锛夛紝
-    // 涓嶅悓鐘舵€佺敤涓嶅悓鑹查樁锛屼絾閮界敤 baked offset 鏂瑰紡锛堜笉鐢?setLocalMatrix锛夈€?
+    // 每帧调用：根据 view 类型 + 状态选色阶，把 phase 偏移 baked 进渐变坐标。
+    // 恢复原始状态判定（isEditingPresetActive / runningPreset.enabled），
+    // 不同状态用不同色阶，但都用 baked offset 方式（不用 setLocalMatrix）。
     private void applyShimmerFrame(TextView view, int width, float phase) {
         if (view == null || width <= 0) {
         }
@@ -322,42 +426,54 @@ public final class MainActivity extends Activity {
         return phase;
     }
 
-    // 鐠€鐠ㄤ寒鑹茶摑缁挎祦鍏夎壊闃讹細鏋佸ぇ绮剧畝娓愬彉鑹叉爣锛堢敱9涓缉鍑忎负5涓級锛屼娇鍗曡壊瀹藉害鏇村銆佽繃娓℃洿涓濇粦锛屽ぇ骞呰妭绾︽瘡涓€甯х殑娓愬彉鎻掑€艰绠楀紑閿€锛?
+    // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
 
-    // 浜壊闃讹細瓒呴珮浜偨鐧藉啺钃濇祦鍏夆€斺€斿帇鎺夌豢鑹层€佸姞澶ф祬浜摑涓庤秴鐧芥牳蹇冨崰姣旓紝鏁翠綋鍙戝厜浜害鐩存帴鎷夋弧锛?
+    // 亮色阶：超高亮炽白冰蓝流光——压掉绿色、加大浅亮蓝与超白核心占比，整体发光亮度直接拉满！
     private static final int[] SHIMMER_BRIGHT_COLORS = {
-            Color.rgb(150, 235, 255),  // 娴呬寒钃濈櫧 (B>G锛屽亸钃濈殑鍙戝厜鐧?
-            Color.rgb(50, 210, 255),   // 鏋佷寒鐢靛厜鍐拌摑 (B>>G锛岀函鍑€鍐拌摑锛岄浂缁胯壊)
-            Color.rgb(255, 255, 255),  // 绾櫧瓒呯偨浜牳蹇?(Super HotCore White)
-            Color.rgb(50, 210, 255),   // 鏋佷寒鐢靛厜鍐拌摑
-            Color.rgb(150, 235, 255)   // 娴呬寒钃濈櫧
+            Color.rgb(150, 235, 255),  // 浅亮蓝白 (B>G，偏蓝的发光白)
+            Color.rgb(50, 210, 255),   // 极亮电光冰蓝 (B>>G，纯净冰蓝，零绿色)
+            Color.rgb(255, 255, 255),  // 纯白超炽亮核心 (Super HotCore White)
+            Color.rgb(50, 210, 255),   // 极亮电光冰蓝
+            Color.rgb(150, 235, 255)   // 浅亮蓝白
     };
-    // Live 妯″紡 statusText锛氬悓浜壊闃讹紙鏋佷寒鍐拌摑涓庣偨鐧藉厜鏅曪紝鍔ㄦ劅鐠€鐠級
+    // Live 模式 statusText：同亮色阶（极亮冰蓝与炽白光晕，动感璀璨）
     private static final int[] SHIMMER_LIVE_COLORS = SHIMMER_BRIGHT_COLORS;
-    // Edit 妯″紡 statusText锛氶珮闆呴€氶€忋€佹瀬鍏舵槑浜殑娴呭啺钃濈櫧锛堝幓缁匡紝鍋忚摑涓庣櫧锛?
+    // Edit 模式 statusText：高雅通透、极其明亮的浅冰蓝白（去绿，偏蓝与白）
     private static final int[] SHIMMER_EDIT_COLORS = {
-            Color.rgb(180, 230, 255),  // 鏋佷寒娣¤摑鐧?
-            Color.rgb(110, 210, 255),  // 鏋侀珮浜啺钃?
-            Color.rgb(255, 255, 255),  // 绾櫧鏍稿績
-            Color.rgb(110, 210, 255),  // 鏋侀珮浜啺钃?
-            Color.rgb(180, 230, 255)   // 鏋佷寒娣¤摑鐧?
+            Color.rgb(180, 230, 255),  // 极亮淡蓝白
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
+            Color.rgb(255, 255, 255),  // 纯白核心
+            Color.rgb(110, 210, 255),  // 极高亮冰蓝
+            Color.rgb(180, 230, 255)   // 极亮淡蓝白
     };
-    // modeSpinner enabled锛氫寒鑹查樁锛堜笌 Live 鍚岋級
+    // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
 
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
     private Preset pendingGeqHistorySnapshot;
+    private Preset pendingPeqBandHistorySnapshot;
     private Preset pendingPeqToggleHistorySnapshot;
+    private int pendingGeqPreviewIndex = -1;
+    private int pendingGeqPreviewGainMb;
+    private int pendingPeqPreviewIndex = -1;
+    private ParametricBand pendingPeqPreviewBand;
     private final Runnable commitGeqUpdateRunnable = this::commitPendingGeqUpdate;
+    private final Runnable previewGeqUpdateRunnable = this::flushPendingGeqPreview;
+    private final Runnable commitPeqBandUpdateRunnable = this::commitPendingPeqBandUpdate;
+    private final Runnable previewPeqBandUpdateRunnable = this::flushPendingPeqBandPreview;
     private final Runnable commitPeqToggleRunnable = this::commitPendingPeqToggle;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
+    private final Runnable commitExtraBassToggleRunnable = this::commitPendingExtraBassToggle;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
+    private final Runnable unlockEnabledToggleInteractionRunnable = this::unlockEnabledToggleInteraction;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
     private final Runnable disableNeonCurveRunnable = this::activateDisabledNeonCurve;
     private final Runnable enablePeqBandStepRunnable = this::activateNextPeqBandVisual;
+    private final Runnable delayedShizukuReadyRunnable = () -> ensureShizukuModeReady(true);
+    private final Runnable persistPresetStateRunnable = this::flushPendingPresetPersistence;
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
@@ -380,6 +496,7 @@ public final class MainActivity extends Activity {
     private int activeEqEditBandIndex = -1;
     private int activeEqEditField = EQ_EDIT_FIELD_FREQ;
     private boolean keyboardVisible;
+    private boolean suppressEqOverlayHideOnKeyboardDismiss;
     private ViewTreeObserver.OnGlobalLayoutListener keyboardLayoutListener;
     private boolean extraBassEnabledState;
     private int activeMainPageIndex;
@@ -389,7 +506,9 @@ public final class MainActivity extends Activity {
     private AdvancedModeConfig advancedModeConfig = AdvancedModeConfig.DEFAULT;
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
+    private Boolean pendingExtraBassEnabledState;
     private boolean pendingEnabledUiRefresh;
+    private boolean enabledToggleInteractionLocked;
     private boolean modeVisualEnabled = true;
     private boolean curveVisualEnabled = true;
     private boolean[] peqBandVisualEnabled = new boolean[0];
@@ -397,19 +516,45 @@ public final class MainActivity extends Activity {
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
+    private String activePlaybackPackageName = "";
+    private String lastDeviceSpinnerSignature = "";
+    private String lastDeviceSpinnerSelectedKey = "";
+    private String lastSavedPresetSpinnerSignature = "";
+    private String lastSavedPresetSpinnerSelectedName = "";
+    private EqMode lastRenderedHeaderMode;
+    private EqMode lastRenderedRowsMode;
+    private int lastRenderedRowsBandCount = -1;
+    private boolean pendingEditingPresetPersistence;
+    private boolean pendingRunningPresetPersistence;
+    private String pendingExportJson;
+    private String pendingExportSuccessMessage;
     private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
     private final ShizukuCompat.PermissionResultListener shizukuPermissionResultListener = this::handleShizukuPermissionResult;
+    private final Runnable activePlaybackPackageRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshActivePlaybackPackageFromRepository();
+            if (!isFinishing() && !isDestroyedCompat()) {
+                uiHandler.postDelayed(this, ACTIVE_APP_REFRESH_INTERVAL_MS);
+            }
+        }
+    };
     private final Runnable monitorStatusRefreshRunnable = new Runnable() {
         @Override
         public void run() {
             if (!monitorSettingsOpen) {
                 return;
             }
-            renderAll();
-            uiHandler.postDelayed(this, 900L);
+            refreshMonitorStatusViews();
+            uiHandler.postDelayed(this, ACTIVE_APP_REFRESH_INTERVAL_MS);
         }
     };
     private boolean awaitingInitialDeviceMonitorEvent;
+    private boolean suppressInitialDeviceReapply;
+    private boolean hasStartedDeviceMonitorOnce;
+    private boolean startupProcessingRecoveryPending = true;
+    private OnBackInvokedCallback systemBackCallback;
+    private boolean systemBackCallbackRegistered;
 
     private static final class PeqBandRowHolder {
         View enable;
@@ -417,6 +562,7 @@ public final class MainActivity extends Activity {
         EditText frequency;
         EditText gain;
         EditText q;
+        View delete;
     }
 
     private static final class InstalledAppEntry {
@@ -452,6 +598,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        registerSystemBackCallback();
         repository = new PresetRepository(this);
         engine = GlobalEqRuntime.engine();
         supported = true;
@@ -473,25 +620,27 @@ public final class MainActivity extends Activity {
             currentDevice = deviceMonitor.currentOutputDevice();
             repository.saveSelectedDevice(currentDevice);
         }
-        Preset loadedPreset = repository.loadPreset(currentDevice);
+        boolean masterEnabled = repository.loadMasterEnabled();
+        Preset loadedPreset = repository.loadPreset(currentDevice, processingMode);
         Preset limitedPreset = limitPresetForHeadroom(loadedPreset);
         boolean loadedWasLimited = !limitedPreset.toJson().equals(loadedPreset.toJson());
         loadedPreset = limitedPreset;
-        runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
+        runningPreset = loadedPreset.withEnabled(masterEnabled && supported);
         modeVisualEnabled = runningPreset.enabled;
         curveVisualEnabled = runningPreset.enabled;
-        Preset draftPreset = repository.loadDraftPreset();
-        editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        editingPreset = runningPreset;
+        syncEditingStateFromPreset();
 
         requestRuntimePermissions();
         setContentView(buildContent());
         installKeyboardVisibilityListener();
         renderAll();
         if (loadedWasLimited && runningPreset.enabled) {
-            applyRunningPreset();
+            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+                applyRunningPreset(false, false);
+            } else {
+                applyRunningPreset();
+            }
         }
     }
 
@@ -500,8 +649,15 @@ public final class MainActivity extends Activity {
         super.onStart();
         ShizukuCompat.addStateListener(shizukuStateListener);
         ShizukuCompat.addPermissionResultListener(shizukuPermissionResultListener);
+        refreshActivePlaybackPackageFromRepository();
+        uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
+        uiHandler.post(activePlaybackPackageRefreshRunnable);
+        boolean serviceActive = repository != null && syncRuntimeStateWithServiceProcess();
+        suppressInitialDeviceReapply = hasStartedDeviceMonitorOnce && serviceActive;
+        hasStartedDeviceMonitorOnce = true;
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(this::handleDetectedOutputDevice);
+        uiHandler.post(this::maybeEnsureProcessingActive);
     }
 
     @Override
@@ -510,10 +666,15 @@ public final class MainActivity extends Activity {
         commitPendingPeqToggle();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
         cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
+        flushPendingPresetPersistence();
+        activePlaybackPackageName = "";
         deviceMonitor.stop();
         ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
         ShizukuCompat.removeStateListener(shizukuStateListener);
@@ -528,16 +689,20 @@ public final class MainActivity extends Activity {
                     ShizukuCompat.describeState(this),
                     ShizukuCompat.hasPermission());
         }
-        renderAll();
+        refreshActivePlaybackPackageFromRepository();
+        refreshRuntimeStatusUi();
+        refreshDeviceSelectionUi();
+        updateEditStateLabels();
+        maybeEnsureProcessingActive();
     }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (!hasFocus) return;
-        // 绐楀彛鑾峰緱鐒︾偣鏃舵墍鏈?view 宸插畬鎴愬竷灞€锛実etWidth() 杩斿洖鐪熷疄鍊笺€?
-        // 姝ゆ椂寮哄埗閲嶅缓 modeSpinner 鍜?active tab 鐨?shader锛岀‘淇濇祦鍏夌敤姝ｇ‘瀹藉害杩愯銆?
-        // 瑙ｅ喅 onCreate 涓敞鍐屾椂 getWidth()==0 瀵艰嚧 shader width=1 鐨勯棶棰樸€?
+        // 窗口获得焦点时所有 view 已完成布局，getWidth() 返回真实值。
+        // 此时强制重建 modeSpinner 和 active tab 的 shader，确保流光用正确宽度运行。
+        // 解决 onCreate 中注册时 getWidth()==0 导致 shader width=1 的问题。
         if (modeSpinner != null && modeSpinner.getWidth() > 0) {
             styleSettingsTitleText(modeSpinner);
             registerShimmerView(modeSpinner);
@@ -559,11 +724,16 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        unregisterSystemBackCallback();
         shimmerTargetViews.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         uiHandler.removeCallbacks(commitPeqToggleRunnable);
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
+        uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
+        uiHandler.removeCallbacks(persistPresetStateRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
         super.onDestroy();
@@ -586,11 +756,15 @@ public final class MainActivity extends Activity {
             }
             int hiddenHeight = rootHeight - visibleFrame.bottom;
             boolean visibleNow = hiddenHeight > rootHeight * 0.15f;
-            if (keyboardVisible && !visibleNow && activeEqEditOverlay != null) {
+            boolean suppressedOverlayDismiss = suppressEqOverlayHideOnKeyboardDismiss;
+            if (keyboardVisible && !visibleNow && activeEqEditOverlay != null && !suppressedOverlayDismiss) {
                 hideEqEditOverlay();
             }
             if (keyboardVisible && !visibleNow) {
-                clearEditingFocusAfterKeyboardDismiss();
+                suppressEqOverlayHideOnKeyboardDismiss = false;
+                if (!suppressedOverlayDismiss) {
+                    clearEditingFocusAfterKeyboardDismiss();
+                }
             }
             keyboardVisible = visibleNow;
         };
@@ -611,24 +785,56 @@ public final class MainActivity extends Activity {
         if (requestCode == REQUEST_MONITOR_CAPTURE) {
             pendingMonitorCaptureAuthorization = false;
             if (resultCode != RESULT_OK || data == null) {
+                repository.saveMonitorCaptureAuthorized(false);
                 repository.saveMonitorCaptureStatus("Capture authorization was cancelled.", false);
-                renderAll();
+                refreshRuntimeStatusUi();
                 return;
             }
             repository.saveMonitorCaptureStatus("Starting native capture...", false);
-            renderAll();
-            Intent service = new Intent(this, GlobalEqForegroundService.class);
-            service.setAction(GlobalEqForegroundService.ACTION_BOOTSTRAP_CAPTURE);
+            refreshRuntimeStatusUi();
+            Intent service = buildRunningPresetServiceIntent(GlobalEqForegroundService.ACTION_BOOTSTRAP_CAPTURE);
             service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_RESULT_CODE, resultCode);
             service.putExtra(GlobalEqForegroundService.EXTRA_CAPTURE_DATA, new Intent(data));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(service);
-            } else {
-                startService(service);
-            }
+            startCompatibleForegroundService(service);
             return;
         }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        if (requestCode == REQUEST_EXPORT_PRESET_JSON || requestCode == REQUEST_EXPORT_DEVICE_CONFIG_JSON) {
+            if (pendingExportJson == null || pendingExportJson.trim().isEmpty()) {
+                Toast.makeText(this, tr("Nothing to export", "没有可导出的内容"), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                writeTextToUri(data.getData(), pendingExportJson);
+                Toast.makeText(
+                        this,
+                        pendingExportSuccessMessage == null ? tr("Export complete", "导出完成") : pendingExportSuccessMessage,
+                        Toast.LENGTH_SHORT
+                ).show();
+            } catch (IOException ex) {
+                Toast.makeText(this, tr("Export failed", "导出失败"), Toast.LENGTH_SHORT).show();
+            } finally {
+                pendingExportJson = null;
+                pendingExportSuccessMessage = null;
+            }
+            return;
+        }
+        if (requestCode == REQUEST_IMPORT_PRESET_JSON) {
+            try {
+                importPresetJsonFromUri(data.getData());
+            } catch (IOException ex) {
+                Toast.makeText(this, tr("Preset import failed", "预设导入失败"), Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        if (requestCode == REQUEST_IMPORT_DEVICE_CONFIG_JSON) {
+            try {
+                importDeviceConfigJsonFromUri(data.getData());
+            } catch (IOException ex) {
+                Toast.makeText(this, tr("Global config import failed", "全局配置导入失败"), Toast.LENGTH_SHORT).show();
+            }
             return;
         }
         if (requestCode != REQUEST_IMPORT_DEVICE_CURVE && requestCode != REQUEST_IMPORT_TARGET_CURVE) {
@@ -668,39 +874,42 @@ public final class MainActivity extends Activity {
             awaitingInitialDeviceMonitorEvent = false;
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
+            if (suppressInitialDeviceReapply) {
+                suppressInitialDeviceReapply = false;
+                adoptDevicePresetForCurrentMode(currentDevice, true);
+                renderAll();
+                return;
+            }
             if (!autoSwitchOutput) {
-                renderDeviceSpinner();
+                refreshDeviceSelectionUi();
                 return;
             }
             if (sameDevice) {
-                renderDeviceSpinner();
+                refreshDeviceSelectionUi();
                 return;
             }
+            adoptDevicePresetForCurrentMode(currentDevice, true);
+            renderAll();
+            return;
         }
         if (!autoSwitchOutput) {
-            renderDeviceSpinner();
+            refreshDeviceSelectionUi();
             return;
         }
 
         if (sameDevice) {
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
-            renderDeviceSpinner();
+            refreshDeviceSelectionUi();
             return;
         }
 
+        flushPendingPresetPersistence();
         currentDevice = device;
         repository.saveSelectedDevice(currentDevice);
-        Preset loadedPreset = repository.loadPreset(device);
-        loadedPreset = limitPresetForHeadroom(loadedPreset);
-        runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
-        Preset draftPreset = repository.loadDraftPreset();
-        editingPreset = draftPreset == null ? runningPreset : limitPresetForHeadroom(draftPreset);
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        adoptDevicePresetForCurrentMode(currentDevice, true);
         renderAll();
-        applyRunningPreset(true);
+        applyRunningPreset(shouldForceFullResetForCurrentMode());
     }
 
     private LinearLayout buildContent() {
@@ -865,31 +1074,35 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setPadding(iconPad, iconPad, iconPad, iconPad);
         monitoredAppIconView.setBackground(iconGlowDrawable(Color.argb(178, 120, 220, 255)));
         monitoredAppIconView.setClipToOutline(false);
-        // Reserve extra host space for the glow so the icon can stay 36dp without clipping the bloom.
+        // 注意：不能再设 LAYER_TYPE_SOFTWARE——软件图层会把绘制裁剪到 View 尺寸，
+        // 导致超出 36dp View 边界的光晕被切掉。新光晕用预模糊位图，无需软件渲染。
         monitoredAppIconView.setVisibility(View.GONE);
         FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
                 monitoredAppIconHostSizePx(),
                 monitoredAppIconHostSizePx());
         iconParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
-        top.addView(monitoredAppIconView, iconParams);
 
         enabledSwitch = new Switch(this);
         enabledSwitch.setText("");
         enabledSwitch.setShowText(false);
         enabledSwitch.setEnabled(supported);
+        enabledSwitch.setChecked(runningPreset != null && runningPreset.enabled);
         enabledSwitch.setOnCheckedChangeListener(this::onEnabledChanged);
         styleTopSwitch(enabledSwitch, false);
+        enabledSwitch.setTranslationY(dp(1));
         autoSwitchOutputSwitch = new Switch(this);
         autoSwitchOutputSwitch.setText("");
         autoSwitchOutputSwitch.setShowText(false);
         autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         autoSwitchOutputSwitch.setOnCheckedChangeListener(this::onAutoSwitchOutputChanged);
         styleTopSwitch(autoSwitchOutputSwitch, true);
+        autoSwitchOutputSwitch.setTranslationY(dp(1));
         statusText = gradientTitleView("");
         statusText.setTextSize(12);
         statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         statusText.setGravity(android.view.Gravity.CENTER);
         statusText.setPadding(dp(10), dp(4), dp(10), dp(4));
+        statusText.setTranslationY(dp(1));
         styleStatusText(false);
         int controlGap = 12;
         LinearLayout.LayoutParams autoSwitchParams = new LinearLayout.LayoutParams(
@@ -958,8 +1171,8 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 String name = String.valueOf(parent.getItemAtPosition(position));
-                if (!name.equals(runningPreset.name)) {
-                    loadPresetLive(name);
+                if (runningPreset != null && !samePresetSelection(name, presetName(runningPreset))) {
+                    loadMatchedPreset(name);
                 }
             }
 
@@ -1021,6 +1234,11 @@ public final class MainActivity extends Activity {
         curveView = new EqCurveView(this);
         curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
         curveView.setMaxDb(curveGraphMaxDb);
+        curveView.setOnClickListener(v -> {
+            if (activeEqEditOverlay != null) {
+                closeKeyboard(v);
+            }
+        });
         curveFrame.addView(curveView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -1102,11 +1320,11 @@ public final class MainActivity extends Activity {
         FrameLayout listCardHolder = new FrameLayout(this);
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
-        listCardHolder.setClipChildren(false);
-        listCardHolder.setClipToPadding(false);
-        listCard.setClipChildren(false);
-        listCard.setClipToPadding(false);
-        listCard.setPadding(dp(10), dp(10), dp(10), dp(10));
+        listCardHolder.setClipChildren(true);
+        listCardHolder.setClipToPadding(true);
+        listCard.setClipChildren(true);
+        listCard.setClipToPadding(true);
+        listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
         listCard.setBackground(createGlassCard(30));
 
         LinearLayout.LayoutParams listCardParams = new LinearLayout.LayoutParams(
@@ -1114,7 +1332,7 @@ public final class MainActivity extends Activity {
                 0,
                 2f
         );
-        listCardParams.topMargin = dp(12);
+        listCardParams.topMargin = dp(10);
         eqPage.addView(listCardHolder, listCardParams);
 
         FrameLayout.LayoutParams listCardInnerParams = new FrameLayout.LayoutParams(
@@ -1130,8 +1348,9 @@ public final class MainActivity extends Activity {
         listCard.addView(header);
 
         ScrollView scrollView = new ScrollView(this);
-        scrollView.setClipChildren(false);
-        scrollView.setClipToPadding(false);
+        scrollView.setClipChildren(true);
+        scrollView.setClipToPadding(true);
+        scrollView.setPadding(0, 0, 0, 0);
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         rows.setClipChildren(false);
@@ -1188,8 +1407,8 @@ public final class MainActivity extends Activity {
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(title);
         LinearLayout.LayoutParams engineTitleParams = blockParams(0);
-        // 鎶垫秷 gradientTitleView 鐨勫乏 padding(22dp)锛岃鏍囬鏂囧瓧宸︾紭瀵归綈涓嬫柟 detail 姝ｆ枃锛堥兘浠?panel 鍐呭鍖哄乏杈瑰紑濮嬶級銆?
-        // title view 宸︾Щ杩涘叆 panel padding 鍖虹殑 22dp 姝ｅソ鏄┖鐧?leftPadding锛宻hadow 鍗婂緞 5.5dp 浠嶈惤鍦?panel 16dp padding 鍐咃紝涓嶈鍓€?
+        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都从 panel 内容区左边开始）。
+        // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，shadow 半径 5.5dp 仍落在 panel 16dp padding 内，不裁剪。
         engineTitleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(title, 12);
         panel.addView(title, engineTitleParams);
@@ -1240,6 +1459,30 @@ public final class MainActivity extends Activity {
         languageButton.setOnClickListener(this::showLanguageChoiceMenu);
         panel.addView(labeledSettingsRow(settingsLanguageLabelText(), languageButton), blockParams(12));
 
+        TextView importPresetButton = createExtraChoiceButton();
+        importPresetButton.setText(tr("Import", "导入"));
+        styleMonitorActionButton(importPresetButton, 132);
+        importPresetButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_PRESET_JSON));
+        panel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(12));
+
+        TextView exportPresetButton = createExtraChoiceButton();
+        exportPresetButton.setText(tr("Export", "导出"));
+        styleMonitorActionButton(exportPresetButton, 132);
+        exportPresetButton.setOnClickListener(v -> showExportPresetChoiceDialog());
+        panel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
+
+        TextView importDeviceConfigButton = createExtraChoiceButton();
+        importDeviceConfigButton.setText(tr("Import", "导入"));
+        styleMonitorActionButton(importDeviceConfigButton, 132);
+        importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
+        panel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(12));
+
+        TextView exportDeviceConfigButton = createExtraChoiceButton();
+        exportDeviceConfigButton.setText(tr("Export", "导出"));
+        styleMonitorActionButton(exportDeviceConfigButton, 132);
+        exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
+        panel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
+
         LinearLayout aboutPanel = new LinearLayout(this);
         aboutPanel.setOrientation(LinearLayout.VERTICAL);
         aboutPanel.setClipChildren(false);
@@ -1260,7 +1503,7 @@ public final class MainActivity extends Activity {
         aboutTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         styleGradientTitle(aboutTitleView);
         LinearLayout.LayoutParams aboutTitleParams = blockParams(0);
-        // 鎶垫秷 gradientTitleView 鐨勫乏 padding(22dp)锛岃鏍囬鏂囧瓧宸︾紭瀵归綈涓嬫柟 aboutText 姝ｆ枃锛堥兘浠?panel 鍐呭鍖哄乏杈瑰紑濮嬶級銆?
+        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都从 panel 内容区左边开始）。
         aboutTitleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(aboutTitleView, 12);
         aboutPanel.addView(aboutTitleView, aboutTitleParams);
@@ -1334,12 +1577,6 @@ public final class MainActivity extends Activity {
         monitorSettingsDetailView.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(monitorSettingsDetailView, blockParams(2));
 
-        monitorCaptureButton = createExtraChoiceButton();
-        monitorCaptureButton.setText(monitorCaptureButtonText());
-        styleMonitorActionButton(monitorCaptureButton, 152);
-        monitorCaptureButton.setOnClickListener(v -> handleMonitorCaptureAction());
-        panel.addView(labeledSettingsRow(monitorCaptureLabelText(), monitorCaptureButton), blockParams(12));
-
         monitorCaptureStatusView = new TextView(this);
         monitorCaptureStatusView.setText(monitorCaptureStatusText());
         monitorCaptureStatusView.setTextSize(12);
@@ -1368,14 +1605,14 @@ public final class MainActivity extends Activity {
 
         panel.addView(createAdvancedNumberRow(latencyLabelText(), String.valueOf(advancedModeConfig.latencyMs), "20-400", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLatencyMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(bufferLabelText(), String.valueOf(advancedModeConfig.bufferSizeFrames), "128-4096", value ->
+        panel.addView(createAdvancedNumberRow(bufferLabelText(), String.valueOf(advancedModeConfig.bufferSizeFrames), "128-16384", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withBufferSizeFrames(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(pollIntervalLabelText(), String.valueOf(advancedModeConfig.monitorIntervalMs), "100-5000", value ->
-                updateAdvancedModeConfig(advancedModeConfig.withMonitorIntervalMs(value))), blockParams(6));
         panel.addView(createAdvancedNumberRow(lookaheadLabelText(), String.valueOf(advancedModeConfig.lookaheadMs), "0-120", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLookaheadMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(wetMixLabelText(), String.valueOf(advancedModeConfig.wetMixPercent), "0-100", value ->
-                updateAdvancedModeConfig(advancedModeConfig.withWetMixPercent(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow(limiterCeilingLabelText(), String.valueOf(advancedModeConfig.limiterCeilingPermille), "930-999", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withLimiterCeilingPermille(value))), blockParams(6));
+        panel.addView(createAdvancedNumberRow(limiterReleaseLabelText(), String.valueOf(advancedModeConfig.limiterReleaseMs), "20-400", value ->
+                updateAdvancedModeConfig(advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
     }
 
     private View labeledSettingsRow(String labelText, View trailingView) {
@@ -1388,8 +1625,6 @@ public final class MainActivity extends Activity {
         label.setTextColor(Color.rgb(200, 210, 230));
         if (languageLabelView == null && labelText.equals(settingsLanguageLabelText())) {
             languageLabelView = label;
-        } else if (monitorCaptureLabelView == null && labelText.equals(monitorCaptureLabelText())) {
-            monitorCaptureLabelView = label;
         } else if (shizukuAccessLabelView == null && labelText.equals(shizukuAccessLabelText())) {
             shizukuAccessLabelView = label;
         } else if (monitoredAppLabelView == null && labelText.equals(monitoredAppLabelText())) {
@@ -1417,8 +1652,10 @@ public final class MainActivity extends Activity {
             pollIntervalLabelView = label;
         } else if (lookaheadLabelView == null && labelText.equals(lookaheadLabelText())) {
             lookaheadLabelView = label;
-        } else if (wetMixLabelView == null && labelText.equals(wetMixLabelText())) {
-            wetMixLabelView = label;
+        } else if (limiterCeilingLabelView == null && labelText.equals(limiterCeilingLabelText())) {
+            limiterCeilingLabelView = label;
+        } else if (limiterReleaseLabelView == null && labelText.equals(limiterReleaseLabelText())) {
+            limiterReleaseLabelView = label;
         }
         row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -1462,7 +1699,7 @@ public final class MainActivity extends Activity {
     }
 
     private String chooseAppText() {
-        return tr("Choose app", "閫夋嫨搴旂敤");
+        return tr("Choose app", "选择应用");
     }
 
     private String settingsModeDetailText() {
@@ -1472,25 +1709,25 @@ public final class MainActivity extends Activity {
         /*
         return tr(
                 "Use the System Processing control below to switch backend mode.",
-                "鐐瑰嚮涓婃柟鏍囬鍗冲彲鍒囨崲鍚庣妯″紡銆?);
+                "点击上方标题即可切换后端模式。");
         */
     }
 
     private String settingsStatusLabelText() {
-        return tr("System Processing:", "绯荤粺澶勭悊锛?);
+        return tr("System Processing:", "系统处理：");
     }
 
     private String settingsLanguageLabelText() {
-        return tr("Language", "璇█");
+        return tr("Language", "语言");
     }
 
     private String languageButtonText() {
-        return isChineseUi() ? "涓枃" : "English";
+        return isChineseUi() ? "中文" : "English";
     }
 
     private String virtualBassModeDisplayLabel(String value) {
         if (isChineseUi() && "system".equalsIgnoreCase(value)) {
-            return "绯荤粺鏂规";
+            return "系统方案";
         }
         return value;
     }
@@ -1504,13 +1741,13 @@ public final class MainActivity extends Activity {
     }
 
     private String aboutTitleText() {
-        return tr("About Global PEQ", "鍏充簬 Global PEQ");
+        return tr("About Global PEQ", "关于 Global PEQ");
     }
 
     private String aboutBodyText() {
         return tr(
                 "Global PEQ is a low-latency, audiophile-grade Parametric Equalizer running natively on Android's high-performance audio routing engine. Enjoy tailored, professional equalization for all your playback devices.",
-                "Global PEQ 鏄竴娆惧師鐢熻繍琛屽湪 Android 楂樻€ц兘闊抽璺敱寮曟搸涓婄殑浣庡欢杩熷彂鐑х骇 Parametric Equalizer锛屽彲涓轰綘鐨勬墍鏈夋挱鏀捐澶囨彁渚涙洿缁嗚嚧銆佹洿涓撲笟鐨勫潎琛¤皟闊炽€?);
+                "Global PEQ 是一款原生运行在 Android 高性能音频路由引擎上的低延迟发烧级 Parametric Equalizer，可为你的所有播放设备提供更细致、更专业的均衡调音。");
     }
 
     private String footerText() {
@@ -1518,41 +1755,45 @@ public final class MainActivity extends Activity {
     }
 
     private String monitorSettingsTitleText() {
-        return tr("Shizuku Mode Settings", "Shizuku Mode 璁剧疆");
+        return tr("Shizuku Mode Settings", "Shizuku Mode 设置");
     }
 
     private String monitorSettingsDetailText() {
         return tr(
                 "Authorize Shizuku, then Android playback capture. Shizuku Mode captures system audio globally and tries to mute the original playback sessions automatically.",
-                "閫夋嫨鐩爣搴旂敤锛屽畬鎴?Android 鍥炴斁鎹曡幏鎺堟潈锛屽苟涓虹浜屽鍚庣璋冩暣鍋忓悜浣庡欢杩熺殑鍙傛暟銆傝嫢鎹曡幏宸插湪杩愯锛岃灏嗘簮搴旂敤闈欓煶浠ラ伩鍏嶅０闊冲彔鍔犮€?);
-    }
-
-    private String monitorCaptureLabelText() {
-        return tr("Capture auth", "鎹曡幏鎺堟潈");
+                "选择目标应用，完成 Android 回放捕获授权，并为第二套后端调整偏向低延迟的参数。若捕获已在运行，请将源应用静音以避免声音叠加。");
     }
 
     private String monitoredAppLabelText() {
-        return tr("Monitored app", "鐩戝惉搴旂敤");
+        return tr("Monitored app", "监听应用");
     }
 
     private String latencyLabelText() {
-        return tr("Latency (ms)", "寤惰繜 (ms)");
+        return tr("Latency (ms)", "延迟 (ms)");
     }
 
     private String bufferLabelText() {
-        return tr("Buffer (frames)", "缂撳啿鍖?(frames)");
+        return tr("Buffer (frames)", "缓冲区 (frames)");
     }
 
     private String pollIntervalLabelText() {
-        return tr("Poll interval (ms)", "杞闂撮殧 (ms)");
+        return tr("Poll interval (ms)", "轮询间隔 (ms)");
     }
 
     private String lookaheadLabelText() {
         return tr("Lookahead (ms)", "Lookahead (ms)");
     }
 
-    private String wetMixLabelText() {
-        return tr("DSP wet mix (%)", "DSP 婀垮０娣峰悎 (%)");
+    private String limiterCeilingLabelText() {
+        return tr("Limiter ceiling (\u2030)", "Limiter ceiling (\u2030)");
+    }
+
+    private String limiterReleaseLabelText() {
+        return tr("Limiter release (ms)", "Limiter release (ms)");
+    }
+
+    private String unusedAdvancedLabelText() {
+        return tr("DSP wet mix (%)", "DSP 湿声混合 (%)");
     }
 
     private String processingModeDisplayLabel(ProcessingMode mode) {
@@ -1561,7 +1802,7 @@ public final class MainActivity extends Activity {
 
     private String engineStatusText() {
         if (!supported) {
-            return isChineseUi() ? "涓嶆敮鎸? : "UNSUPPORTED";
+            return isChineseUi() ? "不支持" : "UNSUPPORTED";
         }
         return processingModeDisplayLabel(processingMode);
     }
@@ -1569,7 +1810,7 @@ public final class MainActivity extends Activity {
     private String processingModeTitleText() {
         return isChineseUi() ? "\u5f15\u64ce\u72b6\u6001" : "Engine Status";
         /*
-        return tr("Engine Status 路 ", "寮曟搸鐘舵€?路 ") + processingModeDisplayLabel(processingMode);
+        return tr("Engine Status · ", "引擎状态 · ") + processingModeDisplayLabel(processingMode);
         */
     }
 
@@ -1578,31 +1819,31 @@ public final class MainActivity extends Activity {
         if (!isChineseUi()) {
             return safe;
         }
-        if ("Native capture is idle.".equals(safe)) return "鍘熺敓鎹曡幏绌洪棽涓€?;
-        if ("Capture authorization was cancelled.".equals(safe)) return "鎹曡幏鎺堟潈宸插彇娑堛€?;
-        if ("Starting native capture...".equals(safe)) return "姝ｅ湪鍚姩鍘熺敓鎹曡幏...";
-        if ("Record-audio permission was denied.".equals(safe)) return "褰曢煶鏉冮檺宸茶鎷掔粷銆?;
-        if ("Grant record-audio permission to continue.".equals(safe)) return "璇峰厛鎺堜簣褰曢煶鏉冮檺鍐嶇户缁€?;
-        if ("Waiting for capture authorization...".equals(safe)) return "姝ｅ湪绛夊緟鎹曡幏鎺堟潈...";
-        if ("Native capture requires Android 10 or later.".equals(safe)) return "鍘熺敓鎹曡幏闇€瑕?Android 10 鎴栨洿楂樼増鏈€?;
-        if ("Capture authorization could not be initialized.".equals(safe)) return "鏃犳硶鍒濆鍖栨崟鑾锋巿鏉冦€?;
-        if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "鎹曡幏鏉冮檺宸插け鏁堬紝璇烽噸鏂版巿鏉冨悗鎭㈠銆?;
-        if ("Default mode active. Native capture disabled.".equals(safe)) return "褰撳墠涓?Default 妯″紡锛屽師鐢熸崟鑾峰凡绂佺敤銆?;
-        if ("Choose an app to monitor.".equals(safe)) return "璇烽€夋嫨瑕佺洃鍚殑搴旂敤銆?;
-        if ("Native capture is not authorized.".equals(safe)) return "鍘熺敓鎹曡幏灏氭湭鎺堟潈銆?;
-        if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "鍘熺敓鎹曡幏宸插仠姝紝濡備細璇濅腑鏂閲嶆柊鎺堟潈銆?;
-        if (safe.startsWith("Capture authorized. Choose an app to monitor.")) return "鎹曡幏宸叉巿鏉冿紝璇烽€夋嫨瑕佺洃鍚殑搴旂敤銆?;
+        if ("Native capture is idle.".equals(safe)) return "原生捕获空闲中。";
+        if ("Capture authorization was cancelled.".equals(safe)) return "捕获授权已取消。";
+        if ("Starting native capture...".equals(safe)) return "正在启动原生捕获...";
+        if ("Record-audio permission was denied.".equals(safe)) return "录音权限已被拒绝。";
+        if ("Grant record-audio permission to continue.".equals(safe)) return "请先授予录音权限再继续。";
+        if ("Waiting for capture authorization...".equals(safe)) return "正在等待捕获授权...";
+        if ("Native capture requires Android 10 or later.".equals(safe)) return "原生捕获需要 Android 10 或更高版本。";
+        if ("Capture authorization could not be initialized.".equals(safe)) return "无法初始化捕获授权。";
+        if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "捕获权限已失效，请重新授权后恢复。";
+        if ("Default mode active. Native capture disabled.".equals(safe)) return "当前为 Default 模式，原生捕获已禁用。";
+        if ("Choose an app to monitor.".equals(safe)) return "请选择要监听的应用。";
+        if ("Native capture is not authorized.".equals(safe)) return "原生捕获尚未授权。";
+        if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "原生捕获已停止，如会话中断请重新授权。";
+        if (safe.startsWith("Capture authorized. Choose an app to monitor.")) return "捕获已授权，请选择要监听的应用。";
         if (safe.startsWith("Capture authorized for ") && safe.endsWith(".")) {
-            return "宸蹭负 " + safe.substring("Capture authorized for ".length(), safe.length() - 1) + " 瀹屾垚鎹曡幏鎺堟潈銆?;
+            return "已为 " + safe.substring("Capture authorized for ".length(), safe.length() - 1) + " 完成捕获授权。";
         }
         if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture.")) {
-            return "姝ｅ湪閫氳繃鍘熺敓鎹曡幏鐩戝惉 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture.".length()) + "銆?;
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture.".length()) + "。";
         }
         if (safe.startsWith("Monitoring ") && safe.endsWith(" via native capture. Mute the source app.")) {
-            return "姝ｅ湪閫氳繃鍘熺敓鎹曡幏鐩戝惉 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture. Mute the source app.".length()) + "銆傝灏嗘簮搴旂敤闈欓煶銆?;
+            return "正在通过原生捕获监听 " + safe.substring("Monitoring ".length(), safe.length() - " via native capture. Mute the source app.".length()) + "。请将源应用静音。";
         }
         if (safe.startsWith("Armed for ") && safe.endsWith(" - waiting for playback.")) {
-            return "宸蹭负 " + safe.substring("Armed for ".length(), safe.length() - " - waiting for playback.".length()) + " 灏辩华锛岀瓑寰呮挱鏀句腑銆?;
+            return "已为 " + safe.substring("Armed for ".length(), safe.length() - " - waiting for playback.".length()) + " 就绪，等待播放中。";
         }
         return safe;
     }
@@ -1611,34 +1852,23 @@ public final class MainActivity extends Activity {
         if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
             return tr(
                     "Native capture is only used by Shizuku Mode.",
-                    "鍘熺敓鎹曡幏浠呭湪绗簩濂楀悗绔ā寮忎笅浣跨敤銆?);
+                    "原生捕获仅在第二套后端模式下使用。");
         }
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
-    }
-
-    private String monitorCaptureButtonText() {
-        String status = repository.loadMonitorCaptureStatus();
-        boolean armed = repository.loadMonitorCaptureActive()
-                || status.startsWith("Capture authorized")
-                || status.startsWith("Armed for")
-                || status.startsWith("Monitoring");
-        return armed
-                ? tr("Reconnect capture", "閲嶆柊杩炴帴鎹曡幏")
-                : tr("Authorize capture", "鎺堟潈鎹曡幏");
     }
 
     private String advancedModeSummaryText() {
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             return tr(
                     "Default mode keeps the existing system EQ, virtual bass, and extra bass paths unchanged.",
-                    "Default 妯″紡浼氫繚鎸佺幇鏈夌殑绯荤粺 EQ銆乿irtual bass 鍜?extra bass 璺緞涓嶅彉銆?);
+                    "Default 模式会保持现有的系统 EQ、virtual bass 和 extra bass 路径不变。");
         }
         String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
-                ? tr("No app selected", "鏈€夋嫨搴旂敤")
+                ? tr("No app selected", "未选择应用")
                 : advancedModeConfig.monitoredAppLabel;
         return String.format(Locale.US,
                 tr("App: %s  |  %d ms  |  %d frames  |  poll %d ms",
-                        "搴旂敤锛?s  |  %d ms  |  %d frames  |  杞 %d ms"),
+                        "应用：%s  |  %d ms  |  %d frames  |  轮询 %d ms"),
                 appLabel,
                 advancedModeConfig.latencyMs,
                 advancedModeConfig.bufferSizeFrames,
@@ -1646,7 +1876,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showLanguageChoiceMenu(View anchor) {
-        showLimitedChoiceMenu(anchor, new String[]{"English", "涓枃"}, isChineseUi() ? 1 : 0, position ->
+        showLimitedChoiceMenu(anchor, new String[]{"English", "中文"}, isChineseUi() ? 1 : 0, position ->
                 setUiLanguage(position == 1 ? UI_LANGUAGE_ZH : UI_LANGUAGE_EN));
     }
 
@@ -1708,12 +1938,6 @@ public final class MainActivity extends Activity {
         if (monitorSettingsDetailView != null) {
             monitorSettingsDetailView.setText(monitorSettingsDetailText());
         }
-        if (monitorCaptureLabelView != null) {
-            monitorCaptureLabelView.setText(monitorCaptureLabelText());
-        }
-        if (monitorCaptureButton != null) {
-            monitorCaptureButton.setText(monitorCaptureButtonText());
-        }
         if (monitorCaptureStatusView != null) {
             monitorCaptureStatusView.setText(monitorCaptureStatusText());
         }
@@ -1744,26 +1968,37 @@ public final class MainActivity extends Activity {
         if (lookaheadLabelView != null) {
             lookaheadLabelView.setText(lookaheadLabelText());
         }
-        if (wetMixLabelView != null) {
-            wetMixLabelView.setText(wetMixLabelText());
+        if (limiterCeilingLabelView != null) {
+            limiterCeilingLabelView.setText(limiterCeilingLabelText());
+        }
+        if (limiterReleaseLabelView != null) {
+            limiterReleaseLabelView.setText(limiterReleaseLabelText());
         }
     }
 
     private void setProcessingMode(ProcessingMode nextMode) {
+        ProcessingMode previousMode = processingMode;
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
+        flushPendingPresetPersistence();
+        if (currentDevice == null) {
+            currentDevice = deviceMonitor.currentOutputDevice();
+            repository.saveSelectedDevice(currentDevice);
+        }
+        adoptDevicePresetForCurrentMode(currentDevice, true);
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
+            if (previousMode == ProcessingMode.SHIZUKU_MUTE) {
+                stopShizukuCaptureNow();
+            }
             if (monitorSettingsOpen) {
                 hideAdvancedSettingsSubpage();
             }
-            if (editingPreset != null && !"Default".equals(editingPreset.reverbType)) {
-                setEditingPreset(editingPreset.withReverbType("Default"), true);
-            } else {
-                applyRunningPreset();
-            }
+            applyRunningPreset(true);
         } else {
-            applyRunningPreset();
-            ensureShizukuModeReady(true);
+            applyRunningPreset(false, false);
+            if (runningPreset != null && runningPreset.enabled) {
+                ensureShizukuModeReady(true);
+            }
         }
         renderAll();
     }
@@ -1797,6 +2032,46 @@ public final class MainActivity extends Activity {
         updateBottomNavSelection(activeMainPageIndex);
     }
 
+    private boolean handleBackNavigation() {
+        if (monitorSettingsOpen) {
+            hideAdvancedSettingsSubpage();
+            return true;
+        }
+        if (activeMainPageIndex != 0) {
+            showEqPage();
+            return true;
+        }
+        moveTaskToBack(false);
+        return true;
+    }
+
+    private void registerSystemBackCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || systemBackCallbackRegistered) {
+            return;
+        }
+        if (systemBackCallback == null) {
+            systemBackCallback = () -> {
+                if (!handleBackNavigation()) {
+                    MainActivity.super.onBackPressed();
+                }
+            };
+        }
+        getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                systemBackCallback);
+        systemBackCallbackRegistered = true;
+    }
+
+    private void unregisterSystemBackCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || !systemBackCallbackRegistered
+                || systemBackCallback == null) {
+            return;
+        }
+        getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(systemBackCallback);
+        systemBackCallbackRegistered = false;
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -1808,7 +2083,7 @@ public final class MainActivity extends Activity {
             pendingMonitorCaptureAuthorization = false;
             repository.saveMonitorCaptureStatus("Record-audio permission was denied.", false);
             renderAll();
-            Toast.makeText(this, tr("Record audio permission is required for native capture", "鍘熺敓鎹曡幏闇€瑕佸綍闊虫潈闄?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Record audio permission is required for native capture", "原生捕获需要录音权限"), Toast.LENGTH_SHORT).show();
             return;
         }
         if (pendingMonitorCaptureAuthorization) {
@@ -1818,8 +2093,7 @@ public final class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (monitorSettingsOpen) {
-            hideAdvancedSettingsSubpage();
+        if (handleBackNavigation()) {
             return;
         }
         super.onBackPressed();
@@ -1842,51 +2116,16 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void handleMonitorCaptureAction() {
-        if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
-            Toast.makeText(this, tr("Switch to Shizuku Mode first", "璇峰厛鍒囨崲鍒?Shizuku Mode 妯″紡"), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Toast.makeText(this, "Native capture requires Android 10 or later", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                pendingMonitorCaptureAuthorization = true;
-                repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
-                renderAll();
-                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
-                return;
-            }
-            launchMonitorCaptureAuthorization();
-            return;
-        }
-        if (advancedModeConfig.monitoredAppPackage == null || advancedModeConfig.monitoredAppPackage.isEmpty()) {
-            Toast.makeText(this, tr("Choose a monitored app first", "璇峰厛閫夋嫨瑕佺洃鍚殑搴旂敤"), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            pendingMonitorCaptureAuthorization = true;
-            repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
-            renderAll();
-            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
-            return;
-        }
-        launchMonitorCaptureAuthorization();
-    }
-
     private void launchMonitorCaptureAuthorization() {
-        pendingMonitorCaptureAuthorization = false;
+        pendingMonitorCaptureAuthorization = true;
         repository.saveMonitorCaptureStatus("Waiting for capture authorization...", false);
         renderAll();
-        Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 鐜板湪浼氳姹傚洖鏀炬崟鑾锋巿鏉?), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Android will now ask for playback-capture authorization", "Android 现在会请求回放捕获授权"), Toast.LENGTH_SHORT).show();
         android.media.projection.MediaProjectionManager manager =
                 (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (manager == null) {
-            Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 鏈嶅姟涓嶅彲鐢?), Toast.LENGTH_SHORT).show();
+            pendingMonitorCaptureAuthorization = false;
+            Toast.makeText(this, tr("MediaProjection service unavailable", "MediaProjection 服务不可用"), Toast.LENGTH_SHORT).show();
             return;
         }
         startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MONITOR_CAPTURE);
@@ -1896,18 +2135,22 @@ public final class MainActivity extends Activity {
         if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
             return;
         }
+        if (pendingMonitorCaptureAuthorization) {
+            renderAll();
+            return;
+        }
         boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
         if (granted) {
             ShizukuCompat.grantPermissionsAndAppOps(this);
         }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (!granted) {
-            renderAll();
+            refreshRuntimeStatusUi();
             return;
         }
-        applyRunningPreset();
         if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
-            renderAll();
+            applyRunningPreset();
+            refreshRuntimeStatusUi();
             return;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -1918,7 +2161,7 @@ public final class MainActivity extends Activity {
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             pendingMonitorCaptureAuthorization = true;
             repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
-            renderAll();
+            refreshRuntimeStatusUi();
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
             return;
         }
@@ -1929,13 +2172,7 @@ public final class MainActivity extends Activity {
         if (repository == null) {
             return true;
         }
-        String status = repository.loadMonitorCaptureStatus();
-        if (status == null) {
-            return true;
-        }
-        return !status.startsWith("Capture authorized")
-                && !status.startsWith("Monitoring ")
-                && !status.startsWith("Armed for ");
+        return !repository.loadMonitorCaptureAuthorized();
     }
 
     private void showMonitoredAppChoiceDialog() {
@@ -1947,7 +2184,7 @@ public final class MainActivity extends Activity {
 
             EditText searchInput = new EditText(this);
             searchInput.setSingleLine(true);
-            searchInput.setHint(tr("Search added apps", "鎼滅储宸叉坊鍔犲簲鐢?));
+            searchInput.setHint(tr("Search added apps", "搜索已添加应用"));
             searchInput.setTextSize(13);
             searchInput.setTextColor(Color.WHITE);
             searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
@@ -2033,12 +2270,12 @@ public final class MainActivity extends Activity {
                     );
                 }
             });
-            showIndexedLoadingState(list, indexBar, tr("Loading added apps...", "姝ｅ湪鍔犺浇宸叉坊鍔犲簲鐢?.."));
+            showIndexedLoadingState(list, indexBar, tr("Loading added apps...", "正在加载已添加应用..."));
 
             AlertDialog dialog = new AlertDialog.Builder(this)
-                    .setCustomTitle(dialogTitleView(tr("Choose monitored app", "閫夋嫨鐩戝惉搴旂敤")))
+                    .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
                     .setView(shell)
-                    .setNegativeButton(tr("Close", "鍏抽棴"), null)
+                    .setNegativeButton(tr("Close", "关闭"), null)
                     .create();
             dialogHolder[0] = dialog;
             dialog.show();
@@ -2062,12 +2299,12 @@ public final class MainActivity extends Activity {
                 });
             }, "global-peq-monitored-apps").start();
         /*
-        showLinearLoadingState(list, tr("Loading monitored apps...", "姝ｅ湪鍔犺浇鐩戝惉搴旂敤..."));
+        showLinearLoadingState(list, tr("Loading monitored apps...", "正在加载监听应用..."));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Choose monitored app", "閫夋嫨鐩戝惉搴旂敤")))
+                .setCustomTitle(dialogTitleView(tr("Choose monitored app", "选择监听应用")))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "鍏抽棴"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         */
     }
@@ -2113,13 +2350,24 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < suggested.size(); i++) {
             ResolveInfo info = suggested.get(i);
             boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(6));
+            Drawable icon = info.loadIcon(getPackageManager());
+            CharSequence label = info.loadLabel(getPackageManager());
+            String packageName = info.activityInfo.packageName;
+            String titleText = label == null ? packageName : label.toString();
+            list.addView(createMonitoredAppMenuRow(
+                    icon,
+                    titleText,
+                    packageName,
+                    active,
+                    dialogHolder,
+                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, titleText))
+            ), curveMenuRowParams(6));
         }
         if (suggested.isEmpty()) {
             TextView empty = new TextView(this);
             empty.setText(tr(
                     "No suggested media apps were detected. Use Add to pick any installed app.",
-                    "娌℃湁妫€娴嬪埌鎺ㄨ崘鐨勫獟浣撳簲鐢ㄣ€傚彲浠ラ€氳繃 Add 閫夋嫨浠绘剰宸插畨瑁呭簲鐢ㄣ€?));
+                    "没有检测到推荐的媒体应用。可以通过 Add 选择任意已安装应用。"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -2178,7 +2426,7 @@ public final class MainActivity extends Activity {
 
     private View createMonitoredAppAddButton(AlertDialog[] dialogHolder) {
         Button add = new Button(this);
-        add.setText(tr("+ Add", "+ 娣诲姞"));
+        add.setText(tr("+ Add", "+ 添加"));
         add.setTextSize(14);
         add.setAllCaps(false);
         styleAccentButton(add, true);
@@ -2204,7 +2452,7 @@ public final class MainActivity extends Activity {
 
         EditText searchInput = new EditText(this);
         searchInput.setSingleLine(true);
-        searchInput.setHint(tr("Search app or package", "鎼滅储搴旂敤鎴栧寘鍚?));
+        searchInput.setHint(tr("Search app or package", "搜索应用或包名"));
         searchInput.setTextSize(13);
         searchInput.setTextColor(Color.WHITE);
         searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
@@ -2290,12 +2538,12 @@ public final class MainActivity extends Activity {
                 );
             }
         });
-        showIndexedLoadingState(list, indexBar, tr("Loading installed apps...", "姝ｅ湪鍔犺浇宸插畨瑁呭簲鐢?.."));
+        showIndexedLoadingState(list, indexBar, tr("Loading installed apps...", "正在加载已安装应用..."));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Add installed app", "娣诲姞宸插畨瑁呭簲鐢?)))
+                .setCustomTitle(dialogTitleView(tr("Add installed app", "添加已安装应用")))
                 .setView(shell)
-                .setNegativeButton(tr("Close", "鍏抽棴"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -2308,7 +2556,7 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 if (loaded.isEmpty()) {
-                    Toast.makeText(this, tr("No installed apps available", "娌℃湁鍙敤鐨勫凡瀹夎搴旂敤"), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, tr("No installed apps available", "没有可用的已安装应用"), Toast.LENGTH_SHORT).show();
                     dialogHolder[0].dismiss();
                     return;
                 }
@@ -2465,8 +2713,8 @@ public final class MainActivity extends Activity {
         if (matchCount == 0) {
             TextView empty = new TextView(this);
             empty.setText(monitoredApps.isEmpty()
-                    ? tr("No monitored apps yet. Use Add to build your own list.", "杩樻病鏈夌洃鍚簲鐢紝鍏堢敤 Add 鎵嬪姩娣诲姞銆?)
-                    : tr("No added apps match your search.", "娌℃湁鍖归厤褰撳墠鎼滅储鐨勫凡娣诲姞搴旂敤銆?));
+                    ? tr("No monitored apps yet. Use Add to build your own list.", "还没有监听应用，先用 Add 手动添加。")
+                    : tr("No added apps match your search.", "没有匹配当前搜索的已添加应用。"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -2561,7 +2809,7 @@ public final class MainActivity extends Activity {
 
         if (matchCount == 0) {
             TextView empty = new TextView(this);
-            empty.setText(tr("No apps match your search.", "娌℃湁鍖归厤鎼滅储鐨勫簲鐢?));
+            empty.setText(tr("No apps match your search.", "没有匹配搜索的应用"));
             empty.setTextSize(12);
             empty.setTextColor(Color.rgb(170, 180, 198));
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
@@ -2647,13 +2895,13 @@ public final class MainActivity extends Activity {
     /*
         String normalizedLabel = label == null ? "" : label.trim().toLowerCase(Locale.US);
         String normalizedPackage = packageName == null ? "" : packageName.trim().toLowerCase(Locale.US);
-        if (normalizedLabel.contains("缃戞槗浜?) || normalizedPackage.contains("cloudmusic")) {
+        if (normalizedLabel.contains("网易云") || normalizedPackage.contains("cloudmusic")) {
             return "N";
         }
-        if (normalizedLabel.contains("qq闊充箰") || normalizedPackage.contains("qqmusic")) {
+        if (normalizedLabel.contains("qq音乐") || normalizedPackage.contains("qqmusic")) {
             return "Q";
         }
-        if (normalizedLabel.contains("姹芥按闊充箰")
+        if (normalizedLabel.contains("汽水音乐")
                 || normalizedPackage.contains("luna.music")
                 || normalizedPackage.contains("qishui")) {
             return "Q";
@@ -2756,10 +3004,6 @@ public final class MainActivity extends Activity {
         return safeLeft.compareTo(safeRight);
     }
 
-    private String alphabetKeyForLabel(String label) {
-        return alphabetKeyForApp(label, null);
-    }
-
     private TextView createInstalledAppSectionHeader(String section) {
         TextView header = new TextView(this);
         header.setText(section);
@@ -2830,40 +3074,15 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private boolean isUserInstalledApp(ApplicationInfo info) {
-        if (info == null) {
-            return false;
-        }
-        int flags = info.flags;
-        boolean systemApp = (flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-        boolean updatedSystemApp = (flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
-        return !systemApp || updatedSystemApp;
-    }
-
     private View createMonitoredAppClearRow(boolean active, AlertDialog[] dialogHolder) {
         Drawable icon = getResources().getDrawable(android.R.drawable.ic_menu_close_clear_cancel);
         return createMonitoredAppMenuRow(
                 icon,
-                tr("No monitored app", "涓嶇洃鍚簲鐢?),
-                tr("Disable app-targeted monitor routing", "鍏抽棴闈㈠悜鎸囧畾搴旂敤鐨勭洃鍚矾鐢?),
+                tr("No monitored app", "不监听应用"),
+                tr("Disable app-targeted monitor routing", "关闭面向指定应用的监听路由"),
                 active,
                 dialogHolder,
                 () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp("", ""))
-        );
-    }
-
-    private View createMonitoredAppMenuRow(ResolveInfo info, boolean active, AlertDialog[] dialogHolder) {
-        Drawable icon = info.loadIcon(getPackageManager());
-        String packageName = info.activityInfo.packageName;
-        CharSequence label = info.loadLabel(getPackageManager());
-        String titleText = label == null ? packageName : label.toString();
-        return createMonitoredAppMenuRow(
-                icon,
-                titleText,
-                packageName,
-                active,
-                dialogHolder,
-                () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, titleText))
         );
     }
 
@@ -2933,14 +3152,14 @@ public final class MainActivity extends Activity {
     }
 
     private void updateMonitoredAppIcon() {
-        if (monitoredAppIconView == null) {
+        if (monitoredAppIconView == null || topControlOverlay == null) {
             return;
         }
-        boolean visible = AudioProcessingPolicy.advancedModeEnabled(processingMode)
-                && advancedModeConfig.monitoredAppPackage != null
-                && !advancedModeConfig.monitoredAppPackage.isEmpty();
+        String iconPackage = currentHomepageIconPackage();
+        boolean visible = iconPackage != null && !iconPackage.isEmpty();
         Drawable icon = visible ? loadMonitoredAppDrawable() : null;
         if (!visible || icon == null) {
+            topControlOverlay.getOverlay().remove(monitoredAppIconView);
             monitoredAppIconView.setImageDrawable(null);
             monitoredAppIconView.setVisibility(View.GONE);
             return;
@@ -2948,6 +3167,16 @@ public final class MainActivity extends Activity {
         monitoredAppIconView.setImageDrawable(icon);
         monitoredAppIconView.setAlpha(1f);
         monitoredAppIconView.setVisibility(View.VISIBLE);
+        if (monitoredAppIconView.getParent() instanceof ViewGroup) {
+            ((ViewGroup) monitoredAppIconView.getParent()).removeView(monitoredAppIconView);
+        }
+        int iconSize = monitoredAppIconHostSizePx();
+        monitoredAppIconView.measure(
+                View.MeasureSpec.makeMeasureSpec(iconSize, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(iconSize, View.MeasureSpec.EXACTLY));
+        monitoredAppIconView.layout(0, 0, iconSize, iconSize);
+        topControlOverlay.getOverlay().remove(monitoredAppIconView);
+        topControlOverlay.getOverlay().add(monitoredAppIconView);
         applyIconGlowColor(icon);
         updateMonitoredAppIconPosition();
     }
@@ -2966,30 +3195,34 @@ public final class MainActivity extends Activity {
                     || modeSpinner == null
                     || autoSwitchOutputSwitch == null
                     || monitoredAppIconView.getVisibility() != View.VISIBLE
-                    || topControlOverlay.getWidth() <= 0) {
+                    || topControlOverlay.getWidth() <= 0
+                    || topControlOverlay.getHeight() <= 0) {
                 return;
             }
-            Rect titleRect = new Rect(0, 0, modeSpinner.getWidth(), modeSpinner.getHeight());
-            Rect switchRect = new Rect(0, 0, autoSwitchOutputSwitch.getWidth(), autoSwitchOutputSwitch.getHeight());
-            topControlOverlay.offsetDescendantRectToMyCoords(modeSpinner, titleRect);
-            topControlOverlay.offsetDescendantRectToMyCoords(autoSwitchOutputSwitch, switchRect);
+            Rect overlayRect = screenRectOf(topControlOverlay);
+            Rect titleRect = screenRectOf(modeSpinner);
+            Rect switchRect = screenRectOf(autoSwitchOutputSwitch);
+            if (overlayRect == null || titleRect == null || switchRect == null) {
+                return;
+            }
             int iconWidth = monitoredAppIconView.getWidth() > 0
                     ? monitoredAppIconView.getWidth()
                     : monitoredAppIconHostSizePx();
             int iconHeight = monitoredAppIconView.getHeight() > 0
                     ? monitoredAppIconView.getHeight()
                     : monitoredAppIconHostSizePx();
-            float titleTextRight = titleRect.left
+            float titleTextRight = (titleRect.left - overlayRect.left)
                     + modeSpinner.getTranslationX()
                     + modeSpinner.getCompoundPaddingLeft();
             Layout titleLayout = modeSpinner.getLayout();
             if (titleLayout != null && titleLayout.getLineCount() > 0) {
                 titleTextRight += titleLayout.getLineRight(0);
             } else {
-                titleTextRight = titleRect.right;
+                titleTextRight = titleRect.right - overlayRect.left;
             }
-            float centerX = (titleTextRight + switchRect.left) * 0.5f;
-            float x = centerX - iconWidth / 2f;
+            float switchLeft = switchRect.left - overlayRect.left;
+            float centerX = (titleTextRight + switchLeft) * 0.5f;
+            float x = centerX - iconWidth / 2f + dp(8);
             x = Math.max(0f, Math.min(x, topControlOverlay.getWidth() - iconWidth));
             float y = Math.max(0f, (topControlOverlay.getHeight() - iconHeight) * 0.5f);
             monitoredAppIconView.setX(x);
@@ -2997,14 +3230,65 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private Rect screenRectOf(View view) {
+        if (view == null || view.getWidth() <= 0 || view.getHeight() <= 0) {
+            return null;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !view.isAttachedToWindow()) {
+            return null;
+        }
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        return new Rect(
+                location[0],
+                location[1],
+                location[0] + view.getWidth(),
+                location[1] + view.getHeight()
+        );
+    }
+
     private Drawable loadMonitoredAppDrawable() {
-        if (advancedModeConfig.monitoredAppPackage != null && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
+        String packageName = currentHomepageIconPackage();
+        if (packageName != null && !packageName.isEmpty()) {
             try {
-                return getPackageManager().getApplicationIcon(advancedModeConfig.monitoredAppPackage);
+                return getPackageManager().getApplicationIcon(packageName);
             } catch (PackageManager.NameNotFoundException ignored) {
             }
         }
         return null;
+    }
+
+    private String currentHomepageIconPackage() {
+        if (activePlaybackPackageName != null && !activePlaybackPackageName.isEmpty()) {
+            return activePlaybackPackageName;
+        }
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE
+                && advancedModeConfig.monitoredAppPackage != null
+                && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
+            return advancedModeConfig.monitoredAppPackage;
+        }
+        return "";
+    }
+
+    private void refreshActivePlaybackPackageFromRepository() {
+        if (repository == null) {
+            updateActivePlaybackPackage("");
+            return;
+        }
+        updateActivePlaybackPackage(repository.loadActivePlaybackPackage());
+    }
+
+    private void updateActivePlaybackPackage(String packageName) {
+        String normalized = packageName == null ? "" : packageName.trim();
+        if (normalized.equals(activePlaybackPackageName)) {
+            return;
+        }
+        activePlaybackPackageName = normalized;
+        uiHandler.post(this::updateMonitoredAppIcon);
+    }
+
+    private boolean isDestroyedCompat() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed();
     }
 
     private LinearLayout.LayoutParams presetButtonParams(int width, float weight, int leftDp, int rightDp) {
@@ -3019,62 +3303,48 @@ public final class MainActivity extends Activity {
     private void renderAll() {
         updatingUi = true;
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
-        updateMonitoredAppIcon();
-        if (statusText != null) {
-            statusText.setText(statusLabel(hasClip));
-            styleStatusText(hasClip);
-            statusText.postInvalidate();
-        }
-        if (engineStatusValueView != null) {
-            engineStatusValueView.setText(engineStatusText());
-            styleGradientTitle(engineStatusValueView);
-        }
-        renderDeviceSpinner();
+        refreshRuntimeStatusUi(hasClip);
+        refreshDeviceSelectionUi();
         if (modeSpinner != null) {
-            modeSpinner.setText(editingPreset.mode.label);
+            setTextIfChanged(modeSpinner, editingPreset.mode.label);
             styleModeText();
         }
         if (autoSwitchOutputSwitch != null) {
             autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
         }
         if (processingModeButton != null) {
-            processingModeButton.setText(engineStatusText());
+            setTextIfChanged(processingModeButton, engineStatusText());
             styleGradientTitle(processingModeButton);
         }
         if (advancedModeDetailButton != null) {
             advancedModeDetailButton.setVisibility(AudioProcessingPolicy.advancedModeEnabled(processingMode) ? View.VISIBLE : View.GONE);
         }
         if (advancedModeSummaryView != null) {
-            advancedModeSummaryView.setText(advancedModeSummaryText());
-        }
-        if (monitorCaptureButton != null) {
-            monitorCaptureButton.setText(monitorCaptureButtonText());
+            setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
         if (monitorCaptureStatusView != null) {
-            monitorCaptureStatusView.setText(monitorCaptureStatusText());
+            setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
         }
         if (shizukuAccessButton != null) {
-            shizukuAccessButton.setText(shizukuAccessButtonText());
+            setTextIfChanged(shizukuAccessButton, shizukuAccessButtonText());
             shizukuAccessButton.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessStatusView != null) {
-            shizukuAccessStatusView.setText(shizukuAccessStatusText());
+            setTextIfChanged(shizukuAccessStatusView, shizukuAccessStatusText());
             shizukuAccessStatusView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessLabelView != null) {
             shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
         }
         if (advancedMonitorAppButton != null) {
-            advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
+            setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
         if (presetSelectButton != null) {
-            presetSelectButton.setText(editingPreset.name);
+            setTextIfChanged(presetSelectButton, presetDisplayName(editingPreset));
         }
-        if (enabledSwitch != null) {
-            enabledSwitch.setChecked(runningPreset.enabled);
-        }
+        setEnabledSwitchChecked(runningPreset.enabled);
         styleModeText();
 
         if (presetSelectButton != null) {
@@ -3091,7 +3361,7 @@ public final class MainActivity extends Activity {
         }
 
         if (pregainInput != null) {
-            pregainInput.setText(formatDecimal(editingPreset.pregainMb / 100f));
+            setEditTextIfChanged(pregainInput, formatDecimal(editingPreset.pregainMb / 100f));
         }
         if (virtualBassSlider != null) {
             virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
@@ -3111,6 +3381,84 @@ public final class MainActivity extends Activity {
         renderRows();
         updateExtraControls();
         updatingUi = false;
+    }
+
+    private void refreshRuntimeStatusUi() {
+        boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
+        refreshRuntimeStatusUi(hasClip);
+    }
+
+    private void refreshRuntimeStatusUi(boolean hasClip) {
+        updateMonitoredAppIcon();
+        if (statusText != null) {
+            setTextIfChanged(statusText, statusLabel(hasClip));
+            styleStatusText(hasClip);
+            statusText.postInvalidate();
+        }
+        if (engineStatusValueView != null) {
+            setTextIfChanged(engineStatusValueView, engineStatusText());
+            styleGradientTitle(engineStatusValueView);
+        }
+        if (processingModeButton != null) {
+            setTextIfChanged(processingModeButton, engineStatusText());
+            styleGradientTitle(processingModeButton);
+        }
+        if (advancedModeDetailButton != null) {
+            advancedModeDetailButton.setVisibility(AudioProcessingPolicy.advancedModeEnabled(processingMode) ? View.VISIBLE : View.GONE);
+        }
+        if (advancedModeSummaryView != null) {
+            setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
+        }
+        if (monitorCaptureStatusView != null) {
+            setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
+        }
+        if (shizukuAccessButton != null) {
+            setTextIfChanged(shizukuAccessButton, shizukuAccessButtonText());
+            shizukuAccessButton.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuAccessStatusView != null) {
+            setTextIfChanged(shizukuAccessStatusView, shizukuAccessStatusText());
+            shizukuAccessStatusView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuAccessLabelView != null) {
+            shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+        }
+        if (advancedMonitorAppButton != null) {
+            setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
+                    ? chooseAppText()
+                    : advancedModeConfig.monitoredAppLabel);
+        }
+    }
+
+    private void refreshDeviceSelectionUi() {
+        renderDeviceSpinner();
+        if (autoSwitchOutputSwitch != null) {
+            autoSwitchOutputSwitch.setChecked(autoSwitchOutput);
+        }
+        renderSavedPresetSpinner();
+    }
+
+    private void refreshEditingPresetUi() {
+        updatingUi = true;
+        if (modeSpinner != null) {
+            setTextIfChanged(modeSpinner, editingPreset.mode.label);
+            styleModeText();
+        }
+        if (pregainInput != null) {
+            setEditTextIfChanged(pregainInput, formatDecimal(editingPreset.pregainMb / 100f));
+        }
+        refreshDeviceSelectionUi();
+        renderCurveButtons();
+        refreshCurveView();
+        renderHeader();
+        renderRows();
+        updateExtraControls();
+        updateEditStateLabels();
+        updatingUi = false;
+    }
+
+    private void refreshMonitorStatusViews() {
+        refreshRuntimeStatusUi();
     }
 
     private Preset curveDisplayPreset() {
@@ -3181,6 +3529,10 @@ public final class MainActivity extends Activity {
         if (header == null || editingPreset == null) {
             return;
         }
+        if (lastRenderedHeaderMode == editingPreset.mode && header.getChildCount() > 0) {
+            return;
+        }
+        lastRenderedHeaderMode = editingPreset.mode;
         header.removeAllViews();
         if (editingPreset.mode == EqMode.GEQ) {
             return;
@@ -3199,6 +3551,31 @@ public final class MainActivity extends Activity {
         }
 
         deviceChoices = repository.loadKnownDevices();
+        if (deviceMonitor != null) {
+            List<AudioOutputDevice> liveDevices = deviceMonitor.availableOutputDevices();
+            if (!liveDevices.isEmpty()) {
+                List<AudioOutputDevice> mergedChoices = new ArrayList<>(deviceChoices);
+                for (AudioOutputDevice liveDevice : liveDevices) {
+                    boolean exists = false;
+                    String liveLabelKey = liveDevice.label == null
+                            ? ""
+                            : liveDevice.label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
+                    for (AudioOutputDevice knownDevice : mergedChoices) {
+                        String knownLabelKey = knownDevice.label == null
+                                ? ""
+                                : knownDevice.label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
+                        if (knownDevice.key.equals(liveDevice.key) || knownLabelKey.equals(liveLabelKey)) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        mergedChoices.add(liveDevice);
+                    }
+                }
+                deviceChoices = mergedChoices;
+            }
+        }
         boolean hasCurrent = false;
         for (AudioOutputDevice device : deviceChoices) {
             if (device.key.equals(currentDevice.key)) {
@@ -3227,11 +3604,21 @@ public final class MainActivity extends Activity {
             }
         }
 
-        SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        adapter.setSelectedPosition(selected);
-        deviceSpinner.setAdapter(adapter);
-        deviceSpinner.setSelection(selected);
+        String signature = joinStrings(labels);
+        String selectedKey = currentDevice.key == null ? "" : currentDevice.key;
+        if (!signature.equals(lastDeviceSpinnerSignature)) {
+            SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            adapter.setSelectedPosition(selected);
+            deviceSpinner.setAdapter(adapter);
+            lastDeviceSpinnerSignature = signature;
+        } else if (deviceSpinner.getAdapter() instanceof SmallSpinnerAdapter) {
+            ((SmallSpinnerAdapter) deviceSpinner.getAdapter()).setSelectedPosition(selected);
+        }
+        if (!selectedKey.equals(lastDeviceSpinnerSelectedKey) || deviceSpinner.getSelectedItemPosition() != selected) {
+            deviceSpinner.setSelection(selected);
+            lastDeviceSpinnerSelectedKey = selectedKey;
+        }
     }
 
     private void showDeviceChoiceMenu() {
@@ -3262,15 +3649,16 @@ public final class MainActivity extends Activity {
             return;
         }
         List<String> names = repository.loadNamedPresetNames();
-        if (!names.contains(runningPreset.name)) {
+        String matchedName = presetDisplayName(runningPreset);
+        if (!names.contains(matchedName)) {
             names = new ArrayList<>(names);
-            names.add(0, runningPreset.name);
+            names.add(0, matchedName);
         }
         String[] labels = names.toArray(new String[0]);
-        int selected = Math.max(0, names.indexOf(runningPreset.name));
+        int selected = Math.max(0, names.indexOf(matchedName));
         showLimitedChoiceMenu(savedPresetSpinner, labels, selected, position -> {
-            if (position >= 0 && position < labels.length && !labels[position].equals(runningPreset.name)) {
-                loadPresetLive(labels[position]);
+            if (position >= 0 && position < labels.length && !samePresetSelection(labels[position], matchedName)) {
+                loadMatchedPreset(labels[position]);
             }
         });
     }
@@ -3453,24 +3841,49 @@ public final class MainActivity extends Activity {
     }
 
     private void renderRows() {
-        rows.removeAllViews();
+        if (rows == null || editingPreset == null) {
+            return;
+        }
         if (editingPreset.mode == EqMode.GEQ) {
-            rows.addView(createGeqSliderPanel());
+            lastRenderedRowsMode = EqMode.GEQ;
+            lastRenderedRowsBandCount = Preset.GEQ_BAND_COUNT;
+            boolean canReuseGeqPanel = rows.getChildCount() == 1 && hasReusableGeqPanel();
+            if (!canReuseGeqPanel) {
+                rows.removeAllViews();
+                rows.addView(createGeqSliderPanel());
+            } else {
+                updateGeqSliderPanelInPlace((HorizontalScrollView) rows.getChildAt(0));
+            }
+            return;
+        }
+        boolean canReuseRows = lastRenderedRowsMode == EqMode.PEQ
+                && lastRenderedRowsBandCount == editingPreset.bands.length
+                && rows.getChildCount() == editingPreset.bands.length + 1
+                && hasReusablePeqRows();
+        lastRenderedRowsMode = EqMode.PEQ;
+        lastRenderedRowsBandCount = editingPreset.bands.length;
+        if (!canReuseRows) {
+            rows.removeAllViews();
+            for (int i = 0; i < editingPreset.bands.length; i++) {
+                rows.addView(createBandRow(i));
+            }
+            rows.addView(createAddBandRow());
             return;
         }
         for (int i = 0; i < editingPreset.bands.length; i++) {
-            rows.addView(createBandRow(i));
+            updateBandRowInPlace((LinearLayout) rows.getChildAt(i), i);
         }
-        rows.addView(createAddBandRow());
     }
 
     private View createGeqSliderPanel() {
         HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setTag("geq_panel");
         scroll.setHorizontalScrollBarEnabled(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(false);
 
         LinearLayout strip = new LinearLayout(this);
+        strip.setTag("geq_strip");
         strip.setOrientation(LinearLayout.HORIZONTAL);
         strip.setGravity(android.view.Gravity.CENTER_VERTICAL);
         strip.setPadding(dp(10), dp(2), dp(32), dp(2));
@@ -3496,26 +3909,44 @@ public final class MainActivity extends Activity {
         return scroll;
     }
 
-    private LinearLayout createGeqRow(int index) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(dp(2), dp(4), dp(2), dp(4));
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        if (PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB)) {
-            GradientDrawable warningBg = new GradientDrawable();
-            warningBg.setShape(GradientDrawable.RECTANGLE);
-            warningBg.setColor(Color.argb(45, 255, 100, 100));
-            warningBg.setStroke(dp(1), Color.argb(100, 255, 100, 100));
-            warningBg.setCornerRadius(dp(8));
-            row.setBackground(warningBg);
+    private boolean hasReusableGeqPanel() {
+        View panel = rows.getChildAt(0);
+        if (!(panel instanceof HorizontalScrollView)) {
+            return false;
         }
+        HorizontalScrollView scroll = (HorizontalScrollView) panel;
+        if (scroll.getChildCount() != 1 || !(scroll.getChildAt(0) instanceof LinearLayout)) {
+            return false;
+        }
+        LinearLayout strip = (LinearLayout) scroll.getChildAt(0);
+        if (strip.getChildCount() != Preset.GEQ_BAND_COUNT) {
+            return false;
+        }
+        for (int i = 0; i < strip.getChildCount(); i++) {
+            if (!(strip.getChildAt(i) instanceof GeqSliderView)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
-        row.addView(createStaticCell(formatFrequency(Preset.GEQ_FREQUENCIES[index])), cellParams(1f, 34));
-        row.addView(createNumberInput(formatDecimal(editingPreset.geqGainsMb[index] / 100f), "dB", value -> {
-            int gainMb = Math.round(value * 100f);
-            updateGeqBand(index, clamp(gainMb, -1800, 1800));
-        }), cellParams(1f, 34));
-        return row;
+    private void updateGeqSliderPanelInPlace(HorizontalScrollView scroll) {
+        if (scroll == null || scroll.getChildCount() != 1 || !(scroll.getChildAt(0) instanceof LinearLayout)) {
+            return;
+        }
+        LinearLayout strip = (LinearLayout) scroll.getChildAt(0);
+        for (int i = 0; i < Preset.GEQ_BAND_COUNT && i < strip.getChildCount(); i++) {
+            View child = strip.getChildAt(i);
+            if (!(child instanceof GeqSliderView)) {
+                continue;
+            }
+            final int index = i;
+            ((GeqSliderView) child).setBand(
+                    formatFrequency(Preset.GEQ_FREQUENCIES[index]),
+                    editingPreset.geqGainsMb[index],
+                    gainMb -> updateGeqBand(index, gainMb)
+            );
+        }
     }
 
     private TextView createStaticCell(String value) {
@@ -3554,7 +3985,7 @@ public final class MainActivity extends Activity {
         add.setLayoutParams(params);
         add.setOnClickListener(v -> {
             setEditingPreset(editingPreset.withAddedBand(), true);
-            renderAll();
+            refreshEditingPresetUi();
         });
         return add;
     }
@@ -3566,7 +3997,7 @@ public final class MainActivity extends Activity {
         row.setTag(holder);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(dp(2), dp(6), dp(2), dp(6));
-        // 鍏抽敭淇锛氬叧闂?EQ 鏉＄洰琛岀殑瀛愯鍥捐鍓紝纭繚鏉＄洰宸︿晶寮€鍏冲拰鍙充晶鍒犻櫎鎸夐挳鐨勫厜鏅曡兘澶熷畬濂藉睍绀猴紝缁濅笉琚鍒囷紒
+        // 关键修复：关闭 EQ 条目行的子视图裁剪，确保条目左侧开关和右侧删除按钮的光晕能够完好展示，绝不被裁切！
         row.setClipChildren(false);
         row.setClipToPadding(false);
         if (PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB)) {
@@ -3623,7 +4054,7 @@ public final class MainActivity extends Activity {
 
         holder.q = createNumberInput(formatDecimal(band.qHundred / 100f), "Q", value -> {
             int qHundred = Math.round(value * 100f);
-            updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 20, 1000)));
+            updateBand(index, editingPreset.bands[index].withQHundred(clamp(qHundred, 0, ParametricBand.MAX_Q_HUNDRED)));
         });
         attachEqEditFocus(holder.q, index, EQ_EDIT_FIELD_Q);
         row.addView(holder.q, cellParams(1f, 36));
@@ -3632,10 +4063,59 @@ public final class MainActivity extends Activity {
         delete.setEnabled(supported && editingPreset.bands.length > 1);
         delete.setBackground(deleteSymbolDrawable(delete.isEnabled()));
         delete.setOnClickListener(v -> confirmDeleteBand(index));
+        holder.delete = delete;
         row.addView(wrapCircularButton(delete, 0.35f, 22, 3, 0, 1));
 
         applyBandRowVisualState(row, index);
         return row;
+    }
+
+    private boolean hasReusablePeqRows() {
+        for (int i = 0; i < editingPreset.bands.length; i++) {
+            View child = rows.getChildAt(i);
+            if (!(child instanceof LinearLayout)) {
+                return false;
+            }
+            if (!(((LinearLayout) child).getTag() instanceof PeqBandRowHolder)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void updateBandRowInPlace(LinearLayout row, int index) {
+        if (row == null || index < 0 || index >= editingPreset.bands.length) {
+            return;
+        }
+        Object tag = row.getTag();
+        if (!(tag instanceof PeqBandRowHolder)) {
+            return;
+        }
+        PeqBandRowHolder holder = (PeqBandRowHolder) tag;
+        ParametricBand band = editingPreset.bands[index];
+        boolean warning = PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB);
+        if (warning) {
+            GradientDrawable warningBg = new GradientDrawable();
+            warningBg.setShape(GradientDrawable.RECTANGLE);
+            warningBg.setColor(Color.argb(45, 255, 100, 100));
+            warningBg.setStroke(dp(1), Color.argb(100, 255, 100, 100));
+            warningBg.setCornerRadius(dp(8));
+            row.setBackground(warningBg);
+        } else {
+            row.setBackground(null);
+        }
+        setTextIfChanged(holder.type, band.type.label);
+        holder.type.setEnabled(supported);
+        holder.type.setBackground(typeCellBackground(band.type, false));
+        setEditTextIfChanged(holder.frequency, String.valueOf(band.frequencyHz));
+        setEditTextIfChanged(holder.gain, formatDecimal(band.gainMb / 100f));
+        setEditTextIfChanged(holder.q, formatDecimal(band.qHundred / 100f));
+        if (holder.delete != null) {
+            boolean deleteEnabled = supported && editingPreset.bands.length > 1;
+            holder.delete.setEnabled(deleteEnabled);
+            holder.delete.setBackground(deleteSymbolDrawable(deleteEnabled));
+        }
+        applyBandRowVisualState(row, index);
     }
 
     private EditText createNumberInput(String value, String hint, FloatChanged listener) {
@@ -3655,31 +4135,13 @@ public final class MainActivity extends Activity {
             if (actionId == EditorInfo.IME_ACTION_DONE
                     || actionId == EditorInfo.IME_ACTION_NEXT
                     || enterUp) {
+                flushDebouncedFloatInput(input, listener);
                 closeKeyboard(view);
                 return true;
             }
             return false;
         });
-        input.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (updatingUi) {
-                    return;
-                }
-                try {
-                    listener.onChanged(Float.parseFloat(s.toString()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-            }
-        });
+        attachDebouncedFloatInput(input, EQ_TEXT_INPUT_APPLY_DELAY_MS, listener);
 
         GradientDrawable inputBg = new GradientDrawable();
         inputBg.setShape(GradientDrawable.RECTANGLE);
@@ -3695,8 +4157,48 @@ public final class MainActivity extends Activity {
         return input;
     }
 
+    private void attachDebouncedFloatInput(EditText input, long delayMs, FloatChanged listener) {
+        if (input == null || listener == null) {
+            return;
+        }
+        final Runnable applyRunnable = () -> flushDebouncedFloatInput(input, listener);
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (updatingUi) {
+                    return;
+                }
+                uiHandler.removeCallbacks(applyRunnable);
+                uiHandler.postDelayed(applyRunnable, delayMs);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+    }
+
+    private void flushDebouncedFloatInput(EditText input, FloatChanged listener) {
+        if (input == null || listener == null || updatingUi) {
+            return;
+        }
+        String raw = input.getText() == null ? "" : input.getText().toString().trim();
+        if (raw.isEmpty() || "-".equals(raw) || ".".equals(raw) || "-.".equals(raw)) {
+            return;
+        }
+        try {
+            listener.onChanged(Float.parseFloat(raw));
+        } catch (NumberFormatException ignored) {
+        }
+    }
+
     private EditText createDeferredIntegerInput(String value, String hint, int min, int max, IntChanged listener) {
         EditText input = new EditText(this);
+        final Runnable commitRunnable = () -> commitDeferredIntegerInput(input, min, max, listener);
         input.setSingleLine(true);
         input.setText(value);
         input.setHint(hint);
@@ -3717,16 +4219,38 @@ public final class MainActivity extends Activity {
             if (actionId == EditorInfo.IME_ACTION_DONE
                     || actionId == EditorInfo.IME_ACTION_NEXT
                     || enterUp) {
-                commitDeferredIntegerInput(input, min, max, listener);
+                uiHandler.removeCallbacks(commitRunnable);
+                commitRunnable.run();
                 closeKeyboard(view);
                 view.clearFocus();
                 return true;
             }
             return false;
         });
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (updatingUi || !input.hasFocus()) {
+                    return;
+                }
+                uiHandler.removeCallbacks(commitRunnable);
+                uiHandler.postDelayed(commitRunnable, DEFERRED_INTEGER_INPUT_COMMIT_DELAY_MS);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
         input.setOnFocusChangeListener((view, hasFocus) -> {
             if (!hasFocus) {
-                commitDeferredIntegerInput(input, min, max, listener);
+                uiHandler.removeCallbacks(commitRunnable);
+                commitRunnable.run();
+            } else {
+                uiHandler.removeCallbacks(commitRunnable);
             }
         });
 
@@ -3778,7 +4302,13 @@ public final class MainActivity extends Activity {
         if (editingPreset == null || index < 0 || index >= editingPreset.bands.length || band == null) {
             return;
         }
+        if (pendingPeqPreviewBand != null && pendingPeqPreviewIndex != index) {
+            flushPendingPeqBandPreview();
+        }
         ParametricBand current = editingPreset.bands[index];
+        if (pendingPeqPreviewBand != null && pendingPeqPreviewIndex == index) {
+            current = pendingPeqPreviewBand;
+        }
         if (sameBandState(current, band)) {
             return;
         }
@@ -3786,7 +4316,57 @@ public final class MainActivity extends Activity {
             applyImmediateBandUpdate(index, band);
             return;
         }
-        setEditingPreset(editingPreset.withBand(index, band), true);
+        schedulePeqBandUpdate(index, band);
+    }
+
+    private void schedulePeqBandUpdate(int index, ParametricBand band) {
+        if (pendingPeqBandHistorySnapshot == null) {
+            pendingPeqBandHistorySnapshot = editingPreset;
+        }
+        pendingPeqPreviewIndex = index;
+        pendingPeqPreviewBand = band;
+        uiHandler.removeCallbacks(previewPeqBandUpdateRunnable);
+        uiHandler.postDelayed(previewPeqBandUpdateRunnable, LIVE_EQ_PREVIEW_DELAY_MS);
+        uiHandler.removeCallbacks(commitPeqBandUpdateRunnable);
+        uiHandler.postDelayed(commitPeqBandUpdateRunnable, PEQ_BAND_COMMIT_DELAY_MS);
+    }
+
+    private void flushPendingPeqBandPreview() {
+        uiHandler.removeCallbacks(previewPeqBandUpdateRunnable);
+        if (editingPreset == null
+                || pendingPeqPreviewBand == null
+                || pendingPeqPreviewIndex < 0
+                || pendingPeqPreviewIndex >= editingPreset.bands.length) {
+            pendingPeqPreviewIndex = -1;
+            pendingPeqPreviewBand = null;
+            return;
+        }
+        if (sameBandState(editingPreset.bands[pendingPeqPreviewIndex], pendingPeqPreviewBand)) {
+            pendingPeqPreviewIndex = -1;
+            pendingPeqPreviewBand = null;
+            return;
+        }
+        editingPreset = editingPreset.withBand(pendingPeqPreviewIndex, pendingPeqPreviewBand);
+        pendingPeqPreviewIndex = -1;
+        pendingPeqPreviewBand = null;
+        if (curveView != null) {
+            refreshCurveView();
+        }
+        updatePeqBandVisuals();
+        updateEditStateLabels();
+    }
+
+    private void commitPendingPeqBandUpdate() {
+        uiHandler.removeCallbacks(commitPeqBandUpdateRunnable);
+        flushPendingPeqBandPreview();
+        if (pendingPeqBandHistorySnapshot == null) {
+            return;
+        }
+        pushHistory(undoStack, pendingPeqBandHistorySnapshot);
+        redoStack.clear();
+        pendingPeqBandHistorySnapshot = null;
+        syncRunningIfEditingPresetIsActive();
+        updateEditStateLabels();
     }
 
     private void applyImmediateBandUpdate(int index, ParametricBand band) {
@@ -3843,19 +4423,44 @@ public final class MainActivity extends Activity {
         if (editingPreset == null || index < 0 || index >= editingPreset.geqGainsMb.length) {
             return;
         }
+        if (pendingGeqPreviewIndex >= 0 && pendingGeqPreviewIndex != index) {
+            flushPendingGeqPreview();
+        }
         gainMb = clamp(gainMb, -1800, 1800);
-        if (editingPreset.geqGainsMb[index] == gainMb) {
+        int currentGainMb = pendingGeqPreviewIndex == index
+                ? pendingGeqPreviewGainMb
+                : editingPreset.geqGainsMb[index];
+        if (currentGainMb == gainMb) {
             return;
         }
         if (pendingGeqHistorySnapshot == null) {
             pendingGeqHistorySnapshot = editingPreset;
         }
-        editingPreset = editingPreset.withGeqGainMb(index, gainMb);
+        pendingGeqPreviewIndex = index;
+        pendingGeqPreviewGainMb = gainMb;
+        uiHandler.removeCallbacks(previewGeqUpdateRunnable);
+        uiHandler.postDelayed(previewGeqUpdateRunnable, LIVE_EQ_PREVIEW_DELAY_MS);
+        scheduleGeqCommit();
+    }
+
+    private void flushPendingGeqPreview() {
+        uiHandler.removeCallbacks(previewGeqUpdateRunnable);
+        if (editingPreset == null
+                || pendingGeqPreviewIndex < 0
+                || pendingGeqPreviewIndex >= editingPreset.geqGainsMb.length) {
+            pendingGeqPreviewIndex = -1;
+            return;
+        }
+        if (editingPreset.geqGainsMb[pendingGeqPreviewIndex] == pendingGeqPreviewGainMb) {
+            pendingGeqPreviewIndex = -1;
+            return;
+        }
+        editingPreset = editingPreset.withGeqGainMb(pendingGeqPreviewIndex, pendingGeqPreviewGainMb);
+        pendingGeqPreviewIndex = -1;
         if (curveView != null) {
             refreshCurveView();
         }
         updateEditStateLabels();
-        scheduleGeqCommit();
     }
 
     private void scheduleGeqCommit() {
@@ -3865,6 +4470,7 @@ public final class MainActivity extends Activity {
 
     private void commitPendingGeqUpdate() {
         uiHandler.removeCallbacks(commitGeqUpdateRunnable);
+        flushPendingGeqPreview();
         if (pendingGeqHistorySnapshot == null) {
             return;
         }
@@ -3886,12 +4492,12 @@ public final class MainActivity extends Activity {
                 activeEqEditField = field;
                 showEqEditOverlay(bandIndex, field, true);
             } else if (activeEqEditBandIndex == bandIndex) {
-                view.post(() -> {
+                view.postDelayed(() -> {
                     View focused = getCurrentFocus();
                     if (!(focused instanceof EditText)) {
                         hideEqEditOverlay();
                     }
-                });
+                }, 32L);
             }
         });
     }
@@ -3914,8 +4520,8 @@ public final class MainActivity extends Activity {
         overlay.setPadding(dp(8), dp(6), dp(8), dp(6));
         overlay.setBackground(createGlassCard(88));
         overlay.setElevation(dp(12));
-        // 鍏抽敭淇锛氬叧闂緭鍏ュ弬鏁板脊绐?overlay 鐨勫瓙瑙嗗浘瑁佸壀銆?
-        // 寮€鍏冲拰鍙充晶灏徝椾綔涓鸿瀹瑰櫒鐨勭洿鎺ュ瓙浠ｏ紝鍏惰嚜韬彂鍑虹殑楂樻柉妯＄硦杈圭紭鍙互鐩存帴绐佺牬瀹瑰櫒杈圭晫婧㈠嚭锛屽睍鐜伴珮浜畬鏁村厜鏁堬紒
+        // 关键修复：关闭输入参数弹窗 overlay 的子视图裁剪。
+        // 开关和右侧小×作为该容器的直接子代，其自身发出的高斯模糊边缘可以直接突破容器边界溢出，展现高亮完整光效！
         overlay.setClipChildren(false);
         overlay.setClipToPadding(false);
 
@@ -3935,14 +4541,26 @@ public final class MainActivity extends Activity {
             int frequencyHz = clamp(Math.round(value), 20, 20000);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withFrequencyHz(frequencyHz));
         });
+        attachEqOverlayNumberScrub(frequencyInput, band.frequencyHz, 20f, 20000f, 0, this::stepFrequencyScrub, false, value -> {
+            int frequencyHz = clamp(Math.round(value), 20, 20000);
+            setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withFrequencyHz(frequencyHz));
+        });
         overlay.addView(frequencyInput);
         EditText gainInput = createEqOverlayInput(formatDecimal(band.gainMb / 100f), "dB", 1f, value -> {
             int gainMb = clamp(Math.round(value * 100f), -1800, 1800);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withGainMb(gainMb));
         });
+        attachEqOverlayNumberScrub(gainInput, band.gainMb / 100f, -18f, 18f, 2, current -> 0.1f, true, value -> {
+            int gainMb = clamp(Math.round(value * 100f), -1800, 1800);
+            setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withGainMb(gainMb));
+        });
         overlay.addView(gainInput);
         EditText qInput = createEqOverlayInput(formatDecimal(band.qHundred / 100f), "Q", 1f, value -> {
-            int qHundred = clamp(Math.round(value * 100f), 20, 1000);
+            int qHundred = clamp(Math.round(value * 100f), 0, ParametricBand.MAX_Q_HUNDRED);
+            setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withQHundred(qHundred));
+        });
+        attachEqOverlayNumberScrub(qInput, band.qHundred / 100f, 0f, ParametricBand.MAX_Q_HUNDRED / 100f, 2, current -> current < 1f ? 0.02f : 0.05f, true, value -> {
+            int qHundred = clamp(Math.round(value * 100f), 0, ParametricBand.MAX_Q_HUNDRED);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withQHundred(qHundred));
         });
         overlay.addView(qInput);
@@ -3960,23 +4578,14 @@ public final class MainActivity extends Activity {
             curveFrameView.getLocationOnScreen(curveLocation);
 
             int rootWidth = root.getWidth();
-            int rootHeight = root.getHeight();
-            int curveLeft = Math.max(0, curveLocation[0] - rootLocation[0]);
-            int curveTop = Math.max(0, curveLocation[1] - rootLocation[1]);
-            int curveRight = Math.min(rootWidth, curveLeft + curveFrameView.getWidth());
-            int curveBottom = Math.min(rootHeight, curveTop + curveFrameView.getHeight());
-            int dimColor = Color.argb(180, 18, 18, 25);
             int left = dp(18);
             int top = Math.max(dp(8), curveLocation[1] - rootLocation[1] + curveFrameView.getHeight() + dp(6));
             int width = Math.max(dp(240), rootWidth - dp(36));
+            int height = dp(48);
 
-            removeEqEditDim(false);
-            addEqEditDimView(root, 0, 0, rootWidth, curveTop, dimColor);
-            addEqEditDimView(root, 0, curveBottom, rootWidth, rootHeight - curveBottom, dimColor);
-            addEqEditDimView(root, 0, curveTop, curveLeft, curveBottom - curveTop, dimColor);
-            addEqEditDimView(root, curveRight, curveTop, rootWidth - curveRight, curveBottom - curveTop, dimColor);
+            showEqEditDimExceptCurve();
 
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, dp(48));
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
             params.leftMargin = left;
             params.topMargin = top;
             overlay.setAlpha(0f);
@@ -4011,7 +4620,7 @@ public final class MainActivity extends Activity {
 
     private View wrapEqOverlaySwitch(View button, float weight) {
         FrameLayout container = new FrameLayout(this);
-        // 鍏抽敭淇锛氬叧闂鍓紝鍏佽鍐呴儴鍏锋湁楂樻柉妯＄硦锛圡askFilter銆乻hadowLayer锛夌殑寮€鍏虫寜閽殑鎵╂暎杈圭紭鑷敱缁樺埗涓嶈鎴柇锛?
+        // 关键修复：关闭裁剪，允许内部具有高斯模糊（MaskFilter、shadowLayer）的开关按钮的扩散边缘自由绘制不被截断！
         container.setClipChildren(false);
         container.setClipToPadding(false);
         FrameLayout.LayoutParams switchParams = new FrameLayout.LayoutParams(dp(22), dp(22));
@@ -4040,36 +4649,148 @@ public final class MainActivity extends Activity {
                     && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                     && event.getAction() == KeyEvent.ACTION_UP;
             if (actionId == EditorInfo.IME_ACTION_DONE || enterUp) {
+                flushDebouncedFloatInput(input, listener);
                 closeKeyboard(view);
                 return true;
             }
             return false;
         });
-        input.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (updatingUi) {
-                    return;
-                }
-                try {
-                    listener.onChanged(Float.parseFloat(s.toString()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus) {
+                flushDebouncedFloatInput(input, listener);
             }
         });
+        attachDebouncedFloatInput(input, EQ_TEXT_INPUT_APPLY_DELAY_MS, listener);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight);
         params.leftMargin = dp(2);
         params.rightMargin = dp(2);
         input.setLayoutParams(params);
         return input;
+    }
+
+    private interface EqOverlayStepProvider {
+        float stepFor(float currentValue);
+    }
+
+    private void attachEqOverlayNumberScrub(
+            EditText input,
+            float initialValue,
+            float min,
+            float max,
+            int decimals,
+            EqOverlayStepProvider stepProvider,
+            boolean forceFixedDecimals,
+            FloatChanged listener
+    ) {
+        if (input == null || stepProvider == null || listener == null) {
+            return;
+        }
+        final float[] startValue = new float[]{initialValue};
+        final float[] startX = new float[1];
+        final float[] startY = new float[1];
+        final boolean[] scrubbing = new boolean[1];
+        final int scrubTouchSlop = dp(10);
+        final float pixelsPerStep = Math.max(12f, dpf(14f));
+
+        input.setOnTouchListener((view, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    startX[0] = event.getX();
+                    startY[0] = event.getY();
+                    scrubbing[0] = false;
+                    startValue[0] = parseFloatOrFallback(input.getText(), initialValue);
+                    break;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = Math.abs(event.getX() - startX[0]);
+                    float dy = Math.abs(event.getY() - startY[0]);
+                    if (!scrubbing[0]) {
+                        if (dy <= scrubTouchSlop || dy < dx * 1.15f) {
+                            break;
+                        }
+                        scrubbing[0] = true;
+                        ViewParent moveParent = view.getParent();
+                        if (moveParent != null) {
+                            moveParent.requestDisallowInterceptTouchEvent(true);
+                        }
+                    }
+                    float step = Math.max(0.0001f, stepProvider.stepFor(startValue[0]));
+                    float deltaSteps = (startY[0] - event.getY()) / pixelsPerStep;
+                    float nextValue = clampFloat(startValue[0] + deltaSteps * step, min, max);
+                    String text = formatScrubValue(nextValue, decimals, forceFixedDecimals);
+                    if (!text.contentEquals(input.getText())) {
+                        updatingUi = true;
+                        input.setText(text);
+                        input.setSelection(text.length());
+                        updatingUi = false;
+                    }
+                    listener.onChanged(nextValue);
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
+                    if (scrubbing[0]) {
+                        listener.onChanged(parseFloatOrFallback(input.getText(), startValue[0]));
+                        ViewParent releaseParent = view.getParent();
+                        if (releaseParent != null) {
+                            releaseParent.requestDisallowInterceptTouchEvent(false);
+                        }
+                        return true;
+                    }
+                    ViewParent releaseParent = view.getParent();
+                    if (releaseParent != null) {
+                        releaseParent.requestDisallowInterceptTouchEvent(false);
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+            return false;
+        });
+    }
+
+    private float stepFrequencyScrub(float currentValue) {
+        int rounded = Math.max(20, Math.round(currentValue));
+        if (rounded < 100) {
+            return 1;
+        }
+        if (rounded < 1000) {
+            return 5;
+        }
+        if (rounded < 5000) {
+            return 25;
+        }
+        return 100;
+    }
+
+    private float parseFloatOrFallback(CharSequence text, float fallback) {
+        if (text == null) {
+            return fallback;
+        }
+        String raw = text.toString().trim();
+        if (raw.isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Float.parseFloat(raw);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private float clampFloat(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private String formatScrubValue(float value, int decimals, boolean forceFixedDecimals) {
+        if (decimals <= 0) {
+            return String.valueOf(Math.round(value));
+        }
+        if (forceFixedDecimals) {
+            return String.format(Locale.US, "%." + decimals + "f", value);
+        }
+        float scaled = Math.round(value * (float) Math.pow(10, decimals)) / (float) Math.pow(10, decimals);
+        return formatDecimal(scaled);
     }
 
     private void setBandFromEqOverlay(int index, ParametricBand band) {
@@ -4120,7 +4841,7 @@ public final class MainActivity extends Activity {
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", (d, which) -> {
                     setEditingPreset(editingPreset.withoutBand(index), true);
-                    renderAll();
+                    refreshEditingPresetUi();
                 })
                 .create();
         dialog.show();
@@ -4144,7 +4865,7 @@ public final class MainActivity extends Activity {
             deviceCurveSmoothing = "Default";
             refreshDeviceCurveCache();
             syncCurrentCurveSettingsToEditingPreset(true);
-            renderAll();
+            refreshEditingPresetUi();
         }, item -> imported.contains(item), item -> {
             repository.deleteDeviceCurve(item);
             if (item.equals(selectedDeviceCurveName)) {
@@ -4153,7 +4874,7 @@ public final class MainActivity extends Activity {
                 deviceCurveSmoothing = "Default";
                 refreshDeviceCurveCache();
                 syncCurrentCurveSettingsToEditingPreset(true);
-                renderAll();
+                refreshEditingPresetUi();
             }
         });
     }
@@ -4177,7 +4898,7 @@ public final class MainActivity extends Activity {
             targetCurveSmoothing = "Default";
             refreshTargetCurveCache();
             syncCurrentCurveSettingsToEditingPreset(true);
-            renderAll();
+            refreshEditingPresetUi();
         }, item -> imported.contains(item), item -> {
             repository.deleteTargetCurve(item);
             if (item.equals(selectedTargetCurveName)) {
@@ -4186,7 +4907,7 @@ public final class MainActivity extends Activity {
                 targetCurveSmoothing = "Default";
                 refreshTargetCurveCache();
                 syncCurrentCurveSettingsToEditingPreset(true);
-                renderAll();
+                refreshEditingPresetUi();
             }
         });
     }
@@ -4342,8 +5063,8 @@ public final class MainActivity extends Activity {
 
     private void showCurveGainDialog(boolean targetCurve) {
         String title = targetCurve
-                ? tr("Target curve gain", "Target curve 澧炵泭")
-                : tr("Device curve gain", "Device curve 澧炵泭");
+                ? tr("Target curve gain", "Target curve 增益")
+                : tr("Device curve gain", "Device curve 增益");
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(dp(20), dp(10), dp(20), dp(8));
@@ -4467,7 +5188,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(title))
                 .setView(layout)
-                .setNegativeButton(tr("Close", "鍏抽棴"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialog.setOnDismissListener(d -> removeCurveGainDim());
         dialog.show();
@@ -4540,7 +5261,7 @@ public final class MainActivity extends Activity {
     private void showCurveRenameDialog(boolean targetCurve, TextView nameView) {
         String currentName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         if ("Default".equals(currentName)) {
-            Toast.makeText(this, tr("Default curve can't be renamed", "Default 鏇茬嚎涓嶈兘閲嶅懡鍚?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default curve can't be renamed", "Default 曲线不能重命名"), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -4552,8 +5273,8 @@ public final class MainActivity extends Activity {
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
         input.setHint(targetCurve
-                ? tr("Target curve name", "Target curve 鍚嶇О")
-                : tr("Device curve name", "Device curve 鍚嶇О"));
+                ? tr("Target curve name", "Target curve 名称")
+                : tr("Device curve name", "Device curve 名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -4568,11 +5289,11 @@ public final class MainActivity extends Activity {
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(targetCurve
-                        ? tr("Rename target curve", "閲嶅懡鍚?Target curve")
-                        : tr("Rename device curve", "閲嶅懡鍚?Device curve")))
+                        ? tr("Rename target curve", "重命名 Target curve")
+                        : tr("Rename device curve", "重命名 Device curve")))
                 .setView(container)
-                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
-                .setPositiveButton(tr("Rename", "閲嶅懡鍚?), null)
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Rename", "重命名"), null)
                 .create();
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -4597,17 +5318,17 @@ public final class MainActivity extends Activity {
         String oldName = targetCurve ? selectedTargetCurveName : selectedDeviceCurveName;
         String nextName = rawName == null ? "" : rawName.trim();
         if (nextName.isEmpty()) {
-            Toast.makeText(this, tr("Curve name required", "闇€瑕佸～鍐欐洸绾垮悕绉?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name required", "需要填写曲线名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         if ("Default".equals(nextName)) {
-            Toast.makeText(this, tr("Default is reserved", "Default 鏄繚鐣欏悕绉?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Default is reserved", "Default 是保留名称"), Toast.LENGTH_SHORT).show();
             return false;
         }
         boolean sameName = oldName.equals(nextName);
         boolean exists = targetCurve ? repository.hasTargetCurveName(nextName) : repository.hasDeviceCurveName(nextName);
         if (!sameName && exists) {
-            Toast.makeText(this, tr("Curve name already exists", "鏇茬嚎鍚嶇О宸插瓨鍦?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve name already exists", "曲线名称已存在"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -4615,7 +5336,7 @@ public final class MainActivity extends Activity {
                 ? repository.renameTargetCurve(oldName, nextName)
                 : repository.renameDeviceCurve(oldName, nextName);
         if (!renamed) {
-            Toast.makeText(this, tr("Curve rename failed", "鏇茬嚎閲嶅懡鍚嶅け璐?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Curve rename failed", "曲线重命名失败"), Toast.LENGTH_SHORT).show();
             return false;
         }
 
@@ -4631,7 +5352,7 @@ public final class MainActivity extends Activity {
             nameView.setText(nextName);
         }
         renderAll();
-        Toast.makeText(this, tr("Curve renamed", "鏇茬嚎宸查噸鍛藉悕"), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Curve renamed", "曲线已重命名"), Toast.LENGTH_SHORT).show();
         return true;
     }
 
@@ -4837,7 +5558,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(title))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "鍏抽棴"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -4917,9 +5638,34 @@ public final class MainActivity extends Activity {
         startActivityForResult(intent, requestCode);
     }
 
+    private void openJsonImport(int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                "application/json",
+                "text/json",
+                "text/plain",
+                "*/*"
+        });
+        startActivityForResult(intent, requestCode);
+    }
+
+    private void openJsonExport(String suggestedName, int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE, suggestedName);
+        startActivityForResult(intent, requestCode);
+    }
+
     private FrequencyCurve readCurveFromUri(Uri uri) throws IOException {
         StringBuilder text = new StringBuilder();
-        try (InputStream stream = getContentResolver().openInputStream(uri);
+        InputStream rawStream = getContentResolver().openInputStream(uri);
+        if (rawStream == null) {
+            throw new IOException("Unable to open curve input stream");
+        }
+        try (InputStream stream = rawStream;
              BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -4927,6 +5673,34 @@ public final class MainActivity extends Activity {
             }
         }
         return FrequencyCurve.fromText(curveNameFromUri(uri), text.toString());
+    }
+
+    private String readTextFromUri(Uri uri) throws IOException {
+        StringBuilder text = new StringBuilder();
+        InputStream rawStream = getContentResolver().openInputStream(uri);
+        if (rawStream == null) {
+            throw new IOException("Unable to open text input stream");
+        }
+        try (InputStream stream = rawStream;
+             BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                text.append(line).append('\n');
+            }
+        }
+        return text.toString().trim();
+    }
+
+    private void writeTextToUri(Uri uri, String text) throws IOException {
+        OutputStream rawStream = getContentResolver().openOutputStream(uri, "wt");
+        if (rawStream == null) {
+            throw new IOException("Unable to open output stream");
+        }
+        try (OutputStream stream = rawStream;
+             OutputStreamWriter writer = new OutputStreamWriter(stream)) {
+            writer.write(text == null ? "" : text);
+            writer.flush();
+        }
     }
 
     private String curveNameFromUri(Uri uri) {
@@ -4944,6 +5718,311 @@ public final class MainActivity extends Activity {
         return name.isEmpty() ? "Imported" : name;
     }
 
+    private void importPresetJsonFromUri(Uri uri) throws IOException {
+        String json = readTextFromUri(uri);
+        if (json.isEmpty()) {
+            Toast.makeText(this, tr("Preset file is empty", "预设文件为空"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            Preset imported = PresetFile.fromJson(json).preset;
+            if (imported != null) {
+                handleImportedPreset(imported, true);
+                return;
+            }
+        } catch (JSONException ex) {
+            Toast.makeText(this, tr("Invalid JSON file", "JSON 文件无效"), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void importDeviceConfigJsonFromUri(Uri uri) throws IOException {
+        String json = readTextFromUri(uri);
+        if (json.isEmpty()) {
+            Toast.makeText(this, tr("Global config file is empty", "全局配置文件为空"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            DeviceConfigFile config = DeviceConfigFile.fromJson(json);
+            applyImportedDeviceConfig(config);
+            Toast.makeText(this, tr("Global config imported", "全局配置已导入"), Toast.LENGTH_SHORT).show();
+        } catch (JSONException ex) {
+            Toast.makeText(this, tr("Unrecognized global config JSON", "无法识别的全局配置 JSON"), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void exportCurrentPresetJson() {
+        Preset preset = repository.loadNamedPreset(presetName(editingPreset));
+        if (preset == null) {
+            Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pendingExportJson = new PresetFile(preset).toJson();
+        pendingExportSuccessMessage = tr("Preset exported", "预设已导出");
+        openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
+    }
+
+    private void showExportPresetChoiceDialog() {
+        List<String> names = repository.loadNamedPresetNames();
+        if (names.isEmpty()) {
+            Toast.makeText(this, tr("No saved presets to export", "没有可导出的已保存预设"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String currentName = presetName(editingPreset);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(14), dp(4), dp(14), dp(12));
+
+        AlertDialog[] dialogHolder = new AlertDialog[1];
+        for (String name : names) {
+            list.addView(createExportPresetMenuRow(name, samePresetSelection(name, currentName), dialogHolder),
+                    presetMenuRowParams(list.getChildCount() == 0 ? 0 : 8));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(tr("Export preset", "导出预设")))
+                .setView(scroll)
+                .setNegativeButton(tr("Close", "关闭"), null)
+                .create();
+        dialogHolder[0] = dialog;
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private void exportPresetJsonForName(String name) {
+        Preset preset = repository.loadNamedPreset(name);
+        if (preset == null) {
+            Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pendingExportJson = new PresetFile(preset).toJson();
+        pendingExportSuccessMessage = tr("Preset exported", "预设已导出");
+        openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
+    }
+
+    private void handleImportedPreset(Preset imported, boolean applyLive) {
+        if (imported == null) {
+            Toast.makeText(this, tr("Invalid preset file", "预设文件无效"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String importedName = presetName(imported);
+        Preset existing = importedName == null ? null : repository.loadNamedPreset(importedName);
+        if (existing != null) {
+            showImportedPresetConflictDialog(imported, existing, applyLive);
+            return;
+        }
+        applyImportedPreset(imported, applyLive);
+        Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
+    }
+
+    private void showImportedPresetConflictDialog(Preset imported, Preset existing, boolean applyLive) {
+        String importedName = presetDisplayName(imported);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(tr("Preset already exists", "预设名称已存在")))
+                .setMessage(tr(
+                        "A preset named \"" + importedName + "\" already exists. Replace it or rename the existing preset first?",
+                        "名为“" + importedName + "”的预设已存在。要直接替换，还是先重命名现有预设？"))
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setNeutralButton(tr("Rename current", "重命名当前预设"), (d, which) -> showRenameExistingPresetDialog(imported, existing, applyLive))
+                .setPositiveButton(tr("Replace", "直接替换"), (d, which) -> {
+                    applyImportedPreset(imported, applyLive);
+                    Toast.makeText(this, tr("Preset replaced", "预设已替换"), Toast.LENGTH_SHORT).show();
+                })
+                .create();
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private void showRenameExistingPresetDialog(Preset imported, Preset existing, boolean applyLive) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(nextConflictingPresetName(presetDisplayName(existing)));
+        input.setSelectAllOnFocus(true);
+        input.setTextSize(14);
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setHint(tr("Preset name", "预设名称"));
+        input.setBackground(createFieldBackground(20, 40, 8));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        input.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(20), dp(4), dp(20), dp(8));
+        container.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+        ));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(tr("Rename existing preset", "重命名现有预设")))
+                .setView(container)
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Rename and import", "重命名后导入"), null)
+                .create();
+        dialog.setOnShowListener(d -> {
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (positive != null) {
+                positive.setOnClickListener(v -> {
+                    String renamed = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (renamed.isEmpty()) {
+                        Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (repository.hasNamedPreset(renamed)) {
+                        Toast.makeText(this, tr("Preset name already exists", "预设名称已存在"), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    repository.renameNamedPreset(existing.name, existing.withName(renamed));
+                    dialog.dismiss();
+                    applyImportedPreset(imported, applyLive);
+                    Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private void applyImportedPreset(Preset imported, boolean applyLive) {
+        Preset limited = limitPresetForHeadroom(imported);
+        runningPreset = limited.withEnabled(currentMasterEnabled());
+        activateEditingPreset(limited, true);
+        repository.saveDraftPreset(editingPreset);
+        if (editingPreset.name != null && !editingPreset.name.trim().isEmpty()) {
+            repository.saveNamedPreset(editingPreset);
+        }
+        renderAll();
+        if (applyLive) {
+            applyRunningPreset(true);
+        }
+    }
+
+    private void exportCurrentDeviceConfigJson() {
+        Preset exportEditingPreset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
+        Preset exportRunningPreset = withCurrentCurveSettings(runningPreset);
+        if (currentDevice == null || exportRunningPreset == null) {
+            Toast.makeText(this, tr("No global config to export", "没有可导出的全局配置"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Preset systemDevicePreset = processingMode == ProcessingMode.SYSTEM_EQ
+                ? exportRunningPreset
+                : loadScopedPreset(currentDevice, ProcessingMode.SYSTEM_EQ);
+        Preset shizukuDevicePreset = processingMode == ProcessingMode.SHIZUKU_MUTE
+                ? exportRunningPreset
+                : loadScopedPreset(currentDevice, ProcessingMode.SHIZUKU_MUTE);
+        DeviceConfigFile config = new DeviceConfigFile(
+                currentDevice,
+                processingMode,
+                autoSwitchOutput,
+                new DeviceConfigFile.ModeState(
+                        ProcessingMode.SYSTEM_EQ,
+                        AdvancedModeConfig.DEFAULT,
+                        systemDevicePreset,
+                        activePresetName(processingMode == ProcessingMode.SYSTEM_EQ ? exportEditingPreset : null, systemDevicePreset)),
+                new DeviceConfigFile.ModeState(
+                        ProcessingMode.SHIZUKU_MUTE,
+                        advancedModeConfig,
+                        shizukuDevicePreset,
+                        activePresetName(processingMode == ProcessingMode.SHIZUKU_MUTE ? exportEditingPreset : null, shizukuDevicePreset)),
+                exportPresetLibrary(exportEditingPreset)
+        );
+        pendingExportJson = config.toJson();
+        pendingExportSuccessMessage = tr("Global config exported", "全局配置已导出");
+        openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
+    }
+
+    private void applyImportedDeviceConfig(DeviceConfigFile config) {
+        flushPendingPresetPersistence();
+        boolean masterEnabled = currentMasterEnabled();
+        currentDevice = config.device;
+        processingMode = config.processingMode;
+        autoSwitchOutput = config.autoSwitchOutput;
+        repository.saveKnownDevice(currentDevice);
+        repository.saveSelectedDevice(currentDevice);
+        repository.saveProcessingMode(processingMode);
+        repository.saveAutoSwitchOutput(autoSwitchOutput);
+        for (Preset preset : config.presets) {
+            if (preset == null || preset.name == null || preset.name.trim().isEmpty()) {
+                continue;
+            }
+            repository.saveNamedPreset(preset);
+        }
+        repository.savePreset(currentDevice, ProcessingMode.SYSTEM_EQ, config.systemEqState.devicePreset);
+        repository.savePreset(currentDevice, ProcessingMode.SHIZUKU_MUTE, config.shizukuState.devicePreset);
+        advancedModeConfig = config.shizukuState.advancedModeConfig;
+        repository.saveAdvancedModeConfig(advancedModeConfig);
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+            stopShizukuCaptureNow();
+        }
+        Preset activeDevicePreset = loadScopedPreset(currentDevice, processingMode);
+        runningPreset = activeDevicePreset.withEnabled(masterEnabled);
+        activateEditingPreset(resolveImportedEditingPreset(config.stateFor(processingMode), runningPreset), true);
+        repository.saveDraftPreset(editingPreset);
+        renderDeviceSpinner();
+        renderAll();
+        applyRunningPreset(shouldForceFullResetForCurrentMode());
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE && runningPreset.enabled) {
+            ensureShizukuModeReady(true);
+        }
+    }
+
+    private String activePresetName(Preset activePreset, Preset fallbackPreset) {
+        if (activePreset != null && activePreset.name != null && !activePreset.name.trim().isEmpty()) {
+            return activePreset.name;
+        }
+        return fallbackPreset == null ? "Default" : fallbackPreset.name;
+    }
+
+    private Preset resolveImportedEditingPreset(DeviceConfigFile.ModeState state, Preset fallbackPreset) {
+        if (state == null || state.activePresetName == null || state.activePresetName.trim().isEmpty()) {
+            return fallbackPreset;
+        }
+        if (fallbackPreset != null && state.activePresetName.equalsIgnoreCase(fallbackPreset.name)) {
+            return fallbackPreset;
+        }
+        Preset selected = repository.loadNamedPreset(state.activePresetName);
+        if (selected == null) {
+            return fallbackPreset;
+        }
+        return limitPresetForHeadroom(selected);
+    }
+
+    private List<Preset> exportPresetLibrary(Preset currentPreset) {
+        List<Preset> presets = new ArrayList<>();
+        List<String> names = repository.loadNamedPresetNames();
+        for (String name : names) {
+            Preset savedPreset = repository.loadNamedPreset(name);
+            if (savedPreset != null) {
+                presets.add(savedPreset);
+            }
+        }
+        if (currentPreset != null && currentPreset.name != null && !currentPreset.name.trim().isEmpty()) {
+            boolean replaced = false;
+            for (int i = 0; i < presets.size(); i++) {
+                Preset preset = presets.get(i);
+                if (preset != null && currentPreset.name.equalsIgnoreCase(preset.name)) {
+                    presets.set(i, currentPreset);
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced) {
+                presets.add(currentPreset);
+            }
+        }
+        return presets;
+    }
+
+    private String safeJsonFileName(String baseName, String fallback) {
+        String normalized = baseName == null ? "" : baseName.trim().replaceAll("[\\\\/:*?\"<>|]+", "_");
+        if (normalized.isEmpty()) {
+            normalized = fallback;
+        }
+        return normalized + ".json";
+    }
+
     private void showSavePresetDialog() {
         List<String> names = repository.loadNamedPresetNames();
         List<String> targets = new ArrayList<>();
@@ -4955,7 +6034,7 @@ public final class MainActivity extends Activity {
         layout.setPadding(dp(20), dp(16), dp(20), dp(8));
 
         TextView targetLabel = new TextView(this);
-        targetLabel.setText(tr("Save to", "淇濆瓨鍒?));
+        targetLabel.setText(tr("Save to", "保存到"));
         targetLabel.setTextSize(12);
         targetLabel.setTextColor(Color.rgb(142, 154, 168));
         targetLabel.setPadding(dp(2), 0, dp(2), dp(6));
@@ -4980,7 +6059,7 @@ public final class MainActivity extends Activity {
         ));
 
         TextView nameLabel = new TextView(this);
-        nameLabel.setText(tr("Preset name", "棰勮鍚嶇О"));
+        nameLabel.setText(tr("Preset name", "预设名称"));
         nameLabel.setTextSize(12);
         nameLabel.setTextColor(Color.rgb(142, 154, 168));
         nameLabel.setPadding(dp(2), 0, dp(2), dp(6));
@@ -4998,7 +6077,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "棰勮鍚嶇О"));
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5022,10 +6101,10 @@ public final class MainActivity extends Activity {
         }));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Save preset", "淇濆瓨棰勮")))
+                .setCustomTitle(dialogTitleView(tr("Save preset", "保存预设")))
                 .setView(layout)
-                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
-                .setPositiveButton(tr("Save", "淇濆瓨"), (d, which) -> {
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Save", "保存"), (d, which) -> {
                     int selected = selectedTargetIndex[0];
                     String oldTargetName = selected <= 0 ? null : targets.get(selected);
                     saveDraftToPreset(oldTargetName, input.getText().toString());
@@ -5043,7 +6122,7 @@ public final class MainActivity extends Activity {
 
         AlertDialog[] dialogHolder = new AlertDialog[1];
         Button add = new Button(this);
-        add.setText(tr("+ Add new preset", "+ 鏂板棰勮"));
+        add.setText(tr("+ Add new preset", "+ 新增预设"));
         add.setTextSize(14);
         add.setAllCaps(false);
         styleAccentButton(add, true);
@@ -5062,9 +6141,9 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Select preset", "閫夋嫨棰勮")))
+                .setCustomTitle(dialogTitleView(tr("Select preset", "选择预设")))
                 .setView(scroll)
-                .setNegativeButton(tr("Close", "鍏抽棴"), null)
+                .setNegativeButton(tr("Close", "关闭"), null)
                 .create();
         dialogHolder[0] = dialog;
         dialog.show();
@@ -5072,7 +6151,7 @@ public final class MainActivity extends Activity {
     }
 
     private View createPresetMenuRow(String name, AlertDialog[] dialogHolder) {
-        boolean active = name.equals(editingPreset.name);
+        boolean active = samePresetSelection(name, presetName(editingPreset));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5116,6 +6195,44 @@ public final class MainActivity extends Activity {
         return row;
     }
 
+    private View createExportPresetMenuRow(String name, boolean active, AlertDialog[] dialogHolder) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), dp(6), dp(8), dp(6));
+
+        row.setBackground(active
+                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
+                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
+
+        TextView title = new TextView(this);
+        title.setText(name);
+        title.setTextSize(14);
+        title.setSingleLine(true);
+        title.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        title.setPadding(dp(8), 0, dp(8), 0);
+        if (active) {
+            styleCyanGlowText(title);
+        } else {
+            stylePlainWhiteText(title);
+        }
+
+        Runnable export = () -> {
+            if (dialogHolder[0] != null) {
+                dialogHolder[0].dismiss();
+            }
+            exportPresetJsonForName(name);
+        };
+        title.setOnClickListener(v -> export.run());
+        row.setOnClickListener(v -> export.run());
+        row.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(36)
+        ));
+
+        return row;
+    }
+
     private LinearLayout.LayoutParams presetMenuRowParams(int topMarginDp) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -5127,10 +6244,10 @@ public final class MainActivity extends Activity {
 
     private void confirmDeletePreset(String name, AlertDialog[] menuDialogHolder) {
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Delete preset", "鍒犻櫎棰勮")))
-                .setMessage(tr("Delete preset \"", "鍒犻櫎棰勮鈥?) + name + tr("\"?", "鈥濓紵"))
-                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
-                .setPositiveButton(tr("Delete", "鍒犻櫎"), (d, which) -> {
+                .setCustomTitle(dialogTitleView(tr("Delete preset", "删除预设")))
+                .setMessage(tr("Delete preset \"", "删除预设“") + name + tr("\"?", "”？"))
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Delete", "删除"), (d, which) -> {
                     deletePreset(name);
                     if (menuDialogHolder[0] != null) {
                         menuDialogHolder[0].dismiss();
@@ -5157,29 +6274,21 @@ public final class MainActivity extends Activity {
                 ? Preset.flat(runningPreset != null && runningPreset.enabled).withName("Default")
                 : repository.loadNamedPreset(names.get(0));
         fallback = limitPresetForHeadroom(fallback);
-        editingPreset = fallback;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(fallback, true);
         if (deletedRunning) {
             runningPreset = editingPreset.withEnabled(runningPreset != null && runningPreset.enabled && supported);
             applyRunningPreset();
         }
-        undoStack.clear();
-        redoStack.clear();
         renderAll();
     }
 
     private void saveDraftToPreset(String oldTargetName, String rawName) {
         String finalName = rawName == null ? "" : rawName.trim();
         if (finalName.isEmpty()) {
-            Toast.makeText(this, tr("Preset name required", "闇€瑕佸～鍐欓璁惧悕绉?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
             return;
         }
 
-        boolean updatesRunningPreset = runningPreset != null
-                && (runningPreset.name.equals(finalName)
-                || (oldTargetName != null && runningPreset.name.equals(oldTargetName)));
         Preset savedPreset = withCurrentCurveSettings(editingPreset).withName(finalName);
 
         if (oldTargetName != null && !oldTargetName.equals(finalName)) {
@@ -5188,31 +6297,19 @@ public final class MainActivity extends Activity {
             repository.saveNamedPreset(savedPreset);
         }
 
-        editingPreset = savedPreset;
-        syncSelectedVirtualBassModeFromPreset();
+        activateEditingPreset(savedPreset, true);
         repository.saveDraftPreset(editingPreset);
-        if (updatesRunningPreset) {
-            runningPreset = editingPreset.withEnabled(runningPreset.enabled && supported);
-            applyRunningPreset();
-        }
-        undoStack.clear();
-        redoStack.clear();
-        renderAll();
-        Toast.makeText(this, tr("Preset saved", "棰勮宸蹭繚瀛?), Toast.LENGTH_SHORT).show();
+        refreshEditingPresetUi();
+        Toast.makeText(this, tr("Preset saved", "预设已保存"), Toast.LENGTH_SHORT).show();
     }
 
-    private void loadPresetLive(String name) {
+    private void loadMatchedPreset(String name) {
+        flushPendingPresetPersistence();
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
-        runningPreset = selected.withEnabled(supported);
-        editingPreset = runningPreset;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateMatchedPreset(selected, true);
         repository.saveDraftPreset(editingPreset);
-        undoStack.clear();
-        redoStack.clear();
-        renderAll();
+        refreshEditingPresetUi();
         applyRunningPreset(true);
     }
 
@@ -5224,7 +6321,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "棰勮鍚嶇О"));
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5240,22 +6337,21 @@ public final class MainActivity extends Activity {
         container.addView(input, inputParams);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Add new preset", "鏂板棰勮")))
+                .setCustomTitle(dialogTitleView(tr("Add new preset", "新增预设")))
                 .setView(container)
-                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
-                .setPositiveButton(tr("Add", "鏂板"), (d, which) -> {
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Add", "新增"), (d, which) -> {
                     String name = input.getText().toString() == null ? "" : input.getText().toString().trim();
                     if (name.isEmpty()) {
-                        Toast.makeText(this, tr("Preset name required", "闇€瑕佸～鍐欓璁惧悕绉?), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     editingPreset = withCurrentCurveSettings(Preset.flat(runningPreset != null && runningPreset.enabled)).withName(name);
-                    syncSelectedVirtualBassModeFromPreset();
+                    syncEditingStateFromPreset();
                     repository.saveNamedPreset(editingPreset);
-                    undoStack.clear();
-                    redoStack.clear();
+                    clearPresetHistory();
                     persistEditingPreset();
-                    renderAll();
+                    refreshEditingPresetUi();
                 })
                 .create();
         dialog.show();
@@ -5263,17 +6359,12 @@ public final class MainActivity extends Activity {
     }
 
     private void loadPresetForEditing(String name) {
+        flushPendingPresetPersistence();
         Preset selected = repository.loadNamedPreset(name);
         selected = limitPresetForHeadroom(selected);
-        editingPreset = selected;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
-        undoStack.clear();
-        redoStack.clear();
-        renderAll();
+        activateEditingPreset(selected, true);
+        refreshEditingPresetUi();
         persistEditingPreset();
-        updateEditStateLabels();
     }
 
     private String nextPresetName() {
@@ -5287,13 +6378,46 @@ public final class MainActivity extends Activity {
         return candidate;
     }
 
+    private String nextConflictingPresetName(String baseName) {
+        String normalizedBase = (baseName == null || baseName.trim().isEmpty()) ? "Preset" : baseName.trim();
+        String candidate = normalizedBase + " 2";
+        int index = 3;
+        while (repository.hasNamedPreset(candidate)) {
+            candidate = normalizedBase + " " + index;
+            index++;
+        }
+        return candidate;
+    }
+
+    private String nextImportedPresetName(Preset imported) {
+        String baseName = presetDisplayName(imported);
+        String candidate = baseName + " Imported";
+        int index = 2;
+        while (repository.hasNamedPreset(candidate)) {
+            candidate = baseName + " Imported " + index;
+            index++;
+        }
+        return candidate;
+    }
+
     private void onEnabledChanged(CompoundButton buttonView, boolean isChecked) {
         if (updatingUi) {
             return;
         }
-        runningPreset = runningPreset.withEnabled(isChecked && supported);
+        if (enabledToggleInteractionLocked) {
+            setEnabledSwitchChecked(runningPreset != null && runningPreset.enabled);
+            return;
+        }
+        lockEnabledToggleInteraction();
+        boolean enabling = isChecked && supported;
+        repository.saveMasterEnabled(enabling);
+        runningPreset = runningPreset.withEnabled(enabling);
         if (isEditingPresetActive()) {
             editingPreset = editingPreset.withEnabled(runningPreset.enabled);
+            if (enabling) {
+                editingPreset = limitPresetForHeadroom(editingPreset);
+                runningPreset = editingPreset.withEnabled(true);
+            }
             pendingEnabledPersistPreset = editingPreset;
         }
         if (runningPreset.enabled) {
@@ -5313,7 +6437,7 @@ public final class MainActivity extends Activity {
         if (autoSwitchOutput) {
             handleDetectedOutputDevice(deviceMonitor.currentOutputDevice());
         } else {
-            renderDeviceSpinner();
+            refreshDeviceSelectionUi();
         }
     }
 
@@ -5322,10 +6446,15 @@ public final class MainActivity extends Activity {
             return;
         }
         extraBassEnabledState = isChecked;
-        setEditingPreset(editingPreset.withExtraBassEnabled(isChecked), true);
+        pendingExtraBassEnabledState = isChecked;
+        updateExtraControls();
+        updateEditStateLabels();
+        uiHandler.removeCallbacks(commitExtraBassToggleRunnable);
+        uiHandler.postDelayed(commitExtraBassToggleRunnable, EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS);
     }
 
     private void syncExtraBassEnabledFromPreset() {
+        pendingExtraBassEnabledState = null;
         if (editingPreset == null) {
             extraBassEnabledState = false;
             return;
@@ -5341,49 +6470,147 @@ public final class MainActivity extends Activity {
         selectedBassModeIndex = editingPreset.virtualBassModeIndex;
     }
 
+    private boolean currentMasterEnabled() {
+        boolean enabled = repository != null
+                ? repository.loadMasterEnabled()
+                : runningPreset != null && runningPreset.enabled;
+        return enabled && supported;
+    }
+
+    private void setEnabledSwitchChecked(boolean checked) {
+        if (enabledSwitch == null) {
+            return;
+        }
+        enabledSwitch.setOnCheckedChangeListener(null);
+        enabledSwitch.setChecked(checked);
+        enabledSwitch.setOnCheckedChangeListener(this::onEnabledChanged);
+        updateEnabledSwitchInteractivity();
+    }
+
+    private void lockEnabledToggleInteraction() {
+        enabledToggleInteractionLocked = true;
+        updateEnabledSwitchInteractivity();
+        uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
+        uiHandler.postDelayed(unlockEnabledToggleInteractionRunnable, computeEnabledToggleInteractionLockMs());
+    }
+
+    private void unlockEnabledToggleInteraction() {
+        enabledToggleInteractionLocked = false;
+        updateEnabledSwitchInteractivity();
+    }
+
+    private void updateEnabledSwitchInteractivity() {
+        if (enabledSwitch == null) {
+            return;
+        }
+        boolean interactive = supported && !enabledToggleInteractionLocked;
+        enabledSwitch.setEnabled(interactive);
+        enabledSwitch.setClickable(interactive);
+        enabledSwitch.setAlpha(interactive ? 1f : 0.78f);
+    }
+
+    private Preset loadScopedPreset(AudioOutputDevice device, ProcessingMode mode) {
+        return limitPresetForHeadroom(repository.loadPreset(device, mode));
+    }
+
+    private void adoptDevicePresetForCurrentMode(AudioOutputDevice device, boolean clearHistory) {
+        Preset loadedPreset = loadScopedPreset(device, processingMode);
+        activateMatchedPreset(loadedPreset, clearHistory);
+    }
+
+    private boolean shouldForceFullResetForCurrentMode() {
+        return processingMode != ProcessingMode.SHIZUKU_MUTE;
+    }
+
     private void applyRunningPreset() {
         applyRunningPreset(false);
     }
 
     private void applyRunningPreset(boolean forceFullReset) {
+        applyRunningPreset(forceFullReset, true);
+    }
+
+    private void applyRunningPreset(boolean forceFullReset, boolean notifyService) {
         if (currentDevice == null || runningPreset == null) {
             return;
         }
         try {
-            Preset persistedRunningPreset = withCurrentCurveSettings(runningPreset);
-            if (persistedRunningPreset != null) {
-                runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
-            }
-            repository.saveSelectedDevice(currentDevice);
-            repository.savePreset(currentDevice, runningPreset);
-            repository.saveGlobalPreset(runningPreset);
-            Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(runningPreset, processingMode, runningPreset.virtualBassModeIndex);
-            if (forceFullReset && effectivePreset.enabled) {
-                engine.applyWithFullReset(effectivePreset);
-            } else {
-                engine.apply(effectivePreset);
-            }
-            Intent service = new Intent(this, GlobalEqForegroundService.class);
-            service.setAction(GlobalEqForegroundService.ACTION_APPLY);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(service);
-            } else {
-                startService(service);
+            prepareRunningPresetForApply();
+            applyRunningPresetToEngine(forceFullReset);
+            if (notifyService) {
+                notifyServiceAboutRunningPreset();
             }
         } catch (Throwable ignored) {
         }
     }
 
+    private void prepareRunningPresetForApply() {
+        Preset persistedRunningPreset = withCurrentCurveSettings(runningPreset);
+        if (persistedRunningPreset != null) {
+            runningPreset = persistedRunningPreset.withEnabled(runningPreset.enabled);
+        }
+        scheduleRunningPresetPersistence();
+    }
+
+    private void applyRunningPresetToEngine(boolean forceFullReset) {
+        Preset effectivePreset = effectiveRunningPreset();
+        if (forceFullReset && effectivePreset.enabled && shouldForceFullResetForCurrentMode()) {
+            engine.applyWithFullReset(effectivePreset);
+            return;
+        }
+        engine.apply(effectivePreset);
+    }
+
+    private Preset effectiveRunningPreset() {
+        return AudioProcessingPolicy.effectiveSystemPreset(
+                runningPreset,
+                processingMode,
+                runningPreset.virtualBassModeIndex);
+    }
+
+    private void notifyServiceAboutRunningPreset() {
+        Intent service = buildRunningPresetServiceIntent(GlobalEqForegroundService.ACTION_APPLY);
+        startCompatibleForegroundService(service);
+    }
+
+    private Intent buildRunningPresetServiceIntent(String action) {
+        Intent service = buildServiceIntent(action);
+        if (runningPreset != null) {
+            service.putExtra(
+                    GlobalEqForegroundService.EXTRA_PRESET_JSON,
+                    runningPreset.withEnabled(currentMasterEnabled()).toJson());
+        }
+        if (currentDevice != null) {
+            service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_KEY, currentDevice.key);
+            service.putExtra(GlobalEqForegroundService.EXTRA_DEVICE_LABEL, currentDevice.label);
+        }
+        if (processingMode != null) {
+            service.putExtra(GlobalEqForegroundService.EXTRA_PROCESSING_MODE, processingMode.key);
+        }
+        if (advancedModeConfig != null) {
+            service.putExtra(GlobalEqForegroundService.EXTRA_ADVANCED_MODE_CONFIG_JSON, advancedModeConfig.toJson());
+        }
+        return service;
+    }
+
+    private Intent buildServiceIntent(String action) {
+        Intent service = new Intent(this, GlobalEqForegroundService.class);
+        service.setAction(action);
+        return service;
+    }
+
+    private void startCompatibleForegroundService(Intent service) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(service);
+            return;
+        }
+        startService(service);
+    }
+
     private void scheduleEnabledToggleCommit() {
         pendingEnabledApplyPreset = runningPreset;
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
-        uiHandler.postDelayed(commitEnabledToggleRunnable, ENABLE_TOGGLE_COMMIT_DELAY_MS);
-    }
-
-    private void scheduleEnabledToggleUiRefresh() {
-        pendingEnabledUiRefresh = true;
-        uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
-        uiHandler.postDelayed(refreshEnabledToggleUiRunnable, ENABLE_TOGGLE_UI_DELAY_MS);
+        uiHandler.postDelayed(commitEnabledToggleRunnable, computeEnabledToggleCommitDelayMs());
     }
 
     private void commitPendingEnabledToggle() {
@@ -5396,7 +6623,96 @@ public final class MainActivity extends Activity {
         }
         if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
                 && applyPreset.enabled == runningPreset.enabled) {
-            applyRunningPreset(applyPreset.enabled);
+            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+                if (applyPreset.enabled) {
+                    applyRunningPreset(false, false);
+                    scheduleDelayedShizukuReady();
+                } else {
+                    applyRunningPreset(false, false);
+                    stopShizukuCaptureNow();
+                }
+            } else {
+                applyRunningPreset(applyPreset.enabled);
+            }
+        }
+    }
+
+    private void maybeEnsureProcessingActive() {
+        if (repository == null || runningPreset == null || !currentMasterEnabled()) {
+            startupProcessingRecoveryPending = false;
+            return;
+        }
+        boolean serviceActive = syncRuntimeStateWithServiceProcess();
+        if (!startupProcessingRecoveryPending) {
+            return;
+        }
+        startupProcessingRecoveryPending = false;
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            if (serviceActive && repository.loadMonitorCaptureAuthorized()) {
+                return;
+            }
+            ensureShizukuModeReady(true);
+            return;
+        }
+        if (serviceActive) {
+            return;
+        }
+        notifyServiceAboutRunningPreset();
+    }
+
+    private boolean syncRuntimeStateWithServiceProcess() {
+        boolean active = GlobalEqForegroundService.isRunningInProcess();
+        if (!active) {
+            repository.clearRuntimeAudioState(ShizukuCompat.describeState(this));
+        } else {
+            repository.saveServiceActive(true);
+        }
+        return active;
+    }
+
+    private void scheduleDelayedShizukuReady() {
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        uiHandler.postDelayed(delayedShizukuReadyRunnable, computeShizukuEnableDelayMs());
+    }
+
+    private long computeEnabledToggleCommitDelayMs() {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE && runningPreset != null && runningPreset.enabled) {
+            return ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS;
+        }
+        return ENABLE_TOGGLE_COMMIT_DELAY_MS;
+    }
+
+    private long computeEnabledToggleInteractionLockMs() {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            return ENABLE_TOGGLE_SHIZUKU_INTERACTION_LOCK_MS;
+        }
+        return ENABLE_TOGGLE_INTERACTION_LOCK_MS;
+    }
+
+    private long computeShizukuEnableDelayMs() {
+        if (editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            return Math.max(ENABLE_NEON_CURVE_DELAY_MS, ENABLE_NEON_PEQ_START_DELAY_MS)
+                    + ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS;
+        }
+        int enabledBandCount = 0;
+        for (ParametricBand band : editingPreset.bands) {
+            if (band != null && band.enabled) {
+                enabledBandCount++;
+            }
+        }
+        long peqSequenceDelay = ENABLE_NEON_PEQ_START_DELAY_MS;
+        if (enabledBandCount > 1) {
+            peqSequenceDelay += (long) (enabledBandCount - 1) * ENABLE_NEON_PEQ_STEP_DELAY_MS;
+        }
+        return Math.max(ENABLE_NEON_CURVE_DELAY_MS, peqSequenceDelay)
+                + ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS;
+    }
+
+    private void stopShizukuCaptureNow() {
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        try {
+            startCompatibleForegroundService(buildServiceIntent(GlobalEqForegroundService.ACTION_PAUSE_SHIZUKU));
+        } catch (Throwable ignored) {
         }
     }
 
@@ -5407,6 +6723,18 @@ public final class MainActivity extends Activity {
         pendingEnabledUiRefresh = false;
         refreshCurveView();
         updateEditStateLabels();
+    }
+
+    private void commitPendingExtraBassToggle() {
+        if (editingPreset == null || pendingExtraBassEnabledState == null) {
+            return;
+        }
+        boolean targetState = pendingExtraBassEnabledState;
+        pendingExtraBassEnabledState = null;
+        if (editingPreset.extraBassEnabled == targetState) {
+            return;
+        }
+        setEditingPreset(editingPreset.withExtraBassEnabled(targetState), true);
     }
 
     private void startEnabledNeonSequence() {
@@ -5501,7 +6829,7 @@ public final class MainActivity extends Activity {
             return;
         }
         peqBandVisualEnabled = new boolean[editingPreset.bands.length];
-        // 鎬诲紑鍏虫墦寮€鍓嶅厛鐢卞欢杩熺偣浜簭鍒楁帴绠★紝杩欐牱涓嶄細鍏堟暣鎺掍寒涓€甯у啀鏆椾笅鍘汇€?
+        // 总开关打开前先由延迟点亮序列接管，这样不会先整排亮一帧再暗下去。
         peqVisualSequenceRunning = !enabled;
         pendingPeqVisualIndex = 0;
         if (enabled) {
@@ -5581,54 +6909,70 @@ public final class MainActivity extends Activity {
     }
 
     private void selectOutputDevice(AudioOutputDevice selected) {
+        flushPendingPresetPersistence();
         repository.saveSelectedDevice(selected);
         currentDevice = selected;
-        Preset loadedPreset = repository.loadPreset(currentDevice);
-        loadedPreset = limitPresetForHeadroom(loadedPreset);
-        runningPreset = loadedPreset.withEnabled(loadedPreset.enabled && supported);
-        editingPreset = runningPreset;
-        applyPresetCurveSettings(editingPreset);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
-        undoStack.clear();
-        redoStack.clear();
+        adoptDevicePresetForCurrentMode(currentDevice, true);
         renderAll();
-        applyRunningPreset(true);
+        applyRunningPreset(shouldForceFullResetForCurrentMode());
     }
 
     private void renderSavedPresetSpinner() {
-        List<String> names = repository.loadNamedPresetNames();
-        if (!names.contains(runningPreset.name)) {
-            names = new ArrayList<>(names);
-            names.add(0, runningPreset.name);
+        if (savedPresetSpinner == null) {
+            return;
         }
-        SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(names.toArray(new String[0]));
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        int selected = Math.max(0, names.indexOf(runningPreset.name));
-        adapter.setSelectedPosition(selected);
-        savedPresetSpinner.setAdapter(adapter);
-        savedPresetSpinner.setSelection(selected);
+        String activeName = presetDisplayName(runningPreset);
+        List<String> names = repository.loadNamedPresetNames();
+        if (!names.contains(activeName)) {
+            names = new ArrayList<>(names);
+            names.add(0, activeName);
+        }
+        int selected = Math.max(0, names.indexOf(activeName));
+        String[] labels = names.toArray(new String[0]);
+        String signature = joinStrings(labels);
+        if (!signature.equals(lastSavedPresetSpinnerSignature)) {
+            SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            adapter.setSelectedPosition(selected);
+            savedPresetSpinner.setAdapter(adapter);
+            lastSavedPresetSpinnerSignature = signature;
+        } else if (savedPresetSpinner.getAdapter() instanceof SmallSpinnerAdapter) {
+            ((SmallSpinnerAdapter) savedPresetSpinner.getAdapter()).setSelectedPosition(selected);
+        }
+        if (!activeName.equals(lastSavedPresetSpinnerSelectedName)
+                || savedPresetSpinner.getSelectedItemPosition() != selected) {
+            savedPresetSpinner.setSelection(selected);
+            lastSavedPresetSpinnerSelectedName = activeName;
+        }
     }
 
     private void syncRunningIfEditingPresetIsActive() {
-        persistEditingPreset();
+        scheduleEditingPresetPersistence();
         if (!isEditingPresetActive()) {
             return;
         }
         runningPreset = editingPreset.withEnabled(runningPreset.enabled && supported);
         if (enabledSwitch != null) {
-            enabledSwitch.setChecked(runningPreset.enabled);
+            updatingUi = true;
+            try {
+                setEnabledSwitchChecked(runningPreset.enabled);
+            } finally {
+                updatingUi = false;
+            }
         }
         applyRunningPreset();
     }
 
     private boolean isEditingPresetActive() {
-        return runningPreset != null && editingPreset != null && runningPreset.name.equals(editingPreset.name);
+        return samePresetSelection(runningPreset, editingPreset);
     }
 
     private void setEditingPreset(Preset nextPreset, boolean recordHistory) {
         if (pendingGeqHistorySnapshot != null) {
             commitPendingGeqUpdate();
+        }
+        if (pendingPeqBandHistorySnapshot != null) {
+            commitPendingPeqBandUpdate();
         }
         if (pendingPeqToggleHistorySnapshot != null) {
             commitPendingPeqToggle();
@@ -5641,7 +6985,7 @@ public final class MainActivity extends Activity {
             redoStack.clear();
         }
         editingPreset = nextPreset;
-        syncSelectedVirtualBassModeFromPreset();
+        syncEditingStateFromPreset();
         if (curveView != null) {
             refreshCurveView();
         }
@@ -5650,35 +6994,130 @@ public final class MainActivity extends Activity {
         updateEditStateLabels();
     }
 
+    private void activateMatchedPreset(Preset preset, boolean clearHistory) {
+        runningPreset = preset.withEnabled(currentMasterEnabled());
+        activateEditingPreset(runningPreset, clearHistory);
+    }
+
+    private void activateEditingPreset(Preset preset, boolean clearHistory) {
+        editingPreset = preset;
+        syncEditingStateFromPreset();
+        if (clearHistory) {
+            clearPresetHistory();
+        }
+    }
+
+    private void syncEditingStateFromPreset() {
+        applyPresetCurveSettings(editingPreset);
+        syncSelectedVirtualBassModeFromPreset();
+        syncExtraBassEnabledFromPreset();
+    }
+
+    private void clearPresetHistory() {
+        undoStack.clear();
+        redoStack.clear();
+    }
+
+    private boolean samePresetSelection(Preset first, Preset second) {
+        return samePresetSelection(presetName(first), presetName(second));
+    }
+
+    private boolean samePresetSelection(String firstName, String secondName) {
+        if (firstName == null || secondName == null) {
+            return false;
+        }
+        return firstName.equals(secondName);
+    }
+
+    private String presetName(Preset preset) {
+        if (preset == null || preset.name == null) {
+            return null;
+        }
+        String trimmed = preset.name.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String presetDisplayName(Preset preset) {
+        String name = presetName(preset);
+        return name == null ? "Default" : name;
+    }
+
     private void undoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqBandUpdate();
         commitPendingPeqToggle();
         if (undoStack.isEmpty()) {
             return;
         }
         pushHistory(redoStack, editingPreset);
-        editingPreset = undoStack.remove(undoStack.size() - 1);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(undoStack.remove(undoStack.size() - 1), false);
         syncRunningIfEditingPresetIsActive();
-        renderAll();
+        refreshEditingPresetUi();
     }
 
     private void redoEdit() {
         commitPendingGeqUpdate();
+        commitPendingPeqBandUpdate();
         commitPendingPeqToggle();
         if (redoStack.isEmpty()) {
             return;
         }
         pushHistory(undoStack, editingPreset);
-        editingPreset = redoStack.remove(redoStack.size() - 1);
-        syncSelectedVirtualBassModeFromPreset();
-        syncExtraBassEnabledFromPreset();
+        activateEditingPreset(redoStack.remove(redoStack.size() - 1), false);
         syncRunningIfEditingPresetIsActive();
-        renderAll();
+        refreshEditingPresetUi();
     }
 
     private void persistEditingPreset() {
+        pendingEditingPresetPersistence = false;
+        if (!pendingRunningPresetPersistence) {
+            uiHandler.removeCallbacks(persistPresetStateRunnable);
+        }
+        persistEditingPresetNow();
+    }
+
+    private void scheduleEditingPresetPersistence() {
+        pendingEditingPresetPersistence = true;
+        schedulePresetPersistence();
+    }
+
+    private void scheduleRunningPresetPersistence() {
+        pendingRunningPresetPersistence = true;
+        schedulePresetPersistence();
+    }
+
+    private void schedulePresetPersistence() {
+        uiHandler.removeCallbacks(persistPresetStateRunnable);
+        uiHandler.postDelayed(persistPresetStateRunnable, PRESET_PERSIST_DELAY_MS);
+    }
+
+    private void flushPendingPresetPersistence() {
+        uiHandler.removeCallbacks(persistPresetStateRunnable);
+        boolean shouldPersistRunning = pendingRunningPresetPersistence;
+        boolean shouldPersistEditing = pendingEditingPresetPersistence;
+        pendingRunningPresetPersistence = false;
+        pendingEditingPresetPersistence = false;
+        if (shouldPersistRunning) {
+            persistRunningPresetNow();
+        }
+        if (shouldPersistEditing) {
+            persistEditingPresetNow();
+        }
+    }
+
+    private void persistRunningPresetNow() {
+        if (currentDevice == null || runningPreset == null) {
+            return;
+        }
+        Preset persistedPreset = withCurrentCurveSettings(runningPreset);
+        if (persistedPreset != null && !persistedPreset.toJson().equals(runningPreset.toJson())) {
+            runningPreset = persistedPreset.withEnabled(runningPreset.enabled);
+        }
+        repository.savePreset(currentDevice, processingMode, runningPreset);
+        repository.saveGlobalPreset(runningPreset);
+    }
+
+    private void persistEditingPresetNow() {
         Preset persistedPreset = withCurrentCurveSettings(editingPreset);
         if (persistedPreset == null) {
             return;
@@ -5693,12 +7132,49 @@ public final class MainActivity extends Activity {
     }
 
     private boolean isNamedPreset(String name) {
-        return name != null && repository.loadNamedPresetNames().contains(name);
+        return name != null && repository.hasNamedPreset(name);
+    }
+
+    private String joinStrings(String[] values) {
+        if (values == null || values.length == 0) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(value == null ? "" : value);
+        }
+        return builder.toString();
+    }
+
+    private void setTextIfChanged(TextView view, String text) {
+        if (view == null) {
+            return;
+        }
+        String next = text == null ? "" : text;
+        CharSequence current = view.getText();
+        if (current == null || !next.contentEquals(current)) {
+            view.setText(next);
+        }
+    }
+
+    private void setEditTextIfChanged(EditText input, String text) {
+        if (input == null) {
+            return;
+        }
+        String next = text == null ? "" : text;
+        Editable editable = input.getText();
+        String current = editable == null ? "" : editable.toString();
+        if (!next.equals(current)) {
+            input.setText(next);
+        }
     }
 
     private void updateEditStateLabels() {
         if (presetSelectButton != null) {
-            presetSelectButton.setText(editingPreset.name);
+            setTextIfChanged(presetSelectButton, presetDisplayName(editingPreset));
         }
         if (undoButton != null) {
             styleButton(undoButton, false, !undoStack.isEmpty() && supported);
@@ -5708,7 +7184,7 @@ public final class MainActivity extends Activity {
         }
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
         if (statusText != null) {
-            statusText.setText(statusLabel(hasClip));
+            setTextIfChanged(statusText, statusLabel(hasClip));
             styleStatusText(hasClip);
         }
         styleModeText();
@@ -5771,10 +7247,11 @@ public final class MainActivity extends Activity {
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(virtualBassTitleView);
         syncExtraSectionTitleVisual(extraBassTitleView);
-        updateReverbControl(reverbDecayKnob, editingPreset.reverbDecayPercent, reverbEnabled);
-        updateReverbControl(reverbPredelayKnob, editingPreset.reverbPredelayMs, reverbEnabled);
-        updateReverbControl(reverbSizeKnob, editingPreset.reverbSizePercent, reverbEnabled);
-        updateReverbControl(reverbMixKnob, editingPreset.reverbMixPercent, reverbEnabled);
+        updateReverbControl(reverbMainSlider, editingPreset.reverbMainMb, reverbAllowed);
+        updateReverbControl(reverbDecaySlider, editingPreset.reverbDecayPercent, reverbEnabled);
+        updateReverbControl(reverbPredelaySlider, editingPreset.reverbPredelayMs, reverbEnabled);
+        updateReverbControl(reverbSizeSlider, editingPreset.reverbSizePercent, reverbEnabled);
+        updateReverbControl(reverbMixSlider, editingPreset.reverbMixPercent, reverbEnabled);
     }
 
     private void updateExtraBassControl(KnobView knob, int value, boolean enabled) {
@@ -5784,10 +7261,10 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void updateReverbControl(KnobView knob, int value, boolean enabled) {
-        if (knob != null) {
-            knob.setEnabled(enabled);
-            knob.setValue(value, false);
+    private void updateReverbControl(VerticalReverbSlider slider, int value, boolean enabled) {
+        if (slider != null) {
+            slider.setEnabled(enabled);
+            slider.setValue(value, false);
         }
     }
 
@@ -5930,14 +7407,16 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbControl("Decay", 0, 100, editingPreset.reverbDecayPercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbControl("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbControl("Size", 0, 100, editingPreset.reverbSizePercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbControl("Mix", 0, 100, editingPreset.reverbMixPercent, "%", value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Main", -12000, 300, editingPreset.reverbMainMb, "dB", 0.01f, 1, true, REVERB_MAIN_SLIDER_MAPPER, value ->
+                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, false, REVERB_DECAY_SLIDER_MAPPER, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", 1f, 0, false, REVERB_PREDELAY_SLIDER_MAPPER, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Size", 0, 100, editingPreset.reverbSizePercent, "%", false, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Mix", 0, 100, editingPreset.reverbMixPercent, "%", 1f, 0, false, REVERB_MIX_SLIDER_MAPPER, value ->
+                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
@@ -5945,7 +7424,7 @@ public final class MainActivity extends Activity {
         virtualBassTitleView = (TextView) bassHeader.getChildAt(0);
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
-        // UI 鍗犱綅閫夋嫨妗嗭紝system/dsp 鍒囨崲鍔熻兘鍚庣画鎺ュ叆
+        // UI 占位选择框，system/dsp 切换功能后续接入
         bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         bassPanel.addView(bassHeader, blockParams(4));
         virtualBassSlider = new HorizontalBassSlider(this);
@@ -6004,6 +7483,8 @@ public final class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setClipChildren(false);
+        row.setClipToPadding(false);
         TextView title = new GlowTitleTextView(this);
         if (title instanceof GlowTitleTextView) {
             ((GlowTitleTextView) title).setAutoRegisterShimmer(false);
@@ -6014,13 +7495,13 @@ public final class MainActivity extends Activity {
         title.setIncludeFontPadding(false);
         title.setSingleLine(true);
         title.setPadding(dp(22), dp(5), dp(22), dp(5));
-        // 鏍囬瑙嗚涓績涓婄Щ锛屼笌鍙充晶澶嶉€夋/寮€鍏充腑蹇冪偣瀵归綈
+        // 标题视觉中心上移，与右侧复选框/开关中心点对齐
         title.setTranslationY(-dp(1));
         applyInactiveExtraSectionTitleStyle(title);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        // 鎶垫秷 gradientTitleView 鐨勫乏 padding(22dp) 鍚庡啀棰濆鍙崇Щ 2dp锛岃鏂囧瓧瑙嗚宸︾紭璺?panel 鍐呭鍖哄乏杈?2dp锛?
-        // 浣挎爣棰樿窛 panel 宸﹀杈?dp18) 涓庡彸渚у閫夋鑳屾櫙璺?panel 鍙冲杈?dp16) 瑙嗚杩戜技瀵圭О锛堟爣棰樹晶澶?2dp 鐣欑櫧锛夈€?
-        // title view 宸︾Щ杩涘叆 panel padding 鍖虹殑 20dp 姝ｅソ鏄┖鐧?leftPadding锛岃鍓笉褰卞搷鏂囧瓧涓?shimmer銆?
+        // 抵消 gradientTitleView 的左 padding(22dp) 后再额外右移 2dp，让文字视觉左缘距 panel 内容区左边 2dp，
+        // 使标题距 panel 左外边(dp18) 与右侧复选框背景距 panel 右外边(dp16) 视觉近似对称（标题侧多 2dp 留白）。
+        // title view 左移进入 panel padding 区的 20dp 正好是空白 leftPadding，裁剪不影响文字与 shimmer。
         titleParams.leftMargin = -dp(20);
         row.addView(title, titleParams);
         return row;
@@ -6092,7 +7573,7 @@ public final class MainActivity extends Activity {
         return knobs;
     }
 
-    // 鏃嬮挳鍒楀弬鏁帮細绛夊 weight=1锛屽甫姘村钩闂磋窛璁╂棆閽棿鏈夊懠鍚告劅
+    // 旋钮列参数：等宽 weight=1，带水平间距让旋钮间有呼吸感
     private LinearLayout.LayoutParams knobColumnParams() {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
         p.leftMargin = dp(6);
@@ -6101,7 +7582,7 @@ public final class MainActivity extends Activity {
     }
 
 
-        // BassBoost 鎺т欢宸茶縼绉讳负 HorizontalBassSlider锛屾鏂规硶浠呬綔鍗犱綅閬垮厤璋冪敤鏂规柇瑁?
+        // BassBoost 控件已迁移为 HorizontalBassSlider，此方法仅作占位避免调用方断裂
     private LinearLayout createExtraBassControl(String label, boolean cutoff) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -6118,14 +7599,14 @@ public final class MainActivity extends Activity {
             knob.configure(0, 100, editingPreset.extraBassAmountPercent, "%", value ->
                     setEditingPreset(editingPreset.withExtraBassAmountPercent(value), true));
         }
-        // 鏃嬮挳涓棿鏁板瓧鍙偣鍑伙細寮瑰嚭鏁板€艰緭鍏ュ璇濇锛屽啓鍏ユ柊鍊?
+        // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         knobParams.topMargin = dp(6);
         knobParams.bottomMargin = dp(6);
         column.addView(knob, knobParams);
 
-        // 鏍囩绉诲埌鏃嬮挳涓嬫柟锛岃瑙夐噸蹇冨湪鏃嬮挳寮у舰
+        // 标签移到旋钮下方，视觉重心在旋钮弧形
         TextView title = new TextView(this);
         title.setText(label);
         title.setTextSize(13);
@@ -6137,46 +7618,64 @@ public final class MainActivity extends Activity {
         return column;
     }
 
-    private LinearLayout createReverbControl(String label, int min, int max, int value, String suffix, IntChanged listener) {
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, 1f, 0, false, LINEAR_SLIDER_MAPPER, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, displayScale, displayDecimals, false, LINEAR_SLIDER_MAPPER, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, boolean negativeInfinityAtMin, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, 1f, 0, negativeInfinityAtMin, LINEAR_SLIDER_MAPPER, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, IntChanged listener) {
+        return createReverbSlider(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin, LINEAR_SLIDER_MAPPER, listener);
+    }
+
+    private LinearLayout createReverbSlider(String label,
+                                            int min,
+                                            int max,
+                                            int value,
+                                            String suffix,
+                                            float displayScale,
+                                            int displayDecimals,
+                                            boolean negativeInfinityAtMin,
+                                            SliderValueMapper mapper,
+                                            IntChanged listener) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(android.view.Gravity.CENTER);
         column.setClipChildren(false);
         column.setClipToPadding(false);
 
-        KnobView knob = new KnobView(this);
-        knob.configure(min, max, value, suffix, listener::onChanged);
-        knob.setTapListener(this::showStyledKnobInputDialog);
-        // 寮哄埗鏂瑰舰锛氬姬褰㈠～婊?view锛屾爣棰樼揣璐村姬褰笅鏂?
-        knob.setForceSquare(true);
+        VerticalReverbSlider slider = new VerticalReverbSlider(this);
+        slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin,
+                mapper == null ? LINEAR_SLIDER_MAPPER : mapper, listener::onChanged);
+        // 强制方形：弧形填满 view，标题紧贴弧形下方
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        knobParams.topMargin = dp(6);
-        knobParams.bottomMargin = dp(6);
-        column.addView(knob, knobParams);
+        knobParams.topMargin = dp(4);
+        knobParams.bottomMargin = dp(2);
+        column.addView(slider, knobParams);
 
-        if ("Decay".equals(label)) {
-            reverbDecayKnob = knob;
+        if ("Main".equals(label)) {
+            reverbMainSlider = slider;
+        } else if ("Decay".equals(label)) {
+            reverbDecaySlider = slider;
         } else if ("Predelay".equals(label)) {
-            reverbPredelayKnob = knob;
+            reverbPredelaySlider = slider;
         } else if ("Size".equals(label)) {
-            reverbSizeKnob = knob;
+            reverbSizeSlider = slider;
         } else {
-            reverbMixKnob = knob;
+            reverbMixSlider = slider;
         }
 
-        // 鏍囩绱ц创鏃嬮挳涓嬫柟
-        TextView title = new TextView(this);
-        title.setText(label);
-        title.setTextSize(12);
-        title.setTextColor(Color.rgb(180, 195, 215));
-        title.setGravity(android.view.Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.topMargin = dp(1);
-        column.addView(title, titleParams);
+        // 标签紧贴旋钮下方
         return column;
     }
 
-    // 鏃嬮挳鏁板瓧鐐瑰嚮锛氬脊鍑烘暟鍊艰緭鍏ュ璇濇锛岀‘璁ゅ悗鍐欏叆 knob锛堣Е鍙?listener 閾捐矾锛?
+    // 旋钮数字点击：弹出数值输入对话框，确认后写入 knob（触发 listener 链路）
     private void showKnobInputDialog(KnobView knob) {
         if (knob == null) return;
         final EditText input = new EditText(this);
@@ -6189,16 +7688,16 @@ public final class MainActivity extends Activity {
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setGravity(android.view.Gravity.CENTER);
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("鏁板€艰緭鍏?)
+                .setTitle("数值输入")
                 .setView(input)
-                .setPositiveButton("纭畾", (d, w) -> {
+                .setPositiveButton("确定", (d, w) -> {
                     try {
                         int v = Math.round(Float.parseFloat(input.getText().toString()));
                         knob.setValue(clamp(v, knob.getMin(), knob.getMax()), true);
                     } catch (NumberFormatException ignored) {
                     }
                 })
-                .setNegativeButton("鍙栨秷", null)
+                .setNegativeButton("取消", null)
                 .create();
         dlg.setOnShowListener(d -> {
             input.requestFocus();
@@ -6256,12 +7755,70 @@ public final class MainActivity extends Activity {
                 })
                 .setNegativeButton("Cancel", null)
                 .create();
-        dlg.setOnShowListener(d -> {
-            styleDialog(dlg);
+        dlg.show();
+        styleDialog(dlg);
+        uiHandler.post(() -> {
             input.requestFocus();
             dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         });
+    }
+
+    private void showStyledReverbSliderInputDialog(VerticalReverbSlider slider) {
+        if (slider == null) return;
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(14), dp(20), dp(8));
+
+        TextView hint = new TextView(this);
+        hint.setText(slider.getLabel() + "  " + slider.displayRangeText());
+        hint.setTextSize(13);
+        hint.setTextColor(Color.rgb(150, 165, 185));
+        hint.setGravity(android.view.Gravity.CENTER);
+        hint.setPadding(0, 0, 0, dp(10));
+        content.addView(hint, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(slider.displayValueText());
+        input.setHint(slider.displayRangeHint());
+        input.setSelectAllOnFocus(true);
+        input.setInputType(slider.acceptsNegativeInfinity()
+                ? android.text.InputType.TYPE_CLASS_TEXT
+                : android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setGravity(android.view.Gravity.CENTER);
+        input.setTextSize(18);
+        input.setTextColor(Color.rgb(235, 245, 255));
+        input.setHintTextColor(Color.rgb(120, 135, 155));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        input.setBackground(createFieldBackground(26, 90, 10));
+        content.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView("Value Input"))
+                .setView(content)
+                .setPositiveButton("Apply", (d, w) -> {
+                    try {
+                        slider.setValue(slider.rawValueFromText(input.getText().toString()), true);
+                    } catch (NumberFormatException ignored) {
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
         dlg.show();
+        styleDialog(dlg);
+        uiHandler.post(() -> {
+            input.requestFocus();
+            dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        });
     }
 
     private int reverbTypeIndex(String type) {
@@ -6406,6 +7963,7 @@ public final class MainActivity extends Activity {
         return new Drawable() {
             private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
             @Override
             public void draw(Canvas canvas) {
@@ -6418,6 +7976,14 @@ public final class MainActivity extends Activity {
                 
                 float strokeWidth = dpf(1.2f);
                 float radius = Math.min(b.width(), b.height()) / 2f - strokeWidth - dpf(0.8f);
+
+                fillPaint.setStyle(Paint.Style.FILL);
+                fillPaint.setShader(null);
+                fillPaint.clearShadowLayer();
+                fillPaint.setColor(active
+                        ? Color.argb(238, 14, 20, 28)
+                        : Color.argb(220, 14, 18, 26));
+                canvas.drawCircle(cx, cy, radius * 0.98f, fillPaint);
 
                 if (active) {
                     dotPaint.setStyle(Paint.Style.FILL);
@@ -6439,8 +8005,8 @@ public final class MainActivity extends Activity {
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(strokeWidth);
                 ringPaint.clearShadowLayer();
-                // 鍦嗗舰 blur 鍏夋檿锛欱lurMaskFilter 楂樻柉妯＄硦浜х敓骞虫粦鍦嗗舰鍏夋檿锛屾姉閿娇
-                // 鍏堢敾涓€灞傜矖鎻忚竟鍏夋檿搴曪紙澶у崐寰?FILL 鍦?+ BlurMaskFilter锛夛紝鍐嶇敾 ring 鎻忚竟
+                // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
+                // 先画一层粗描边光晕底（大半径 FILL 圆 + BlurMaskFilter），再画 ring 描边
                 float glowRadius = radius + dpf(0.9f);
                 dotPaint.setStyle(Paint.Style.STROKE);
                 dotPaint.setStrokeWidth(dpf(2.1f));
@@ -6509,7 +8075,7 @@ public final class MainActivity extends Activity {
                 ringPaint.setColor(Color.argb(enabled ? 35 : 12, 255, 100, 100));
                 canvas.drawCircle(cx, cy, radius, ringPaint);
 
-                // 鍦嗗舰 blur 鍏夋檿锛欱lurMaskFilter 楂樻柉妯＄硦浜х敓骞虫粦鍦嗗舰鍏夋檿锛屾姉閿娇
+                // 圆形 blur 光晕：BlurMaskFilter 高斯模糊产生平滑圆形光晕，抗锯齿
                 float glowRadius = radius + dpf(0.9f);
                 crossPaint.setStyle(Paint.Style.STROKE);
                 crossPaint.setStrokeWidth(dpf(2.1f));
@@ -6579,7 +8145,7 @@ public final class MainActivity extends Activity {
 
     private View wrapCircularButton(View button, float weight, int sizeDp, int leftDp, int rightDp, int translationXDp) {
         FrameLayout container = new FrameLayout(this);
-        // 鍏抽敭淇锛氬叧闂瀹瑰櫒鐨勫瓙瑙嗗浘瑁佸壀锛屽惁鍒欏唴閮ㄥ渾褰㈡寜閽敾鍑虹殑楂橀樁妯＄硦闇撹櫣鍏夋檿闃村奖浼氬湪 22dp 鎴?24dp 杈规澶栬竟缂樼洿鎺ュ垏骞筹紝鐪嬭捣鏉ュ崄鍒嗕笉缇庤銆?
+        // 关键修复：关闭该容器的子视图裁剪，否则内部圆形按钮画出的高阶模糊霓虹光晕阴影会在 22dp 或 24dp 边框外边缘直接切平，看起来十分不美观。
         container.setClipChildren(false);
         container.setClipToPadding(false);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
@@ -6613,12 +8179,20 @@ public final class MainActivity extends Activity {
     }
 
     private void closeKeyboard(View view) {
+        suppressEqOverlayHideOnKeyboardDismiss = false;
+        hideEqEditOverlay();
+        dismissKeyboard(view, true);
+    }
+
+    private void dismissKeyboard(View view, boolean clearFocus) {
         InputMethodManager manager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         View focused = getCurrentFocus();
         View tokenView = focused != null ? focused : view;
-        hideEqEditOverlay();
         if (manager != null) {
             uiHandler.post(() -> manager.hideSoftInputFromWindow(tokenView.getWindowToken(), 0));
+        }
+        if (!clearFocus) {
+            return;
         }
         if (focused != null) {
             focused.clearFocus();
@@ -6636,6 +8210,9 @@ public final class MainActivity extends Activity {
 
     private boolean shouldDismissKeyboardOnTouch(View focused, MotionEvent event) {
         if (!(focused instanceof EditText) || event == null) {
+            return false;
+        }
+        if (activeEqEditOverlay != null) {
             return false;
         }
         return isTouchOutsideView(focused, event);
@@ -6656,6 +8233,11 @@ public final class MainActivity extends Activity {
 
     private interface FloatChanged {
         void onChanged(float value);
+    }
+
+    private interface SliderValueMapper {
+        float valueToFraction(int value, int min, int max);
+        int fractionToValue(float fraction, int min, int max);
     }
 
     private interface ChoiceCallback {
@@ -6985,10 +8567,298 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * BassBoost 妯悜鎺ㄥ瓙锛氭按骞宠建閬?+ 宸﹀彸婊戝姩鐨?thumb銆?
-     * 瑙嗚椋庢牸涓?GeqSliderView 涓€鑷达紙neon 鍙戝厜銆佽兌鍥?thumb銆丩ED 鎸囩ず锛夛紝
-     * 浣嗘柟鍚戜负姘村钩锛岀敤浜庤妭鐪佸瀭鐩寸┖闂淬€?
+     * BassBoost 横向推子：水平轨道 + 左右滑动的 thumb。
+     * 视觉风格与 GeqSliderView 一致（neon 发光、胶囊 thumb、LED 指示），
+     * 但方向为水平，用于节省垂直空间。
      */
+    private final class VerticalReverbSlider extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF thumbRect = new android.graphics.RectF();
+        private int min;
+        private int max;
+        private int value;
+        private float displayScale = 1f;
+        private int displayDecimals;
+        private boolean negativeInfinityAtMin;
+        private int resetValue;
+        private String suffix = "";
+        private String label = "";
+        private KnobView.Listener listener;
+        private SliderValueMapper mapper = LINEAR_SLIDER_MAPPER;
+        private float touchStartX;
+        private float touchStartY;
+        private boolean adjusting;
+        private long lastTapTime;
+        private float lastTapX;
+        private float lastTapY;
+
+        VerticalReverbSlider(Context context) {
+            super(context);
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, KnobView.Listener listener) {
+            configure(label, min, max, value, suffix, 1f, 0, false, LINEAR_SLIDER_MAPPER, listener);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, KnobView.Listener listener) {
+            configure(label, min, max, value, suffix, displayScale, displayDecimals, false, LINEAR_SLIDER_MAPPER, listener);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, KnobView.Listener listener) {
+            configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin, LINEAR_SLIDER_MAPPER, listener);
+        }
+
+        void configure(String label, int min, int max, int value, String suffix, float displayScale, int displayDecimals, boolean negativeInfinityAtMin, SliderValueMapper mapper, KnobView.Listener listener) {
+            this.label = label == null ? "" : label;
+            this.min = min;
+            this.max = max;
+            this.suffix = suffix == null ? "" : suffix;
+            this.displayScale = Math.abs(displayScale) < 0.0001f ? 1f : displayScale;
+            this.displayDecimals = Math.max(0, displayDecimals);
+            this.negativeInfinityAtMin = negativeInfinityAtMin;
+            this.resetValue = clamp(negativeInfinityAtMin ? 0 : min, min, max);
+            this.mapper = mapper == null ? LINEAR_SLIDER_MAPPER : mapper;
+            this.listener = listener;
+            setValue(value, false);
+        }
+
+        int getMin() { return min; }
+        int getMax() { return max; }
+        int getValue() { return value; }
+        String getSuffix() { return suffix; }
+        String getLabel() { return label; }
+        boolean acceptsNegativeInfinity() { return negativeInfinityAtMin; }
+        String displayValueText() { return formatDisplayValue(value); }
+        String displayRangeText() { return formatDisplayNumber(min) + " - " + formatDisplayNumber(max) + suffix; }
+        String displayRangeHint() { return formatDisplayNumber(min) + " ~ " + formatDisplayNumber(max) + suffix; }
+
+        int rawValueFromDisplay(float displayValue) {
+            float scaled = displayValue / displayScale;
+            return clamp(Math.round(scaled), min, max);
+        }
+
+        int rawValueFromText(String text) {
+            String normalized = text == null ? "" : text.trim();
+            if (negativeInfinityAtMin) {
+                String lower = normalized.toLowerCase(Locale.US);
+                if (lower.isEmpty() || "-inf".equals(lower) || "inf".equals(lower) || "off".equals(lower) || "mute".equals(lower)) {
+                    return min;
+                }
+            }
+            String compact = normalized;
+            if (!suffix.isEmpty() && compact.toLowerCase(Locale.US).endsWith(suffix.toLowerCase(Locale.US))) {
+                compact = compact.substring(0, compact.length() - suffix.length()).trim();
+            }
+            return rawValueFromDisplay(Float.parseFloat(compact));
+        }
+
+        void setValue(int nextValue, boolean notify) {
+            int clamped = Math.max(min, Math.min(max, nextValue));
+            if (clamped == value) {
+                invalidate();
+                return;
+            }
+            value = clamped;
+            invalidate();
+            if (notify && listener != null) {
+                listener.onValueChanged(value);
+            }
+        }
+
+        private boolean isActive() {
+            return value != min;
+        }
+
+        private float trackTop() {
+            return dpf(26f);
+        }
+
+        private float trackBottom() {
+            return getHeight() - dpf(28f);
+        }
+
+        private float trackCenterX() {
+            return getWidth() / 2f;
+        }
+
+        private float valueToY() {
+            float t = Math.max(0f, Math.min(1f, mapper.valueToFraction(value, min, max)));
+            return trackBottom() - (trackBottom() - trackTop()) * t;
+        }
+
+        private int yToValue(float y) {
+            float t = (trackBottom() - clampFloat(y, trackTop(), trackBottom()))
+                    / Math.max(1f, trackBottom() - trackTop());
+            return mapper.fractionToValue(t, min, max);
+        }
+
+        private void commitCurrentValue() {
+            if (listener != null) {
+                listener.onValueChanged(value);
+            }
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int width = getWidth();
+            float cx = trackCenterX();
+            float top = trackTop();
+            float bottom = trackBottom();
+            float thumbY = valueToY();
+            boolean active = isActive();
+
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTextSize(dpf(12f));
+            if (active) {
+                paint.setColor(Color.rgb(0, 245, 212));
+                paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(150, 0, 245, 212));
+            } else {
+                paint.setColor(Color.argb(150, 255, 255, 255));
+            }
+            canvas.drawText(displayValueText(), cx, dpf(14f), paint);
+            paint.clearShadowLayer();
+
+            android.graphics.RectF trackRect = new android.graphics.RectF(
+                    cx - dpf(2f), top, cx + dpf(2f), bottom);
+            paint.setColor(Color.argb(25, 255, 255, 255));
+            canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
+
+            if (active) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(dpf(4f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor(Color.rgb(0, 245, 212));
+                paint.setShadowLayer(dpf(6f), 0, 0, Color.argb(180, 0, 245, 212));
+                canvas.drawLine(cx, bottom, cx, thumbY, paint);
+                paint.clearShadowLayer();
+            }
+
+            float thumbW = dpf(28f);
+            float thumbH = dpf(18f);
+            thumbRect.set(cx - thumbW / 2f, thumbY - thumbH / 2f,
+                    cx + thumbW / 2f, thumbY + thumbH / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(240, 22, 26, 38));
+            canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(adjusting || active ? dpf(1.6f) : dpf(1.0f));
+            paint.setColor(adjusting || active ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
+            if (adjusting || active) {
+                paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
+            }
+            canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
+            paint.clearShadowLayer();
+
+            float indW = dpf(10f);
+            float indH = dpf(3f);
+            android.graphics.RectF indRect = new android.graphics.RectF(
+                    cx - indW / 2f, thumbY - indH / 2f,
+                    cx + indW / 2f, thumbY + indH / 2f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.rgb(0, 245, 212));
+            if (active) {
+                paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(220, 0, 245, 212));
+            }
+            canvas.drawRoundRect(indRect, dpf(1.5f), dpf(1.5f), paint);
+            paint.clearShadowLayer();
+
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setFakeBoldText(false);
+            paint.setTextSize(dpf(11f));
+            paint.setColor(Color.rgb(200, 210, 230));
+            canvas.drawText(label, width / 2f, getHeight() - dpf(8f), paint);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (!isEnabled()) {
+                return false;
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    touchStartX = event.getX();
+                    touchStartY = event.getY();
+                    adjusting = false;
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = Math.abs(event.getX() - touchStartX);
+                    float dy = Math.abs(event.getY() - touchStartY);
+                    if (!adjusting && dy > dpf(10f) && dy >= dx) {
+                        adjusting = true;
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    if (adjusting) {
+                        setValue(yToValue(event.getY()), false);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                    if (adjusting) {
+                        setValue(yToValue(event.getY()), false);
+                        if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                            commitCurrentValue();
+                        }
+                    } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        float endX = event.getX();
+                        float endY = event.getY();
+                        float totalDist = (float) Math.hypot(endX - touchStartX, endY - touchStartY);
+                        if (totalDist < dpf(15f)) {
+                            long now = android.os.SystemClock.uptimeMillis();
+                            float tapDist = (float) Math.hypot(endX - lastTapX, endY - lastTapY);
+                            if (now - lastTapTime < 300 && tapDist < dpf(30f)) {
+                                setValue(resetValue, false);
+                                commitCurrentValue();
+                                lastTapTime = 0L;
+                            } else if (endY <= dpf(24f) || endY >= getHeight() - dpf(22f)) {
+                                lastTapTime = now;
+                                lastTapX = endX;
+                                lastTapY = endY;
+                                showStyledReverbSliderInputDialog(this);
+                            } else {
+                                lastTapTime = now;
+                                lastTapX = endX;
+                                lastTapY = endY;
+                            }
+                        } else if (event.getY() <= dpf(24f) || event.getY() >= getHeight() - dpf(22f)) {
+                            showStyledReverbSliderInputDialog(this);
+                        }
+                    }
+                    adjusting = false;
+                    return true;
+                default:
+                    return super.onTouchEvent(event);
+            }
+        }
+
+        private float clampFloat(float v, float lo, float hi) {
+            return Math.max(lo, Math.min(hi, v));
+        }
+
+        private String formatDisplayValue(int rawValue) {
+            if (negativeInfinityAtMin && rawValue <= min) {
+                return "-inf";
+            }
+            return formatDisplayNumber(rawValue) + suffix;
+        }
+
+        private String formatDisplayNumber(int rawValue) {
+            if (negativeInfinityAtMin && rawValue <= min) {
+                return "-inf";
+            }
+            float displayValue = rawValue * displayScale;
+            if (displayDecimals <= 0) {
+                return String.valueOf(Math.round(displayValue));
+            }
+            return String.format(Locale.US, "%." + displayDecimals + "f", displayValue);
+        }
+    }
+
     private final class HorizontalBassSlider extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.RectF thumbRect = new android.graphics.RectF();
@@ -7016,9 +8886,19 @@ public final class MainActivity extends Activity {
             setValue(value, false);
         }
 
+        private void commitCurrentValue() {
+            if (listener != null) {
+                listener.onValueChanged(value);
+            }
+        }
+
         void setLabel(String label) {
             this.label = label == null ? "" : label;
             invalidate();
+        }
+
+        int getValue() {
+            return value;
         }
 
         void setValue(int nextValue, boolean notify) {
@@ -7086,14 +8966,14 @@ public final class MainActivity extends Activity {
             float thumbX = valueToX();
             boolean active = isActive();
 
-            // 1. 杞ㄩ亾鑳屾櫙鑳跺泭
+            // 1. 轨道背景胶囊
             android.graphics.RectF trackRect = new android.graphics.RectF(
                     left, cy - dpf(2f), right, cy + dpf(2f));
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(Color.argb(25, 255, 255, 255));
             canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
 
-            // 2. 娲诲姩娈靛彂鍏夛紙浠?trackLeft 鍒?thumb锛?
+            // 2. 活动段发光（从 trackLeft 到 thumb）
             if (active) {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(4f));
@@ -7104,7 +8984,7 @@ public final class MainActivity extends Activity {
                 paint.clearShadowLayer();
             }
 
-            // 3. thumb 鑳跺泭
+            // 3. thumb 胶囊
             float thumbW = dpf(18f);
             float thumbH = dpf(28f);
             thumbRect.set(thumbX - thumbW / 2f, cy - thumbH / 2f,
@@ -7122,7 +9002,7 @@ public final class MainActivity extends Activity {
             canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
             paint.clearShadowLayer();
 
-            // 4. thumb 涓績 LED 鎸囩ず
+            // 4. thumb 中心 LED 指示
             float indW = dpf(3f);
             float indH = dpf(10f);
             android.graphics.RectF indRect = new android.graphics.RectF(
@@ -7136,7 +9016,7 @@ public final class MainActivity extends Activity {
             canvas.drawRoundRect(indRect, dpf(1.5f), dpf(1.5f), paint);
             paint.clearShadowLayer();
 
-            // 5. 鏍囩涓庢暟鍊?
+            // 5. 标签与数值
             paint.setStyle(Paint.Style.FILL);
             paint.setTextAlign(Paint.Align.LEFT);
             paint.setFakeBoldText(true);
@@ -7178,19 +9058,28 @@ public final class MainActivity extends Activity {
                         getParent().requestDisallowInterceptTouchEvent(true);
                     }
                     if (adjusting) {
-                        setValue(xToValue(event.getX()), true);
+                        setValue(xToValue(event.getX()), false);
+                        if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                            commitCurrentValue();
+                        }
                     }
                     return true;
                 case android.view.MotionEvent.ACTION_UP:
                 case android.view.MotionEvent.ACTION_CANCEL:
                     getParent().requestDisallowInterceptTouchEvent(false);
                     if (adjusting) {
-                        setValue(xToValue(event.getX()), true);
+                        setValue(xToValue(event.getX()), false);
+                        if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                            commitCurrentValue();
+                        }
                     } else {
-                        // tap thumb 鍖哄煙鐩存帴璺宠浆
+                        // tap thumb 区域直接跳转
                         float thumbX = valueToX();
                         if (Math.abs(event.getX() - thumbX) < dpf(20f)) {
-                            setValue(xToValue(event.getX()), true);
+                            setValue(xToValue(event.getX()), false);
+                            if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                                commitCurrentValue();
+                            }
                         }
                     }
                     adjusting = false;
@@ -7369,22 +9258,22 @@ public final class MainActivity extends Activity {
         switchView.setMinHeight(dp(30));
         switchView.setMinimumHeight(dp(30));
         switchView.setSwitchMinWidth(dp(60));
-        // 鍘绘帀寮€鍏冲鍥寸殑鍦堝湀鍔ㄧ敾锛氭竻闄ら粯璁?background 鍜?stateListAnimator
+        // 去掉开关外围的圈圈动画：清除默认 background 和 stateListAnimator
         switchView.setBackground(null);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             switchView.setStateListAnimator(null);
         }
-        // thumb 棰滆壊锛氬叧闂椂娴呯伆鍋忓喎锛屽紑鍚椂闈掕壊浜厜锛堝甫鏌斿厜锛?
+        // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光）
         switchView.setThumbDrawable(switchThumbDrawable(
-                autoSwitch ? Color.rgb(170, 180, 200) : Color.rgb(190, 200, 215),
-                Color.rgb(120, 240, 220)
+                autoSwitch ? Color.rgb(150, 168, 198) : Color.rgb(162, 180, 208),
+                Color.rgb(76, 210, 228)
         ));
-        // track 棰滆壊锛氬叧闂椂鍗婇€忔槑鐧斤紝寮€鍚椂鍗婇€忔槑闈掕摑锛堜笌鏍囬娴佸厜鍚岃壊绯伙級
+        // track 颜色：关闭时半透明白，开启时半透明青蓝（与标题流光同色系）
         switchView.setTrackDrawable(labeledSwitchTrackDrawable(
                 autoSwitch ? "AUTO" : "OFF",
                 autoSwitch ? "AUTO" : "ON",
-                autoSwitch ? Color.argb(38, 255, 255, 255) : Color.argb(45, 255, 255, 255),
-                autoSwitch ? Color.argb(85, 120, 240, 220) : Color.argb(105, 120, 240, 220)
+                autoSwitch ? Color.argb(52, 126, 152, 196) : Color.argb(60, 118, 144, 188),
+                autoSwitch ? Color.argb(112, 52, 168, 196) : Color.argb(124, 48, 176, 208)
         ));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             switchView.setSplitTrack(false);
@@ -7394,7 +9283,6 @@ public final class MainActivity extends Activity {
     private Drawable labeledSwitchTrackDrawable(String uncheckedLabel, String checkedLabel, int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Path clipPath = new Path();
             private final android.graphics.RectF rect = new android.graphics.RectF();
             private android.animation.ValueAnimator labelAnimator;
             private float labelProgress;
@@ -7408,28 +9296,72 @@ public final class MainActivity extends Activity {
                     labelProgress = checked ? 1f : 0f;
                     labelProgressReady = true;
                 }
-                rect.set(b.left, b.top + dpf(2f), b.right, b.bottom - dpf(2f));
+                rect.set(b.left + dpf(0.5f), b.top + dpf(2f), b.right - dpf(0.5f), b.bottom - dpf(2f));
 
+                float radius = rect.height() / 2f;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
+                if (checked) {
+                    float outerGlow = dpf(2.4f);
+                    float midGlow = dpf(1.5f);
+                    float innerGlow = dpf(0.8f);
+                    paint.setColor(Color.argb(16, 84, 212, 228));
+                    canvas.drawRoundRect(
+                            rect.left - outerGlow,
+                            rect.top - outerGlow,
+                            rect.right + outerGlow,
+                            rect.bottom + outerGlow,
+                            radius + outerGlow,
+                            radius + outerGlow,
+                            paint);
+                    paint.setColor(Color.argb(28, 84, 212, 228));
+                    canvas.drawRoundRect(
+                            rect.left - midGlow,
+                            rect.top - midGlow,
+                            rect.right + midGlow,
+                            rect.bottom + midGlow,
+                            radius + midGlow,
+                            radius + midGlow,
+                            paint);
+                    paint.setColor(Color.argb(40, 84, 212, 228));
+                    canvas.drawRoundRect(
+                            rect.left - innerGlow,
+                            rect.top - innerGlow,
+                            rect.right + innerGlow,
+                            rect.bottom + innerGlow,
+                            radius + innerGlow,
+                            radius + innerGlow,
+                            paint);
+                } else {
+                    float offGlow = dpf(0.9f);
+                    paint.setColor(Color.argb(10, 116, 142, 176));
+                    canvas.drawRoundRect(
+                            rect.left - offGlow,
+                            rect.top - offGlow,
+                            rect.right + offGlow,
+                            rect.bottom + offGlow,
+                            radius + offGlow,
+                            radius + offGlow,
+                            paint);
+                }
+
                 paint.setColor(checked ? checkedColor : uncheckedColor);
-                float radius = rect.height() / 2f;
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(90, 120, 240, 220) : Color.argb(42, 255, 255, 255));
+                paint.setColor(checked ? Color.argb(124, 176, 244, 248) : Color.argb(84, 194, 220, 255));
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 paint.setStyle(Paint.Style.FILL);
                 paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                 paint.setTextSize(dpf(8.5f));
                 paint.setTextAlign(Paint.Align.CENTER);
-                paint.setColor(checked ? Color.rgb(140, 250, 230) : Color.argb(88, 255, 255, 255));
+                paint.setColor(checked ? Color.rgb(214, 235, 255) : Color.argb(136, 226, 236, 248));
                 if (checked) {
-                    paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 120, 240, 220));
+                    paint.setShadowLayer(dpf(2.2f), 0, 0, Color.argb(110, 96, 220, 234));
                 } else {
-                    paint.clearShadowLayer();
+                    paint.setShadowLayer(dpf(1.4f), 0, 0, Color.argb(54, 150, 186, 214));
                 }
                 Paint.FontMetrics metrics = paint.getFontMetrics();
                 float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
@@ -7454,8 +9386,6 @@ public final class MainActivity extends Activity {
                     labelAnimator.cancel();
                 }
                 labelAnimator = android.animation.ValueAnimator.ofFloat(labelProgress, target);
-                // 300ms + AccelerateDecelerateInterpolator锛氫笌绯荤粺 thumb 婊戝姩鑺傚鎺ヨ繎锛?
-                // 璁?OFF鈫扥N 鏂囧瓧杩囨浮涓濇粦锛坅uto 寮€鍏虫枃瀛楃浉鍚岋紝涓嶅彈褰卞搷锛?
                 labelAnimator.setDuration(300);
                 labelAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
                 labelAnimator.addUpdateListener(animation -> {
@@ -7502,8 +9432,6 @@ public final class MainActivity extends Activity {
     private Drawable switchThumbDrawable(int uncheckedColor, int checkedColor) {
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            // thumb 棰滆壊 + 鏌斿厜閫忔槑搴﹁窡闅忕姸鎬佸垏鎹㈠仛 300ms argb 娓愬彉锛?
-            // 涓?track label 鍔ㄧ敾鍚屾锛屾秷闄?thumb 棰滆壊璺冲彉
             private int currentColor = uncheckedColor;
             private boolean colorReady = false;
             private float glowAlpha = 0f;
@@ -7518,24 +9446,24 @@ public final class MainActivity extends Activity {
                     glowAlpha = checked ? 1f : 0f;
                     colorReady = true;
                 }
-                float radius = Math.min(b.width(), b.height()) / 2f - dpf(1f);
+                float inset = dpf(2f);
+                float left = b.left + inset;
+                float top = b.top + inset;
+                float right = b.right - inset;
+                float bottom = b.bottom - inset;
+                float cx = (left + right) * 0.5f - dpf(1f) + (checked ? 0f : dpf(2f));
+                float cy = (top + bottom) * 0.5f;
+                float radius = Math.min(right - left, bottom - top) * 0.5f;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(currentColor);
-                if (glowAlpha > 0.01f) {
-                    // 寮€鍚椂 thumb 甯︽煍鍏夛紝涓庢祦鍏夊悓鑹茬郴锛涢€忔槑搴﹂殢娓愬彉杩囨浮
-                    paint.setShadowLayer(dpf(3f), 0, 0, Color.argb((int)(140 * glowAlpha), 120, 240, 220));
-                } else {
-                    paint.clearShadowLayer();
-                }
-                canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
-                paint.clearShadowLayer();
+                canvas.drawCircle(cx, cy, radius, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                int strokeAlpha = (int)(70 + (120 - 70) * glowAlpha);
-                paint.setColor(Color.argb(strokeAlpha, 255, 255, 255));
-                canvas.drawCircle(b.centerX(), b.centerY(), radius, paint);
+                int strokeAlpha = (int) (78 + (126 - 78) * glowAlpha);
+                paint.setColor(Color.argb(strokeAlpha, 238, 246, 255));
+                canvas.drawCircle(cx, cy, radius - dpf(0.1f), paint);
             }
 
             @Override
@@ -7546,7 +9474,6 @@ public final class MainActivity extends Activity {
                 if (colorAnimator != null) {
                     colorAnimator.cancel();
                 }
-                // 棰滆壊涓庢煍鍏夐€忔槑搴﹀悓姝?300ms 娓愬彉锛屼笌 track 鏂囧瓧鍔ㄧ敾鑺傚涓€鑷?
                 float startGlow = glowAlpha;
                 int startColor = currentColor;
                 colorAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
@@ -7744,8 +9671,300 @@ public final class MainActivity extends Activity {
         };
     }
 
-    // App icon glow that samples the icon color and renders a soft layered bloom behind it.
+    // 图标光晕：以图标自身 alpha 为蒙版做高斯外发光，视觉与 GlowTitleTextView
+    // 的标题光晕同源（模糊后的剪影 + 取色），图标本体由 ImageView 锐利绘制在上层，
+    // 保持清晰度。光晕只在图标 / 尺寸变化时重建，避免每帧 GC。
     private class IconGlowDrawable extends Drawable {
+        private final Paint haloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF dstRect = new android.graphics.RectF();
+        private Drawable sourceIcon;
+        private int glowColor;
+        private android.graphics.Bitmap haloBitmap;
+        private int cachedKey = 0;
+
+        IconGlowDrawable(int glowColor) {
+            this.glowColor = glowColor;
+            haloPaint.setDither(true);
+            haloPaint.setFilterBitmap(true);
+        }
+
+        void setIcon(Drawable icon) {
+            if (sourceIcon == icon) {
+                return;
+            }
+            sourceIcon = icon;
+            if (icon != null) {
+                glowColor = extractIconGlowColor(icon);
+            }
+            dropHalo();
+            invalidateSelf();
+        }
+
+        private void dropHalo() {
+            if (haloBitmap != null) {
+                haloBitmap.recycle();
+                haloBitmap = null;
+            }
+            cachedKey = 0;
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            Rect b = getBounds();
+            if (b.width() <= 0 || b.height() <= 0 || sourceIcon == null) {
+                return;
+            }
+            // 图标显示区 = bounds 减去宿主 ImageView 的 padding（FIT_CENTER 居中）
+            int pl = 0, pt = 0, pr = 0, pb = 0;
+            android.graphics.drawable.Drawable.Callback cb = getCallback();
+            if (cb instanceof View) {
+                View host = (View) cb;
+                pl = host.getPaddingLeft();
+                pt = host.getPaddingTop();
+                pr = host.getPaddingRight();
+                pb = host.getPaddingBottom();
+            }
+            int aw = Math.max(1, b.width() - pl - pr);
+            int ah = Math.max(1, b.height() - pt - pb);
+            // 光晕半径：稍大，让光晕更饱满、扩散更明显；
+            // pad 需 >= 3*blurPx 才能完整容纳 3 趟盒式模糊的扩散，避免边缘硬切。
+            int blurPx = Math.max(1, (int) Math.ceil(dpf(1.9f)));
+            int pad = blurPx * 3 + 2;
+            int key = (aw << 16) | (ah & 0xFFFF);
+            if (haloBitmap == null || key != cachedKey) {
+                buildHalo(aw, ah, pad, blurPx);
+                cachedKey = key;
+            }
+            if (haloBitmap == null) {
+                return;
+            }
+            // haloBitmap 中图标区域居于 [pad, pad+aw]，与 ImageView 绘制的图标重合；
+            // 整张光晕按此偏移贴齐，模糊溢出部分自然环绕图标四周。
+            float left = b.left + pl - pad;
+            float top = b.top + pt - pad;
+            dstRect.set(left, top, left + haloBitmap.getWidth(), top + haloBitmap.getHeight());
+            haloPaint.setAlpha(255);
+            canvas.drawBitmap(haloBitmap, null, dstRect, haloPaint);
+        }
+
+        private void buildHalo(int aw, int ah, int pad, int blurPx) {
+            int bw = aw + 2 * pad;
+            int bh = ah + 2 * pad;
+            if (bw <= 0 || bh <= 0) {
+                return;
+            }
+            // 1. 把图标 FIT_CENTER 渲染到画布中心区域（四周留 pad 给模糊溢出）
+            android.graphics.Bitmap src = android.graphics.Bitmap.createBitmap(
+                    bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas c = new android.graphics.Canvas(src);
+            android.graphics.Rect fit = fitCenter(sourceIcon, aw, ah);
+            fit.offset(pad, pad);
+            // 保存并恢复宿主 ImageView 共享的 bounds，避免影响上层锐利绘制
+            android.graphics.Rect saved = new android.graphics.Rect(sourceIcon.getBounds());
+            sourceIcon.setBounds(fit);
+            sourceIcon.draw(c);
+            sourceIcon.setBounds(saved);
+            // 2. 形态学边缘提取：图标是实心矩形，直接着色会把整块填成实心色块。
+            //    先腐蚀（min 滤波）得到缩小的 alpha，再 edge = alpha - 腐蚀alpha：
+            //    图标内部 edge=0（不发光）、只在图标轮廓一圈 edge>0、外部 edge=0。
+            //    对这"轮廓环"做高斯模糊，得到与标题文字光晕同源的轮廓光晕，
+            //    而不是一坨实心色块；图标本体由上层 ImageView 锐利覆盖。
+            int[] px = new int[bw * bh];
+            src.getPixels(px, 0, bw, 0, 0, bw, bh);
+            src.recycle();
+            int[] alpha = new int[bw * bh];
+            for (int i = 0; i < px.length; i++) {
+                alpha[i] = (px[i] >>> 24) & 0xFF;
+            }
+            int edgeK = Math.max(1, (int) Math.ceil(dpf(0.9f)));
+            int[] eroded = new int[bw * bh];
+            minFilterH(alpha, eroded, bw, bh, edgeK);
+            minFilterV(eroded, eroded, bw, bh, edgeK);
+            int[] edge = new int[bw * bh];
+            for (int i = 0; i < alpha.length; i++) {
+                int e = alpha[i] - eroded[i];
+                edge[i] = e < 0 ? 0 : e;
+            }
+            // 对轮廓环做 3 趟可分离盒式模糊（近似高斯），向外柔和扩散成光晕
+            int[] tmp = new int[bw * bh];
+            for (int p = 0; p < 3; p++) {
+                boxBlurH(edge, tmp, bw, bh, blurPx);
+                boxBlurV(tmp, edge, bw, bh, blurPx);
+            }
+            // 3. 用图标取色给光晕上色（RGB=取色，A=模糊后轮廓 alpha），图标本体由上层锐利覆盖。
+            //    gamma=1.0 不提亮，保留模糊本身的快速衰减；尾端用 C∞ 软乘子
+            //    M(a)=1-(1-a)^p 平滑吻接到 0，中高 alpha 区 M≈1 忠实保留衰减形状。
+            int r = (glowColor >> 16) & 0xFF;
+            int g = (glowColor >> 8) & 0xFF;
+            int bl = glowColor & 0xFF;
+            int ga = (glowColor >>> 24) & 0xFF;
+            final float baseGain = 0.34f;    // 继续降低亮度，避免贴边形成实色圈
+            final float gamma = 1.35f;       // 再压一档中高亮，让光晕更像柔光
+            final float fadeSharp = 3.0f;    // 收边略放软，减少边界感
+            for (int i = 0; i < edge.length; i++) {
+                float nf = edge[i] / 255f;
+                float a = (float) Math.pow(nf, gamma);
+                // 软乘子 M = 1 - (1-a)^p，全程 C∞ 单条函数，无分段无折点
+                float m = 1f - (float) Math.pow(1f - a, fadeSharp);
+                float contentMask = 1f - (alpha[i] / 255f);
+                float tail = a * (0.18f + 0.82f * m) * contentMask * contentMask;
+                int out = (int) (tail * ga * baseGain * 255f + 0.5f);
+                if (out > 255) out = 255;
+                if (out < 0) out = 0;
+                px[i] = (out << 24) | (r << 16) | (g << 8) | bl;
+            }
+            android.graphics.Bitmap halo = android.graphics.Bitmap.createBitmap(
+                    px, bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
+            if (haloBitmap != null) {
+                haloBitmap.recycle();
+            }
+            haloBitmap = halo;
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            haloPaint.setAlpha(alpha);
+        }
+
+        @Override
+        public void setColorFilter(ColorFilter colorFilter) {
+            // 保留图标取色逻辑，忽略外部 colorFilter 以维持光晕配色稳定
+        }
+
+        @Override
+        public int getOpacity() {
+            return PixelFormat.TRANSLUCENT;
+        }
+    }
+
+    // ---- 图标光晕辅助：取色 / 居中 / 盒式模糊 ----
+    // 取软件图标平均色并把最亮通道拉满，保留色相的同时让光晕通透鲜亮
+    private int extractIconGlowColor(Drawable icon) {
+        int width = icon.getIntrinsicWidth();
+        int height = icon.getIntrinsicHeight();
+        if (width <= 0 || height <= 0) {
+            width = 64;
+            height = 64;
+        }
+        try {
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                    width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+            icon.setBounds(0, 0, width, height);
+            icon.draw(canvas);
+            long sumR = 0, sumG = 0, sumB = 0, count = 0;
+            int stride = Math.max(1, Math.min(width, height) / 16);
+            for (int y = 0; y < height; y += stride) {
+                for (int x = 0; x < width; x += stride) {
+                    int pixel = bmp.getPixel(x, y);
+                    if (((pixel >>> 24) & 0xFF) < 100) {
+                        continue;
+                    }
+                    sumR += (pixel >> 16) & 0xFF;
+                    sumG += (pixel >> 8) & 0xFF;
+                    sumB += pixel & 0xFF;
+                    count++;
+                }
+            }
+            bmp.recycle();
+            if (count == 0) {
+                return Color.argb(172, 120, 220, 255);
+            }
+            int r = (int) (sumR / count);
+            int g = (int) (sumG / count);
+            int b = (int) (sumB / count);
+            r = clamp((int) (r * 0.88f + 28f), 0, 255);
+            g = clamp((int) (g * 0.90f + 26f), 0, 255);
+            b = clamp((int) (b * 0.86f + 18f), 0, 255);
+            return Color.argb(172, r, g, b);
+        } catch (Exception ignored) {
+            return Color.argb(172, 120, 220, 255);
+        }
+    }
+
+    private android.graphics.Rect fitCenter(Drawable icon, int aw, int ah) {
+        int iw = icon.getIntrinsicWidth();
+        int ih = icon.getIntrinsicHeight();
+        if (iw <= 0 || ih <= 0) {
+            iw = aw;
+            ih = ah;
+        }
+        float scale = Math.min((float) aw / iw, (float) ah / ih);
+        int dw = Math.max(1, (int) (iw * scale));
+        int dh = Math.max(1, (int) (ih * scale));
+        int left = (aw - dw) / 2;
+        int top = (ah - dh) / 2;
+        return new android.graphics.Rect(left, top, left + dw, top + dh);
+    }
+
+    private void boxBlurH(int[] src, int[] dst, int w, int h, int r) {
+        int window = r * 2 + 1;
+        for (int y = 0; y < h; y++) {
+            int row = y * w;
+            int sum = 0;
+            for (int x = -r; x <= r; x++) {
+                sum += src[row + Math.max(0, Math.min(w - 1, x))];
+            }
+            for (int x = 0; x < w; x++) {
+                dst[row + x] = sum / window;
+                int xOut = Math.max(0, Math.min(w - 1, x - r));
+                int xIn = Math.max(0, Math.min(w - 1, x + r + 1));
+                sum += src[row + xIn] - src[row + xOut];
+            }
+        }
+    }
+
+    private void boxBlurV(int[] src, int[] dst, int w, int h, int r) {
+        int window = r * 2 + 1;
+        for (int x = 0; x < w; x++) {
+            int sum = 0;
+            for (int y = -r; y <= r; y++) {
+                sum += src[Math.max(0, Math.min(h - 1, y)) * w + x];
+            }
+            for (int y = 0; y < h; y++) {
+                dst[y * w + x] = sum / window;
+                int yOut = Math.max(0, Math.min(h - 1, y - r));
+                int yIn = Math.max(0, Math.min(h - 1, y + r + 1));
+                sum += src[yIn * w + x] - src[yOut * w + x];
+            }
+        }
+    }
+
+    // 最小值滤波（腐蚀）：用于形态学边缘提取，把实心图标内部吃掉只留轮廓
+    private void minFilterH(int[] src, int[] dst, int w, int h, int r) {
+        for (int y = 0; y < h; y++) {
+            int row = y * w;
+            for (int x = 0; x < w; x++) {
+                int mn = 255;
+                for (int k = -r; k <= r; k++) {
+                    int xx = x + k;
+                    if (xx < 0) xx = 0;
+                    else if (xx >= w) xx = w - 1;
+                    int v = src[row + xx];
+                    if (v < mn) mn = v;
+                }
+                dst[row + x] = mn;
+            }
+        }
+    }
+
+    private void minFilterV(int[] src, int[] dst, int w, int h, int r) {
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                int mn = 255;
+                for (int k = -r; k <= r; k++) {
+                    int yy = y + k;
+                    if (yy < 0) yy = 0;
+                    else if (yy >= h) yy = h - 1;
+                    int v = src[yy * w + x];
+                    if (v < mn) mn = v;
+                }
+                dst[y * w + x] = mn;
+            }
+        }
+    }
+
+    private class AppIconBloomDrawable extends Drawable {
         private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint bloomPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7755,7 +9974,7 @@ public final class MainActivity extends Activity {
         private int glowColor;
         private int drawableAlpha = 255;
 
-        IconGlowDrawable(int glowColor) {
+        AppIconBloomDrawable(int glowColor) {
             this.glowColor = glowColor;
             fillPaint.setStyle(Paint.Style.FILL);
             bloomPaint.setStyle(Paint.Style.FILL);
@@ -7767,7 +9986,7 @@ public final class MainActivity extends Activity {
         void setIcon(Drawable icon) {
             sourceIcon = icon;
             if (icon != null) {
-                glowColor = extractIconGlowColor(icon);
+                glowColor = extractMonitoredAppGlowColor(icon);
             }
             invalidateSelf();
         }
@@ -7780,29 +9999,45 @@ public final class MainActivity extends Activity {
             }
 
             int inset = monitoredAppIconGlowInsetPx();
-            float bloomInset = inset * 0.18f;
+            float bloomInset = inset * 0.06f;
             glowRect.set(b.left + bloomInset, b.top + bloomInset, b.right - bloomInset, b.bottom - bloomInset);
             coreRect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
 
-            float coreRadius = Math.min(coreRect.width(), coreRect.height()) * 0.34f;
-            float glowRadius = Math.min(glowRect.width(), glowRect.height()) * 0.5f;
-            float cx = glowRect.centerX();
-            float cy = glowRect.centerY();
-
-            int outerColor = withColorAlpha(glowColor, 0.20f * drawableAlpha / 255f);
-            int midColor = withColorAlpha(shiftGlowColor(glowColor, 1.10f, 1.16f), 0.38f * drawableAlpha / 255f);
-            int innerColor = withColorAlpha(shiftGlowColor(glowColor, 0.94f, 1.08f), 0.72f * drawableAlpha / 255f);
-            bloomPaint.setShader(new RadialGradient(
-                    cx,
-                    cy,
-                    glowRadius,
-                    new int[]{innerColor, midColor, outerColor, Color.TRANSPARENT},
-                    new float[]{0f, 0.42f, 0.76f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawRoundRect(glowRect, coreRadius + inset * 0.9f, coreRadius + inset * 0.9f, bloomPaint);
+            float coreRadius = Math.min(coreRect.width(), coreRect.height()) * 0.30f;
+            bloomPaint.setShader(null);
+            int glowLayers = 10;
+            float maxInset = inset * 0.78f;
+            for (int layer = 0; layer < glowLayers; layer++) {
+                float t = glowLayers <= 1 ? 1f : layer / (float) (glowLayers - 1);
+                float logFalloff = (float) (Math.log1p((1f - t) * 7f) / Math.log(8f));
+                float tailLift = 1f - t * t * t * t;
+                float blendedFalloff = logFalloff * 0.35f + tailLift * 0.65f;
+                float layerInset = maxInset * t;
+                float layerRadius = coreRadius + inset * (1.12f - 0.42f * t);
+                float saturationScale = 1.01f - 0.07f * t;
+                float valueScale = 1.07f - 0.06f * t;
+                float alpha = (0.010f + 0.028f * blendedFalloff) * drawableAlpha / 255f;
+                if (layer >= glowLayers - 3) {
+                    float tailT = (layer - (glowLayers - 3)) / 2f;
+                    float tailAlphaScale = 1f - 0.78f * tailT;
+                    alpha *= Math.max(0.10f, tailAlphaScale);
+                    valueScale -= 0.05f * tailT;
+                }
+                bloomPaint.setColor(withMonitoredAppGlowAlpha(
+                        shiftMonitoredAppGlowColor(glowColor, saturationScale, valueScale),
+                        alpha));
+                canvas.drawRoundRect(
+                        glowRect.left + layerInset,
+                        glowRect.top + layerInset,
+                        glowRect.right - layerInset,
+                        glowRect.bottom - layerInset,
+                        layerRadius,
+                        layerRadius,
+                        bloomPaint);
+            }
 
             fillPaint.setShader(null);
-            fillPaint.setColor(withColorAlpha(shiftGlowColor(glowColor, 0.28f, 1.10f), 0.16f * drawableAlpha / 255f));
+            fillPaint.setColor(withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.20f, 1.03f), 0.012f * drawableAlpha / 255f));
             canvas.drawRoundRect(coreRect, coreRadius, coreRadius, fillPaint);
 
             ringPaint.setShader(new LinearGradient(
@@ -7810,10 +10045,10 @@ public final class MainActivity extends Activity {
                     coreRect.top,
                     coreRect.right,
                     coreRect.bottom,
-                    withColorAlpha(shiftGlowColor(glowColor, 1.16f, 1.22f), 0.62f * drawableAlpha / 255f),
-                    withColorAlpha(shiftGlowColor(glowColor, 0.86f, 1.04f), 0.28f * drawableAlpha / 255f),
+                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 1.04f, 1.10f), 0.08f * drawableAlpha / 255f),
+                    withMonitoredAppGlowAlpha(shiftMonitoredAppGlowColor(glowColor, 0.94f, 1.00f), 0.028f * drawableAlpha / 255f),
                     Shader.TileMode.CLAMP));
-            ringPaint.setStrokeWidth(dpf(1.1f));
+            ringPaint.setStrokeWidth(dpf(0.8f));
             canvas.drawRoundRect(coreRect, coreRadius, coreRadius, ringPaint);
         }
 
@@ -7834,18 +10069,18 @@ public final class MainActivity extends Activity {
     }
 
     private int monitoredAppIconVisualSizePx() {
-        return dp(36);
+        return dp(24);
     }
 
     private int monitoredAppIconGlowInsetPx() {
-        return dp(8);
+        return dp(6);
     }
 
     private int monitoredAppIconHostSizePx() {
         return monitoredAppIconVisualSizePx() + monitoredAppIconGlowInsetPx() * 2;
     }
 
-    private int extractIconGlowColor(Drawable icon) {
+    private int extractMonitoredAppGlowColor(Drawable icon) {
         int width = icon.getIntrinsicWidth();
         int height = icon.getIntrinsicHeight();
         if (width <= 0 || height <= 0) {
@@ -7897,10 +10132,10 @@ public final class MainActivity extends Activity {
                     clamp((int) (sumR / count), 0, 255),
                     clamp((int) (sumG / count), 0, 255),
                     clamp((int) (sumB / count), 0, 255));
-            int mixed = mixColors(bestColor, avgColor, 0.28f);
+            int mixed = mixMonitoredAppGlowColors(bestColor, avgColor, 0.28f);
             Color.colorToHSV(mixed, sampleHsv);
-            sampleHsv[1] = clamp01(sampleHsv[1] * 1.08f + 0.10f);
-            sampleHsv[2] = clamp01(sampleHsv[2] * 1.04f + 0.08f);
+            sampleHsv[1] = clampUnit(sampleHsv[1] * 1.08f + 0.10f);
+            sampleHsv[2] = clampUnit(sampleHsv[2] * 1.04f + 0.08f);
             return Color.HSVToColor(176, sampleHsv);
         } catch (Exception ignored) {
             return Color.argb(176, 120, 220, 255);
@@ -7909,24 +10144,24 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private int shiftGlowColor(int color, float saturationScale, float valueScale) {
+    private int shiftMonitoredAppGlowColor(int color, float saturationScale, float valueScale) {
         float[] localHsv = new float[3];
         Color.colorToHSV(color, localHsv);
-        localHsv[1] = clamp01(localHsv[1] * saturationScale);
-        localHsv[2] = clamp01(localHsv[2] * valueScale);
+        localHsv[1] = clampUnit(localHsv[1] * saturationScale);
+        localHsv[2] = clampUnit(localHsv[2] * valueScale);
         return Color.HSVToColor(localHsv);
     }
 
-    private int withColorAlpha(int color, float alphaFraction) {
+    private int withMonitoredAppGlowAlpha(int color, float alphaFraction) {
         return Color.argb(
-                clamp((int) (255f * clamp01(alphaFraction) + 0.5f), 0, 255),
+                clamp((int) (255f * clampUnit(alphaFraction) + 0.5f), 0, 255),
                 Color.red(color),
                 Color.green(color),
                 Color.blue(color));
     }
 
-    private int mixColors(int first, int second, float secondWeight) {
-        float w = clamp01(secondWeight);
+    private int mixMonitoredAppGlowColors(int first, int second, float secondWeight) {
+        float w = clampUnit(secondWeight);
         float inv = 1f - w;
         return Color.rgb(
                 clamp((int) (Color.red(first) * inv + Color.red(second) * w + 0.5f), 0, 255),
@@ -7934,7 +10169,7 @@ public final class MainActivity extends Activity {
                 clamp((int) (Color.blue(first) * inv + Color.blue(second) * w + 0.5f), 0, 255));
     }
 
-    private float clamp01(float value) {
+    private float clampUnit(float value) {
         return Math.max(0f, Math.min(1f, value));
     }
 
@@ -8047,9 +10282,9 @@ public final class MainActivity extends Activity {
     private TextView gradientTitleView(String text) {
         TextView title = new GlowTitleTextView(this);
         title.setText(text);
-        // 鍏抽敭淇锛氬ぇ鍗婂緞妯＄硦/鍏夋檿琚埅鏂殑鍘熷洜鏄?TextView 鏈韩娌℃湁瓒冲鐨勬按骞宠竟璺濆拰鍨傜洿杈硅窛銆?
-        // 鍥犱负楂樻柉妯＄硦闃村奖鏄互鏂囧瓧鍍忕礌杈圭紭鍚戝鎵╂暎鐨勶紝濡傛灉 TextView 璐寸揣杈圭紭锛堟垨瀹藉害鎭板ソ鍖呯揣鏂囧瓧锛夛紝瓒呭嚭閮ㄥ垎灏变細琚‖鐢熺敓鎴柇锛屾樉寰楁瀬鍏跺壊瑁傘€?
-        // 閫氳繃璁剧疆鍏呰冻鐨勬按骞?Padding (宸﹀彸 16dp) 鍜屽瀭鐩?Padding (涓婁笅 4dp)锛屼负绮剧粏鐨勯珮鏂ā绯婂厜鏅曠暀鍑哄畬缇庣殑婧㈠嚭鍜岃“鍑忕┖闂达紒
+        // 关键修复：大半径模糊/光晕被截断的原因是 TextView 本身没有足够的水平边距和垂直边距。
+        // 因为高斯模糊阴影是以文字像素边缘向外扩散的，如果 TextView 贴紧边缘（或宽度恰好包紧文字），超出部分就会被硬生生截断，显得极其割裂。
+        // 通过设置充足的水平 Padding (左右 16dp) 和垂直 Padding (上下 4dp)，为精细的高斯模糊光晕留出完美的溢出和衰减空间！
         title.setPadding(dp(22), dp(5), dp(22), dp(5));
         styleGradientTitle(title);
         return title;
@@ -8243,8 +10478,8 @@ public final class MainActivity extends Activity {
             return;
         }
         final int styleVersion = bumpTextStyleVersion(view);
-        // 鍏抽敭浼樺寲锛氫负浜嗚兘澶熻瀹岀編涓濇粦鐨?shadowLayer (澶у崐寰勯珮鏂ā绯? 鍦ㄩ潤鎬佺姸鎬佷笅鍚屾牱鍙戞尌鏁堟灉锛?
-        // 鍚屾牱灏嗘枃瀛楁牱寮忚缃垏鎹负绮惧瘑鐨?SOFTWARE 鍥惧眰锛屾秷闄?GPU 娓叉煋浜х敓鐨勯绮掍吉褰便€?
+        // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
+        // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
         boolean usesCustomGlow = view instanceof GlowTitleTextView;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             if (usesCustomGlow) {
@@ -8261,7 +10496,7 @@ public final class MainActivity extends Activity {
         applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
-        // 缂╁皬涓€鍦堬紝浣嗕繚鐣欏畬鏁磋“鍑忕┖闂?
+        // 缩小一圈，但保留完整衰减空间
         view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
         view.invalidate();
         if (view.getWidth() <= 0) {
@@ -8314,10 +10549,10 @@ public final class MainActivity extends Activity {
         if (width <= 0) {
             return;
         }
-        // 鑹查樁閲嶆瀯锛氳秴楂樹寒鐐界櫧鍐拌摑娴佸厜鈥斺€斿幓缁匡紝娴呬寒钃?瓒呯櫧锛屼寒搴︽媺婊?
-        int highGlowCyan = Color.rgb(150, 235, 255);  // 娴呬寒钃濈櫧
-        int iceCyan = Color.rgb(50, 210, 255);        // 鏋佷寒鐢靛厜鍐拌摑
-        int superHotCore = Color.rgb(255, 255, 255);  // 瓒呬寒鐐界櫧鏍稿績
+        // 色阶重构：超高亮炽白冰蓝流光——去绿，浅亮蓝+超白，亮度拉满
+        int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
+        int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
+        int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         float normalizedPhase = phase - (float) Math.floor(phase);
         float offset = normalizedPhase * width;
@@ -8332,23 +10567,16 @@ public final class MainActivity extends Activity {
                 },
                 new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
-    }
-
-    private void applyStatusShimmerShader(TextView view, int width, int startColor, int endColor) {
-        if (width <= 0) {
-            return;
-        }
-        applyAnimatedStatusShimmerShader(view, width, 0f, startColor, endColor);
     }
 
     private void applyAnimatedStatusShimmerShader(TextView view, int width, float phase, int startColor, int endColor) {
         if (width <= 0) {
             return;
         }
-        // 鐘舵€佹枃瀛楃粺涓€绮剧畝5鑹叉爣瓒呯偨鐧藉啺钃濊壊闃讹紙鍘荤豢锛屾祬浜摑+瓒呯櫧锛?
-        int highGlowCyan = Color.rgb(150, 235, 255);  // 娴呬寒钃濈櫧
-        int iceCyan = Color.rgb(50, 210, 255);        // 鏋佷寒鐢靛厜鍐拌摑
-        int superHotCore = Color.rgb(255, 255, 255);  // 瓒呬寒鐐界櫧鏍稿績
+        // 状态文字统一精简5色标超炽白冰蓝色阶（去绿，浅亮蓝+超白）
+        int highGlowCyan = Color.rgb(150, 235, 255);  // 浅亮蓝白
+        int iceCyan = Color.rgb(50, 210, 255);        // 极亮电光冰蓝
+        int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         float normalizedPhase = phase - (float) Math.floor(phase);
         float offset = normalizedPhase * width;
@@ -8363,11 +10591,6 @@ public final class MainActivity extends Activity {
                 },
                 new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
-    }
-
-    private void applySettingsPageTitleShader(TextView view, int width) {
-        applyTitleGradientShader(view, width, 
-                Color.rgb(0, 245, 212), Color.rgb(80, 220, 255), Color.rgb(180, 100, 255));
     }
 
     private int settingsTitleGradientWidth(TextView view) {
@@ -8377,8 +10600,8 @@ public final class MainActivity extends Activity {
         int viewWidth = Math.max(1, view.getWidth());
         CharSequence text = view.getText();
         if (text != null && text.length() > 0) {
-            // 鍏抽敭淇锛氳绠楁笎鍙樺搴︽椂锛屽簲鍑忓幓鎴戜滑涓轰簡棰勭暀鍏夋檿绌洪棿鎵€澧炲姞鐨?padding锛?
-            // 鍚﹀垯娓愬彉璁＄畻浼氫互澧炲姞浜?Padding 鍚庣殑鎬诲搴︿负鍑嗭紝瀵艰嚧娴佸厜娓愬彉瑙嗚涓績鍙戠敓鍋忕Щ銆?
+            // 关键修复：计算渐变宽度时，应减去我们为了预留光晕空间所增加的 padding，
+            // 否则渐变计算会以增加了 Padding 后的总宽度为准，导致流光渐变视觉中心发生偏移。
             int textWidth = (int) Math.ceil(view.getPaint().measureText(text.toString()));
             return Math.max(1, Math.min(viewWidth, textWidth));
         }
@@ -8561,9 +10784,9 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 缁樺埗涓婁竴姝?涓嬩竴姝ョ敤鐨勫渾寮х澶村浘鏍囥€俰sRedo 涓?true 鏃舵按骞抽暅鍍忓緱鍒颁笅涓€姝ョ澶淬€?
-     * 浠呯粯鍒剁櫧鑹叉弿杈?+ 濉厖涓讳綋锛堥伩鍏嶅鎻忚竟鍏夋檿鍦ㄧ‖浠跺姞閫熶笅浜х敓閿娇锛夛紱
-     * 閫氳繃 ColorFilter 鍦ㄧ鐢ㄦ椂鏁翠綋鍙樻殫銆?
+     * 绘制上一步/下一步用的圆弧箭头图标。isRedo 为 true 时水平镜像得到下一步箭头。
+     * 仅绘制白色描边 + 填充主体（避免宽描边光晕在硬件加速下产生锯齿）；
+     * 通过 ColorFilter 在禁用时整体变暗。
      */
     private Drawable makeCurvedArrowDrawable(boolean isRedo) {
         return new Drawable() {
@@ -8589,7 +10812,7 @@ public final class MainActivity extends Activity {
                 float r = sizePx * 0.40f;
                 float strokeW = dpf(1.4f);
                 arcRect.set(-r, -r, r, r);
-                // 涓婁竴姝ョ澶达細浠?165掳 閫嗘椂閽堟壂杩?300掳锛岀己鍙ｄ綅浜庡乏渚э紝绠皷鏀跺湪 225掳锛堝乏涓婏級骞舵寚鍚戝乏渚с€?
+                // 上一步箭头：从 165° 逆时针扫过 300°，缺口位于左侧，箭尖收在 225°（左上）并指向左侧。
                 float startAngle = 165f;
                 float sweepAngle = -300f;
                 arcPath.reset();
@@ -8598,7 +10821,7 @@ public final class MainActivity extends Activity {
                 double endRad = Math.toRadians(startAngle + sweepAngle);
                 float tipX = r * (float) Math.cos(endRad);
                 float tipY = r * (float) Math.sin(endRad);
-                // 閫嗘椂閽堣繍鍔ㄥ湪瑙掑害 胃 澶勭殑鍒囧悜锛?sin 胃, -cos 胃)
+                // 逆时针运动在角度 θ 处的切向：(sin θ, -cos θ)
                 float tanX = (float) Math.sin(endRad);
                 float tanY = -(float) Math.cos(endRad);
                 float arrowLen = r * 0.62f;
@@ -8617,7 +10840,7 @@ public final class MainActivity extends Activity {
                 paint.setStrokeCap(Paint.Cap.ROUND);
                 paint.setStrokeJoin(Paint.Join.ROUND);
 
-                // 鐧借壊涓讳綋锛堟弿杈?+ 濉厖锛?
+                // 白色主体（描边 + 填充）
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(strokeW);
                 paint.setColor(Color.WHITE);
@@ -8727,58 +10950,16 @@ public final class MainActivity extends Activity {
         };
     }
 
-    private Drawable glowRoundRectDrawable(int fillColor, int strokeColor, int radiusPx, int glowRadiusPx, int glowColor) {
-        return new Drawable() {
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final android.graphics.RectF rect = new android.graphics.RectF();
-
-            @Override
-            public void draw(Canvas canvas) {
-                Rect b = getBounds();
-                float inset = Math.max(dpf(1f), glowRadiusPx * 0.45f);
-                rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
-                float radius = Math.max(1f, radiusPx - inset * 0.35f);
-
-                paint.setShader(null);
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(fillColor);
-                paint.setShadowLayer(glowRadiusPx, 0, 0, glowColor);
-                canvas.drawRoundRect(rect, radius, radius, paint);
-                paint.clearShadowLayer();
-
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(dpf(1.15f));
-                paint.setColor(strokeColor);
-                canvas.drawRoundRect(rect, radius, radius, paint);
-            }
-
-            @Override
-            public void setAlpha(int alpha) {
-                paint.setAlpha(alpha);
-            }
-
-            @Override
-            public void setColorFilter(ColorFilter colorFilter) {
-                paint.setColorFilter(colorFilter);
-            }
-
-            @Override
-            public int getOpacity() {
-                return PixelFormat.TRANSLUCENT;
-            }
-        };
-    }
-
     private Drawable iconGlowDrawable(int glowColor) {
-        return new IconGlowDrawable(glowColor);
+        return new AppIconBloomDrawable(glowColor);
     }
 
     private void applyIconGlowColor(Drawable icon) {
         Drawable bg = monitoredAppIconView.getBackground();
-        if (!(bg instanceof IconGlowDrawable)) {
+        if (!(bg instanceof AppIconBloomDrawable)) {
             return;
         }
-        ((IconGlowDrawable) bg).setIcon(icon);
+        ((AppIconBloomDrawable) bg).setIcon(icon);
     }
 
     private void styleButton(Button button, boolean isPrimary, boolean isEnabled) {
@@ -8993,20 +11174,6 @@ public final class MainActivity extends Activity {
         updateBottomTabIndicator(activeIndex, true);
     }
 
-    private boolean isActiveBottomTab(View view) {
-        if (view == null) {
-            return false;
-        }
-        switch (clamp(activeMainPageIndex, 0, 2)) {
-            case 0:
-                return view == eqTabButton;
-            case 1:
-                return view == extraTabButton;
-            default:
-                return view == settingsTabButton;
-        }
-    }
-
     private void updateBottomTabIndicator(int activeIndex, boolean animate) {
         if (bottomTabIndicator == null) {
             return;
@@ -9098,9 +11265,9 @@ public final class MainActivity extends Activity {
         if (tab == null || bottomTabStrip == null) {
             return 0f;
         }
-        // indicator 涓?strip 鍚屼负 nav(FrameLayout)瀛?view锛宭eftMargin 鐩稿 nav 鍐呭鍖?宸插惈 padding)銆?
-        // tab.getLeft() 宸叉槸鐩稿 strip 鐨勪綅缃紝鐩存帴鐢ㄥ嵆鍙紝涓嶈兘鍐嶅姞 strip.getLeft()锛?
-        // 鍚﹀垯浼氬鍋忕Щ涓€涓?nav 鐨?padding锛屽鑷?indicator 妗嗘暣浣撳彸绉讳笌 tab 涓嶅榻愩€?
+        // indicator 与 strip 同为 nav(FrameLayout)子 view，leftMargin 相对 nav 内容区(已含 padding)。
+        // tab.getLeft() 已是相对 strip 的位置，直接用即可，不能再加 strip.getLeft()，
+        // 否则会多偏移一个 nav 的 padding，导致 indicator 框整体右移与 tab 不对齐。
         float buttonLeftInStrip = tab.getLeft();
         float indicatorWidth = tabIndicatorWidthForTab(tab);
         return buttonLeftInStrip + (tab.getWidth() - indicatorWidth) / 2f;
@@ -9110,8 +11277,8 @@ public final class MainActivity extends Activity {
         if (tab == null || tab.getWidth() <= 0) {
             return 0f;
         }
-        // 缁熶竴涓?tab 瀹藉害鐨勫浐瀹氭瘮渚嬶紝淇濊瘉涓変釜 tab 鐨?indicator 妗嗗搴﹀畬鍏ㄤ竴鑷达紝
-        // 瑙嗚瀵归綈鏁撮綈銆傚熀鏈崰鎹?1/3 浣嶇疆锛堢暀灏戦噺杈硅窛锛夈€?
+        // 统一为 tab 宽度的固定比例，保证三个 tab 的 indicator 框宽度完全一致，
+        // 视觉对齐整齐。基本占据 1/3 位置（留少量边距）。
         return tab.getWidth() * 0.92f;
     }
 
@@ -9130,6 +11297,9 @@ public final class MainActivity extends Activity {
         }
         View current = view;
         while (current != null) {
+            if (current instanceof VerticalReverbSlider) {
+                return current.isEnabled();
+            }
             if (current instanceof HorizontalBassSlider) {
                 return current.isEnabled() && ((HorizontalBassSlider) current).isSwipeHandleHit(rawX, rawY);
             }
@@ -9483,13 +11653,13 @@ public final class MainActivity extends Activity {
                         dp(3),
                         Color.argb(85, 0, 245, 212)
                 ));
-                // 搴曢儴 Tab 娴佸厜锛氫笌鎵€鏈夋爣棰樺叡浜摑缁夸寒鑹?+ 娣辫摑鐐圭紑 + 鐧界儹鏍稿績鐨勭粺涓€涓婚
+                // 底部 Tab 流光：与所有标题共享蓝绿亮色 + 深蓝点缀 + 白热核心的统一主题
                 applyTitleGradientShader(tab, settingsTitleGradientWidth(tab),
                         Color.rgb(0, 255, 230), Color.rgb(120, 220, 255), Color.rgb(180, 100, 255));
                 tab.setTextColor(Color.WHITE);
-                // tab 涓嶈 shadowLayer锛氱‖浠跺姞閫熶笅 shadowLayer 浼氳Е鍙?TextView 璧?software
-                // path 娓叉煋鏂囧瓧锛屽鑷?paint shader 涓嶇敓鏁堬紙娴佸厜涓嶅姩锛? GPU blur 閿娇銆?
-                // hotCore 鐧界儹鏍稿績宸蹭綔瑙嗚鐒︾偣銆?
+                // tab 不设 shadowLayer：硬件加速下 shadowLayer 会触发 TextView 走 software
+                // path 渲染文字，导致 paint shader 不生效（流光不动）+ GPU blur 锯齿。
+                // hotCore 白热核心已作视觉焦点。
                 tab.getPaint().clearShadowLayer();
                 tab.invalidate();
                 registerShimmerView(tab);
@@ -9543,7 +11713,7 @@ public final class MainActivity extends Activity {
 
     private void handleShizukuAccessAction() {
         if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
-            Toast.makeText(this, tr("Switch to Shizuku Mode first", "璇峰厛鍒囨崲鍒?Shizuku Mode 妯″紡"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Switch to Shizuku Mode first", "请先切换到 Shizuku Mode 模式"), Toast.LENGTH_SHORT).show();
             return;
         }
         boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
@@ -9555,10 +11725,9 @@ public final class MainActivity extends Activity {
         if (!granted) {
             Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
         } else {
-            applyRunningPreset();
             ensureShizukuModeReady(true);
         }
-        renderAll();
+        refreshRuntimeStatusUi();
     }
 
     private void handleShizukuPermissionResult(int requestCode, int grantResult) {
@@ -9571,13 +11740,12 @@ public final class MainActivity extends Activity {
         }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (granted) {
-            applyRunningPreset();
             ensureShizukuModeReady(true);
             Toast.makeText(this, tr("Shizuku access granted", "Shizuku \u6388\u6743\u5df2\u6210\u529f"), Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(this, tr("Shizuku access was denied", "Shizuku \u6388\u6743\u88ab\u62d2\u7edd"), Toast.LENGTH_SHORT).show();
         }
-        renderAll();
+        refreshRuntimeStatusUi();
     }
 
     private void handleShizukuStateChanged() {
@@ -9587,11 +11755,10 @@ public final class MainActivity extends Activity {
         repository.saveShizukuMuteStatus(
                 ShizukuCompat.describeState(this),
                 ShizukuCompat.hasPermission());
-        uiHandler.post(this::renderAll);
+        uiHandler.post(this::refreshRuntimeStatusUi);
     }
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
 }
-

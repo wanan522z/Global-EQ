@@ -16,7 +16,8 @@ final class AdvancedModeConfig {
             512,
             750,
             24,
-            88,
+            985,
+            120,
             Collections.emptyList()
     );
 
@@ -26,7 +27,8 @@ final class AdvancedModeConfig {
     final int bufferSizeFrames;
     final int monitorIntervalMs;
     final int lookaheadMs;
-    final int wetMixPercent;
+    final int limiterCeilingPermille;
+    final int limiterReleaseMs;
     final List<MonitoredAppItem> monitoredApps;
 
     AdvancedModeConfig(String monitoredAppPackage,
@@ -35,20 +37,22 @@ final class AdvancedModeConfig {
                        int bufferSizeFrames,
                        int monitorIntervalMs,
                        int lookaheadMs,
-                       int wetMixPercent,
+                       int limiterCeilingPermille,
+                       int limiterReleaseMs,
                        List<MonitoredAppItem> monitoredApps) {
         this.monitoredAppPackage = monitoredAppPackage == null ? "" : monitoredAppPackage.trim();
         this.monitoredAppLabel = monitoredAppLabel == null ? "" : monitoredAppLabel.trim();
         this.latencyMs = clamp(latencyMs, 20, 400);
-        this.bufferSizeFrames = clamp(bufferSizeFrames, 128, 4096);
+        this.bufferSizeFrames = clamp(bufferSizeFrames, 128, 16384);
         this.monitorIntervalMs = clamp(monitorIntervalMs, 100, 5000);
         this.lookaheadMs = clamp(lookaheadMs, 0, 120);
-        this.wetMixPercent = clamp(wetMixPercent, 0, 100);
+        this.limiterCeilingPermille = clamp(limiterCeilingPermille, 930, 999);
+        this.limiterReleaseMs = clamp(limiterReleaseMs, 20, 400);
         this.monitoredApps = Collections.unmodifiableList(normalizeApps(monitoredApps));
     }
 
     AdvancedModeConfig withMonitoredApp(String packageName, String label) {
-        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
     }
 
     AdvancedModeConfig withAddedMonitoredApp(String packageName, String label) {
@@ -59,29 +63,30 @@ final class AdvancedModeConfig {
                 bufferSizeFrames,
                 monitorIntervalMs,
                 lookaheadMs,
-                wetMixPercent,
+                limiterCeilingPermille,
+                limiterReleaseMs,
                 appendMonitoredApp(monitoredApps, packageName, label)
         );
     }
 
     AdvancedModeConfig withLatencyMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
     }
 
     AdvancedModeConfig withBufferSizeFrames(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, wetMixPercent, monitoredApps);
-    }
-
-    AdvancedModeConfig withMonitorIntervalMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, value, lookaheadMs, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
     }
 
     AdvancedModeConfig withLookaheadMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, wetMixPercent, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
     }
 
-    AdvancedModeConfig withWetMixPercent(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, value, monitoredApps);
+    AdvancedModeConfig withLimiterCeilingPermille(int value) {
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, value, limiterReleaseMs, monitoredApps);
+    }
+
+    AdvancedModeConfig withLimiterReleaseMs(int value) {
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, value, monitoredApps);
     }
 
     String toJson() {
@@ -93,7 +98,8 @@ final class AdvancedModeConfig {
             object.put("bufferSizeFrames", bufferSizeFrames);
             object.put("monitorIntervalMs", monitorIntervalMs);
             object.put("lookaheadMs", lookaheadMs);
-            object.put("wetMixPercent", wetMixPercent);
+            object.put("limiterCeilingPermille", limiterCeilingPermille);
+            object.put("limiterReleaseMs", limiterReleaseMs);
             JSONArray apps = new JSONArray();
             for (MonitoredAppItem item : monitoredApps) {
                 JSONObject app = new JSONObject();
@@ -102,7 +108,6 @@ final class AdvancedModeConfig {
                 apps.put(app);
             }
             object.put("monitoredApps", apps);
-            object.put("manualMonitoredApps", apps);
         } catch (JSONException ignored) {
             return "{}";
         }
@@ -122,8 +127,9 @@ final class AdvancedModeConfig {
                     object.optInt("bufferSizeFrames", DEFAULT.bufferSizeFrames),
                     object.optInt("monitorIntervalMs", DEFAULT.monitorIntervalMs),
                     object.optInt("lookaheadMs", DEFAULT.lookaheadMs),
-                    object.optInt("wetMixPercent", DEFAULT.wetMixPercent),
-                    parseApps(object.optJSONArray("manualMonitoredApps"))
+                    object.optInt("limiterCeilingPermille", DEFAULT.limiterCeilingPermille),
+                    object.optInt("limiterReleaseMs", DEFAULT.limiterReleaseMs),
+                    parseApps(object.optJSONArray("monitoredApps"))
             );
         } catch (JSONException ignored) {
             return DEFAULT;

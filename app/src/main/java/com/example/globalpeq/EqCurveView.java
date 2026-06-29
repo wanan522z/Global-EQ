@@ -190,7 +190,11 @@ final class EqCurveView extends View {
     }
 
     void setPreset(Preset preset) {
-        this.preset = preset == null ? Preset.flat(false) : preset;
+        Preset nextPreset = preset == null ? Preset.flat(false) : preset;
+        if (this.preset == nextPreset) {
+            return;
+        }
+        this.preset = nextPreset;
         if (!visualStateInitialized) {
             float initialLevel = this.preset.enabled ? 1f : 0f;
             visualLevel = initialLevel;
@@ -204,8 +208,13 @@ final class EqCurveView extends View {
     }
 
     void setReferenceCurves(FrequencyCurve deviceCurve, FrequencyCurve targetCurve) {
-        this.deviceCurve = deviceCurve == null ? FrequencyCurve.DEFAULT : deviceCurve;
-        this.targetCurve = targetCurve == null ? FrequencyCurve.DEFAULT : targetCurve;
+        FrequencyCurve nextDeviceCurve = deviceCurve == null ? FrequencyCurve.DEFAULT : deviceCurve;
+        FrequencyCurve nextTargetCurve = targetCurve == null ? FrequencyCurve.DEFAULT : targetCurve;
+        if (this.deviceCurve == nextDeviceCurve && this.targetCurve == nextTargetCurve) {
+            return;
+        }
+        this.deviceCurve = nextDeviceCurve;
+        this.targetCurve = nextTargetCurve;
         this.pathDirty = true;
         this.glowCacheDirty = true;
         postInvalidateOnAnimation();

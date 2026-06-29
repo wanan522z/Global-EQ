@@ -1,6 +1,8 @@
 package com.example.globalpeq;
 
 final class AudioProcessingPolicy {
+    private static final int ADVANCED_MODE_IMPLICIT_HEADROOM_MB = -900;
+
     private AudioProcessingPolicy() {
     }
 
@@ -39,6 +41,9 @@ final class AudioProcessingPolicy {
         if (!reverbAllowed(mode) || "Default".equals(effective.reverbType)) {
             effective = effective.withReverbType("Default");
         }
+        if (advancedModeEnabled(mode) && effective.enabled) {
+            effective = effective.withPregainMb(effective.pregainMb + ADVANCED_MODE_IMPLICIT_HEADROOM_MB);
+        }
         return effective;
     }
 
@@ -51,7 +56,7 @@ final class AudioProcessingPolicy {
         }
         Preset effective = preset.withReverbType("Default");
         if (!systemVirtualBassAllowed(virtualBassModeIndex)) {
-            effective = effective.withVirtualBassAmountPercent(0);
+            effective = effective.withSystemVirtualBassAmountPercent(0);
         }
         return effective;
     }
