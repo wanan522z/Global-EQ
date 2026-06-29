@@ -4130,31 +4130,13 @@ public final class MainActivity extends Activity {
             if (actionId == EditorInfo.IME_ACTION_DONE
                     || actionId == EditorInfo.IME_ACTION_NEXT
                     || enterUp) {
+                flushDebouncedFloatInput(input, listener);
                 closeKeyboard(view);
                 return true;
             }
             return false;
         });
-        input.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (updatingUi) {
-                    return;
-                }
-                try {
-                    listener.onChanged(Float.parseFloat(s.toString()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-            }
-        });
+        attachDebouncedFloatInput(input, EQ_TEXT_INPUT_APPLY_DELAY_MS, listener);
 
         GradientDrawable inputBg = new GradientDrawable();
         inputBg.setShape(GradientDrawable.RECTANGLE);
@@ -4168,6 +4150,45 @@ public final class MainActivity extends Activity {
         input.setGravity(android.view.Gravity.CENTER);
 
         return input;
+    }
+
+    private void attachDebouncedFloatInput(EditText input, long delayMs, FloatChanged listener) {
+        if (input == null || listener == null) {
+            return;
+        }
+        final Runnable applyRunnable = () -> flushDebouncedFloatInput(input, listener);
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (updatingUi) {
+                    return;
+                }
+                uiHandler.removeCallbacks(applyRunnable);
+                uiHandler.postDelayed(applyRunnable, delayMs);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+    }
+
+    private void flushDebouncedFloatInput(EditText input, FloatChanged listener) {
+        if (input == null || listener == null || updatingUi) {
+            return;
+        }
+        String raw = input.getText() == null ? "" : input.getText().toString().trim();
+        if (raw.isEmpty() || "-".equals(raw) || ".".equals(raw) || "-.".equals(raw)) {
+            return;
+        }
+        try {
+            listener.onChanged(Float.parseFloat(raw));
+        } catch (NumberFormatException ignored) {
+        }
     }
 
     private EditText createDeferredIntegerInput(String value, String hint, int min, int max, IntChanged listener) {
