@@ -6341,6 +6341,17 @@ public final class MainActivity extends Activity {
         return candidate;
     }
 
+    private String nextConflictingPresetName(String baseName) {
+        String normalizedBase = (baseName == null || baseName.trim().isEmpty()) ? "Preset" : baseName.trim();
+        String candidate = normalizedBase + " 2";
+        int index = 3;
+        while (repository.loadNamedPreset(candidate) != null) {
+            candidate = normalizedBase + " " + index;
+            index++;
+        }
+        return candidate;
+    }
+
     private String nextImportedPresetName(Preset imported) {
         String baseName = presetDisplayName(imported);
         String candidate = baseName + " Imported";
