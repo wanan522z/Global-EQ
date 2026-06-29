@@ -5806,6 +5806,7 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, tr("Invalid preset file", "预设文件无效"), Toast.LENGTH_SHORT).show();
             return;
         }
+        flushPendingPresetPersistence();
         String importedName = presetName(imported);
         Preset existing = importedName == null ? null : repository.loadNamedPreset(importedName);
         if (existing != null) {
