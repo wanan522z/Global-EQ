@@ -221,21 +221,19 @@ final class PcmDspProcessor {
         private final int channelCount;
         private final int configuredChannelCount;
 
-        private MonoBiquad sourceHighPass;
-        private MonoBiquad sourceLowPass;
-        private MonoBiquad wetHighPass;
-        private MonoBiquad wetLowPass;
+        private OnePoleLowPass extractLowPreFilter;
+        private MonoBiquad extractLowPostFilter;
+        private MonoBiquad bassHighPass;
+        private MonoBiquad bassLowPass;
 
+        private float[] monoBuffer = new float[0];
         private float[] lowBuffer = new float[0];
-        private float[] wetBuffer = new float[0];
+        private float[] bassBuffer = new float[0];
 
-        private float lowLevelFollower;
+        private float rectifiedMean;
         private float drive;
         private float harmonicTrim;
-        private float wetCeiling;
-        private float wetLimiterEnvelope;
-        private float wetLimiterGain = 1f;
-        private float wetSmoother;
+        private float lowReplace;
         private int cutoffHz = 120;
         private int intensityQ15;
         private boolean lowCpuMode;
@@ -272,30 +270,32 @@ final class PcmDspProcessor {
             cutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
             intensityQ15 = INTENSITY_COEF[amountPercent];
 
-            sourceHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(20, cutoffHz / 3), 0, 70),
-                    sampleRate
-            );
-            sourceLowPass = MonoBiquad.fromBand(
+            extractLowPreFilter = new OnePoleLowPass(sampleRate, cutoffHz);
+            extractLowPostFilter = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, cutoffHz, 0, 70),
                     sampleRate
             );
-            wetHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(80, cutoffHz - 6), 0, 72),
+            bassHighPass = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(65, cutoffHz - 8), 0, 72),
                     sampleRate
             );
-            wetLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 420 : 560, 0, 68),
+            bassLowPass = MonoBiquad.fromBand(
+                    new ParametricBand(
+                            FilterType.LOW_PASS,
+                            true,
+                            Math.min(lowCpuMode ? 360 : 460, Math.max(170, cutoffHz * 3 + 40)),
+                            0,
+                            68),
                     sampleRate
             );
 
             float amount = amountPercent / 100f;
-            drive = 1.10f + amount * 0.38f;
-            harmonicTrim = 0.14f + amount * 0.14f;
+            drive = 1.20f + amount * 0.32f;
+            harmonicTrim = 0.78f + amount * 0.24f;
+            lowReplace = 0.08f + amount * 0.14f;
             if (lowCpuMode) {
-                harmonicTrim *= 0.90f;
+                harmonicTrim *= 0.94f;
             }
-            wetCeiling = 0.05f + amount * 0.06f;
 
             resetRuntime();
         }
@@ -323,62 +323,42 @@ final class PcmDspProcessor {
                 mono *= 1f / safeChannelCount;
                 mono = finiteOrZero(mono);
 
+                monoBuffer[frame] = mono;
                 lowBuffer[frame] = mono;
-                wetBuffer[frame] = 0f;
+                bassBuffer[frame] = 0f;
             }
 
-            if (sourceHighPass != null) {
-                sourceHighPass.process(lowBuffer, frameCount);
+            if (extractLowPreFilter != null) {
+                extractLowPreFilter.process(lowBuffer, frameCount);
             }
-            if (sourceLowPass != null) {
-                sourceLowPass.process(lowBuffer, frameCount);
+            if (extractLowPostFilter != null) {
+                extractLowPostFilter.process(lowBuffer, frameCount);
             }
 
             for (int i = 0; i < frameCount; i++) {
                 float low = finiteOrZero(lowBuffer[i]);
-                float absLow = Math.abs(low);
-                lowLevelFollower += (absLow - lowLevelFollower)
-                        * (absLow > lowLevelFollower ? 0.040f : 0.0045f);
-
-                float driveCompensation = 1f - 0.24f * smoothStep(0.05f, 0.22f, lowLevelFollower);
-                float normalized = clamp(low * drive * driveCompensation, -1f, 1f);
-                float shaped = generateSymmetricResidual(normalized);
-                float gate = smoothStep(0.0015f, 0.022f, lowLevelFollower);
-                float crestControl = 1f - 0.16f * smoothStep(0.08f, 0.26f, absLow);
-                float wetTarget = shaped * harmonicTrim * gate * crestControl;
-                wetSmoother += (wetTarget - wetSmoother)
-                        * (Math.abs(wetTarget) > Math.abs(wetSmoother) ? 0.16f : 0.07f);
-
-                wetBuffer[i] = finiteOrZero(wetSmoother);
+                float shaped = generateEvenHarmonics(low, drive);
+                bassBuffer[i] = finiteOrZero(shaped * harmonicTrim);
             }
 
-            if (wetHighPass != null) {
-                wetHighPass.process(wetBuffer, frameCount);
+            if (bassHighPass != null) {
+                bassHighPass.process(bassBuffer, frameCount);
             }
-            if (wetLowPass != null) {
-                wetLowPass.process(wetBuffer, frameCount);
+            if (bassLowPass != null) {
+                bassLowPass.process(bassBuffer, frameCount);
             }
 
             float intensityGain = intensityQ15 / 32768f;
             for (int frame = 0; frame < frameCount; frame++) {
-                float wet = finiteOrZero(wetBuffer[frame]);
-                float wetAbs = Math.abs(wet);
-                wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.045f : 0.006f);
-
-                float targetGain = wetLimiterEnvelope > wetCeiling
-                        ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
-                        : 1f;
-                wetLimiterGain += (targetGain - wetLimiterGain)
-                        * (targetGain < wetLimiterGain ? 0.09f : 0.014f);
-
-                float bass = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.04f);
+                float low = finiteOrZero(lowBuffer[frame]);
+                float bass = finiteOrZero(bassBuffer[frame]);
                 float generated = bass * intensityGain;
+                float lowReduction = low * lowReplace * intensityGain;
 
                 int frameOffset = frame * safeChannelCount;
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     samples[frameOffset + ch] = clamp(
-                            finiteOrZero(samples[frameOffset + ch] + generated),
+                            finiteOrZero(samples[frameOffset + ch] - lowReduction + generated),
                             -1f,
                             1f
                     );
@@ -391,25 +371,38 @@ final class PcmDspProcessor {
         }
 
         private void resetRuntime() {
-            lowLevelFollower = 0f;
-            wetLimiterEnvelope = 0f;
-            wetLimiterGain = 1f;
-            wetSmoother = 0f;
-        }
-
-        private void ensureCapacity(int frameCount) {
-            if (lowBuffer.length < frameCount) {
-                lowBuffer = new float[frameCount];
-                wetBuffer = new float[frameCount];
+            rectifiedMean = 0f;
+            if (extractLowPreFilter != null) {
+                extractLowPreFilter.reset();
+            }
+            if (extractLowPostFilter != null) {
+                extractLowPostFilter.reset();
+            }
+            if (bassHighPass != null) {
+                bassHighPass.reset();
+            }
+            if (bassLowPass != null) {
+                bassLowPass.reset();
             }
         }
 
-        private static float generateSymmetricResidual(float normalized) {
-            float dense = fastTanh(normalized * 1.28f);
-            float gentle = fastTanh(normalized * 0.64f);
-            float residual = dense - gentle;
-            float contour = 1f - 0.12f * Math.abs(normalized);
-            return finiteOrZero(residual * contour);
+        private void ensureCapacity(int frameCount) {
+            if (monoBuffer.length < frameCount) {
+                monoBuffer = new float[frameCount];
+                lowBuffer = new float[frameCount];
+                bassBuffer = new float[frameCount];
+            }
+        }
+
+        private float generateEvenHarmonics(float low, float drive) {
+            float normalized = clamp(low * drive, -1f, 1f);
+            float rectified = Math.abs(normalized);
+            rectifiedMean += (rectified - rectifiedMean)
+                    * (rectified > rectifiedMean ? 0.090f : 0.012f);
+
+            float centered = rectified - rectifiedMean;
+            float shaped = fastTanh(centered * 2.10f);
+            return finiteOrZero(shaped);
         }
 
         private static int[] buildIntensityCoef() {
@@ -425,13 +418,6 @@ final class PcmDspProcessor {
                 table[i] = clampInt(coef, 0, INTENSITY_Q15_MAX);
             }
             return table;
-        }
-
-        private static float softLimitWet(float value, float ceiling) {
-            float safeCeiling = Math.max(0.05f, ceiling);
-            float normalized = value / safeCeiling;
-            float limited = fastTanh(normalized) * safeCeiling;
-            return finiteOrZero(clamp(limited, -safeCeiling, safeCeiling));
         }
 
         private static float fastTanh(float value) {
@@ -471,6 +457,28 @@ final class PcmDspProcessor {
                     && value != Float.NEGATIVE_INFINITY
                     ? value
                     : 0f;
+        }
+
+        private static final class OnePoleLowPass {
+            private final float alpha;
+            private float state;
+
+            OnePoleLowPass(int sampleRate, float cutoffHz) {
+                float safeCutoff = clamp(cutoffHz, 20f, sampleRate * 0.20f);
+                float omega = (float) (2.0 * Math.PI * safeCutoff / Math.max(1, sampleRate));
+                this.alpha = omega / (1f + omega);
+            }
+
+            void process(float[] samples, int sampleCount) {
+                for (int i = 0; i < sampleCount; i++) {
+                    state += (samples[i] - state) * alpha;
+                    samples[i] = finiteOrZero(state);
+                }
+            }
+
+            void reset() {
+                state = 0f;
+            }
         }
     }
 
