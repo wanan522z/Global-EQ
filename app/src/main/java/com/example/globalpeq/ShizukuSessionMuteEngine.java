@@ -237,14 +237,6 @@ final class ShizukuSessionMuteEngine {
         List<SessionInfo> sessions = dumpPolicySessions();
         ActivePlaybackSnapshot activePlayback = captureActivePlaybackSnapshot();
         boolean applyMuteEffects = shouldActivelyMuteSessions(activePlayback);
-        Log.d(TAG, "DBG_RESUME shizuku-scan"
-                + " wantsMuteEffects=" + wantsMuteEffects
-                + " applyMuteEffects=" + applyMuteEffects
-                + " monitorCaptureActive=" + repository.loadMonitorCaptureActive()
-                + " ownedCaptureSessions=" + currentAppSessionIds.size()
-                + " activePlaybackDetected=" + activePlayback.activePlaybackDetected
-                + " activePlaybackUids=" + activePlayback.activeUids
-                + " primaryPackage=" + activePlayback.primaryPackageName);
         if (!applyMuteEffects && (!muteEffects.isEmpty() || !knownSessions.isEmpty())) {
             releaseAllEffects();
         }
@@ -257,10 +249,6 @@ final class ShizukuSessionMuteEngine {
         String activePackageName = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
         updateActivePackageName(activePackageName);
         if (wantsMuteEffects && !applyMuteEffects) {
-            Log.d(TAG, "DBG_RESUME shizuku waiting"
-                    + " reason=" + (repository.loadMonitorCaptureActive()
-                    ? "capture_active_but_no_owned_session"
-                    : "no_active_playback"));
             publishStatus(repository.loadMonitorCaptureActive()
                     ? "Waiting for native capture playback session."
                     : "Waiting for active playback sessions.", false);
@@ -302,12 +290,6 @@ final class ShizukuSessionMuteEngine {
                         + ", usage=" + usage
                         + ", playerState=" + playerState
                         + ", relevant=" + relevant);
-                if (!relevant) {
-                    Log.d(TAG, "DBG_RESUME shizuku playback ignored"
-                            + " uid=" + uid
-                            + " usage=" + usage
-                            + " playerState=" + playerState);
-                }
                 Log.d(TAG, "Playback config raw=" + summarizeConfig(configuration));
                 if (!relevant) {
                     continue;
@@ -585,8 +567,6 @@ final class ShizukuSessionMuteEngine {
                     + ", pkg=" + session.packageName
                     + ", usage=" + session.usage);
         }
-        Log.d(TAG, "DBG_RESUME shizuku desired-mute-sessions=" + desiredMuteSessionIds);
-
         List<Integer> staleMutedSessions = new ArrayList<>();
         for (Integer sid : muteEffects.keySet()) {
             if (!applyMuteEffects || !desiredMuteSessionIds.contains(sid)) {

@@ -12,12 +12,14 @@ android {
         targetSdk 36
         versionCode 1
         versionName "0.1"
+        manifestPlaceholders = [appLabel: "Global PEQ"]
     }
 
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
+            manifestPlaceholders.appLabel = "Global PEQ Debug"
         }
     }
 
