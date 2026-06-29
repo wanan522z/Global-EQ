@@ -5755,8 +5755,8 @@ public final class MainActivity extends Activity {
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
-    private void exportCurrentDeviceConfigJson() {
-        exportCurrentDeviceConfigJsonV2();
+    private void exportCurrentDeviceConfigJsonLegacy() {
+        exportCurrentDeviceConfigJson();
         return;
         /*
         Preset preset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
@@ -5793,11 +5793,11 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void applyImportedDeviceConfig(DeviceConfigFile config) {
-        applyImportedDeviceConfigV2(config);
+    private void applyImportedDeviceConfigLegacy(DeviceConfigFile config) {
+        applyImportedDeviceConfig(config);
     }
 
-    private void exportCurrentDeviceConfigJsonV2() {
+    private void exportCurrentDeviceConfigJson() {
         Preset exportEditingPreset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
         Preset exportRunningPreset = withCurrentCurveSettings(runningPreset);
         if (currentDevice == null || exportRunningPreset == null) {
@@ -5831,7 +5831,7 @@ public final class MainActivity extends Activity {
         openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
     }
 
-    private void applyImportedDeviceConfigV2(DeviceConfigFile config) {
+    private void applyImportedDeviceConfig(DeviceConfigFile config) {
         flushPendingPresetPersistence();
         boolean masterEnabled = currentMasterEnabled();
         currentDevice = config.device;
