@@ -307,7 +307,19 @@ final class PresetRepository {
     }
 
     Preset loadNamedPreset(String name) {
-        return stripRuntimeEnabled(Preset.fromJson(prefs.getString(namedPresetKey(name), null)));
+        if (name == null || name.trim().isEmpty()) {
+            return null;
+        }
+        String json = prefs.getString(namedPresetKey(name), null);
+        if (json == null || json.trim().isEmpty()) {
+            return null;
+        }
+        Preset preset = Preset.fromJson(json);
+        return preset == null ? null : preset.withEnabled(false);
+    }
+
+    boolean hasNamedPreset(String name) {
+        return loadNamedPreset(name) != null;
     }
 
     List<String> loadNamedPresetNames() {
