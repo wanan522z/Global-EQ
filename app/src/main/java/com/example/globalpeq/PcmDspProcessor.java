@@ -239,13 +239,16 @@ final class PcmDspProcessor {
         private final float[] synthRe = new float[FFT_SIZE];
         private final float[] synthIm = new float[FFT_SIZE];
 
-        private final float[] wetQueue = new float[8192];
+        private final float[] wetQueue = new float[16384];
+
         private int wetQueueRead;
         private int wetQueueWrite;
         private int wetQueueSize;
 
         private int frameFill;
-        private int upsamplePhase;
+        private int decimationPhase;
+        private int interpolationPhase;
+
         private float previousWetSample;
         private float nextWetSample;
 
@@ -292,44 +295,39 @@ final class PcmDspProcessor {
             }
 
             /*
-             * 论文示例用 fcut=150Hz。
-             * 手机/小音箱建议控制在 90~170Hz，不要太低，否则生成谐波会不稳。
+             * 论文示例 fcut=150Hz。
+             * 太低会没效果，太高会变成中低频糊。
              */
-            cutoffHz = clampInt(requestedCutoff, 80, 170);
+            cutoffHz = clampInt(requestedCutoff, 90, 170);
 
-            /*
-             * 论文第 3.4 节：低频一路先低通到 1000Hz，
-             * 因为后续峰值/频谱信息需要 1000Hz 内的信息。
-             */
             lowPass1000 = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, 1000, 0, 70),
                     sampleRate
             );
 
             /*
-             * 输出虚拟低音谐波不保留 fcut 以下的东西。
-             * 否则手机/小喇叭放不出来，还会变成噗声和浑浊。
+             * 生成的虚拟谐波不要留在 fcut 以下。
              */
             wetHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(70, cutoffHz - 15), 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(80, cutoffHz - 10), 0, 70),
                     sampleRate
             );
 
             wetLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 650 : 900, 0, 66),
+                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 720 : 980, 0, 66),
                     sampleRate
             );
 
             /*
-             * 这个不要太大。
-             * 频谱搬移版比 NLD 干净，但过量仍会像“嘟嘟声”。
+             * 上一版这里太保守。
+             * 频谱搬移不是 NLD，湿声可以比 NLD 稍微大一些。
              */
-            harmonicMix = amount * (1.05f + amount * 0.35f);
+            harmonicMix = amount * (3.20f + amount * 1.20f);
             if (lowCpuMode) {
-                harmonicMix *= 0.82f;
+                harmonicMix *= 0.78f;
             }
 
-            wetCeiling = 0.22f + amount * 0.18f;
+            wetCeiling = 0.34f + amount * 0.26f;
 
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
@@ -369,42 +367,43 @@ final class PcmDspProcessor {
             }
 
             /*
-             * 先把当前 block 的低频信息送进降采样 STFT。
-             * 内部每攒够 512 个降采样点，就处理一次 1024 FFT。
+             * 降采样输入：每 16 个 full-rate sample 取一个。
+             * 注意：这里用 decimationPhase，不再和升采样共用。
              */
             for (int frame = 0; frame < frameCount; frame++) {
-                if (upsamplePhase == 0) {
+                if (decimationPhase == 0) {
                     pushDecimatedSample(monoSource[frame]);
                 }
 
-                upsamplePhase++;
-                if (upsamplePhase >= DECIMATION) {
-                    upsamplePhase = 0;
+                decimationPhase++;
+                if (decimationPhase >= DECIMATION) {
+                    decimationPhase = 0;
                 }
             }
 
             /*
-             * 从降采样湿声队列中取样，线性插值恢复到原采样率。
-             * 这里会有 STFT 固有延迟，但不会产生 NLD 那种硬失真。
+             * 升采样输出：从 wetQueue 取降采样湿声，再线性插值。
+             * 注意：这里用 interpolationPhase。
              */
             for (int frame = 0; frame < frameCount; frame++) {
-                if (upsamplePhase == 0) {
+                if (interpolationPhase == 0) {
                     previousWetSample = nextWetSample;
                     nextWetSample = popWetSample();
                 }
 
-                float t = upsamplePhase / (float) DECIMATION;
-                wetFullRate[frame] = previousWetSample + (nextWetSample - previousWetSample) * t;
+                float t = interpolationPhase / (float) DECIMATION;
+                wetFullRate[frame] = finiteOrZero(previousWetSample + (nextWetSample - previousWetSample) * t);
 
-                upsamplePhase++;
-                if (upsamplePhase >= DECIMATION) {
-                    upsamplePhase = 0;
+                interpolationPhase++;
+                if (interpolationPhase >= DECIMATION) {
+                    interpolationPhase = 0;
                 }
             }
 
             if (wetHighPass != null) {
                 wetHighPass.process(wetFullRate, frameCount);
             }
+
             if (wetLowPass != null) {
                 wetLowPass.process(wetFullRate, frameCount);
             }
@@ -414,16 +413,16 @@ final class PcmDspProcessor {
 
                 float wetAbs = Math.abs(wet);
                 wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.0045f);
+                        * (wetAbs > wetLimiterEnvelope ? 0.085f : 0.0048f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
 
                 wetLimiterGain += (targetGain - wetLimiterGain)
-                        * (targetGain < wetLimiterGain ? 0.15f : 0.006f);
+                        * (targetGain < wetLimiterGain ? 0.18f : 0.006f);
 
-                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.25f);
+                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.30f);
 
                 int frameOffset = frame * safeChannelCount;
 
@@ -432,10 +431,7 @@ final class PcmDspProcessor {
                     originalPeak = Math.max(originalPeak, Math.abs(samples[frameOffset + ch]));
                 }
 
-                /*
-                 * 原始信号接近满幅时收一点虚拟低音，避免后级爆。
-                 */
-                generated *= 1f - smoothStep(0.88f, 0.995f, originalPeak) * 0.62f;
+                generated *= 1f - smoothStep(0.88f, 0.995f, originalPeak) * 0.58f;
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     samples[frameOffset + ch] = finiteOrZero(samples[frameOffset + ch] + generated);
@@ -469,18 +465,10 @@ final class PcmDspProcessor {
 
             fft(fftRe, fftIm, false);
 
-            /*
-             * 论文路线：
-             * H1: fcut/2 ~ fcut      -> 2,3,4,5 次
-             * H2: fcut/3 ~ fcut/2    -> 3,4,5,6 次
-             * H3: fcut/4 ~ fcut/3    -> 4,5,6 次
-             *
-             * 这里做低 CPU 版频谱搬移：
-             * 直接把源 bin 的幅度/相位搬到 n 倍频 bin。
-             */
             float binHz = downSampleRate / FFT_SIZE;
-            int maxSourceBin = Math.min(HALF_FFT - 1, Math.round(cutoffHz / binHz));
+
             int minSourceBin = Math.max(1, Math.round((cutoffHz * 0.25f) / binHz));
+            int maxSourceBin = Math.min(HALF_FFT - 1, Math.round(cutoffHz / binHz));
 
             float blockEnergy = 0f;
             for (int k = minSourceBin; k <= maxSourceBin; k++) {
@@ -489,84 +477,97 @@ final class PcmDspProcessor {
                 blockEnergy += re * re + im * im;
             }
 
-            if (blockEnergy < 1.0e-9f) {
+            /*
+             * 上一版门限偏高，有些歌直接不触发。
+             */
+            if (blockEnergy < 1.0e-12f) {
                 enqueueSilenceHop();
                 return;
             }
 
             for (int k = minSourceBin; k <= maxSourceBin; k++) {
                 float srcHz = k * binHz;
-                if (srcHz < 18f || srcHz > cutoffHz) {
+
+                if (srcHz < 20f || srcHz > cutoffHz) {
                     continue;
                 }
 
-                float re = fftRe[k];
-                float im = fftIm[k];
-                float mag = (float) Math.sqrt(re * re + im * im);
-                if (mag < 1.0e-7f) {
+                float srcRe = fftRe[k];
+                float srcIm = fftIm[k];
+
+                float mag = (float) Math.sqrt(srcRe * srcRe + srcIm * srcIm);
+                if (mag < 1.0e-8f) {
                     continue;
                 }
 
-                float phase = (float) Math.atan2(im, re);
+                float phase = (float) Math.atan2(srcIm, srcRe);
 
-                int[] orders = harmonicOrdersFor(srcHz, cutoffHz);
-                for (int i = 0; i < orders.length; i++) {
-                    int order = orders[i];
-                    if (order <= 0) {
-                        continue;
-                    }
+                int firstOrder;
+                int orderCount;
+
+                if (srcHz >= cutoffHz * 0.50f) {
+                    firstOrder = 2;
+                    orderCount = 4; // 2,3,4,5
+                } else if (srcHz >= cutoffHz / 3f) {
+                    firstOrder = 3;
+                    orderCount = 4; // 3,4,5,6
+                } else if (srcHz >= cutoffHz * 0.25f) {
+                    firstOrder = 4;
+                    orderCount = 3; // 4,5,6
+                } else {
+                    continue;
+                }
+
+                float localPeakControl = localPeakControl(k);
+
+                for (int idx = 0; idx < orderCount; idx++) {
+                    int order = firstOrder + idx;
 
                     if (lowCpuMode && order >= 6) {
                         continue;
                     }
 
                     float targetHz = srcHz * order;
-                    if (targetHz < cutoffHz * 0.88f) {
+
+                    if (targetHz < cutoffHz * 0.90f) {
                         continue;
                     }
 
-                    /*
-                     * 900Hz 以上会开始有塑料感。
-                     * 论文关注的是低音虚拟，不是加中频失真。
-                     */
-                    float maxTargetHz = lowCpuMode ? 650f : 900f;
-                    if (targetHz > maxTargetHz || targetHz > downSampleRate * 0.44f) {
+                    float maxTargetHz = lowCpuMode ? 720f : 980f;
+                    if (targetHz > maxTargetHz || targetHz > downSampleRate * 0.45f) {
                         continue;
                     }
 
                     int targetBin = Math.round(targetHz / binHz);
-                    if (targetBin <= 0 || targetBin >= HALF_FFT) {
+                    if (targetBin <= 1 || targetBin >= HALF_FFT) {
                         continue;
                     }
 
-                    /*
-                     * 论文第三章主观评价里偏爱度最高的是类似指数衰减：
-                     * 1 : 0.5 : 0.25 : 0.13
-                     */
-                    float ratio = harmonicRatio(i);
-
-                    /*
-                     * 简化响度补偿：
-                     * 越低的源频率搬到越高频时，人耳更敏感，所以不能线性放大。
-                     */
+                    float ratio = harmonicRatio(idx);
                     float loudnessComp = simplifiedLoudnessCompensation(srcHz, targetHz);
 
                     /*
-                     * 峰值匹配的简化版：
-                     * 避免某一个 bin 突然特别尖，造成嘟声/口哨声。
+                     * 重点增强。
+                     * FFT/iFFT + window 后会被稀释，这里必须补。
                      */
-                    float localPeakControl = localPeakControl(k);
-
-                    float outMag = mag * ratio * loudnessComp * localPeakControl;
+                    float outMag = mag
+                            * ratio
+                            * loudnessComp
+                            * localPeakControl
+                            * 5.8f;
 
                     float outPhase = wrapPi(phase * order);
+
                     addSpectrumBin(targetBin, outMag, outPhase);
+
+                    /*
+                     * 轻微扩散到相邻 bin，避免单 bin 口哨声，同时听感更厚。
+                     */
+                    addSpectrumBin(targetBin - 1, outMag * 0.28f, outPhase - 0.15f);
+                    addSpectrumBin(targetBin + 1, outMag * 0.28f, outPhase + 0.15f);
                 }
             }
 
-            /*
-             * 防止低频分析泄漏产生的残余 DC。
-             */
             synthRe[0] = 0f;
             synthIm[0] = 0f;
             synthRe[HALF_FFT] = 0f;
@@ -580,10 +581,11 @@ final class PcmDspProcessor {
             fft(synthRe, synthIm, true);
 
             /*
-             * sqrt-Hann 分析 + sqrt-Hann 合成，50% overlap-add。
+             * 输出增益上一版太小。
+             * 这里 OLA 系数提高到 1.65。
              */
             for (int i = 0; i < FFT_SIZE; i++) {
-                olaBuffer[i] += synthRe[i] * window[i] * 0.72f;
+                olaBuffer[i] += synthRe[i] * window[i] * 1.65f;
             }
 
             for (int i = 0; i < HOP_SIZE; i++) {
@@ -594,26 +596,6 @@ final class PcmDspProcessor {
             for (int i = FFT_SIZE - HOP_SIZE; i < FFT_SIZE; i++) {
                 olaBuffer[i] = 0f;
             }
-        }
-
-        private int[] harmonicOrdersFor(float srcHz, int fcut) {
-            /*
-             * 为了避免频繁分配，下面返回的是固定小数组。
-             * Java 会分配对象，但每 512 个降采样点才跑一次，压力很小。
-             */
-            if (srcHz >= fcut * 0.50f) {
-                return new int[]{2, 3, 4, 5};
-            }
-
-            if (srcHz >= fcut / 3f) {
-                return new int[]{3, 4, 5, 6};
-            }
-
-            if (srcHz >= fcut * 0.25f) {
-                return new int[]{4, 5, 6, 0};
-            }
-
-            return new int[]{0, 0, 0, 0};
         }
 
         private float harmonicRatio(int index) {
@@ -633,21 +615,15 @@ final class PcmDspProcessor {
             float ratio = targetHz / Math.max(20f, srcHz);
 
             /*
-             * 倍频越高，幅度越要收。
+             * 不要像上一版收太多，否则没效果。
              */
-            float orderReduce = (float) Math.pow(ratio, -0.38f);
+            float orderReduce = (float) Math.pow(ratio, -0.24f);
 
-            /*
-             * 120~360Hz 是最自然的虚拟低音存在区。
-             */
-            float presence = 0.72f + 0.28f * smoothStep(110f, 220f, targetHz);
+            float lowTargetBoost = 1.0f + 0.22f * (1f - smoothStep(180f, 420f, targetHz));
+            float presence = 0.82f + 0.28f * smoothStep(120f, 260f, targetHz);
+            float highReduce = 1f - smoothStep(680f, 1000f, targetHz) * 0.42f;
 
-            /*
-             * 500Hz 以上开始容易变成塑料感。
-             */
-            float highReduce = 1f - smoothStep(520f, 900f, targetHz) * 0.55f;
-
-            return clamp(orderReduce * presence * highReduce, 0.12f, 1.0f);
+            return clamp(orderReduce * lowTargetBoost * presence * highReduce, 0.22f, 1.35f);
         }
 
         private float localPeakControl(int bin) {
@@ -672,9 +648,9 @@ final class PcmDspProcessor {
             float peakRatio = centerMag / avg;
 
             /*
-             * 峰太尖时收一点，减少“嘟”和“口哨”。
+             * 比上一版少压一点，否则鼓/贝斯最明显的峰被压没了。
              */
-            return 1f - smoothStep(2.2f, 5.0f, peakRatio) * 0.45f;
+            return 1f - smoothStep(3.2f, 7.5f, peakRatio) * 0.28f;
         }
 
         private float magnitudeAt(int bin) {
@@ -684,12 +660,13 @@ final class PcmDspProcessor {
         }
 
         private void addSpectrumBin(int bin, float mag, float phase) {
+            if (bin <= 0 || bin >= HALF_FFT) {
+                return;
+            }
+
             float re = mag * (float) Math.cos(phase);
             float im = mag * (float) Math.sin(phase);
 
-            /*
-             * 多个源 bin 可能搬到同一个目标 bin，直接累加。
-             */
             synthRe[bin] += re;
             synthIm[bin] += im;
         }
@@ -707,9 +684,6 @@ final class PcmDspProcessor {
 
         private void enqueueWetSample(float value) {
             if (wetQueueSize >= wetQueue.length) {
-                /*
-                 * 队列满了就丢最旧的，避免延迟越积越大。
-                 */
                 wetQueueRead++;
                 if (wetQueueRead >= wetQueue.length) {
                     wetQueueRead = 0;
@@ -749,7 +723,9 @@ final class PcmDspProcessor {
 
         private void clearRuntimeState() {
             frameFill = 0;
-            upsamplePhase = 0;
+            decimationPhase = 0;
+            interpolationPhase = 0;
+
             previousWetSample = 0f;
             nextWetSample = 0f;
 
@@ -819,11 +795,13 @@ final class PcmDspProcessor {
 
                         re[even] = uRe + vRe;
                         im[even] = uIm + vIm;
+
                         re[odd] = uRe - vRe;
                         im[odd] = uIm - vIm;
 
                         float nextWRe = wRe * wLenRe - wIm * wLenIm;
                         float nextWIm = wRe * wLenIm + wIm * wLenRe;
+
                         wRe = nextWRe;
                         wIm = nextWIm;
                     }
@@ -854,6 +832,7 @@ final class PcmDspProcessor {
             if (value > 3f) {
                 return 1f;
             }
+
             if (value < -3f) {
                 return -1f;
             }
@@ -875,9 +854,11 @@ final class PcmDspProcessor {
             while (x > Math.PI) {
                 x -= TWO_PI;
             }
+
             while (x < -Math.PI) {
                 x += TWO_PI;
             }
+
             return x;
         }
 
