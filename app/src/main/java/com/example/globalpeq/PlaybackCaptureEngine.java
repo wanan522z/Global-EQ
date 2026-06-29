@@ -455,9 +455,20 @@ final class PlaybackCaptureEngine {
                     Log.i(TAG, "Capture read returned " + read + " while waiting for playback");
                     captureWaitingLogged = true;
                 }
-                if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs) {
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastSignalAt > currentConfig.monitorIntervalMs) {
                     publishStatus(waitingStatusText(), false);
                     signaledLive = false;
+                }
+                if (now - lastSignalAt >= SILENCE_SELF_HEAL_AFTER_MS
+                        && shouldSelfHealAfterSilence(now)) {
+                    Log.w(TAG, "Self-healing native capture after repeated empty reads"
+                            + " target=" + currentTargetLabel
+                            + ", targetUid=" + currentTargetUid
+                            + ", output=" + configuredOutputDeviceKey
+                            + ", readResult=" + read);
+                    restartPipelineFromWorker(workerToken);
+                    return;
                 }
                 continue;
             }

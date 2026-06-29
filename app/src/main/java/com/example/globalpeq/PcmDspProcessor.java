@@ -228,7 +228,6 @@ final class PcmDspProcessor {
 
         private float[] monoSource = new float[0];
         private float[] lowBuffer = new float[0];
-        private float[] dryBuffer = new float[0];
         private float[] wetBuffer = new float[0];
 
         private float lowLevelFollower;
@@ -326,7 +325,6 @@ final class PcmDspProcessor {
 
                 monoSource[frame] = mono;
                 lowBuffer[frame] = mono;
-                dryBuffer[frame] = 0f;
                 wetBuffer[frame] = 0f;
             }
 
@@ -339,8 +337,6 @@ final class PcmDspProcessor {
 
             for (int i = 0; i < frameCount; i++) {
                 float low = finiteOrZero(lowBuffer[i]);
-                float dry = finiteOrZero(monoSource[i] - low);
-
                 float absLow = Math.abs(low);
                 lowLevelFollower += (absLow - lowLevelFollower)
                         * (absLow > lowLevelFollower ? 0.055f : 0.006f);
@@ -351,7 +347,6 @@ final class PcmDspProcessor {
                 float shaped = cubicResidual + softClip * Math.abs(softClip) * 0.05f;
                 float gate = smoothStep(0.0012f, 0.018f, lowLevelFollower);
 
-                dryBuffer[i] = dry;
                 wetBuffer[i] = finiteOrZero(shaped * harmonicTrim * gate);
             }
 
@@ -403,7 +398,6 @@ final class PcmDspProcessor {
             if (monoSource.length < frameCount) {
                 monoSource = new float[frameCount];
                 lowBuffer = new float[frameCount];
-                dryBuffer = new float[frameCount];
                 wetBuffer = new float[frameCount];
             }
         }
