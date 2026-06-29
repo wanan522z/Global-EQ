@@ -226,7 +226,6 @@ final class PcmDspProcessor {
         private MonoBiquad bassHighPass;
         private MonoBiquad bassLowPass;
 
-        private float[] monoBuffer = new float[0];
         private float[] lowBuffer = new float[0];
         private float[] bassBuffer = new float[0];
 
@@ -323,7 +322,6 @@ final class PcmDspProcessor {
                 mono *= 1f / safeChannelCount;
                 mono = finiteOrZero(mono);
 
-                monoBuffer[frame] = mono;
                 lowBuffer[frame] = mono;
                 bassBuffer[frame] = 0f;
             }
@@ -387,8 +385,7 @@ final class PcmDspProcessor {
         }
 
         private void ensureCapacity(int frameCount) {
-            if (monoBuffer.length < frameCount) {
-                monoBuffer = new float[frameCount];
+            if (lowBuffer.length < frameCount) {
                 lowBuffer = new float[frameCount];
                 bassBuffer = new float[frameCount];
             }
@@ -512,6 +509,11 @@ final class PcmDspProcessor {
                 z2 = nextZ2;
                 samples[i] = output;
             }
+        }
+
+        void reset() {
+            z1 = 0f;
+            z2 = 0f;
         }
     }
 
