@@ -4712,8 +4712,6 @@ public final class MainActivity extends Activity {
                         if (moveParent != null) {
                             moveParent.requestDisallowInterceptTouchEvent(true);
                         }
-                        suppressEqOverlayHideOnKeyboardDismiss = true;
-                        dismissKeyboard(view, false);
                     }
                     float step = Math.max(0.0001f, stepProvider.stepFor(startValue[0]));
                     float deltaSteps = (startY[0] - event.getY()) / pixelsPerStep;
@@ -4732,14 +4730,12 @@ public final class MainActivity extends Activity {
                 case MotionEvent.ACTION_CANCEL: {
                     if (scrubbing[0]) {
                         listener.onChanged(parseFloatOrFallback(input.getText(), startValue[0]));
-                        suppressEqOverlayHideOnKeyboardDismiss = false;
                         ViewParent releaseParent = view.getParent();
                         if (releaseParent != null) {
                             releaseParent.requestDisallowInterceptTouchEvent(false);
                         }
                         return true;
                     }
-                    suppressEqOverlayHideOnKeyboardDismiss = false;
                     ViewParent releaseParent = view.getParent();
                     if (releaseParent != null) {
                         releaseParent.requestDisallowInterceptTouchEvent(false);
