@@ -54,6 +54,11 @@ public final class GlobalEqForegroundService extends Service {
             if (captureEngine == null || shizukuMuteEngine == null) {
                 return;
             }
+            android.util.Log.i("GlobalEqService", "DBG_RESUME applyPendingCaptureUpdate"
+                    + " mode=" + pendingCaptureMode
+                    + " device=" + (pendingCaptureDevice == null ? "null" : pendingCaptureDevice.key)
+                    + " presetEnabled=" + (pendingCapturePreset != null && pendingCapturePreset.enabled)
+                    + " routeRefresh=" + pendingCaptureRouteRefresh);
             if (pendingCaptureRouteRefresh) {
                 captureEngine.requestOutputRouteRefresh();
             }
@@ -102,6 +107,10 @@ public final class GlobalEqForegroundService extends Service {
                 return;
             }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
+            android.util.Log.i("GlobalEqService", "DBG_RESUME deviceMonitor"
+                    + " device=" + device.key
+                    + " sameRoute=" + sameRoute
+                    + " modeBeforeReload=" + currentProcessingMode);
             currentProcessingMode = repository.loadProcessingMode();
             currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
             if (awaitingInitialDeviceMonitorEvent) {

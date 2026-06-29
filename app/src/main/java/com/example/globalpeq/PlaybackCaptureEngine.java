@@ -439,6 +439,7 @@ final class PlaybackCaptureEngine {
         boolean signaledLive = false;
         captureSignalLogged = false;
         captureWaitingLogged = false;
+        int emptyReadCount = 0;
         int silentReadCount = 0;
         int nonZeroReadCount = 0;
 
@@ -451,9 +452,22 @@ final class PlaybackCaptureEngine {
                 break;
             }
             if (read <= 0) {
+                emptyReadCount++;
                 if (!captureWaitingLogged) {
-                    Log.i(TAG, "Capture read returned " + read + " while waiting for playback");
+                    Log.i(TAG, "DBG_RESUME capture empty-read begins"
+                            + " result=" + read
+                            + " target=" + currentTargetLabel
+                            + " targetUid=" + currentTargetUid
+                            + " output=" + configuredOutputDeviceKey);
                     captureWaitingLogged = true;
+                }
+                if (emptyReadCount == 1 || emptyReadCount == 10 || emptyReadCount == 30 || emptyReadCount % 120 == 0) {
+                    Log.i(TAG, "DBG_RESUME capture empty-read"
+                            + " count=" + emptyReadCount
+                            + " result=" + read
+                            + " sinceLastSignalMs=" + (SystemClock.elapsedRealtime() - lastSignalAt)
+                            + " target=" + currentTargetLabel
+                            + " output=" + configuredOutputDeviceKey);
                 }
                 long now = SystemClock.elapsedRealtime();
                 if (now - lastSignalAt > currentConfig.monitorIntervalMs) {
@@ -462,15 +476,24 @@ final class PlaybackCaptureEngine {
                 }
                 if (now - lastSignalAt >= SILENCE_SELF_HEAL_AFTER_MS
                         && shouldSelfHealAfterSilence(now)) {
-                    Log.w(TAG, "Self-healing native capture after repeated empty reads"
+                    Log.w(TAG, "DBG_RESUME self-heal after empty-reads"
                             + " target=" + currentTargetLabel
                             + ", targetUid=" + currentTargetUid
                             + ", output=" + configuredOutputDeviceKey
-                            + ", readResult=" + read);
+                            + ", readResult=" + read
+                            + ", emptyReadCount=" + emptyReadCount
+                            + ", sinceLastSignalMs=" + (now - lastSignalAt));
                     restartPipelineFromWorker(workerToken);
                     return;
                 }
                 continue;
+            }
+            if (emptyReadCount > 0) {
+                Log.i(TAG, "DBG_RESUME capture empty-read recovered"
+                        + " emptyReadCount=" + emptyReadCount
+                        + " firstReadSamples=" + read
+                        + " target=" + currentTargetLabel);
+                emptyReadCount = 0;
             }
 
             float peak = 0f;
@@ -503,7 +526,7 @@ final class PlaybackCaptureEngine {
             } else {
                 silentReadCount++;
                 if (silentReadCount == 1 || silentReadCount == 10 || silentReadCount == 30 || silentReadCount % 120 == 0) {
-                    Log.i(TAG, "Capture read below threshold readSamples=" + read
+                    Log.i(TAG, "DBG_RESUME capture silent-read readSamples=" + read
                             + ", peak=" + peak
                             + ", silentReadCount=" + silentReadCount
                             + ", target=" + currentTargetLabel
@@ -516,12 +539,13 @@ final class PlaybackCaptureEngine {
                 long now = SystemClock.elapsedRealtime();
                 if (now - lastSignalAt >= SILENCE_SELF_HEAL_AFTER_MS
                         && shouldSelfHealAfterSilence(now)) {
-                    Log.w(TAG, "Self-healing native capture after prolonged silence"
+                    Log.w(TAG, "DBG_RESUME self-heal after silence"
                             + " target=" + currentTargetLabel
                             + ", targetUid=" + currentTargetUid
                             + ", output=" + configuredOutputDeviceKey
                             + ", silentReadCount=" + silentReadCount
-                            + ", peak=" + peak);
+                            + ", peak=" + peak
+                            + ", sinceLastSignalMs=" + (now - lastSignalAt));
                     restartPipelineFromWorker(workerToken);
                     return;
                 }
@@ -569,7 +593,16 @@ final class PlaybackCaptureEngine {
         if (now - lastSelfHealRestartAt < SELF_HEAL_RESTART_COOLDOWN_MS) {
             return false;
         }
-        return hasRelevantActivePlayback();
+        boolean hasRelevantPlayback = hasRelevantActivePlayback();
+        if (!hasRelevantPlayback) {
+            Log.i(TAG, "DBG_RESUME self-heal skipped"
+                    + " reason=no_relevant_playback"
+                    + " sinceStartMs=" + (now - lastPipelineStartAt)
+                    + " sinceLastRestartMs=" + (now - lastSelfHealRestartAt)
+                    + " target=" + currentTargetLabel
+                    + " output=" + configuredOutputDeviceKey);
+        }
+        return hasRelevantPlayback;
     }
 
     private void restartPipelineFromWorker(Object workerToken) {
@@ -577,6 +610,10 @@ final class PlaybackCaptureEngine {
             if (!running || activeWorkerToken != workerToken) {
                 return;
             }
+            Log.w(TAG, "DBG_RESUME restarting capture pipeline"
+                    + " target=" + currentTargetLabel
+                    + " targetUid=" + currentTargetUid
+                    + " output=" + configuredOutputDeviceKey);
             lastSelfHealRestartAt = SystemClock.elapsedRealtime();
             forceOutputRouteRefresh = true;
             startPipelineLocked();
@@ -887,9 +924,19 @@ final class PlaybackCaptureEngine {
                     continue;
                 }
                 if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+                    Log.i(TAG, "DBG_RESUME relevant playback found"
+                            + " mode=SHIZUKU_MUTE"
+                            + " uid=" + uid
+                            + " usage=" + usage
+                            + " target=" + currentTargetLabel);
                     return true;
                 }
                 if (uid == currentTargetUid) {
+                    Log.i(TAG, "DBG_RESUME relevant playback found"
+                            + " mode=" + currentMode
+                            + " uid=" + uid
+                            + " usage=" + usage
+                            + " targetUid=" + currentTargetUid);
                     return true;
                 }
             }
