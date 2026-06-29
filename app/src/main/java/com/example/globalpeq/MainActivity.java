@@ -5813,7 +5813,7 @@ public final class MainActivity extends Activity {
             showImportedPresetConflictDialog(imported, existing, applyLive);
             return;
         }
-        applyImportedPreset(imported, applyLive);
+        finishImportedPreset(imported, applyLive, tr("Preset imported", "棰勮宸插鍏?));
         Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
     }
 
