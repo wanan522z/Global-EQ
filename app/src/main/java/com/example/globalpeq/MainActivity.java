@@ -2976,10 +2976,6 @@ public final class MainActivity extends Activity {
         return safeLeft.compareTo(safeRight);
     }
 
-    private String alphabetKeyForLabel(String label) {
-        return alphabetKeyForApp(label, null);
-    }
-
     private TextView createInstalledAppSectionHeader(String section) {
         TextView header = new TextView(this);
         header.setText(section);
