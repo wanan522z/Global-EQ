@@ -5797,7 +5797,7 @@ public final class MainActivity extends Activity {
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
-        pendingExportSuccessMessage = tr("Preset exported", "棰勮宸插鍑?");
+        pendingExportSuccessMessage = tr("Preset exported", "预设已导出");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
@@ -5903,7 +5903,7 @@ public final class MainActivity extends Activity {
         Preset exportEditingPreset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
         Preset exportRunningPreset = withCurrentCurveSettings(runningPreset);
         if (currentDevice == null || exportRunningPreset == null) {
-            Toast.makeText(this, tr("No global config to export", "娌℃湁鍙鍑虹殑鍏ㄥ眬閰嶇疆"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No global config to export", "没有可导出的全局配置"), Toast.LENGTH_SHORT).show();
             return;
         }
         Preset systemDevicePreset = processingMode == ProcessingMode.SYSTEM_EQ
@@ -5929,7 +5929,7 @@ public final class MainActivity extends Activity {
                 exportPresetLibrary(exportEditingPreset)
         );
         pendingExportJson = config.toJson();
-        pendingExportSuccessMessage = tr("Global config exported", "鍏ㄥ眬閰嶇疆宸插鍑?");
+        pendingExportSuccessMessage = tr("Global config exported", "全局配置已导出");
         openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
     }
 
