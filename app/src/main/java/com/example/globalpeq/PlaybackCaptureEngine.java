@@ -31,6 +31,7 @@ final class PlaybackCaptureEngine {
     private static final int SAMPLE_RATE = 48000;
     private static final float SIGNAL_THRESHOLD = 0.0018f;
     private static final int SOURCE_APP_STREAM = AudioManager.STREAM_MUSIC;
+    private static final long CAPTURE_SIGNAL_OWNERSHIP_HOLD_MS = 320L;
     private static final int MIN_PIPELINE_BUFFER_FRAMES = 128;
     private static final int MIN_TRACK_LATENCY_MS = 40;
     private static final int MIN_PROCESSING_CHUNK_FRAMES = 256;
@@ -78,6 +79,7 @@ final class PlaybackCaptureEngine {
     private String publishedStatus = "";
     private boolean publishedActive;
     private long lastAutoRestartAtMs;
+    private volatile long lastCaptureSignalAtMs;
     PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
         this.appContext = context.getApplicationContext();
         this.audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
@@ -219,6 +221,9 @@ final class PlaybackCaptureEngine {
     }
 
     synchronized Set<Integer> getOwnedAudioSessionIds() {
+        if (!hasRecentCaptureSignal()) {
+            return java.util.Collections.emptySet();
+        }
         Set<Integer> sessionIds = new LinkedHashSet<>();
         if (audioRecord != null) {
             int recordSessionId = audioRecord.getAudioSessionId();
@@ -383,6 +388,7 @@ final class PlaybackCaptureEngine {
             configuredPreferredDeviceSignature =
                     describeResolvedDeviceSignature(preferredOutputDevice);
             running = true;
+            lastCaptureSignalAtMs = 0L;
             reconfigureEffectsLocked();
 
             audioTrack.play();
@@ -489,7 +495,9 @@ final class PlaybackCaptureEngine {
             }
 
             if (peak > SIGNAL_THRESHOLD) {
-                lastSignalAt = SystemClock.elapsedRealtime();
+                long signalAt = SystemClock.elapsedRealtime();
+                lastSignalAt = signalAt;
+                lastCaptureSignalAtMs = signalAt;
                 silentReadCount = 0;
                 if (!captureSignalLogged) {
                     Log.i(TAG, "Capture loop detected signal: readSamples=" + read + ", peak=" + peak);
@@ -632,6 +640,7 @@ final class PlaybackCaptureEngine {
     private void stopPipelineLocked() {
         running = false;
         activeWorkerToken = null;
+        lastCaptureSignalAtMs = 0L;
 
         AudioRecord record = audioRecord;
         audioRecord = null;
@@ -684,6 +693,20 @@ final class PlaybackCaptureEngine {
         configuredLatencyMs = -1;
         configuredOutputDeviceKey = "";
         configuredPreferredDeviceSignature = "none";
+    }
+
+    private boolean hasRecentCaptureSignal() {
+        if (!running) {
+            return false;
+        }
+        long signalAt = lastCaptureSignalAtMs;
+        if (signalAt <= 0L) {
+            return false;
+        }
+        long holdMs = Math.max(
+                CAPTURE_SIGNAL_OWNERSHIP_HOLD_MS,
+                Math.min(1200L, Math.max(240L, currentConfig.latencyMs * 4L)));
+        return SystemClock.elapsedRealtime() - signalAt <= holdMs;
     }
 
     private void bindTrackToPreferredOutputLocked(AudioTrack track, AudioDeviceInfo preferredDevice) {

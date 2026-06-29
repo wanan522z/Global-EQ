@@ -221,7 +221,6 @@ final class PcmDspProcessor {
         private MonoBiquad monoLowStageB;
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
-        private MonoPeakFilter harmonicPeak;
 
         private float smoothedMix;
         private float detectorState;
@@ -341,35 +340,38 @@ final class PcmDspProcessor {
             levelState += (Math.abs(lowBand) - levelState) * 0.012f;
 
             float centered = blended - detectorState;
-            float even = blended - detectorState * 0.82f;
-            float odd = softSaturate(centered * 1.42f) - centered * 0.48f;
-            float source = even * 0.74f + odd * 0.26f;
+            float even = blended - detectorState * 0.78f;
+            float odd = softSaturate(centered * 1.32f) - centered * 0.54f;
+            float source = even * 0.82f + odd * 0.18f;
             float trimmed = source * Math.max(detectorTrimFloor, 1f - levelState * 0.24f);
 
             float bandLimited = harmonicHighPass.process(trimmed);
             bandLimited = harmonicLowPass.process(bandLimited);
-            bandLimited = harmonicPeak.process(bandLimited);
 
             return softSaturate(bandLimited * 1.72f);
         }
 
         private void rebuildFilters(int targetCutoffHz, float amount) {
             float safeTargetCutoff = clamp(targetCutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.20f));
-            float fundamentalCutoff = clamp(safeTargetCutoff * 0.5f, 12f, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.10f));
 
-            monoLowStageA = createMonoFilter(FilterType.LOW_PASS, fundamentalCutoff, 58);
-            monoLowStageB = createMonoFilter(FilterType.LOW_PASS, fundamentalCutoff, 58);
+            float sourceCutoffHz = clamp(
+                    safeTargetCutoff * (1.08f + amount * 0.12f),
+                    22f,
+                    Math.min(MAX_CUTOFF_HZ, sampleRate * 0.22f));
+            monoLowStageA = createMonoFilter(FilterType.LOW_PASS, sourceCutoffHz, 58);
+            monoLowStageB = createMonoFilter(FilterType.LOW_PASS, sourceCutoffHz, 58);
 
-            float harmonicHpHz = clamp(safeTargetCutoff * 0.72f, 28f, safeTargetCutoff * 0.95f);
-            float harmonicLpHz = clamp(Math.max(300f, safeTargetCutoff * 4.60f), 220f, Math.min(520f, sampleRate * 0.24f));
-            float harmonicPeakHz = clamp(safeTargetCutoff * 1.08f, 42f, harmonicLpHz - 10f);
-            float harmonicPeakGainDb = 2.2f + amount * 4.4f;
-            float harmonicPeakQ = 0.78f + amount * 0.22f;
+            float harmonicHpHz = clamp(
+                    safeTargetCutoff * (1.72f - amount * 0.08f),
+                    Math.max(32f, safeTargetCutoff * 1.45f),
+                    safeTargetCutoff * 1.92f);
+            float harmonicLpHz = clamp(
+                    Math.max(260f, safeTargetCutoff * (4.60f + amount * 0.90f)),
+                    Math.max(220f, safeTargetCutoff * 2.60f),
+                    Math.min(560f, sampleRate * 0.26f));
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
             harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
-            harmonicPeak = new MonoPeakFilter(sampleRate);
-            harmonicPeak.configure(harmonicPeakHz, harmonicPeakGainDb, harmonicPeakQ);
         }
 
         private void resetRuntime() {
@@ -387,9 +389,6 @@ final class PcmDspProcessor {
             }
             if (harmonicLowPass != null) {
                 harmonicLowPass.reset();
-            }
-            if (harmonicPeak != null) {
-                harmonicPeak.reset();
             }
         }
 

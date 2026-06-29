@@ -90,11 +90,11 @@ public final class MainActivity extends Activity {
     private static final int EQ_EDIT_FIELD_FREQ = 0;
     private static final int EQ_EDIT_FIELD_GAIN = 1;
     private static final int EQ_EDIT_FIELD_Q = 2;
-    private static final int GEQ_COMMIT_DELAY_MS = 160;
-    private static final int PEQ_BAND_COMMIT_DELAY_MS = 160;
+    private static final int GEQ_COMMIT_DELAY_MS = 280;
+    private static final int PEQ_BAND_COMMIT_DELAY_MS = 280;
     private static final int PEQ_TOGGLE_COMMIT_DELAY_MS = 90;
-    private static final long LIVE_EQ_PREVIEW_DELAY_MS = 24L;
-    private static final long EQ_TEXT_INPUT_APPLY_DELAY_MS = 140L;
+    private static final long LIVE_EQ_PREVIEW_DELAY_MS = 48L;
+    private static final long EQ_TEXT_INPUT_APPLY_DELAY_MS = 260L;
     private static final long ENABLE_TOGGLE_COMMIT_DELAY_MS = 110L;
     private static final long ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS = 280L;
     private static final long ENABLE_TOGGLE_INTERACTION_LOCK_MS = 260L;
@@ -861,7 +861,7 @@ public final class MainActivity extends Activity {
                 refreshTargetCurveCache();
             }
             syncCurrentCurveSettingsToEditingPreset(true);
-            renderAll();
+            refreshCurveSettingsUi();
         } catch (IOException ex) {
             Toast.makeText(this, "Curve import failed", Toast.LENGTH_SHORT).show();
         }
@@ -4343,13 +4343,13 @@ public final class MainActivity extends Activity {
             return;
         }
         editingPreset = editingPreset.withBand(pendingPeqPreviewIndex, pendingPeqPreviewBand);
+        int updatedIndex = pendingPeqPreviewIndex;
         pendingPeqPreviewIndex = -1;
         pendingPeqPreviewBand = null;
         if (curveView != null) {
             refreshCurveView();
         }
-        updatePeqBandVisuals();
-        updateEditStateLabels();
+        updatePeqBandVisual(updatedIndex);
     }
 
     private void commitPendingPeqBandUpdate() {
@@ -4456,7 +4456,6 @@ public final class MainActivity extends Activity {
         if (curveView != null) {
             refreshCurveView();
         }
-        updateEditStateLabels();
     }
 
     private void scheduleGeqCommit() {
@@ -4861,7 +4860,7 @@ public final class MainActivity extends Activity {
             deviceCurveSmoothing = "Default";
             refreshDeviceCurveCache();
             syncCurrentCurveSettingsToEditingPreset(true);
-            refreshEditingPresetUi();
+            refreshCurveSettingsUi();
         }, item -> imported.contains(item), item -> {
             repository.deleteDeviceCurve(item);
             if (item.equals(selectedDeviceCurveName)) {
@@ -4870,7 +4869,7 @@ public final class MainActivity extends Activity {
                 deviceCurveSmoothing = "Default";
                 refreshDeviceCurveCache();
                 syncCurrentCurveSettingsToEditingPreset(true);
-                refreshEditingPresetUi();
+                refreshCurveSettingsUi();
             }
         });
     }
@@ -4894,7 +4893,7 @@ public final class MainActivity extends Activity {
             targetCurveSmoothing = "Default";
             refreshTargetCurveCache();
             syncCurrentCurveSettingsToEditingPreset(true);
-            refreshEditingPresetUi();
+            refreshCurveSettingsUi();
         }, item -> imported.contains(item), item -> {
             repository.deleteTargetCurve(item);
             if (item.equals(selectedTargetCurveName)) {
@@ -4903,7 +4902,7 @@ public final class MainActivity extends Activity {
                 targetCurveSmoothing = "Default";
                 refreshTargetCurveCache();
                 syncCurrentCurveSettingsToEditingPreset(true);
-                refreshEditingPresetUi();
+                refreshCurveSettingsUi();
             }
         });
     }
@@ -4958,13 +4957,29 @@ public final class MainActivity extends Activity {
         if (editingPreset == null) {
             return;
         }
-        Preset next = withCurrentCurveSettings(editingPreset);
-        if (next == null || next.toJson().equals(editingPreset.toJson())) {
+        Preset nextEditingPreset = withCurrentCurveSettings(editingPreset);
+        Preset nextRunningPreset = isEditingPresetActive() ? withCurrentCurveSettings(runningPreset) : runningPreset;
+        boolean editingChanged = nextEditingPreset != null && !nextEditingPreset.toJson().equals(editingPreset.toJson());
+        boolean runningChanged = nextRunningPreset != null && runningPreset != null
+                && !nextRunningPreset.toJson().equals(runningPreset.toJson());
+        if (!editingChanged && !runningChanged) {
             persistCurrentCurveSettings();
             return;
         }
-        setEditingPreset(next, recordHistory);
+        if (recordHistory && editingChanged) {
+            pushHistory(undoStack, editingPreset);
+            redoStack.clear();
+        }
+        if (editingChanged && nextEditingPreset != null) {
+            editingPreset = nextEditingPreset;
+        }
+        if (runningChanged && nextRunningPreset != null) {
+            runningPreset = nextRunningPreset;
+            scheduleRunningPresetPersistence();
+        }
+        scheduleEditingPresetPersistence();
         persistCurrentCurveSettings();
+        updateEditStateLabels();
     }
 
     private void persistCurrentCurveSettings() {
@@ -4983,6 +4998,11 @@ public final class MainActivity extends Activity {
             curveView.setMaxDb(curveGraphMaxDb);
             refreshCurveView();
         }
+    }
+
+    private void refreshCurveSettingsUi() {
+        refreshCurvePreviewOnly();
+        updateEditStateLabels();
     }
 
     private int curveRangeIndex(int maxDb) {
@@ -5347,7 +5367,7 @@ public final class MainActivity extends Activity {
         if (nameView != null) {
             nameView.setText(nextName);
         }
-        renderAll();
+        refreshCurveSettingsUi();
         Toast.makeText(this, tr("Curve renamed", "曲线已重命名"), Toast.LENGTH_SHORT).show();
         return true;
     }
@@ -6871,6 +6891,19 @@ public final class MainActivity extends Activity {
                 continue;
             }
             applyBandRowVisualState((LinearLayout) child, i);
+        }
+    }
+
+    private void updatePeqBandVisual(int index) {
+        if (rows == null || editingPreset == null || editingPreset.mode == EqMode.GEQ) {
+            return;
+        }
+        if (index < 0 || index >= rows.getChildCount()) {
+            return;
+        }
+        View child = rows.getChildAt(index);
+        if (child instanceof LinearLayout) {
+            applyBandRowVisualState((LinearLayout) child, index);
         }
     }
 
