@@ -6320,6 +6320,17 @@ public final class MainActivity extends Activity {
         return candidate;
     }
 
+    private String nextImportedPresetName(Preset imported) {
+        String baseName = presetDisplayName(imported);
+        String candidate = baseName + " Imported";
+        int index = 2;
+        while (repository.loadNamedPreset(candidate) != null) {
+            candidate = baseName + " Imported " + index;
+            index++;
+        }
+        return candidate;
+    }
+
     private void onEnabledChanged(CompoundButton buttonView, boolean isChecked) {
         if (updatingUi) {
             return;
