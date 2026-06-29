@@ -4639,6 +4639,11 @@ public final class MainActivity extends Activity {
             }
             return false;
         });
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus) {
+                flushDebouncedFloatInput(input, listener);
+            }
+        });
         attachDebouncedFloatInput(input, EQ_TEXT_INPUT_APPLY_DELAY_MS, listener);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight);
         params.leftMargin = dp(2);
@@ -4687,7 +4692,10 @@ public final class MainActivity extends Activity {
                             break;
                         }
                         scrubbing[0] = true;
-                        view.getParent().requestDisallowInterceptTouchEvent(true);
+                        ViewParent parent = view.getParent();
+                        if (parent != null) {
+                            parent.requestDisallowInterceptTouchEvent(true);
+                        }
                         closeKeyboard(view);
                     }
                     float step = Math.max(0.0001f, stepProvider.stepFor(startValue[0]));
@@ -4706,10 +4714,16 @@ public final class MainActivity extends Activity {
                 case MotionEvent.ACTION_CANCEL:
                     if (scrubbing[0]) {
                         listener.onChanged(parseFloatOrFallback(input.getText(), startValue[0]));
-                        view.getParent().requestDisallowInterceptTouchEvent(false);
+                        ViewParent parent = view.getParent();
+                        if (parent != null) {
+                            parent.requestDisallowInterceptTouchEvent(false);
+                        }
                         return true;
                     }
-                    view.getParent().requestDisallowInterceptTouchEvent(false);
+                    ViewParent parent = view.getParent();
+                    if (parent != null) {
+                        parent.requestDisallowInterceptTouchEvent(false);
+                    }
                     break;
                 default:
                     break;
