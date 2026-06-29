@@ -4707,7 +4707,7 @@ public final class MainActivity extends Activity {
                         if (moveParent != null) {
                             moveParent.requestDisallowInterceptTouchEvent(true);
                         }
-                        closeKeyboard(view);
+                        dismissKeyboard(view, false);
                     }
                     float step = Math.max(0.0001f, stepProvider.stepFor(startValue[0]));
                     float deltaSteps = (startY[0] - event.getY()) / pixelsPerStep;
