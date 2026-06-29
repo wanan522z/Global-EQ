@@ -4522,19 +4522,28 @@ public final class MainActivity extends Activity {
             int frequencyHz = clamp(Math.round(value), 20, 20000);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withFrequencyHz(frequencyHz));
         });
-        attachEqOverlayNumberScrub(frequencyInput, band.frequencyHz, 20f, 20000f, 0, this::stepFrequencyScrub, false);
+        attachEqOverlayNumberScrub(frequencyInput, band.frequencyHz, 20f, 20000f, 0, this::stepFrequencyScrub, false, value -> {
+            int frequencyHz = clamp(Math.round(value), 20, 20000);
+            setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withFrequencyHz(frequencyHz));
+        });
         overlay.addView(frequencyInput);
         EditText gainInput = createEqOverlayInput(formatDecimal(band.gainMb / 100f), "dB", 1f, value -> {
             int gainMb = clamp(Math.round(value * 100f), -1800, 1800);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withGainMb(gainMb));
         });
-        attachEqOverlayNumberScrub(gainInput, band.gainMb / 100f, -18f, 18f, 2, current -> 0.1f, true);
+        attachEqOverlayNumberScrub(gainInput, band.gainMb / 100f, -18f, 18f, 2, current -> 0.1f, true, value -> {
+            int gainMb = clamp(Math.round(value * 100f), -1800, 1800);
+            setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withGainMb(gainMb));
+        });
         overlay.addView(gainInput);
         EditText qInput = createEqOverlayInput(formatDecimal(band.qHundred / 100f), "Q", 1f, value -> {
             int qHundred = clamp(Math.round(value * 100f), 0, ParametricBand.MAX_Q_HUNDRED);
             setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withQHundred(qHundred));
         });
-        attachEqOverlayNumberScrub(qInput, band.qHundred / 100f, 0f, ParametricBand.MAX_Q_HUNDRED / 100f, 2, current -> current < 1f ? 0.02f : 0.05f, true);
+        attachEqOverlayNumberScrub(qInput, band.qHundred / 100f, 0f, ParametricBand.MAX_Q_HUNDRED / 100f, 2, current -> current < 1f ? 0.02f : 0.05f, true, value -> {
+            int qHundred = clamp(Math.round(value * 100f), 0, ParametricBand.MAX_Q_HUNDRED);
+            setBandFromEqOverlay(bandIndex, editingPreset.bands[bandIndex].withQHundred(qHundred));
+        });
         overlay.addView(qInput);
 
         EditText focusTarget = field == EQ_EDIT_FIELD_GAIN ? gainInput : field == EQ_EDIT_FIELD_Q ? qInput : frequencyInput;
@@ -4646,9 +4655,10 @@ public final class MainActivity extends Activity {
             float max,
             int decimals,
             EqOverlayStepProvider stepProvider,
-            boolean forceFixedDecimals
+            boolean forceFixedDecimals,
+            FloatChanged listener
     ) {
-        if (input == null || stepProvider == null) {
+        if (input == null || stepProvider == null || listener == null) {
             return;
         }
         final float[] startValue = new float[]{initialValue};
@@ -4687,12 +4697,12 @@ public final class MainActivity extends Activity {
                         input.setSelection(text.length());
                         updatingUi = false;
                     }
-                    flushDebouncedFloatInput(input, value -> {});
+                    listener.onChanged(nextValue);
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     if (scrubbing[0]) {
-                        flushDebouncedFloatInput(input, value -> {});
+                        listener.onChanged(parseFloatOrFallback(input.getText(), startValue[0]));
                         view.getParent().requestDisallowInterceptTouchEvent(false);
                         return true;
                     }
