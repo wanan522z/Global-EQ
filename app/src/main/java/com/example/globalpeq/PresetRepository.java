@@ -69,9 +69,6 @@ final class PresetRepository {
 
     Preset loadPreset(AudioOutputDevice device, ProcessingMode mode) {
         String json = prefs.getString(deviceKey(device, mode), null);
-        if (json == null) {
-            json = prefs.getString(legacyDeviceKey(device), null);
-        }
         if (json != null) {
             return stripRuntimeEnabled(Preset.fromJson(json));
         }
@@ -429,19 +426,12 @@ final class PresetRepository {
         }
         ProcessingMode mode = loadProcessingMode();
         String json = prefs.getString("preset_" + key + "__" + mode.key, null);
-        if (json == null) {
-            json = prefs.getString("preset_" + key, null);
-        }
         return stripRuntimeEnabled(Preset.fromJson(json));
     }
 
     private String deviceKey(AudioOutputDevice device, ProcessingMode mode) {
         String safeModeKey = mode == null ? ProcessingMode.SYSTEM_EQ.key : mode.key;
         return "preset_" + device.key + "__" + safeModeKey;
-    }
-
-    private String legacyDeviceKey(AudioOutputDevice device) {
-        return "preset_" + device.key;
     }
 
     private String namedPresetKey(String name) {
@@ -570,7 +560,6 @@ final class PresetRepository {
 
         String lastDeviceKey = prefs.getString(LAST_DEVICE_KEY, null);
         if (lastDeviceKey != null && !lastDeviceKey.trim().isEmpty()) {
-            updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey, oldName, newName, targetCurve);
             updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey + "__" + ProcessingMode.SYSTEM_EQ.key, oldName, newName, targetCurve);
             updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey + "__" + ProcessingMode.SHIZUKU_MUTE.key, oldName, newName, targetCurve);
         }
@@ -582,7 +571,6 @@ final class PresetRepository {
                 continue;
             }
             String deviceKey = device.substring(0, separator);
-            updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey, oldName, newName, targetCurve);
             updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey + "__" + ProcessingMode.SYSTEM_EQ.key, oldName, newName, targetCurve);
             updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey + "__" + ProcessingMode.SHIZUKU_MUTE.key, oldName, newName, targetCurve);
         }
