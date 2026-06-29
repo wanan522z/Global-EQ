@@ -1463,7 +1463,7 @@ public final class MainActivity extends Activity {
         TextView exportPresetButton = createExtraChoiceButton();
         exportPresetButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportPresetButton, 132);
-        exportPresetButton.setOnClickListener(v -> exportCurrentPresetJson());
+        exportPresetButton.setOnClickListener(v -> showExportPresetChoiceDialog());
         panel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
 
         TextView importDeviceConfigButton = createExtraChoiceButton();
