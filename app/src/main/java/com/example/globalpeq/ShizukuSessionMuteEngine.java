@@ -57,6 +57,7 @@ final class ShizukuSessionMuteEngine {
     private static final Pattern PLAYBACK_USAGE_VALUE_REGEX = Pattern.compile(
             "\\busage\\b\\s*[:=]\\s*(\\d+)",
             Pattern.CASE_INSENSITIVE);
+    private static final int PLAYER_STATE_STARTED = resolveStartedPlayerState();
 
     interface SessionIdProvider {
         Set<Integer> getOwnedAudioSessionIds();
@@ -281,7 +282,7 @@ final class ShizukuSessionMuteEngine {
                 int uid = readPlaybackClientUid(configuration);
                 int usage = readPlaybackUsage(configuration);
                 int playerState = readPlaybackPlayerState(configuration);
-                boolean relevant = isRelevantActivePlayback(configuration);
+                boolean relevant = isRelevantActivePlayback(configuration, playerState);
                 if (relevant) {
                     activePlaybackDetected = true;
                 }
@@ -462,7 +463,8 @@ final class ShizukuSessionMuteEngine {
                 return;
             }
             for (AudioPlaybackConfiguration configuration : configs) {
-                if (configuration == null || !isRelevantActivePlayback(configuration)) {
+                int playerState = readPlaybackPlayerState(configuration);
+                if (configuration == null || !isRelevantActivePlayback(configuration, playerState)) {
                     continue;
                 }
 
@@ -608,8 +610,11 @@ final class ShizukuSessionMuteEngine {
         return firstActivePackageName;
     }
 
-    private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
+    private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration, int playerState) {
         if (configuration == null) {
+            return false;
+        }
+        if (!isPlaybackStarted(playerState)) {
             return false;
         }
         try {
@@ -624,6 +629,21 @@ final class ShizukuSessionMuteEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to inspect playback attributes", ex);
             return false;
+        }
+    }
+
+    private boolean isPlaybackStarted(int playerState) {
+        return playerState < 0 || playerState == PLAYER_STATE_STARTED;
+    }
+
+    private static int resolveStartedPlayerState() {
+        try {
+            java.lang.reflect.Field field = AudioPlaybackConfiguration.class.getField("PLAYER_STATE_STARTED");
+            return field.getInt(null);
+        } catch (ReflectiveOperationException ignored) {
+            return 2;
+        } catch (RuntimeException ignored) {
+            return 2;
         }
     }
 
