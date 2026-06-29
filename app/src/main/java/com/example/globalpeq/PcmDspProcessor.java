@@ -212,7 +212,8 @@ final class PcmDspProcessor {
     }
 
     private static final class PsychoacousticBassProcessor {
-        private static final float TWO_PI = (float) (Math.PI * 2.0);
+        private static final float PI = 3.14159265358979323846f;
+        private static final float TWO_PI = 6.28318530717958647692f;
 
         private final int sampleRate;
         private final int channelCount;
@@ -275,11 +276,6 @@ final class PcmDspProcessor {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
 
-            /*
-             * 论文示例 fcut=150Hz。
-             * 这里不要让 cutoff 太低，否则低频估计不稳；
-             * 也不要太高，否则变成中低频嗡。
-             */
             cutoffHz = clampInt(requestedCutoff, 85, 165);
 
             sourceHighPass = MonoBiquad.fromBand(
@@ -292,10 +288,6 @@ final class PcmDspProcessor {
                     sampleRate
             );
 
-            /*
-             * 生成的虚拟谐波区。
-             * 下限接近扬声器截止频率，上限不能太高，否则就会“塑料嗡”。
-             */
             wetHighPass = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.HIGH_PASS, true, Math.max(75, cutoffHz - 12), 0, 70),
                     sampleRate
@@ -306,10 +298,6 @@ final class PcmDspProcessor {
                     sampleRate
             );
 
-            /*
-             * 这里比 NLD 版小一点。
-             * 这版靠“音高稳定 + 谐波结构”出效果，不靠硬推增益。
-             */
             harmonicMix = amount * (1.80f + amount * 0.75f);
             if (lowCpuMode) {
                 harmonicMix *= 0.82f;
@@ -352,6 +340,7 @@ final class PcmDspProcessor {
             if (sourceHighPass != null) {
                 sourceHighPass.process(lowBuffer, frameCount);
             }
+
             if (sourceLowPass != null) {
                 sourceLowPass.process(lowBuffer, frameCount);
             }
@@ -376,10 +365,6 @@ final class PcmDspProcessor {
                 float pitchHz = pitchTracker.getPitchHz();
                 float confidence = pitchTracker.getConfidence();
 
-                /*
-                 * kick / 瞬态抑制：
-                 * 放屁声大多来自瞬态被虚拟低音错误放大。
-                 */
                 float transientRatio = 0f;
                 if (slowEnvelope > 0.00005f) {
                     transientRatio = (fastEnvelope - slowEnvelope * 1.08f)
@@ -388,9 +373,6 @@ final class PcmDspProcessor {
 
                 float transient = smoothStep(0.10f, 0.78f, transientRatio);
 
-                /*
-                 * 小信号不开，音高不稳不开，瞬态太强少开。
-                 */
                 float levelGate = smoothStep(0.0008f, 0.012f, envelope);
                 float pitchGate = confidence * confidence;
                 float transientSuppress = 1f - transient * 0.82f;
@@ -402,13 +384,9 @@ final class PcmDspProcessor {
                     continue;
                 }
 
-                /*
-                 * 与输入低频轻微锁相。
-                 * 不是硬锁，避免相位乱跳导致嗡叫。
-                 */
                 boolean risingCross = lastLow <= 0f && low > 0f;
                 if (risingCross && confidence > 0.35f) {
-                    float phaseError = wrapPi(0f - phase);
+                    float phaseError = wrapPi(-phase);
                     phase += phaseError * 0.018f;
                     phase = wrapPi(phase);
                 }
@@ -420,8 +398,10 @@ final class PcmDspProcessor {
                 int harmonicCount = lowCpuMode ? 3 : 4;
 
                 float harmonic = 0f;
+
                 for (int h = 0; h < harmonicCount; h++) {
                     int order = firstOrder + h;
+
                     if (order < 2 || order > 7) {
                         continue;
                     }
@@ -439,25 +419,18 @@ final class PcmDspProcessor {
                     float ratio = harmonicRatio(h);
                     float weight = harmonicWeight(targetHz);
 
-                    /*
-                     * 不做 saw / square。
-                     * 只用正弦谐波，避免毛刺和放屁。
-                     */
                     float p = wrapPi(phase * order);
                     harmonic += fastSin(p) * ratio * weight;
                 }
 
-                /*
-                 * 幅度来自原低频包络。
-                 * 不能过大，不然正弦谐波会变成“嗡嗡”。
-                 */
                 float wet = harmonic * envelope * gate * 2.15f;
 
-                /*
-                 * 轻微纹理：只在稳态时加一点原低频相关性，避免纯电子音。
-                 * 不用 abs，不用平方。
-                 */
-                float texture = clamp(low / Math.max(0.006f, envelope * 2.0f), -1f, 1f);
+                float texture = clamp(
+                        low / Math.max(0.006f, envelope * 2.0f),
+                        -1f,
+                        1f
+                );
+
                 wet *= 0.92f + 0.08f * Math.abs(texture);
 
                 wetBuffer[i] = finiteOrZero(wet);
@@ -468,6 +441,7 @@ final class PcmDspProcessor {
             if (wetHighPass != null) {
                 wetHighPass.process(wetBuffer, frameCount);
             }
+
             if (wetLowPass != null) {
                 wetLowPass.process(wetBuffer, frameCount);
             }
@@ -495,9 +469,6 @@ final class PcmDspProcessor {
                     originalPeak = Math.max(originalPeak, Math.abs(samples[frameOffset + ch]));
                 }
 
-                /*
-                 * 原始信号接近满幅时收湿声，避免后级 limiter 把它压成噗声。
-                 */
                 generated *= 1f - smoothStep(0.88f, 0.995f, originalPeak) * 0.62f;
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
@@ -547,10 +518,6 @@ final class PcmDspProcessor {
         }
 
         private static float harmonicRatio(int index) {
-            /*
-             * 论文主观偏爱度较高的指数衰减结构：
-             * 1 : 0.5 : 0.25 : 0.13
-             */
             switch (index) {
                 case 0:
                     return 1.00f;
@@ -564,10 +531,6 @@ final class PcmDspProcessor {
         }
 
         private static float harmonicWeight(float hz) {
-            /*
-             * 100~360Hz 是主要虚拟低音区；
-             * 500Hz 以上逐渐压掉，避免蜂鸣/塑料感。
-             */
             float low = smoothStep(75f, 115f, hz);
             float body = 0.82f + 0.22f * smoothStep(120f, 260f, hz);
             float high = 1f - smoothStep(460f, 700f, hz) * 0.72f;
@@ -601,7 +564,7 @@ final class PcmDspProcessor {
             }
 
             void reset() {
-                for (int i = 0; i < history.length; i++) {
+                for (int i = 0; i < HISTORY_SIZE; i++) {
                     history[i] = 0f;
                 }
 
@@ -618,6 +581,7 @@ final class PcmDspProcessor {
 
             void processSample(float sample, float envelope) {
                 decimatePhase++;
+
                 if (decimatePhase < DECIMATE) {
                     smooth();
                     return;
@@ -646,6 +610,7 @@ final class PcmDspProcessor {
 
             private void push(float value) {
                 history[writeIndex] = finiteOrZero(value);
+
                 writeIndex++;
                 if (writeIndex >= HISTORY_SIZE) {
                     writeIndex = 0;
@@ -663,8 +628,10 @@ final class PcmDspProcessor {
                 }
 
                 int minLag = Math.max(4, Math.round(analysisRate / 155f));
-                int maxLag = Math.min(HISTORY_SIZE - ANALYSIS_SIZE - 4,
-                        Math.round(analysisRate / 34f));
+                int maxLag = Math.min(
+                        HISTORY_SIZE - ANALYSIS_SIZE - 4,
+                        Math.round(analysisRate / 34f)
+                );
 
                 float bestScore = 0f;
                 int bestLag = 0;
@@ -685,9 +652,6 @@ final class PcmDspProcessor {
                 float hz = analysisRate / (float) bestLag;
                 hz = clamp(hz, 34f, 155f);
 
-                /*
-                 * 避免八度跳导致嗡叫。
-                 */
                 if (targetPitchHz > 1f) {
                     float ratio = hz / targetPitchHz;
 
@@ -744,12 +708,15 @@ final class PcmDspProcessor {
 
             private float getDelayed(int delay) {
                 int index = writeIndex - 1 - delay;
+
                 while (index < 0) {
                     index += HISTORY_SIZE;
                 }
+
                 while (index >= HISTORY_SIZE) {
                     index -= HISTORY_SIZE;
                 }
+
                 return history[index];
             }
         }
@@ -803,11 +770,11 @@ final class PcmDspProcessor {
         }
 
         private static float wrapPi(float x) {
-            while (x > Math.PI) {
+            while (x > PI) {
                 x -= TWO_PI;
             }
 
-            while (x < -Math.PI) {
+            while (x < -PI) {
                 x += TWO_PI;
             }
 
