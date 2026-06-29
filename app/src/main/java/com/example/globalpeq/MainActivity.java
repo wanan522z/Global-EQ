@@ -107,6 +107,7 @@ public final class MainActivity extends Activity {
     private static final long ENABLE_NEON_PEQ_START_DELAY_MS = 660L;
     private static final long ENABLE_NEON_PEQ_STEP_DELAY_MS = 60L;
     private static final long ENABLE_CAPTURE_REQUEST_EXTRA_DELAY_MS = 140L;
+    private static final long DEFERRED_INTEGER_INPUT_COMMIT_DELAY_MS = 150L;
     private static final long PRESET_PERSIST_DELAY_MS = 420L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
@@ -4171,6 +4172,7 @@ public final class MainActivity extends Activity {
 
     private EditText createDeferredIntegerInput(String value, String hint, int min, int max, IntChanged listener) {
         EditText input = new EditText(this);
+        final Runnable commitRunnable = () -> commitDeferredIntegerInput(input, min, max, listener);
         input.setSingleLine(true);
         input.setText(value);
         input.setHint(hint);
@@ -4191,16 +4193,38 @@ public final class MainActivity extends Activity {
             if (actionId == EditorInfo.IME_ACTION_DONE
                     || actionId == EditorInfo.IME_ACTION_NEXT
                     || enterUp) {
-                commitDeferredIntegerInput(input, min, max, listener);
+                uiHandler.removeCallbacks(commitRunnable);
+                commitRunnable.run();
                 closeKeyboard(view);
                 view.clearFocus();
                 return true;
             }
             return false;
         });
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (updatingUi || !input.hasFocus()) {
+                    return;
+                }
+                uiHandler.removeCallbacks(commitRunnable);
+                uiHandler.postDelayed(commitRunnable, DEFERRED_INTEGER_INPUT_COMMIT_DELAY_MS);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
         input.setOnFocusChangeListener((view, hasFocus) -> {
             if (!hasFocus) {
-                commitDeferredIntegerInput(input, min, max, listener);
+                uiHandler.removeCallbacks(commitRunnable);
+                commitRunnable.run();
+            } else {
+                uiHandler.removeCallbacks(commitRunnable);
             }
         });
 
