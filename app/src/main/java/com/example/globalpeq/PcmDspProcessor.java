@@ -212,8 +212,10 @@ final class PcmDspProcessor {
     }
 
     private static final class PsychoacousticBassProcessor {
-        private static final float PI = 3.14159265358979323846f;
-        private static final float TWO_PI = 6.28318530717958647692f;
+        private static final int MIN_CUTOFF_HZ = 30;
+        private static final int MAX_CUTOFF_HZ = 300;
+        private static final int INTENSITY_Q15_MAX = 32767;
+        private static final int[] INTENSITY_COEF = buildIntensityCoef();
 
         private final int sampleRate;
         private final int channelCount;
@@ -226,31 +228,24 @@ final class PcmDspProcessor {
 
         private float[] monoSource = new float[0];
         private float[] lowBuffer = new float[0];
+        private float[] dryBuffer = new float[0];
         private float[] wetBuffer = new float[0];
 
-        private final PitchTracker pitchTracker;
-
-        private float envelope;
-        private float fastEnvelope;
-        private float slowEnvelope;
-
-        private float phase;
-        private float lastLow;
-
-        private float harmonicMix;
+        private float rectifiedDc;
+        private float lowLevelFollower;
+        private float drive;
+        private float harmonicTrim;
         private float wetCeiling;
         private float wetLimiterEnvelope;
         private float wetLimiterGain = 1f;
-
         private int cutoffHz = 120;
+        private int intensityQ15;
         private boolean lowCpuMode;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = Math.max(8000, sampleRate);
             this.channelCount = Math.max(1, channelCount);
             this.configuredChannelCount = this.channelCount;
-            this.pitchTracker = new PitchTracker(this.sampleRate);
-
             configure(95, 0, 95, 0, false);
         }
 
@@ -259,51 +254,50 @@ final class PcmDspProcessor {
                        int dspCutoffHz,
                        int dspAmountPercent,
                        boolean lowCpuMode) {
-            float virtualAmount = clamp01(virtualAmountPercent / 100f);
-            float dspAmount = clamp01(dspAmountPercent / 100f);
-            float amount = Math.max(virtualAmount, dspAmount);
+            int amountPercent = Math.max(
+                    clampInt(virtualAmountPercent, 0, 100),
+                    clampInt(dspAmountPercent, 0, 100)
+            );
 
             this.lowCpuMode = lowCpuMode;
 
-            if (amount <= 0.0001f) {
-                harmonicMix = 0f;
+            if (amountPercent <= 0) {
+                intensityQ15 = 0;
                 resetRuntime();
                 return;
             }
 
-            int requestedCutoff = dspAmount > 0f ? dspCutoffHz : virtualCutoffHz;
+            int requestedCutoff = dspAmountPercent > 0 ? dspCutoffHz : virtualCutoffHz;
             if (requestedCutoff <= 0) {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
-
-            cutoffHz = clampInt(requestedCutoff, 85, 165);
+            cutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
+            intensityQ15 = INTENSITY_COEF[amountPercent];
 
             sourceHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 28, 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(20, cutoffHz / 3), 0, 70),
                     sampleRate
             );
-
             sourceLowPass = MonoBiquad.fromBand(
                     new ParametricBand(FilterType.LOW_PASS, true, cutoffHz, 0, 70),
                     sampleRate
             );
-
             wetHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(75, cutoffHz - 12), 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(70, cutoffHz - 10), 0, 72),
                     sampleRate
             );
-
             wetLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 520 : 680, 0, 66),
+                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 480 : 620, 0, 68),
                     sampleRate
             );
 
-            harmonicMix = amount * (1.80f + amount * 0.75f);
+            float amount = amountPercent / 100f;
+            drive = 1.55f + amount * 1.10f;
+            harmonicTrim = 0.78f + amount * 0.42f;
             if (lowCpuMode) {
-                harmonicMix *= 0.82f;
+                harmonicTrim *= 0.92f;
             }
-
-            wetCeiling = 0.24f + amount * 0.20f;
+            wetCeiling = 0.16f + amount * 0.18f;
 
             resetRuntime();
         }
@@ -313,9 +307,7 @@ final class PcmDspProcessor {
                 return;
             }
 
-            int safeChannelCount = channelCount > 0 ? channelCount : configuredChannelCount;
-            safeChannelCount = Math.max(1, safeChannelCount);
-
+            int safeChannelCount = Math.max(1, channelCount > 0 ? channelCount : configuredChannelCount);
             int safeSampleCount = Math.min(sampleCount, samples.length);
             int frameCount = safeSampleCount / safeChannelCount;
             if (frameCount <= 0) {
@@ -326,459 +318,141 @@ final class PcmDspProcessor {
 
             for (int frame = 0; frame < frameCount; frame++) {
                 int frameOffset = frame * safeChannelCount;
-
                 float mono = 0f;
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     mono += samples[frameOffset + ch];
                 }
+                mono *= 1f / safeChannelCount;
+                mono = finiteOrZero(mono);
 
-                monoSource[frame] = finiteOrZero(mono / safeChannelCount);
-                lowBuffer[frame] = monoSource[frame];
+                monoSource[frame] = mono;
+                lowBuffer[frame] = mono;
+                dryBuffer[frame] = 0f;
                 wetBuffer[frame] = 0f;
             }
 
             if (sourceHighPass != null) {
                 sourceHighPass.process(lowBuffer, frameCount);
             }
-
             if (sourceLowPass != null) {
                 sourceLowPass.process(lowBuffer, frameCount);
             }
 
-            float envAttack = onePoleCoeff(5.0f, sampleRate);
-            float envRelease = onePoleCoeff(140.0f, sampleRate);
-            float fastCoeff = onePoleCoeff(3.0f, sampleRate);
-            float slowCoeff = onePoleCoeff(85.0f, sampleRate);
-
             for (int i = 0; i < frameCount; i++) {
                 float low = finiteOrZero(lowBuffer[i]);
+                float dry = finiteOrZero(monoSource[i] - low);
+
                 float absLow = Math.abs(low);
+                lowLevelFollower += (absLow - lowLevelFollower)
+                        * (absLow > lowLevelFollower ? 0.055f : 0.006f);
 
-                envelope += (absLow - envelope)
-                        * (absLow > envelope ? envAttack : envRelease);
+                float normalized = clamp(low * drive, -1f, 1f);
+                float softClip = normalized - 0.28f * normalized * normalized * normalized;
+                float rectified = Math.abs(softClip);
+                rectifiedDc += (rectified - rectifiedDc) * 0.018f;
 
-                fastEnvelope += (absLow - fastEnvelope) * fastCoeff;
-                slowEnvelope += (absLow - slowEnvelope) * slowCoeff;
+                float evenComponent = rectified - rectifiedDc;
+                float oddBody = softClip * Math.abs(softClip) * 0.16f;
+                float gate = smoothStep(0.0012f, 0.018f, lowLevelFollower);
 
-                pitchTracker.processSample(low, envelope);
-
-                float pitchHz = pitchTracker.getPitchHz();
-                float confidence = pitchTracker.getConfidence();
-
-                float transientRatio = 0f;
-                if (slowEnvelope > 0.00005f) {
-                    transientRatio = (fastEnvelope - slowEnvelope * 1.08f)
-                            / (slowEnvelope + 0.0015f);
-                }
-
-                float transientAmount = smoothStep(0.10f, 0.78f, transientRatio);
-
-                float levelGate = smoothStep(0.0008f, 0.012f, envelope);
-                float pitchGate = confidence * confidence;
-                float transientSuppress = 1f - transientAmount * 0.82f;
-
-                float gate = levelGate * pitchGate * transientSuppress;
-
-                if (gate < 0.00002f || pitchHz < 30f) {
-                    lastLow = low;
-                    continue;
-                }
-
-                boolean risingCross = lastLow <= 0f && low > 0f;
-                if (risingCross && confidence > 0.35f) {
-                    float phaseError = wrapPi(-phase);
-                    phase += phaseError * 0.018f;
-                    phase = wrapPi(phase);
-                }
-
-                phase += TWO_PI * pitchHz / sampleRate;
-                phase = wrapPi(phase);
-
-                int firstOrder = firstAudibleOrder(pitchHz, cutoffHz);
-                int harmonicCount = lowCpuMode ? 3 : 4;
-
-                float harmonic = 0f;
-
-                for (int h = 0; h < harmonicCount; h++) {
-                    int order = firstOrder + h;
-
-                    if (order < 2 || order > 7) {
-                        continue;
-                    }
-
-                    float targetHz = pitchHz * order;
-
-                    if (targetHz < cutoffHz * 0.88f) {
-                        continue;
-                    }
-
-                    if (targetHz > (lowCpuMode ? 520f : 680f)) {
-                        continue;
-                    }
-
-                    float ratio = harmonicRatio(h);
-                    float weight = harmonicWeight(targetHz);
-
-                    float p = wrapPi(phase * order);
-                    harmonic += fastSin(p) * ratio * weight;
-                }
-
-                float wet = harmonic * envelope * gate * 2.15f;
-
-                float texture = clamp(
-                        low / Math.max(0.006f, envelope * 2.0f),
-                        -1f,
-                        1f
-                );
-
-                wet *= 0.92f + 0.08f * Math.abs(texture);
-
-                wetBuffer[i] = finiteOrZero(wet);
-
-                lastLow = low;
+                dryBuffer[i] = dry;
+                wetBuffer[i] = finiteOrZero((evenComponent + oddBody) * harmonicTrim * gate);
             }
 
             if (wetHighPass != null) {
                 wetHighPass.process(wetBuffer, frameCount);
             }
-
             if (wetLowPass != null) {
                 wetLowPass.process(wetBuffer, frameCount);
             }
 
+            float intensityGain = intensityQ15 / 32768f;
             for (int frame = 0; frame < frameCount; frame++) {
-                float wet = finiteOrZero(wetBuffer[frame] * harmonicMix);
-
+                float wet = finiteOrZero(wetBuffer[frame]);
                 float wetAbs = Math.abs(wet);
                 wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.080f : 0.0045f);
+                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.004f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
                         : 1f;
-
                 wetLimiterGain += (targetGain - wetLimiterGain)
-                        * (targetGain < wetLimiterGain ? 0.16f : 0.006f);
+                        * (targetGain < wetLimiterGain ? 0.18f : 0.010f);
 
-                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.22f);
+                float bass = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.20f);
+                float mixedMono = finiteOrZero(dryBuffer[frame] + bass * intensityGain);
+                float delta = mixedMono - monoSource[frame];
 
                 int frameOffset = frame * safeChannelCount;
-
-                float originalPeak = 0f;
                 for (int ch = 0; ch < safeChannelCount; ch++) {
-                    originalPeak = Math.max(originalPeak, Math.abs(samples[frameOffset + ch]));
-                }
-
-                generated *= 1f - smoothStep(0.88f, 0.995f, originalPeak) * 0.62f;
-
-                for (int ch = 0; ch < safeChannelCount; ch++) {
-                    samples[frameOffset + ch] = finiteOrZero(samples[frameOffset + ch] + generated);
+                    samples[frameOffset + ch] = clamp(
+                            finiteOrZero(samples[frameOffset + ch] + delta),
+                            -1f,
+                            1f
+                    );
                 }
             }
         }
 
         boolean isActive() {
-            return harmonicMix > 0.0001f;
+            return intensityQ15 > 0;
         }
 
         private void resetRuntime() {
-            envelope = 0f;
-            fastEnvelope = 0f;
-            slowEnvelope = 0f;
-
-            phase = 0f;
-            lastLow = 0f;
-
+            rectifiedDc = 0f;
+            lowLevelFollower = 0f;
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
-
-            pitchTracker.reset();
         }
 
         private void ensureCapacity(int frameCount) {
             if (monoSource.length < frameCount) {
                 monoSource = new float[frameCount];
                 lowBuffer = new float[frameCount];
+                dryBuffer = new float[frameCount];
                 wetBuffer = new float[frameCount];
             }
         }
 
-        private static int firstAudibleOrder(float pitchHz, int cutoffHz) {
-            int order = (int) Math.ceil((cutoffHz * 0.92f) / Math.max(20f, pitchHz));
-
-            if (order < 2) {
-                order = 2;
-            }
-
-            if (order > 6) {
-                order = 6;
-            }
-
-            return order;
-        }
-
-        private static float harmonicRatio(int index) {
-            switch (index) {
-                case 0:
-                    return 1.00f;
-                case 1:
-                    return 0.50f;
-                case 2:
-                    return 0.25f;
-                default:
-                    return 0.13f;
-            }
-        }
-
-        private static float harmonicWeight(float hz) {
-            float low = smoothStep(75f, 115f, hz);
-            float body = 0.82f + 0.22f * smoothStep(120f, 260f, hz);
-            float high = 1f - smoothStep(460f, 700f, hz) * 0.72f;
-            return clamp(low * body * high, 0f, 1.15f);
-        }
-
-        private static final class PitchTracker {
-            private static final int DECIMATE = 4;
-            private static final int ANALYSIS_SIZE = 192;
-            private static final int HISTORY_SIZE = 1024;
-
-            private final int sampleRate;
-            private final int analysisRate;
-
-            private final float[] history = new float[HISTORY_SIZE];
-
-            private int writeIndex;
-            private int filled;
-            private int decimatePhase;
-            private int updateCountdown;
-
-            private float pitchHz = 70f;
-            private float targetPitchHz = 70f;
-            private float confidence;
-            private float targetConfidence;
-
-            PitchTracker(int sampleRate) {
-                this.sampleRate = Math.max(8000, sampleRate);
-                this.analysisRate = Math.max(2000, this.sampleRate / DECIMATE);
-                reset();
-            }
-
-            void reset() {
-                for (int i = 0; i < HISTORY_SIZE; i++) {
-                    history[i] = 0f;
+        private static int[] buildIntensityCoef() {
+            int[] table = new int[101];
+            for (int i = 0; i < table.length; i++) {
+                float x = i / 100f;
+                float curved = 1f - (float) Math.exp(-3.6f * x);
+                curved *= 1.07f;
+                int coef = Math.round(curved * INTENSITY_Q15_MAX);
+                if (i >= 96) {
+                    coef = INTENSITY_Q15_MAX;
                 }
-
-                writeIndex = 0;
-                filled = 0;
-                decimatePhase = 0;
-                updateCountdown = 0;
-
-                pitchHz = 70f;
-                targetPitchHz = 70f;
-                confidence = 0f;
-                targetConfidence = 0f;
+                table[i] = clampInt(coef, 0, INTENSITY_Q15_MAX);
             }
-
-            void processSample(float sample, float envelope) {
-                decimatePhase++;
-
-                if (decimatePhase < DECIMATE) {
-                    smooth();
-                    return;
-                }
-
-                decimatePhase = 0;
-
-                push(sample);
-
-                updateCountdown--;
-                if (updateCountdown <= 0) {
-                    updateCountdown = 96;
-                    analyze(envelope);
-                }
-
-                smooth();
-            }
-
-            float getPitchHz() {
-                return pitchHz;
-            }
-
-            float getConfidence() {
-                return confidence;
-            }
-
-            private void push(float value) {
-                history[writeIndex] = finiteOrZero(value);
-
-                writeIndex++;
-                if (writeIndex >= HISTORY_SIZE) {
-                    writeIndex = 0;
-                }
-
-                if (filled < HISTORY_SIZE) {
-                    filled++;
-                }
-            }
-
-            private void analyze(float envelope) {
-                if (filled < ANALYSIS_SIZE + 180 || envelope < 0.00045f) {
-                    targetConfidence *= 0.75f;
-                    return;
-                }
-
-                int minLag = Math.max(4, Math.round(analysisRate / 155f));
-                int maxLag = Math.min(
-                        HISTORY_SIZE - ANALYSIS_SIZE - 4,
-                        Math.round(analysisRate / 34f)
-                );
-
-                float bestScore = 0f;
-                int bestLag = 0;
-
-                for (int lag = minLag; lag <= maxLag; lag++) {
-                    float score = normalizedCorrelation(lag);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestLag = lag;
-                    }
-                }
-
-                if (bestLag <= 0 || bestScore < 0.34f) {
-                    targetConfidence *= 0.72f;
-                    return;
-                }
-
-                float hz = analysisRate / (float) bestLag;
-                hz = clamp(hz, 34f, 155f);
-
-                if (targetPitchHz > 1f) {
-                    float ratio = hz / targetPitchHz;
-
-                    if (ratio > 1.75f && ratio < 2.25f) {
-                        hz *= 0.5f;
-                    } else if (ratio > 0.44f && ratio < 0.58f) {
-                        hz *= 2f;
-                    }
-                }
-
-                float corrConfidence = smoothStep(0.34f, 0.78f, bestScore);
-
-                targetPitchHz = targetPitchHz * 0.72f + hz * 0.28f;
-                targetPitchHz = clamp(targetPitchHz, 34f, 155f);
-
-                if (corrConfidence > targetConfidence) {
-                    targetConfidence = targetConfidence * 0.45f + corrConfidence * 0.55f;
-                } else {
-                    targetConfidence = targetConfidence * 0.82f + corrConfidence * 0.18f;
-                }
-
-                targetConfidence = clamp01(targetConfidence);
-            }
-
-            private void smooth() {
-                pitchHz += (targetPitchHz - pitchHz) * 0.0018f;
-
-                float coeff = targetConfidence > confidence ? 0.0065f : 0.0012f;
-                confidence += (targetConfidence - confidence) * coeff;
-
-                pitchHz = clamp(pitchHz, 34f, 155f);
-                confidence = clamp01(confidence);
-            }
-
-            private float normalizedCorrelation(int lag) {
-                float sumAB = 0f;
-                float sumAA = 0f;
-                float sumBB = 0f;
-
-                for (int i = 0; i < ANALYSIS_SIZE; i++) {
-                    float a = getDelayed(i);
-                    float b = getDelayed(i + lag);
-
-                    sumAB += a * b;
-                    sumAA += a * a;
-                    sumBB += b * b;
-                }
-
-                float denom = (float) Math.sqrt(Math.max(1.0e-12f, sumAA * sumBB));
-                float score = sumAB / denom;
-
-                return score > 0f ? score : 0f;
-            }
-
-            private float getDelayed(int delay) {
-                int index = writeIndex - 1 - delay;
-
-                while (index < 0) {
-                    index += HISTORY_SIZE;
-                }
-
-                while (index >= HISTORY_SIZE) {
-                    index -= HISTORY_SIZE;
-                }
-
-                return history[index];
-            }
-        }
-
-        private static float onePoleCoeff(float timeMs, int sampleRate) {
-            float safeMs = Math.max(0.1f, timeMs);
-            float safeSampleRate = Math.max(8000f, sampleRate);
-            return 1f - (float) Math.exp(-1.0 / (safeSampleRate * safeMs / 1000f));
+            return table;
         }
 
         private static float softLimitWet(float value, float ceiling) {
-            float safe = Math.max(0.05f, ceiling);
-            float normalized = value / safe;
-
-            if (Math.abs(normalized) < 1.0f) {
-                return value;
-            }
-
-            return fastTanh(normalized) * safe;
+            float safeCeiling = Math.max(0.05f, ceiling);
+            float normalized = value / safeCeiling;
+            float limited = fastTanh(normalized) * safeCeiling;
+            return finiteOrZero(clamp(limited, -safeCeiling, safeCeiling));
         }
 
         private static float fastTanh(float value) {
             if (value > 3f) {
                 return 1f;
             }
-
             if (value < -3f) {
                 return -1f;
             }
-
             float x2 = value * value;
             return value * (27f + x2) / (27f + 9f * x2);
-        }
-
-        private static float fastSin(float x) {
-            final float B = 1.27323954f;
-            final float C = -0.405284735f;
-            final float P = 0.225f;
-
-            float y = B * x + C * x * Math.abs(x);
-            return P * (y * Math.abs(y) - y) + y;
         }
 
         private static float smoothStep(float edge0, float edge1, float value) {
             if (edge0 == edge1) {
                 return value >= edge1 ? 1f : 0f;
             }
-
-            float t = clamp01((value - edge0) / (edge1 - edge0));
+            float t = clamp01((value - edge0) / Math.max(1.0e-9f, edge1 - edge0));
             return t * t * (3f - 2f * t);
-        }
-
-        private static float wrapPi(float x) {
-            while (x > PI) {
-                x -= TWO_PI;
-            }
-
-            while (x < -PI) {
-                x += TWO_PI;
-            }
-
-            return x;
         }
 
         private static float clamp(float value, float min, float max) {
