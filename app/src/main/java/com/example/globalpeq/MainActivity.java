@@ -5876,12 +5876,21 @@ public final class MainActivity extends Activity {
                 .setCustomTitle(dialogTitleView("Preset already exists"))
                 .setMessage("A preset named \"" + importedName + "\" already exists. Replace it or rename the imported preset?")
                 .setNegativeButton("Cancel", null)
-                .setNeutralButton("Rename", (d, which) -> showRenameImportedPresetDialog(imported, applyLive))
+                .setNeutralButton("Rename", null)
                 .setPositiveButton("Replace", (d, which) -> {
                     applyImportedPreset(imported, applyLive);
                     Toast.makeText(this, "Preset replaced", Toast.LENGTH_SHORT).show();
                 })
                 .create();
+        dialog.setOnShowListener(d -> {
+            Button rename = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+            if (rename != null) {
+                rename.setOnClickListener(v -> {
+                    dialog.dismiss();
+                    showRenameImportedPresetDialog(imported, applyLive);
+                });
+            }
+        });
         dialog.show();
         styleDialog(dialog);
     }
@@ -5911,7 +5920,12 @@ public final class MainActivity extends Activity {
                 .setCustomTitle(dialogTitleView("Rename imported preset"))
                 .setView(container)
                 .setNegativeButton("Cancel", null)
-                .setPositiveButton("Import", (d, which) -> {
+                .setPositiveButton("Import", null)
+                .create();
+        dialog.setOnShowListener(d -> {
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (positive != null) {
+                positive.setOnClickListener(v -> {
                     String renamed = input.getText() == null ? "" : input.getText().toString().trim();
                     if (renamed.isEmpty()) {
                         Toast.makeText(this, "Preset name required", Toast.LENGTH_SHORT).show();
@@ -5923,8 +5937,11 @@ public final class MainActivity extends Activity {
                     }
                     applyImportedPreset(imported.withName(renamed), applyLive);
                     Toast.makeText(this, "Preset imported", Toast.LENGTH_SHORT).show();
-                })
-                .create();
+                    dialog.dismiss();
+                });
+            }
+            input.requestFocus();
+        });
         dialog.show();
         styleDialog(dialog);
     }
