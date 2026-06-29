@@ -229,7 +229,7 @@ final class PcmDspProcessor {
         private float[] lowBuffer = new float[0];
         private float[] bassBuffer = new float[0];
 
-        private float rectifiedMean;
+        private float harmonicMean;
         private float drive;
         private float harmonicTrim;
         private float lowReplace;
@@ -275,23 +275,23 @@ final class PcmDspProcessor {
                     sampleRate
             );
             bassHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(65, cutoffHz - 8), 0, 72),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(90, cutoffHz + 12), 0, 72),
                     sampleRate
             );
             bassLowPass = MonoBiquad.fromBand(
                     new ParametricBand(
                             FilterType.LOW_PASS,
                             true,
-                            Math.min(lowCpuMode ? 360 : 460, Math.max(170, cutoffHz * 3 + 40)),
+                            Math.min(lowCpuMode ? 300 : 380, Math.max(150, cutoffHz * 2 + 70)),
                             0,
                             68),
                     sampleRate
             );
 
             float amount = amountPercent / 100f;
-            drive = 1.20f + amount * 0.32f;
-            harmonicTrim = 0.78f + amount * 0.24f;
-            lowReplace = 0.08f + amount * 0.14f;
+            drive = 1.02f + amount * 0.22f;
+            harmonicTrim = 0.52f + amount * 0.18f;
+            lowReplace = 0.20f + amount * 0.18f;
             if (lowCpuMode) {
                 harmonicTrim *= 0.94f;
             }
@@ -369,7 +369,7 @@ final class PcmDspProcessor {
         }
 
         private void resetRuntime() {
-            rectifiedMean = 0f;
+            harmonicMean = 0f;
             if (extractLowPreFilter != null) {
                 extractLowPreFilter.reset();
             }
@@ -393,12 +393,11 @@ final class PcmDspProcessor {
 
         private float generateEvenHarmonics(float low, float drive) {
             float normalized = clamp(low * drive, -1f, 1f);
-            float rectified = Math.abs(normalized);
-            rectifiedMean += (rectified - rectifiedMean)
-                    * (rectified > rectifiedMean ? 0.090f : 0.012f);
+            float squared = normalized * normalized;
+            harmonicMean += (squared - harmonicMean) * 0.020f;
 
-            float centered = rectified - rectifiedMean;
-            float shaped = fastTanh(centered * 2.10f);
+            float centered = squared - harmonicMean;
+            float shaped = fastTanh(centered * 1.65f);
             return finiteOrZero(shaped);
         }
 
