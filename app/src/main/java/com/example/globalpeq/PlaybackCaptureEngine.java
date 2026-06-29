@@ -31,9 +31,6 @@ final class PlaybackCaptureEngine {
     private static final int SAMPLE_RATE = 48000;
     private static final float SIGNAL_THRESHOLD = 0.0018f;
     private static final int SOURCE_APP_STREAM = AudioManager.STREAM_MUSIC;
-    private static final int DEFAULT_ASSISTANT_STREAM = 11;
-    private static final int EXPERIMENTAL_PLAYBACK_STREAM = resolveAssistantStream();
-    private static final int EXPERIMENTAL_PLAYBACK_USAGE = AudioAttributes.USAGE_ASSISTANT;
     private static final int MIN_PIPELINE_BUFFER_FRAMES = 128;
     private static final int MIN_TRACK_LATENCY_MS = 40;
     private static final int MIN_PROCESSING_CHUNK_FRAMES = 256;
@@ -404,7 +401,6 @@ final class PlaybackCaptureEngine {
             Log.i(TAG, "Started experimental native capture route"
                     + " target=" + currentTargetLabel
                     + " trackUsage=MEDIA"
-                    + " stream=" + EXPERIMENTAL_PLAYBACK_STREAM
                     + " desiredFrames=" + desiredFrames
                     + " processingChunkFrames=" + processingChunkFrames
                     + " heavyRealtimeDsp=" + heavyRealtimeDsp
@@ -589,15 +585,10 @@ final class PlaybackCaptureEngine {
     }
 
     private AudioAttributes buildTrackAttributesForCurrentMode() {
-        AudioAttributes.Builder builder = new AudioAttributes.Builder();
-        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
-            builder.setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
-        } else {
-            builder.setUsage(EXPERIMENTAL_PLAYBACK_USAGE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH);
-        }
-        return builder.build();
+        return new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build();
     }
 
     private void applyTrackVirtualBassLocked() {
@@ -932,15 +923,6 @@ final class PlaybackCaptureEngine {
             Log.w(TAG, "Unable to read playback device info", ex);
         }
         return null;
-    }
-
-    private static int resolveAssistantStream() {
-        try {
-            java.lang.reflect.Field field = AudioManager.class.getField("STREAM_ASSISTANT");
-            return field.getInt(null);
-        } catch (ReflectiveOperationException ignored) {
-            return DEFAULT_ASSISTANT_STREAM;
-        }
     }
 
     private String describeOutputDeviceKey(AudioDeviceInfo device) {
