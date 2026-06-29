@@ -31,17 +31,6 @@ final class PresetFile {
             JSONObject presetObject = object.optJSONObject("preset");
             return new PresetFile(Preset.fromJson(presetObject == null ? null : presetObject.toString()));
         }
-        if (looksLikeRawPreset(object)) {
-            return new PresetFile(Preset.fromJson(object.toString()));
-        }
         throw new JSONException("Not a preset file");
-    }
-
-    static boolean looksLikeRawPreset(JSONObject object) {
-        return object != null
-                && (object.has("peqBands")
-                || object.has("geqGainsMb")
-                || object.has("mode")
-                || object.has("pregainMb"));
     }
 }
