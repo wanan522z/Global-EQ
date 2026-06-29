@@ -270,20 +270,20 @@ final class PcmDspProcessor {
             rebuildFilters(cutoffHz, amount);
 
             float shapedAmount = (float) Math.pow(amount, 1.12f);
-            drive = 1.10f + shapedAmount * 1.65f;
-            wetMix = 0.10f + (float) Math.pow(amount, 1.35f) * 1.45f;
+            drive = 1.14f + shapedAmount * 1.92f;
+            wetMix = 0.16f + (float) Math.pow(amount, 1.24f) * 2.05f;
 
             float riseMs = 0.20f;
             float fallMs = 4.8f - amount * 1.2f;
             riseAlpha = envelopeAlpha(riseMs);
             fallAlpha = envelopeAlpha(Math.max(2.8f, fallMs));
 
-            blendToMethod2 = 0.10f + amount * 0.38f;
-            detectorTrimFloor = 0.66f - amount * 0.08f;
+            blendToMethod2 = 0.18f + amount * 0.54f;
+            detectorTrimFloor = 0.70f - amount * 0.06f;
 
             if (lowCpuMode) {
-                wetMix *= 0.94f;
-                drive *= 0.97f;
+                wetMix *= 0.95f;
+                drive *= 0.98f;
             }
 
             active = true;
@@ -315,7 +315,7 @@ final class PcmDspProcessor {
 
                 float lowBand = monoLowStageB.process(monoLowStageA.process(mono));
                 float harmonic = shapeHarmonics(lowBand);
-                smoothedMix += (wetMix - smoothedMix) * 0.040f;
+                smoothedMix += (wetMix - smoothedMix) * 0.060f;
                 float wet = harmonic * smoothedMix;
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
@@ -341,15 +341,16 @@ final class PcmDspProcessor {
             levelState += (Math.abs(lowBand) - levelState) * 0.012f;
 
             float centered = blended - detectorState;
-            float odd = softSaturate(centered * 1.65f) - centered * 0.42f;
-            float source = centered * 0.52f + odd * 0.48f;
-            float trimmed = source * Math.max(detectorTrimFloor, 1f - levelState * 0.38f);
+            float even = blended - detectorState * 0.82f;
+            float odd = softSaturate(centered * 1.72f) - centered * 0.36f;
+            float source = even * 0.62f + odd * 0.38f;
+            float trimmed = source * Math.max(detectorTrimFloor, 1f - levelState * 0.30f);
 
             float bandLimited = harmonicHighPass.process(trimmed);
             bandLimited = harmonicLowPass.process(bandLimited);
             bandLimited = harmonicPeak.process(bandLimited);
 
-            return softSaturate(bandLimited * 1.55f);
+            return softSaturate(bandLimited * 1.95f);
         }
 
         private void rebuildFilters(int cutoffHz, float amount) {
@@ -358,10 +359,10 @@ final class PcmDspProcessor {
             monoLowStageB = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
 
             float harmonicHpHz = safeCutoff;
-            float harmonicLpHz = clamp(Math.max(320f, safeCutoff * 3.10f), 260f, Math.min(420f, sampleRate * 0.20f));
-            float harmonicPeakHz = clamp(safeCutoff * 1.90f + 22f, 100f, harmonicLpHz - 10f);
-            float harmonicPeakGainDb = 2.0f + amount * 4.5f;
-            float harmonicPeakQ = 0.82f + amount * 0.28f;
+            float harmonicLpHz = clamp(Math.max(360f, safeCutoff * 3.35f), 280f, Math.min(480f, sampleRate * 0.22f));
+            float harmonicPeakHz = clamp(safeCutoff * 1.95f + 24f, 105f, harmonicLpHz - 10f);
+            float harmonicPeakGainDb = 2.8f + amount * 5.8f;
+            float harmonicPeakQ = 0.86f + amount * 0.30f;
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
             harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
