@@ -4284,7 +4284,55 @@ public final class MainActivity extends Activity {
             applyImmediateBandUpdate(index, band);
             return;
         }
-        setEditingPreset(editingPreset.withBand(index, band), true);
+        schedulePeqBandUpdate(index, band);
+    }
+
+    private void schedulePeqBandUpdate(int index, ParametricBand band) {
+        if (pendingPeqBandHistorySnapshot == null) {
+            pendingPeqBandHistorySnapshot = editingPreset;
+        }
+        pendingPeqPreviewIndex = index;
+        pendingPeqPreviewBand = band;
+        uiHandler.removeCallbacks(previewPeqBandUpdateRunnable);
+        uiHandler.postDelayed(previewPeqBandUpdateRunnable, LIVE_EQ_PREVIEW_DELAY_MS);
+        uiHandler.removeCallbacks(commitPeqBandUpdateRunnable);
+        uiHandler.postDelayed(commitPeqBandUpdateRunnable, PEQ_BAND_COMMIT_DELAY_MS);
+    }
+
+    private void flushPendingPeqBandPreview() {
+        uiHandler.removeCallbacks(previewPeqBandUpdateRunnable);
+        if (editingPreset == null
+                || pendingPeqPreviewBand == null
+                || pendingPeqPreviewIndex < 0
+                || pendingPeqPreviewIndex >= editingPreset.bands.length) {
+            pendingPeqPreviewIndex = -1;
+            pendingPeqPreviewBand = null;
+            return;
+        }
+        if (sameBandState(editingPreset.bands[pendingPeqPreviewIndex], pendingPeqPreviewBand)) {
+            return;
+        }
+        editingPreset = editingPreset.withBand(pendingPeqPreviewIndex, pendingPeqPreviewBand);
+        pendingPeqPreviewIndex = -1;
+        pendingPeqPreviewBand = null;
+        if (curveView != null) {
+            refreshCurveView();
+        }
+        updatePeqBandVisuals();
+        updateEditStateLabels();
+    }
+
+    private void commitPendingPeqBandUpdate() {
+        uiHandler.removeCallbacks(commitPeqBandUpdateRunnable);
+        flushPendingPeqBandPreview();
+        if (pendingPeqBandHistorySnapshot == null) {
+            return;
+        }
+        pushHistory(undoStack, pendingPeqBandHistorySnapshot);
+        redoStack.clear();
+        pendingPeqBandHistorySnapshot = null;
+        syncRunningIfEditingPresetIsActive();
+        updateEditStateLabels();
     }
 
     private void applyImmediateBandUpdate(int index, ParametricBand band) {
@@ -4342,18 +4390,37 @@ public final class MainActivity extends Activity {
             return;
         }
         gainMb = clamp(gainMb, -1800, 1800);
-        if (editingPreset.geqGainsMb[index] == gainMb) {
+        if (editingPreset.geqGainsMb[index] == gainMb
+                && !(pendingGeqPreviewIndex == index && pendingGeqPreviewGainMb != gainMb)) {
             return;
         }
         if (pendingGeqHistorySnapshot == null) {
             pendingGeqHistorySnapshot = editingPreset;
         }
-        editingPreset = editingPreset.withGeqGainMb(index, gainMb);
+        pendingGeqPreviewIndex = index;
+        pendingGeqPreviewGainMb = gainMb;
+        uiHandler.removeCallbacks(previewGeqUpdateRunnable);
+        uiHandler.postDelayed(previewGeqUpdateRunnable, LIVE_EQ_PREVIEW_DELAY_MS);
+        scheduleGeqCommit();
+    }
+
+    private void flushPendingGeqPreview() {
+        uiHandler.removeCallbacks(previewGeqUpdateRunnable);
+        if (editingPreset == null
+                || pendingGeqPreviewIndex < 0
+                || pendingGeqPreviewIndex >= editingPreset.geqGainsMb.length) {
+            pendingGeqPreviewIndex = -1;
+            return;
+        }
+        if (editingPreset.geqGainsMb[pendingGeqPreviewIndex] == pendingGeqPreviewGainMb) {
+            return;
+        }
+        editingPreset = editingPreset.withGeqGainMb(pendingGeqPreviewIndex, pendingGeqPreviewGainMb);
+        pendingGeqPreviewIndex = -1;
         if (curveView != null) {
             refreshCurveView();
         }
         updateEditStateLabels();
-        scheduleGeqCommit();
     }
 
     private void scheduleGeqCommit() {
@@ -4363,6 +4430,7 @@ public final class MainActivity extends Activity {
 
     private void commitPendingGeqUpdate() {
         uiHandler.removeCallbacks(commitGeqUpdateRunnable);
+        flushPendingGeqPreview();
         if (pendingGeqHistorySnapshot == null) {
             return;
         }
