@@ -6196,6 +6196,44 @@ public final class MainActivity extends Activity {
         return row;
     }
 
+    private View createExportPresetMenuRow(String name, boolean active, AlertDialog[] dialogHolder) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), dp(6), dp(8), dp(6));
+
+        row.setBackground(active
+                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
+                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
+
+        TextView title = new TextView(this);
+        title.setText(name);
+        title.setTextSize(14);
+        title.setSingleLine(true);
+        title.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        title.setPadding(dp(8), 0, dp(8), 0);
+        if (active) {
+            styleCyanGlowText(title);
+        } else {
+            stylePlainWhiteText(title);
+        }
+
+        Runnable export = () -> {
+            if (dialogHolder[0] != null) {
+                dialogHolder[0].dismiss();
+            }
+            exportPresetJsonForName(name);
+        };
+        title.setOnClickListener(v -> export.run());
+        row.setOnClickListener(v -> export.run());
+        row.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(36)
+        ));
+
+        return row;
+    }
+
     private LinearLayout.LayoutParams presetMenuRowParams(int topMarginDp) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
