@@ -252,7 +252,6 @@ public final class MainActivity extends Activity {
     private TextView aboutTitleView;
     private TextView aboutTextView;
     private TextView footerTextView;
-    private TextView monitorSettingsBackButton;
     private TextView monitorSettingsTitleView;
     private TextView monitorSettingsDetailView;
     private TextView shizukuAccessLabelView;
