@@ -5750,7 +5750,7 @@ public final class MainActivity extends Activity {
     }
 
     private void exportCurrentPresetJson() {
-        Preset preset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
+        Preset preset = repository.loadNamedPreset(presetName(editingPreset));
         if (preset == null) {
             Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
             return;
