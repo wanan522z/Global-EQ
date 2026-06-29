@@ -756,10 +756,11 @@ public final class MainActivity extends Activity {
             }
             int hiddenHeight = rootHeight - visibleFrame.bottom;
             boolean visibleNow = hiddenHeight > rootHeight * 0.15f;
-            if (keyboardVisible && !visibleNow && activeEqEditOverlay != null) {
+            if (keyboardVisible && !visibleNow && activeEqEditOverlay != null && !suppressEqOverlayHideOnKeyboardDismiss) {
                 hideEqEditOverlay();
             }
             if (keyboardVisible && !visibleNow) {
+                suppressEqOverlayHideOnKeyboardDismiss = false;
                 clearEditingFocusAfterKeyboardDismiss();
             }
             keyboardVisible = visibleNow;
