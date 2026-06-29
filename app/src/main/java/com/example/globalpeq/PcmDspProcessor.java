@@ -214,22 +214,14 @@ final class PcmDspProcessor {
     private static final class PsychoacousticBassProcessor {
         private static final int MIN_CUTOFF_HZ = 35;
         private static final int MAX_CUTOFF_HZ = 220;
-        private static final int MAX_DELAY_SAMPLES = 512;
-
         private final int sampleRate;
         private final int channelCount;
 
         private MonoBiquad monoLowStageA;
         private MonoBiquad monoLowStageB;
-        private MonoBiquad[] channelLowStageA;
-        private MonoBiquad[] channelLowStageB;
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
         private MonoPeakFilter harmonicPeak;
-
-        private float[][] highDelayBuffer;
-        private int[] highDelayIndices;
-        private int highDelaySamples;
 
         private float smoothedMix;
         private float detectorState;
@@ -237,9 +229,7 @@ final class PcmDspProcessor {
         private float levelState;
 
         private float wetMix;
-        private float dryLowKeep;
         private float drive;
-        private float outputTrim;
         private float riseAlpha;
         private float fallAlpha;
         private float blendToMethod2;
@@ -264,9 +254,7 @@ final class PcmDspProcessor {
             if (amountPercent <= 0) {
                 active = false;
                 wetMix = 0f;
-                dryLowKeep = 0f;
                 drive = 1f;
-                outputTrim = 1f;
                 smoothedMix = 0f;
                 resetRuntime();
                 return;
@@ -282,22 +270,20 @@ final class PcmDspProcessor {
             rebuildFilters(cutoffHz, amount);
 
             float shapedAmount = (float) Math.pow(amount, 1.12f);
-            drive = 1.15f + shapedAmount * 2.55f;
-            wetMix = 0.22f + (float) Math.pow(amount, 1.30f) * 2.85f;
-            dryLowKeep = 0.10f - amount * 0.08f;
-            outputTrim = 1f / (1f + wetMix * 0.34f);
+            drive = 1.05f + shapedAmount * 1.35f;
+            wetMix = 0.05f + (float) Math.pow(amount, 1.55f) * 0.85f;
 
-            float riseMs = 0.25f;
-            float fallMs = 5.4f - amount * 1.4f;
+            float riseMs = 0.20f;
+            float fallMs = 4.8f - amount * 1.2f;
             riseAlpha = envelopeAlpha(riseMs);
             fallAlpha = envelopeAlpha(Math.max(2.8f, fallMs));
 
-            blendToMethod2 = 0.18f + amount * 0.70f;
-            detectorTrimFloor = 0.40f - amount * 0.10f;
+            blendToMethod2 = 0.08f + amount * 0.32f;
+            detectorTrimFloor = 0.62f - amount * 0.10f;
 
             if (lowCpuMode) {
-                wetMix *= 0.88f;
-                drive *= 0.94f;
+                wetMix *= 0.92f;
+                drive *= 0.96f;
             }
 
             active = true;
@@ -334,11 +320,7 @@ final class PcmDspProcessor {
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     float input = finiteOrZero(samples[frameOffset + ch]);
-                    float channelLow = channelLowStageB[ch].process(channelLowStageA[ch].process(input));
-                    float high = input - channelLow;
-                    float delayedHigh = delayHighPath(ch, high);
-                    float combined = delayedHigh + channelLow * dryLowKeep + wet;
-                    samples[frameOffset + ch] = clampSample(softSaturate(combined) * outputTrim);
+                    samples[frameOffset + ch] = clampSample(input + wet);
                 }
             }
         }
@@ -348,40 +330,26 @@ final class PcmDspProcessor {
         }
 
         private float shapeHarmonics(float lowBand) {
-            float driven = softSaturate(lowBand * drive);
+            float driven = finiteOrZero(lowBand * drive);
             float alpha = driven > asymmetricState ? riseAlpha : fallAlpha;
             asymmetricState += (driven - asymmetricState) * alpha;
 
-            float clippedNegative = driven > 0f ? asymmetricState : 0f;
-            float blended = asymmetricState * (1f - blendToMethod2) + clippedNegative * blendToMethod2;
+            float clipped = Math.max(asymmetricState, 0f);
+            float blended = asymmetricState * (1f - blendToMethod2) + clipped * blendToMethod2;
 
-            detectorState += (Math.abs(blended) - detectorState) * 0.030f;
+            detectorState += (blended - detectorState) * 0.020f;
             levelState += (Math.abs(lowBand) - levelState) * 0.012f;
 
             float centered = blended - detectorState;
-            float trimmed = centered * Math.max(detectorTrimFloor, 1f - levelState * 0.9f);
+            float odd = softSaturate(centered * 1.35f) - centered * 0.55f;
+            float source = centered * 0.68f + odd * 0.32f;
+            float trimmed = source * Math.max(detectorTrimFloor, 1f - levelState * 0.55f);
 
             float bandLimited = harmonicHighPass.process(trimmed);
             bandLimited = harmonicLowPass.process(bandLimited);
             bandLimited = harmonicPeak.process(bandLimited);
 
-            return softSaturate(bandLimited * 1.75f);
-        }
-
-        private float delayHighPath(int channel, float input) {
-            if (highDelaySamples <= 1 || highDelayBuffer == null || channel >= highDelayBuffer.length) {
-                return input;
-            }
-            float[] buffer = highDelayBuffer[channel];
-            int index = highDelayIndices[channel];
-            float delayed = buffer[index];
-            buffer[index] = input;
-            index++;
-            if (index >= highDelaySamples) {
-                index = 0;
-            }
-            highDelayIndices[channel] = index;
-            return delayed;
+            return softSaturate(bandLimited * 1.18f);
         }
 
         private void rebuildFilters(int cutoffHz, float amount) {
@@ -389,28 +357,16 @@ final class PcmDspProcessor {
             monoLowStageA = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
             monoLowStageB = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
 
-            channelLowStageA = new MonoBiquad[channelCount];
-            channelLowStageB = new MonoBiquad[channelCount];
-            for (int ch = 0; ch < channelCount; ch++) {
-                channelLowStageA[ch] = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
-                channelLowStageB[ch] = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
-            }
-
             float harmonicHpHz = safeCutoff;
-            float harmonicLpHz = clamp(Math.max(300f, safeCutoff * 3.15f), 240f, Math.min(420f, sampleRate * 0.22f));
-            float harmonicPeakHz = clamp(safeCutoff * 1.9f + 25f, 110f, harmonicLpHz - 15f);
-            float harmonicPeakGainDb = 2.2f + amount * 5.0f;
-            float harmonicPeakQ = 0.82f + amount * 0.35f;
+            float harmonicLpHz = clamp(Math.max(280f, safeCutoff * 2.85f), 220f, Math.min(360f, sampleRate * 0.18f));
+            float harmonicPeakHz = clamp(safeCutoff * 1.75f + 20f, 95f, harmonicLpHz - 12f);
+            float harmonicPeakGainDb = 1.1f + amount * 2.8f;
+            float harmonicPeakQ = 0.78f + amount * 0.22f;
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
             harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
             harmonicPeak = new MonoPeakFilter(sampleRate);
             harmonicPeak.configure(harmonicPeakHz, harmonicPeakGainDb, harmonicPeakQ);
-
-            float estimatedDelayMs = 2.1f + safeCutoff / 135f;
-            highDelaySamples = clampInt(Math.round(sampleRate * estimatedDelayMs / 1000f), 1, MAX_DELAY_SAMPLES);
-            highDelayBuffer = new float[channelCount][highDelaySamples];
-            highDelayIndices = new int[channelCount];
         }
 
         private void resetRuntime() {
@@ -423,20 +379,6 @@ final class PcmDspProcessor {
             if (monoLowStageB != null) {
                 monoLowStageB.reset();
             }
-            if (channelLowStageA != null) {
-                for (MonoBiquad filter : channelLowStageA) {
-                    if (filter != null) {
-                        filter.reset();
-                    }
-                }
-            }
-            if (channelLowStageB != null) {
-                for (MonoBiquad filter : channelLowStageB) {
-                    if (filter != null) {
-                        filter.reset();
-                    }
-                }
-            }
             if (harmonicHighPass != null) {
                 harmonicHighPass.reset();
             }
@@ -445,14 +387,6 @@ final class PcmDspProcessor {
             }
             if (harmonicPeak != null) {
                 harmonicPeak.reset();
-            }
-            if (highDelayBuffer != null) {
-                for (float[] channelBuffer : highDelayBuffer) {
-                    Arrays.fill(channelBuffer, 0f);
-                }
-            }
-            if (highDelayIndices != null) {
-                Arrays.fill(highDelayIndices, 0);
             }
         }
 
