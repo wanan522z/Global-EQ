@@ -3830,6 +3830,8 @@ public final class MainActivity extends Activity {
         PopupWindow popup = new PopupWindow(shell, width, listHeight, true);
         popup.setOutsideTouchable(true);
         popup.setBackgroundDrawable(solidColorDrawable(Color.TRANSPARENT));
+        popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
+        popup.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             popup.setElevation(dpf(8f));
         }
