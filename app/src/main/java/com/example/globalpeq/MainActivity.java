@@ -3921,28 +3921,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private LinearLayout createGeqRow(int index) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(dp(2), dp(4), dp(2), dp(4));
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        if (PeqMath.bandMayClip(editingPreset, index, PeqMath.HEADROOM_LIMIT_MB)) {
-            GradientDrawable warningBg = new GradientDrawable();
-            warningBg.setShape(GradientDrawable.RECTANGLE);
-            warningBg.setColor(Color.argb(45, 255, 100, 100));
-            warningBg.setStroke(dp(1), Color.argb(100, 255, 100, 100));
-            warningBg.setCornerRadius(dp(8));
-            row.setBackground(warningBg);
-        }
-
-        row.addView(createStaticCell(formatFrequency(Preset.GEQ_FREQUENCIES[index])), cellParams(1f, 34));
-        row.addView(createNumberInput(formatDecimal(editingPreset.geqGainsMb[index] / 100f), "dB", value -> {
-            int gainMb = Math.round(value * 100f);
-            updateGeqBand(index, clamp(gainMb, -1800, 1800));
-        }), cellParams(1f, 34));
-        return row;
-    }
-
     private TextView createStaticCell(String value) {
         TextView text = new TextView(this);
         text.setText(value);
