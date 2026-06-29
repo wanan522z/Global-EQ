@@ -231,7 +231,6 @@ final class PcmDspProcessor {
         private float[] dryBuffer = new float[0];
         private float[] wetBuffer = new float[0];
 
-        private float rectifiedDc;
         private float lowLevelFollower;
         private float drive;
         private float harmonicTrim;
@@ -292,12 +291,12 @@ final class PcmDspProcessor {
             );
 
             float amount = amountPercent / 100f;
-            drive = 1.55f + amount * 1.10f;
-            harmonicTrim = 0.78f + amount * 0.42f;
+            drive = 1.18f + amount * 0.52f;
+            harmonicTrim = 0.18f + amount * 0.18f;
             if (lowCpuMode) {
                 harmonicTrim *= 0.92f;
             }
-            wetCeiling = 0.16f + amount * 0.18f;
+            wetCeiling = 0.06f + amount * 0.08f;
 
             resetRuntime();
         }
@@ -347,16 +346,13 @@ final class PcmDspProcessor {
                         * (absLow > lowLevelFollower ? 0.055f : 0.006f);
 
                 float normalized = clamp(low * drive, -1f, 1f);
-                float softClip = normalized - 0.28f * normalized * normalized * normalized;
-                float rectified = Math.abs(softClip);
-                rectifiedDc += (rectified - rectifiedDc) * 0.018f;
-
-                float evenComponent = rectified - rectifiedDc;
-                float oddBody = softClip * Math.abs(softClip) * 0.16f;
+                float softClip = fastTanh(normalized * 1.15f);
+                float cubicResidual = softClip - normalized;
+                float shaped = cubicResidual + softClip * Math.abs(softClip) * 0.05f;
                 float gate = smoothStep(0.0012f, 0.018f, lowLevelFollower);
 
                 dryBuffer[i] = dry;
-                wetBuffer[i] = finiteOrZero((evenComponent + oddBody) * harmonicTrim * gate);
+                wetBuffer[i] = finiteOrZero(shaped * harmonicTrim * gate);
             }
 
             if (wetHighPass != null) {
@@ -379,14 +375,13 @@ final class PcmDspProcessor {
                 wetLimiterGain += (targetGain - wetLimiterGain)
                         * (targetGain < wetLimiterGain ? 0.18f : 0.010f);
 
-                float bass = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.20f);
-                float mixedMono = finiteOrZero(dryBuffer[frame] + bass * intensityGain);
-                float delta = mixedMono - monoSource[frame];
+                float bass = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.10f);
+                float generated = bass * intensityGain;
 
                 int frameOffset = frame * safeChannelCount;
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     samples[frameOffset + ch] = clamp(
-                            finiteOrZero(samples[frameOffset + ch] + delta),
+                            finiteOrZero(samples[frameOffset + ch] + generated),
                             -1f,
                             1f
                     );
@@ -399,7 +394,6 @@ final class PcmDspProcessor {
         }
 
         private void resetRuntime() {
-            rectifiedDc = 0f;
             lowLevelFollower = 0f;
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
@@ -418,11 +412,11 @@ final class PcmDspProcessor {
             int[] table = new int[101];
             for (int i = 0; i < table.length; i++) {
                 float x = i / 100f;
-                float curved = 1f - (float) Math.exp(-3.6f * x);
-                curved *= 1.07f;
+                float curved = 1f - (float) Math.exp(-2.2f * x);
+                curved *= 0.58f;
                 int coef = Math.round(curved * INTENSITY_Q15_MAX);
-                if (i >= 96) {
-                    coef = INTENSITY_Q15_MAX;
+                if (i >= 98) {
+                    coef = Math.min(INTENSITY_Q15_MAX, Math.round(INTENSITY_Q15_MAX * 0.72f));
                 }
                 table[i] = clampInt(coef, 0, INTENSITY_Q15_MAX);
             }
