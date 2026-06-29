@@ -5806,6 +5806,7 @@ public final class MainActivity extends Activity {
         Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
     }
 
+    /*
     private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
         String importedName = presetDisplayName(imported);
         AlertDialog dialog = new AlertDialog.Builder(this)
@@ -5861,6 +5862,67 @@ public final class MainActivity extends Activity {
                     }
                     applyImportedPreset(imported.withName(renamed), applyLive);
                     Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
+                })
+                .create();
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    */
+
+    private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
+        String importedName = presetDisplayName(imported);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView("Preset already exists"))
+                .setMessage("A preset named \"" + importedName + "\" already exists. Replace it or rename the imported preset?")
+                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Rename", (d, which) -> showRenameImportedPresetDialog(imported, applyLive))
+                .setPositiveButton("Replace", (d, which) -> {
+                    applyImportedPreset(imported, applyLive);
+                    Toast.makeText(this, "Preset replaced", Toast.LENGTH_SHORT).show();
+                })
+                .create();
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private void showRenameImportedPresetDialog(Preset imported, boolean applyLive) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(nextImportedPresetName(imported));
+        input.setSelectAllOnFocus(true);
+        input.setTextSize(14);
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setHint("Preset name");
+        input.setBackground(createFieldBackground(20, 40, 8));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        input.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(20), dp(4), dp(20), dp(8));
+        container.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+        ));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView("Rename imported preset"))
+                .setView(container)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Import", (d, which) -> {
+                    String renamed = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (renamed.isEmpty()) {
+                        Toast.makeText(this, "Preset name required", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (repository.loadNamedPreset(renamed) != null) {
+                        Toast.makeText(this, "Preset name already exists", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    applyImportedPreset(imported.withName(renamed), applyLive);
+                    Toast.makeText(this, "Preset imported", Toast.LENGTH_SHORT).show();
                 })
                 .create();
         dialog.show();
