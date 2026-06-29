@@ -5809,15 +5809,15 @@ public final class MainActivity extends Activity {
     private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
         String importedName = presetDisplayName(imported);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Preset already exists", "棰勮鍚嶇О宸插瓨鍦?)))
+                .setCustomTitle(dialogTitleView(tr("Preset already exists", "预设名称已存在")))
                 .setMessage(tr(
                         "A preset named \"" + importedName + "\" already exists. Replace it or rename the imported preset?",
-                        "鍚嶄负鈥?" + importedName + "鈥濈殑棰勮宸插瓨鍦ㄣ€傞€夋嫨鐩存帴鏇挎崲锛屾垨鍏堥噸鍛藉悕鍐嶅鍏ャ€?"))
-                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
-                .setNeutralButton(tr("Rename", "閲嶅懡鍚?"), (d, which) -> showRenameImportedPresetDialog(imported, applyLive))
-                .setPositiveButton(tr("Replace", "鐩存帴鏇挎崲"), (d, which) -> {
+                        "名为“" + importedName + "”的预设已存在。要直接替换，还是先重命名导入预设？"))
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setNeutralButton(tr("Rename", "重命名"), (d, which) -> showRenameImportedPresetDialog(imported, applyLive))
+                .setPositiveButton(tr("Replace", "直接替换"), (d, which) -> {
                     applyImportedPreset(imported, applyLive);
-                    Toast.makeText(this, tr("Preset replaced", "棰勮宸叉浛鎹?"), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, tr("Preset replaced", "预设已替换"), Toast.LENGTH_SHORT).show();
                 })
                 .create();
         dialog.show();
@@ -5832,7 +5832,7 @@ public final class MainActivity extends Activity {
         input.setTextSize(14);
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint(tr("Preset name", "棰勮鍚嶇О"));
+        input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -5846,21 +5846,21 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Rename imported preset", "閲嶅懡鍚嶅鍏ラ璁?)))
+                .setCustomTitle(dialogTitleView(tr("Rename imported preset", "重命名导入预设")))
                 .setView(container)
-                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
-                .setPositiveButton(tr("Import", "瀵煎叆"), (d, which) -> {
+                .setNegativeButton(tr("Cancel", "取消"), null)
+                .setPositiveButton(tr("Import", "导入"), (d, which) -> {
                     String renamed = input.getText() == null ? "" : input.getText().toString().trim();
                     if (renamed.isEmpty()) {
-                        Toast.makeText(this, tr("Preset name required", "闇€瑕佸～鍐欓璁惧悕绉?"), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "需要填写预设名称"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     if (repository.loadNamedPreset(renamed) != null) {
-                        Toast.makeText(this, tr("Preset name already exists", "棰勮鍚嶇О宸插瓨鍦?"), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name already exists", "预设名称已存在"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     applyImportedPreset(imported.withName(renamed), applyLive);
-                    Toast.makeText(this, tr("Preset imported", "棰勮宸插鍏?"), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
                 })
                 .create();
         dialog.show();
