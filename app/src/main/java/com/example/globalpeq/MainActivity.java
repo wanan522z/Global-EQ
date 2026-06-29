@@ -5760,6 +5760,111 @@ public final class MainActivity extends Activity {
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
+    private void showExportPresetChoiceDialog() {
+        List<String> names = repository.loadNamedPresetNames();
+        if (names.isEmpty()) {
+            Toast.makeText(this, tr("No saved presets to export", "娌℃湁鍙鍑虹殑宸蹭繚瀛樼殑棰勮"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] labels = names.toArray(new String[0]);
+        String currentName = presetName(editingPreset);
+        int selected = currentName == null ? 0 : Math.max(0, names.indexOf(currentName));
+        View anchor = presetSelectButton != null ? presetSelectButton : settingsPage;
+        showLimitedChoiceMenu(anchor, labels, selected, position -> {
+            if (position < 0 || position >= labels.length) {
+                return;
+            }
+            exportPresetJsonForName(labels[position]);
+        });
+    }
+
+    private void exportPresetJsonForName(String name) {
+        Preset preset = repository.loadNamedPreset(name);
+        if (preset == null) {
+            Toast.makeText(this, tr("No preset to export", "娌℃湁鍙鍑虹殑棰勮"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pendingExportJson = new PresetFile(preset).toJson();
+        pendingExportSuccessMessage = tr("Preset exported", "棰勮宸插鍑?");
+        openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
+    }
+
+    private void handleImportedPreset(Preset imported, boolean applyLive) {
+        if (imported == null) {
+            Toast.makeText(this, tr("Invalid preset file", "棰勮鏂囦欢鏃犳晥"), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String importedName = presetName(imported);
+        Preset existing = importedName == null ? null : repository.loadNamedPreset(importedName);
+        if (existing != null) {
+            showImportedPresetConflictDialog(imported, applyLive);
+            return;
+        }
+        applyImportedPreset(imported, applyLive);
+        Toast.makeText(this, tr("Preset imported", "棰勮宸插鍏?"), Toast.LENGTH_SHORT).show();
+    }
+
+    private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
+        String importedName = presetDisplayName(imported);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(tr("Preset already exists", "棰勮鍚嶇О宸插瓨鍦?)))
+                .setMessage(tr(
+                        "A preset named \"" + importedName + "\" already exists. Replace it or rename the imported preset?",
+                        "鍚嶄负鈥?" + importedName + "鈥濈殑棰勮宸插瓨鍦ㄣ€傞€夋嫨鐩存帴鏇挎崲锛屾垨鍏堥噸鍛藉悕鍐嶅鍏ャ€?"))
+                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
+                .setNeutralButton(tr("Rename", "閲嶅懡鍚?"), (d, which) -> showRenameImportedPresetDialog(imported, applyLive))
+                .setPositiveButton(tr("Replace", "鐩存帴鏇挎崲"), (d, which) -> {
+                    applyImportedPreset(imported, applyLive);
+                    Toast.makeText(this, tr("Preset replaced", "棰勮宸叉浛鎹?"), Toast.LENGTH_SHORT).show();
+                })
+                .create();
+        dialog.show();
+        styleDialog(dialog);
+    }
+
+    private void showRenameImportedPresetDialog(Preset imported, boolean applyLive) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(nextImportedPresetName(imported));
+        input.setSelectAllOnFocus(true);
+        input.setTextSize(14);
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setHint(tr("Preset name", "棰勮鍚嶇О"));
+        input.setBackground(createFieldBackground(20, 40, 8));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        input.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(20), dp(4), dp(20), dp(8));
+        container.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+        ));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setCustomTitle(dialogTitleView(tr("Rename imported preset", "閲嶅懡鍚嶅鍏ラ璁?)))
+                .setView(container)
+                .setNegativeButton(tr("Cancel", "鍙栨秷"), null)
+                .setPositiveButton(tr("Import", "瀵煎叆"), (d, which) -> {
+                    String renamed = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (renamed.isEmpty()) {
+                        Toast.makeText(this, tr("Preset name required", "闇€瑕佸～鍐欓璁惧悕绉?"), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (repository.loadNamedPreset(renamed) != null) {
+                        Toast.makeText(this, tr("Preset name already exists", "棰勮鍚嶇О宸插瓨鍦?"), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    applyImportedPreset(imported.withName(renamed), applyLive);
+                    Toast.makeText(this, tr("Preset imported", "棰勮宸插鍏?"), Toast.LENGTH_SHORT).show();
+                })
+                .create();
+        dialog.show();
+        styleDialog(dialog);
+    }
+
     private void applyImportedPreset(Preset imported, boolean applyLive) {
         Preset limited = limitPresetForHeadroom(imported);
         runningPreset = limited.withEnabled(currentMasterEnabled());
