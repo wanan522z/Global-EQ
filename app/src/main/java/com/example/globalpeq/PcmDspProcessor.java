@@ -658,6 +658,19 @@ final class PcmDspProcessor {
     private static final class AlgorithmicReverb {
         private static final int NEGATIVE_INFINITY_MB = -12000;
 
+        /*
+         * 湿声整体标定。
+         * 如果你装进去还是觉得小，把 2.15f 提到 2.45f。
+         * 如果觉得太冲，把 2.15f 降到 1.85f。
+         */
+        private static final float WET_RETURN_TRIM = 2.15f;
+
+        /*
+         * wet return 软限制阈值。
+         * 不是总线 limiter，只是防止混响本身突然爆。
+         */
+        private static final float WET_RETURN_CEILING = 0.96f;
+
         private final int sampleRate;
         private final int channelCount;
 
@@ -666,7 +679,6 @@ final class PcmDspProcessor {
 
         /*
          * 使用外部 StereoReverbCore。
-         * 不再在 AlgorithmicReverb 里内置重复实现。
          */
         private final StereoReverbCore reverbCore;
 
@@ -685,6 +697,9 @@ final class PcmDspProcessor {
 
         private int preDelayLength;
         private float tailLevel;
+
+        private float returnLimiterEnvelope;
+        private float returnLimiterGain = 1f;
 
         AlgorithmicReverb(int sampleRate, int channelCount) {
             this.sampleRate = Math.max(8000, sampleRate);
@@ -721,23 +736,35 @@ final class PcmDspProcessor {
             dryGain = mainMb <= NEGATIVE_INFINITY_MB ? 0f : dbToLinear(mainMb / 100f);
 
             /*
-             * mix 使用轻微曲线，低 mix 下也有存在感，高 mix 不至于炸。
+             * 重新标定 Mix 曲线：
+             * 之前 wet 太小，尤其是用户把推子拉满时也不像“全湿声”。
+             *
+             * 新曲线：
+             * - 低 mix：仍然有可听见的空间感
+             * - 中 mix：明显
+             * - 满 mix：湿声接近原声响度
              */
-            float wetMix = activeWet ? (float) Math.pow(mix, 0.72f) : 0f;
+            float wetMix = activeWet ? (float) Math.pow(mix, 0.58f) : 0f;
 
             /*
-             * 比旧版 drive 更收敛。
-             * 旧版湿声容易厚、糊、像低采样率。
+             * 比旧版大幅提高 return 电平，但不是单纯暴力乘法。
+             * mix 越大，wet return 才真正打开。
              */
             float sendDrive = activeWet
-                    ? (0.30f + 2.40f * wetMix + 1.36f * mix * mix)
+                    ? (0.62f + 3.15f * wetMix + 2.10f * mix * mix)
                     : 0f;
 
+            /*
+             * wetGain 最终标定。
+             * profile.wetBoost 仍然保留 type 差异。
+             * WET_RETURN_TRIM 用来把整体电平拉到“推子满时接近原声”。
+             */
             wetGain = activeWet
                     ? profile.wetBoost
                       * wetMix
                       * sendDrive
-                      * (0.92f + size * 0.20f + decayShape * 0.12f)
+                      * WET_RETURN_TRIM
+                      * (0.96f + size * 0.28f + decayShape * 0.16f)
                     : 0f;
 
             preDelayLength = Math.max(
@@ -751,17 +778,14 @@ final class PcmDspProcessor {
                     14f
             );
 
-            /*
-             * 这里调用外部 StereoReverbCore。
-             * 外部 StereoReverbCore 继续使用外部 ReverbProfile / FdnReverbTank。
-             */
             reverbCore.configure(profile, size, profileDecaySeconds, decayShape, lowCpuMode);
 
             tailLevel = 0f;
+            returnLimiterEnvelope = 0f;
+            returnLimiterGain = 1f;
 
             /*
              * 不 new，只清空已有 predelay buffer。
-             * 避免切换 predelay 后旧尾巴突然冲出来。
              */
             for (int channel = 0; channel < preDelayIndices.length; channel++) {
                 preDelayIndices[channel] = 0;
@@ -800,13 +824,14 @@ final class PcmDspProcessor {
 
             /*
              * 无输入且尾巴已经很低时，不继续跑 reverbCore。
-             * 节省 CPU。
              */
             if (!activeWet || (inputPeak < 0.00012f && tailLevel < 0.00016f)) {
                 applyDryGainOnly(samples, safeSampleCount);
                 tailLevel *= 0.76f;
                 currentWetGain += (0f - currentWetGain) * 0.02f;
                 currentDryGain += (dryGain - currentDryGain) * 0.02f;
+                returnLimiterEnvelope *= 0.92f;
+                returnLimiterGain += (1f - returnLimiterGain) * 0.012f;
                 return;
             }
 
@@ -814,7 +839,6 @@ final class PcmDspProcessor {
 
             /*
              * 参数平滑。
-             * 防止 Mix / Main 改动时啪一下。
              */
             final float gainSmooth = 0.0025f;
 
@@ -830,30 +854,48 @@ final class PcmDspProcessor {
                 float leftIn = preDelayProcess(leftDry, 0);
                 float rightIn = preDelayProcess(rightDry, Math.min(1, preDelayIndices.length - 1));
 
-                /*
-                 * 使用外部 StereoReverbCore。
-                 * 它应该负责 Early / FDN / Diffusion / highCut 等具体算法。
-                 */
                 reverbCore.process(leftIn, rightIn, wetFrame);
 
-                float wetLeft = softSaturate(wetFrame[0]);
+                float wetLeft = wetFrame[0];
                 float wetRight = safeChannelCount > 1
-                        ? softSaturate(wetFrame[1])
-                        : softSaturate((wetFrame[0] + wetFrame[1]) * 0.5f);
+                        ? wetFrame[1]
+                        : (wetFrame[0] + wetFrame[1]) * 0.5f;
+
+                /*
+                 * 先应用 wetGain，再做 return limiter。
+                 * 这样 Mix 拉满时响度足够，但不会突然爆。
+                 */
+                wetLeft *= currentWetGain;
+                wetRight *= currentWetGain;
+
+                float wetAbs = Math.max(Math.abs(wetLeft), Math.abs(wetRight));
+
+                returnLimiterEnvelope += (wetAbs - returnLimiterEnvelope)
+                        * (wetAbs > returnLimiterEnvelope ? 0.045f : 0.0028f);
+
+                float targetLimiterGain = returnLimiterEnvelope > WET_RETURN_CEILING
+                        ? WET_RETURN_CEILING / Math.max(returnLimiterEnvelope, WET_RETURN_CEILING)
+                        : 1f;
+
+                returnLimiterGain += (targetLimiterGain - returnLimiterGain)
+                        * (targetLimiterGain < returnLimiterGain ? 0.10f : 0.004f);
+
+                wetLeft = softSaturate(wetLeft * returnLimiterGain);
+                wetRight = softSaturate(wetRight * returnLimiterGain);
 
                 float absWet = Math.max(Math.abs(wetLeft), Math.abs(wetRight));
                 if (absWet > wetPeak) {
                     wetPeak = absWet;
                 }
 
-                samples[frameOffset] = finiteOrZero(leftDry * currentDryGain + wetLeft * currentWetGain);
+                samples[frameOffset] = finiteOrZero(leftDry * currentDryGain + wetLeft);
 
                 if (safeChannelCount > 1) {
-                    samples[frameOffset + 1] = finiteOrZero(rightDry * currentDryGain + wetRight * currentWetGain);
+                    samples[frameOffset + 1] = finiteOrZero(rightDry * currentDryGain + wetRight);
                 }
 
                 if (safeChannelCount > 2) {
-                    float wetMono = (wetLeft + wetRight) * 0.5f * currentWetGain;
+                    float wetMono = (wetLeft + wetRight) * 0.5f;
 
                     for (int channel = 2; channel < safeChannelCount; channel++) {
                         float dry = samples[frameOffset + channel];
