@@ -212,33 +212,58 @@ final class PcmDspProcessor {
     }
 
     private static final class PsychoacousticBassProcessor {
-        private static final int LANE_COUNT = 2;
+        private static final int DECIMATION = 16;
+        private static final int FFT_SIZE = 1024;
+        private static final int HOP_SIZE = 512;
+        private static final int HALF_FFT = FFT_SIZE / 2;
+        private static final float TWO_PI = (float) (Math.PI * 2.0);
 
         private final int sampleRate;
         private final int channelCount;
         private final int configuredChannelCount;
-        private final HarmonicLane[] lanes = new HarmonicLane[LANE_COUNT];
+        private final float downSampleRate;
 
-        private float[] monoSource = new float[0];
-        private float[] wetBuffer = new float[0];
-
+        private MonoBiquad lowPass1000;
         private MonoBiquad wetHighPass;
         private MonoBiquad wetLowPass;
+
+        private float[] monoSource = new float[0];
+        private float[] wetFullRate = new float[0];
+
+        private final float[] window = new float[FFT_SIZE];
+        private final float[] pvInputFrame = new float[FFT_SIZE];
+        private final float[] olaBuffer = new float[FFT_SIZE];
+
+        private final float[] fftRe = new float[FFT_SIZE];
+        private final float[] fftIm = new float[FFT_SIZE];
+        private final float[] synthRe = new float[FFT_SIZE];
+        private final float[] synthIm = new float[FFT_SIZE];
+
+        private final float[] wetQueue = new float[8192];
+        private int wetQueueRead;
+        private int wetQueueWrite;
+        private int wetQueueSize;
+
+        private int frameFill;
+        private int upsamplePhase;
+        private float previousWetSample;
+        private float nextWetSample;
 
         private float harmonicMix;
         private float wetCeiling;
         private float wetLimiterEnvelope;
         private float wetLimiterGain = 1f;
 
+        private int cutoffHz = 120;
+        private boolean lowCpuMode;
+
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = Math.max(8000, sampleRate);
             this.channelCount = Math.max(1, channelCount);
             this.configuredChannelCount = this.channelCount;
+            this.downSampleRate = this.sampleRate / (float) DECIMATION;
 
-            for (int i = 0; i < lanes.length; i++) {
-                lanes[i] = new HarmonicLane(this.sampleRate);
-            }
-
+            initWindow();
             configure(95, 0, 95, 0, false);
         }
 
@@ -251,10 +276,13 @@ final class PcmDspProcessor {
             float dspAmount = clamp01(dspAmountPercent / 100f);
             float amount = Math.max(virtualAmount, dspAmount);
 
+            this.lowCpuMode = lowCpuMode;
+
             if (amount <= 0.0001f) {
                 harmonicMix = 0f;
                 wetLimiterEnvelope = 0f;
                 wetLimiterGain = 1f;
+                clearRuntimeState();
                 return;
             }
 
@@ -263,48 +291,49 @@ final class PcmDspProcessor {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
 
-            int cutoff = clampInt(requestedCutoff, 55, 140);
+            /*
+             * 论文示例用 fcut=150Hz。
+             * 手机/小音箱建议控制在 90~170Hz，不要太低，否则生成谐波会不稳。
+             */
+            cutoffHz = clampInt(requestedCutoff, 80, 170);
 
-            float lowBlend = 1f - clamp01((cutoff - 55f) / 65f);
-
-            lanes[0].configure(
-                    34f,
-                    Math.max(62f, cutoff * 0.78f),
-                    1.05f + amount * 0.55f,
-                    0.78f + lowBlend * 0.18f,
-                    0.18f,
-                    0.92f,
-                    lowCpuMode ? 0.00f : 0.14f
+            /*
+             * 论文第 3.4 节：低频一路先低通到 1000Hz，
+             * 因为后续峰值/频谱信息需要 1000Hz 内的信息。
+             */
+            lowPass1000 = MonoBiquad.fromBand(
+                    new ParametricBand(FilterType.LOW_PASS, true, 1000, 0, 70),
+                    sampleRate
             );
 
-            lanes[1].configure(
-                    Math.max(54f, cutoff * 0.58f),
-                    Math.min(145f, cutoff * 1.28f),
-                    0.95f + amount * 0.45f,
-                    0.56f,
-                    0.12f,
-                    0.82f,
-                    lowCpuMode ? 0.00f : 0.10f
-            );
-
+            /*
+             * 输出虚拟低音谐波不保留 fcut 以下的东西。
+             * 否则手机/小喇叭放不出来，还会变成噗声和浑浊。
+             */
             wetHighPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.HIGH_PASS, true, 82, 0, 70),
+                    new ParametricBand(FilterType.HIGH_PASS, true, Math.max(70, cutoffHz - 15), 0, 70),
                     sampleRate
             );
 
             wetLowPass = MonoBiquad.fromBand(
-                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 430 : 560, 0, 66),
+                    new ParametricBand(FilterType.LOW_PASS, true, lowCpuMode ? 650 : 900, 0, 66),
                     sampleRate
             );
 
-            harmonicMix = amount * (1.18f + amount * 0.35f);
+            /*
+             * 这个不要太大。
+             * 频谱搬移版比 NLD 干净，但过量仍会像“嘟嘟声”。
+             */
+            harmonicMix = amount * (1.05f + amount * 0.35f);
             if (lowCpuMode) {
                 harmonicMix *= 0.82f;
             }
 
-            wetCeiling = 0.20f + amount * 0.18f;
+            wetCeiling = 0.22f + amount * 0.18f;
+
             wetLimiterEnvelope = 0f;
             wetLimiterGain = 1f;
+            clearRuntimeState();
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -332,26 +361,60 @@ final class PcmDspProcessor {
                 }
 
                 monoSource[frame] = finiteOrZero(mono / safeChannelCount);
-                wetBuffer[frame] = 0f;
+                wetFullRate[frame] = 0f;
             }
 
-            for (int i = 0; i < lanes.length; i++) {
-                lanes[i].process(monoSource, wetBuffer, frameCount);
+            if (lowPass1000 != null) {
+                lowPass1000.process(monoSource, frameCount);
+            }
+
+            /*
+             * 先把当前 block 的低频信息送进降采样 STFT。
+             * 内部每攒够 512 个降采样点，就处理一次 1024 FFT。
+             */
+            for (int frame = 0; frame < frameCount; frame++) {
+                if (upsamplePhase == 0) {
+                    pushDecimatedSample(monoSource[frame]);
+                }
+
+                upsamplePhase++;
+                if (upsamplePhase >= DECIMATION) {
+                    upsamplePhase = 0;
+                }
+            }
+
+            /*
+             * 从降采样湿声队列中取样，线性插值恢复到原采样率。
+             * 这里会有 STFT 固有延迟，但不会产生 NLD 那种硬失真。
+             */
+            for (int frame = 0; frame < frameCount; frame++) {
+                if (upsamplePhase == 0) {
+                    previousWetSample = nextWetSample;
+                    nextWetSample = popWetSample();
+                }
+
+                float t = upsamplePhase / (float) DECIMATION;
+                wetFullRate[frame] = previousWetSample + (nextWetSample - previousWetSample) * t;
+
+                upsamplePhase++;
+                if (upsamplePhase >= DECIMATION) {
+                    upsamplePhase = 0;
+                }
             }
 
             if (wetHighPass != null) {
-                wetHighPass.process(wetBuffer, frameCount);
+                wetHighPass.process(wetFullRate, frameCount);
             }
             if (wetLowPass != null) {
-                wetLowPass.process(wetBuffer, frameCount);
+                wetLowPass.process(wetFullRate, frameCount);
             }
 
             for (int frame = 0; frame < frameCount; frame++) {
-                float wet = finiteOrZero(wetBuffer[frame] * harmonicMix);
+                float wet = finiteOrZero(wetFullRate[frame] * harmonicMix);
 
                 float wetAbs = Math.abs(wet);
                 wetLimiterEnvelope += (wetAbs - wetLimiterEnvelope)
-                        * (wetAbs > wetLimiterEnvelope ? 0.080f : 0.0045f);
+                        * (wetAbs > wetLimiterEnvelope ? 0.075f : 0.0045f);
 
                 float targetGain = wetLimiterEnvelope > wetCeiling
                         ? wetCeiling / Math.max(wetLimiterEnvelope, wetCeiling)
@@ -360,7 +423,7 @@ final class PcmDspProcessor {
                 wetLimiterGain += (targetGain - wetLimiterGain)
                         * (targetGain < wetLimiterGain ? 0.15f : 0.006f);
 
-                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.22f);
+                float generated = softLimitWet(wet * wetLimiterGain, wetCeiling * 1.25f);
 
                 int frameOffset = frame * safeChannelCount;
 
@@ -369,7 +432,10 @@ final class PcmDspProcessor {
                     originalPeak = Math.max(originalPeak, Math.abs(samples[frameOffset + ch]));
                 }
 
-                generated *= 1f - smoothStep(0.86f, 0.995f, originalPeak) * 0.68f;
+                /*
+                 * 原始信号接近满幅时收一点虚拟低音，避免后级爆。
+                 */
+                generated *= 1f - smoothStep(0.88f, 0.995f, originalPeak) * 0.62f;
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     samples[frameOffset + ch] = finiteOrZero(samples[frameOffset + ch] + generated);
@@ -381,172 +447,396 @@ final class PcmDspProcessor {
             return harmonicMix > 0.0001f;
         }
 
-        private void ensureCapacity(int frameCount) {
-            if (monoSource.length < frameCount) {
-                monoSource = new float[frameCount];
-                wetBuffer = new float[frameCount];
+        private void pushDecimatedSample(float value) {
+            pvInputFrame[frameFill] = finiteOrZero(value);
+            frameFill++;
+
+            if (frameFill >= FFT_SIZE) {
+                processPvFrame();
+
+                System.arraycopy(pvInputFrame, HOP_SIZE, pvInputFrame, 0, FFT_SIZE - HOP_SIZE);
+                frameFill = FFT_SIZE - HOP_SIZE;
             }
         }
 
-        private static final class HarmonicLane {
-            private final int sampleRate;
-
-            private MonoBiquad sourceHighPass;
-            private MonoBiquad sourceLowPass;
-
-            private float[] work = new float[0];
-
-            private float envelope;
-            private float fastEnvelope;
-            private float slowEnvelope;
-
-            private float drive;
-            private float gain;
-            private float h2Mix;
-            private float h3Mix;
-            private float h4Mix;
-
-            HarmonicLane(int sampleRate) {
-                this.sampleRate = Math.max(8000, sampleRate);
+        private void processPvFrame() {
+            for (int i = 0; i < FFT_SIZE; i++) {
+                fftRe[i] = pvInputFrame[i] * window[i];
+                fftIm[i] = 0f;
+                synthRe[i] = 0f;
+                synthIm[i] = 0f;
             }
 
-            void configure(float lowHz,
-                           float highHz,
-                           float drive,
-                           float gain,
-                           float h2Mix,
-                           float h3Mix,
-                           float h4Mix) {
-                float safeLow = clamp(lowHz, 20f, 180f);
-                float safeHigh = clamp(highHz, safeLow + 12f, 220f);
+            fft(fftRe, fftIm, false);
 
-                sourceHighPass = MonoBiquad.fromBand(
-                        new ParametricBand(FilterType.HIGH_PASS, true, Math.round(safeLow), 0, 62),
-                        sampleRate
-                );
+            /*
+             * 论文路线：
+             * H1: fcut/2 ~ fcut      -> 2,3,4,5 次
+             * H2: fcut/3 ~ fcut/2    -> 3,4,5,6 次
+             * H3: fcut/4 ~ fcut/3    -> 4,5,6 次
+             *
+             * 这里做低 CPU 版频谱搬移：
+             * 直接把源 bin 的幅度/相位搬到 n 倍频 bin。
+             */
+            float binHz = downSampleRate / FFT_SIZE;
+            int maxSourceBin = Math.min(HALF_FFT - 1, Math.round(cutoffHz / binHz));
+            int minSourceBin = Math.max(1, Math.round((cutoffHz * 0.25f) / binHz));
 
-                sourceLowPass = MonoBiquad.fromBand(
-                        new ParametricBand(FilterType.LOW_PASS, true, Math.round(safeHigh), 0, 62),
-                        sampleRate
-                );
-
-                this.drive = Math.max(0.2f, drive);
-                this.gain = Math.max(0f, gain);
-                this.h2Mix = Math.max(0f, h2Mix);
-                this.h3Mix = Math.max(0f, h3Mix);
-                this.h4Mix = Math.max(0f, h4Mix);
-
-                envelope = 0f;
-                fastEnvelope = 0f;
-                slowEnvelope = 0f;
+            float blockEnergy = 0f;
+            for (int k = minSourceBin; k <= maxSourceBin; k++) {
+                float re = fftRe[k];
+                float im = fftIm[k];
+                blockEnergy += re * re + im * im;
             }
 
-            void process(float[] input, float[] output, int frameCount) {
-                if (frameCount <= 0 || gain <= 0f) {
-                    return;
+            if (blockEnergy < 1.0e-9f) {
+                enqueueSilenceHop();
+                return;
+            }
+
+            for (int k = minSourceBin; k <= maxSourceBin; k++) {
+                float srcHz = k * binHz;
+                if (srcHz < 18f || srcHz > cutoffHz) {
+                    continue;
                 }
 
-                ensureCapacity(frameCount);
-                System.arraycopy(input, 0, work, 0, frameCount);
-
-                if (sourceHighPass != null) {
-                    sourceHighPass.process(work, frameCount);
-                }
-                if (sourceLowPass != null) {
-                    sourceLowPass.process(work, frameCount);
+                float re = fftRe[k];
+                float im = fftIm[k];
+                float mag = (float) Math.sqrt(re * re + im * im);
+                if (mag < 1.0e-7f) {
+                    continue;
                 }
 
-                float envAttack = onePoleCoeff(5.5f, sampleRate);
-                float envRelease = onePoleCoeff(115f, sampleRate);
-                float fastCoeff = onePoleCoeff(3.2f, sampleRate);
-                float slowCoeff = onePoleCoeff(82f, sampleRate);
+                float phase = (float) Math.atan2(im, re);
 
-                for (int i = 0; i < frameCount; i++) {
-                    float low = finiteOrZero(work[i]);
-                    float absLow = Math.abs(low);
+                int[] orders = harmonicOrdersFor(srcHz, cutoffHz);
+                for (int i = 0; i < orders.length; i++) {
+                    int order = orders[i];
+                    if (order <= 0) {
+                        continue;
+                    }
 
-                    envelope += (absLow - envelope)
-                            * (absLow > envelope ? envAttack : envRelease);
+                    if (lowCpuMode && order >= 6) {
+                        continue;
+                    }
 
-                    fastEnvelope += (absLow - fastEnvelope) * fastCoeff;
-                    slowEnvelope += (absLow - slowEnvelope) * slowCoeff;
-
-                    float levelGate = smoothStep(0.00065f, 0.010f, envelope);
-
-                    float transientRatio = 0f;
-                    if (slowEnvelope > 0.00005f) {
-                        transientRatio = (fastEnvelope - slowEnvelope * 1.10f)
-                                / (slowEnvelope + 0.0015f);
+                    float targetHz = srcHz * order;
+                    if (targetHz < cutoffHz * 0.88f) {
+                        continue;
                     }
 
                     /*
-                     * 放屁声主要来自 kick 瞬态被非线性器件放大。
-                     * 瞬态越强，谐波越收。
+                     * 900Hz 以上会开始有塑料感。
+                     * 论文关注的是低音虚拟，不是加中频失真。
                      */
-                    float transientSuppress = 1f - smoothStep(0.10f, 0.85f, transientRatio) * 0.72f;
+                    float maxTargetHz = lowCpuMode ? 650f : 900f;
+                    if (targetHz > maxTargetHz || targetHz > downSampleRate * 0.44f) {
+                        continue;
+                    }
 
-                    float normalizer = Math.max(0.006f, envelope * 1.75f);
-                    float x = clamp(low / normalizer, -1.0f, 1.0f);
+                    int targetBin = Math.round(targetHz / binHz);
+                    if (targetBin <= 0 || targetBin >= HALF_FFT) {
+                        continue;
+                    }
 
                     /*
-                     * 不用 abs(x)。
-                     * 主体用奇次 h3，少量 h2 给“厚度”，很少 h4 给边缘。
+                     * 论文第三章主观评价里偏爱度最高的是类似指数衰减：
+                     * 1 : 0.5 : 0.25 : 0.13
                      */
-                    x = softClipUnit(x * drive, 1f);
+                    float ratio = harmonicRatio(i);
 
-                    float x2 = x * x;
-                    float x3 = x2 * x;
-                    float x4 = x2 * x2;
+                    /*
+                     * 简化响度补偿：
+                     * 越低的源频率搬到越高频时，人耳更敏感，所以不能线性放大。
+                     */
+                    float loudnessComp = simplifiedLoudnessCompensation(srcHz, targetHz);
 
-                    float h2 = 2f * x2 - 1f;
-                    float h3 = 4f * x3 - 3f * x;
-                    float h4 = 8f * x4 - 8f * x2 + 1f;
+                    /*
+                     * 峰值匹配的简化版：
+                     * 避免某一个 bin 突然特别尖，造成嘟声/口哨声。
+                     */
+                    float localPeakControl = localPeakControl(k);
 
-                    float harmonic = h2 * h2Mix
-                            + h3 * h3Mix
-                            + h4 * h4Mix;
+                    float outMag = mag * ratio * loudnessComp * localPeakControl;
 
-                    output[i] += finiteOrZero(
-                            harmonic
-                                    * envelope
-                                    * gain
-                                    * levelGate
-                                    * transientSuppress
-                    );
+                    float outPhase = wrapPi(phase * order);
+                    addSpectrumBin(targetBin, outMag, outPhase);
                 }
             }
 
-            private void ensureCapacity(int frameCount) {
-                if (work.length < frameCount) {
-                    work = new float[frameCount];
+            /*
+             * 防止低频分析泄漏产生的残余 DC。
+             */
+            synthRe[0] = 0f;
+            synthIm[0] = 0f;
+            synthRe[HALF_FFT] = 0f;
+            synthIm[HALF_FFT] = 0f;
+
+            for (int k = 1; k < HALF_FFT; k++) {
+                synthRe[FFT_SIZE - k] = synthRe[k];
+                synthIm[FFT_SIZE - k] = -synthIm[k];
+            }
+
+            fft(synthRe, synthIm, true);
+
+            /*
+             * sqrt-Hann 分析 + sqrt-Hann 合成，50% overlap-add。
+             */
+            for (int i = 0; i < FFT_SIZE; i++) {
+                olaBuffer[i] += synthRe[i] * window[i] * 0.72f;
+            }
+
+            for (int i = 0; i < HOP_SIZE; i++) {
+                enqueueWetSample(finiteOrZero(olaBuffer[i]));
+            }
+
+            System.arraycopy(olaBuffer, HOP_SIZE, olaBuffer, 0, FFT_SIZE - HOP_SIZE);
+            for (int i = FFT_SIZE - HOP_SIZE; i < FFT_SIZE; i++) {
+                olaBuffer[i] = 0f;
+            }
+        }
+
+        private int[] harmonicOrdersFor(float srcHz, int fcut) {
+            /*
+             * 为了避免频繁分配，下面返回的是固定小数组。
+             * Java 会分配对象，但每 512 个降采样点才跑一次，压力很小。
+             */
+            if (srcHz >= fcut * 0.50f) {
+                return new int[]{2, 3, 4, 5};
+            }
+
+            if (srcHz >= fcut / 3f) {
+                return new int[]{3, 4, 5, 6};
+            }
+
+            if (srcHz >= fcut * 0.25f) {
+                return new int[]{4, 5, 6, 0};
+            }
+
+            return new int[]{0, 0, 0, 0};
+        }
+
+        private float harmonicRatio(int index) {
+            switch (index) {
+                case 0:
+                    return 1.00f;
+                case 1:
+                    return 0.50f;
+                case 2:
+                    return 0.25f;
+                default:
+                    return 0.13f;
+            }
+        }
+
+        private float simplifiedLoudnessCompensation(float srcHz, float targetHz) {
+            float ratio = targetHz / Math.max(20f, srcHz);
+
+            /*
+             * 倍频越高，幅度越要收。
+             */
+            float orderReduce = (float) Math.pow(ratio, -0.38f);
+
+            /*
+             * 120~360Hz 是最自然的虚拟低音存在区。
+             */
+            float presence = 0.72f + 0.28f * smoothStep(110f, 220f, targetHz);
+
+            /*
+             * 500Hz 以上开始容易变成塑料感。
+             */
+            float highReduce = 1f - smoothStep(520f, 900f, targetHz) * 0.55f;
+
+            return clamp(orderReduce * presence * highReduce, 0.12f, 1.0f);
+        }
+
+        private float localPeakControl(int bin) {
+            int start = Math.max(1, bin - 2);
+            int end = Math.min(HALF_FFT - 1, bin + 2);
+
+            float centerMag = magnitudeAt(bin);
+            float avg = 0f;
+            int count = 0;
+
+            for (int i = start; i <= end; i++) {
+                avg += magnitudeAt(i);
+                count++;
+            }
+
+            avg /= Math.max(1, count);
+
+            if (avg <= 1.0e-8f) {
+                return 1f;
+            }
+
+            float peakRatio = centerMag / avg;
+
+            /*
+             * 峰太尖时收一点，减少“嘟”和“口哨”。
+             */
+            return 1f - smoothStep(2.2f, 5.0f, peakRatio) * 0.45f;
+        }
+
+        private float magnitudeAt(int bin) {
+            float re = fftRe[bin];
+            float im = fftIm[bin];
+            return (float) Math.sqrt(re * re + im * im);
+        }
+
+        private void addSpectrumBin(int bin, float mag, float phase) {
+            float re = mag * (float) Math.cos(phase);
+            float im = mag * (float) Math.sin(phase);
+
+            /*
+             * 多个源 bin 可能搬到同一个目标 bin，直接累加。
+             */
+            synthRe[bin] += re;
+            synthIm[bin] += im;
+        }
+
+        private void enqueueSilenceHop() {
+            for (int i = 0; i < HOP_SIZE; i++) {
+                enqueueWetSample(0f);
+            }
+
+            System.arraycopy(olaBuffer, HOP_SIZE, olaBuffer, 0, FFT_SIZE - HOP_SIZE);
+            for (int i = FFT_SIZE - HOP_SIZE; i < FFT_SIZE; i++) {
+                olaBuffer[i] = 0f;
+            }
+        }
+
+        private void enqueueWetSample(float value) {
+            if (wetQueueSize >= wetQueue.length) {
+                /*
+                 * 队列满了就丢最旧的，避免延迟越积越大。
+                 */
+                wetQueueRead++;
+                if (wetQueueRead >= wetQueue.length) {
+                    wetQueueRead = 0;
+                }
+                wetQueueSize--;
+            }
+
+            wetQueue[wetQueueWrite] = finiteOrZero(value);
+            wetQueueWrite++;
+            if (wetQueueWrite >= wetQueue.length) {
+                wetQueueWrite = 0;
+            }
+            wetQueueSize++;
+        }
+
+        private float popWetSample() {
+            if (wetQueueSize <= 0) {
+                return 0f;
+            }
+
+            float value = wetQueue[wetQueueRead];
+            wetQueueRead++;
+            if (wetQueueRead >= wetQueue.length) {
+                wetQueueRead = 0;
+            }
+            wetQueueSize--;
+
+            return finiteOrZero(value);
+        }
+
+        private void initWindow() {
+            for (int i = 0; i < FFT_SIZE; i++) {
+                float hann = 0.5f - 0.5f * (float) Math.cos(TWO_PI * i / FFT_SIZE);
+                window[i] = (float) Math.sqrt(Math.max(0f, hann));
+            }
+        }
+
+        private void clearRuntimeState() {
+            frameFill = 0;
+            upsamplePhase = 0;
+            previousWetSample = 0f;
+            nextWetSample = 0f;
+
+            wetQueueRead = 0;
+            wetQueueWrite = 0;
+            wetQueueSize = 0;
+
+            for (int i = 0; i < FFT_SIZE; i++) {
+                pvInputFrame[i] = 0f;
+                olaBuffer[i] = 0f;
+                fftRe[i] = 0f;
+                fftIm[i] = 0f;
+                synthRe[i] = 0f;
+                synthIm[i] = 0f;
+            }
+        }
+
+        private void ensureCapacity(int frameCount) {
+            if (monoSource.length < frameCount) {
+                monoSource = new float[frameCount];
+                wetFullRate = new float[frameCount];
+            }
+        }
+
+        private static void fft(float[] re, float[] im, boolean inverse) {
+            int n = re.length;
+
+            int j = 0;
+            for (int i = 1; i < n; i++) {
+                int bit = n >> 1;
+                while ((j & bit) != 0) {
+                    j ^= bit;
+                    bit >>= 1;
+                }
+                j ^= bit;
+
+                if (i < j) {
+                    float tr = re[i];
+                    re[i] = re[j];
+                    re[j] = tr;
+
+                    float ti = im[i];
+                    im[i] = im[j];
+                    im[j] = ti;
                 }
             }
-        }
 
-        private static float onePoleCoeff(float timeMs, int sampleRate) {
-            float safeMs = Math.max(0.1f, timeMs);
-            float safeSampleRate = Math.max(8000f, sampleRate);
-            return 1f - (float) Math.exp(-1.0 / (safeSampleRate * safeMs / 1000f));
-        }
+            for (int len = 2; len <= n; len <<= 1) {
+                float angle = TWO_PI / len * (inverse ? 1f : -1f);
+                float wLenRe = (float) Math.cos(angle);
+                float wLenIm = (float) Math.sin(angle);
 
-        private static float smoothStep(float edge0, float edge1, float value) {
-            if (edge0 == edge1) {
-                return value >= edge1 ? 1f : 0f;
+                for (int i = 0; i < n; i += len) {
+                    float wRe = 1f;
+                    float wIm = 0f;
+
+                    int half = len >> 1;
+                    for (int k = 0; k < half; k++) {
+                        int even = i + k;
+                        int odd = even + half;
+
+                        float uRe = re[even];
+                        float uIm = im[even];
+
+                        float vRe = re[odd] * wRe - im[odd] * wIm;
+                        float vIm = re[odd] * wIm + im[odd] * wRe;
+
+                        re[even] = uRe + vRe;
+                        im[even] = uIm + vIm;
+                        re[odd] = uRe - vRe;
+                        im[odd] = uIm - vIm;
+
+                        float nextWRe = wRe * wLenRe - wIm * wLenIm;
+                        float nextWIm = wRe * wLenIm + wIm * wLenRe;
+                        wRe = nextWRe;
+                        wIm = nextWIm;
+                    }
+                }
             }
 
-            float t = clamp01((value - edge0) / (edge1 - edge0));
-            return t * t * (3f - 2f * t);
-        }
-
-        private static float softClipUnit(float value, float ceiling) {
-            float safe = Math.max(0.1f, ceiling);
-            float normalized = value / safe;
-
-            if (Math.abs(normalized) < 0.86f) {
-                return value;
+            if (inverse) {
+                float invN = 1f / n;
+                for (int i = 0; i < n; i++) {
+                    re[i] *= invN;
+                    im[i] *= invN;
+                }
             }
-
-            return fastTanh(normalized) * safe;
         }
 
         private static float softLimitWet(float value, float ceiling) {
@@ -570,6 +860,25 @@ final class PcmDspProcessor {
 
             float x2 = value * value;
             return value * (27f + x2) / (27f + 9f * x2);
+        }
+
+        private static float smoothStep(float edge0, float edge1, float value) {
+            if (edge0 == edge1) {
+                return value >= edge1 ? 1f : 0f;
+            }
+
+            float t = clamp01((value - edge0) / (edge1 - edge0));
+            return t * t * (3f - 2f * t);
+        }
+
+        private static float wrapPi(float x) {
+            while (x > Math.PI) {
+                x -= TWO_PI;
+            }
+            while (x < -Math.PI) {
+                x += TWO_PI;
+            }
+            return x;
         }
 
         private static float clamp(float value, float min, float max) {
