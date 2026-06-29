@@ -282,9 +282,9 @@ final class PcmDspProcessor {
             amount = 1f - (float) Math.exp(-3.8f * x);
 
             // 这版先追求不放屁，所以湿声不要一开始太暴力。
-            targetWet = 0.18f + amount * 0.62f;
+            targetWet = 0.34f + amount * 1.15f;
             if (lowCpuMode) {
-                targetWet *= 0.78f;
+                targetWet *= 0.90f;
             }
 
             // 每段都是窄带输入，减少互调。
@@ -293,7 +293,7 @@ final class PcmDspProcessor {
                     30f, 45f,
                     95f, 190f,
                     0.95f, 0.42f, 0.12f,
-                    0.48f,
+                    0.85f,
                     0.0012f,
                     7f, 120f,
                     lowCpuMode
@@ -304,7 +304,7 @@ final class PcmDspProcessor {
                     45f, 65f,
                     105f, 255f,
                     0.88f, 0.50f, 0.16f,
-                    0.74f,
+                    1.30f,
                     0.0010f,
                     6f, 105f,
                     lowCpuMode
@@ -315,7 +315,7 @@ final class PcmDspProcessor {
                     65f, 90f,
                     130f, 305f,
                     0.78f, 0.46f, 0.13f,
-                    0.86f,
+                    1.45f,
                     0.0010f,
                     5f, 92f,
                     lowCpuMode
@@ -326,15 +326,15 @@ final class PcmDspProcessor {
                     90f, Math.min(132f, Math.max(100f, cutoffHz)),
                     175f, 335f,
                     0.56f, 0.34f, 0.08f,
-                    0.48f,
+                    0.85f,
                     0.0014f,
                     4f, 72f,
                     lowCpuMode
             );
 
             // 最终整形：压住 90Hz 以下的低频残渣，也压住 340Hz 以上的毛刺。
-            finalHp1.setHighPass(sampleRate, 88f, 0.707f);
-            finalHp2.setHighPass(sampleRate, 88f, 0.707f);
+            finalHp1.setHighPass(sampleRate, 76f, 0.707f);
+            finalHp2.setHighPass(sampleRate, 76f, 0.707f);
             finalLp1.setLowPass(sampleRate, lowCpuMode ? 310f : 340f, 0.707f);
             finalLp2.setLowPass(sampleRate, lowCpuMode ? 310f : 340f, 0.707f);
 
@@ -377,7 +377,7 @@ final class PcmDspProcessor {
                 wet = wetSmoother.process(targetWet);
 
                 float env = limiterEnv.process(Math.abs(h));
-                float limit = 0.42f;
+                float limit = 0.68f;
                 float limiterGain = env > limit ? limit / (env + EPS) : 1f;
 
                 float add = h * wet * limiterGain;
@@ -528,9 +528,9 @@ final class PcmDspProcessor {
                 harmonic = softClip(harmonic * (0.85f + amount * 0.65f));
 
                 // 能量跟随，不追求“越小越拉大”。
-                float targetLevel = env * (1.10f + amount * 1.80f);
+                float targetLevel = env * (1.65f + amount * 3.20f);
                 float current = Math.abs(harmonic) + 0.018f;
-                float dyn = clamp(targetLevel / current, 0f, 1.85f);
+                float dyn = clamp(targetLevel / current, 0f, 3.20f);
                 dyn = gainSmoother.process(dyn);
 
                 float y = harmonic * dyn * gate * laneGain;
