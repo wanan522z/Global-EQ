@@ -5765,7 +5765,7 @@ public final class MainActivity extends Activity {
     private void showExportPresetChoiceDialog() {
         List<String> names = repository.loadNamedPresetNames();
         if (names.isEmpty()) {
-            Toast.makeText(this, tr("No saved presets to export", "娌℃湁鍙鍑虹殑宸蹭繚瀛樼殑棰勮"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No saved presets to export", "没有可导出的已保存预设"), Toast.LENGTH_SHORT).show();
             return;
         }
         String[] labels = names.toArray(new String[0]);
@@ -5783,7 +5783,7 @@ public final class MainActivity extends Activity {
     private void exportPresetJsonForName(String name) {
         Preset preset = repository.loadNamedPreset(name);
         if (preset == null) {
-            Toast.makeText(this, tr("No preset to export", "娌℃湁鍙鍑虹殑棰勮"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No preset to export", "没有可导出的预设"), Toast.LENGTH_SHORT).show();
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
@@ -5793,7 +5793,7 @@ public final class MainActivity extends Activity {
 
     private void handleImportedPreset(Preset imported, boolean applyLive) {
         if (imported == null) {
-            Toast.makeText(this, tr("Invalid preset file", "棰勮鏂囦欢鏃犳晥"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Invalid preset file", "预设文件无效"), Toast.LENGTH_SHORT).show();
             return;
         }
         String importedName = presetName(imported);
@@ -5803,7 +5803,7 @@ public final class MainActivity extends Activity {
             return;
         }
         applyImportedPreset(imported, applyLive);
-        Toast.makeText(this, tr("Preset imported", "棰勮宸插鍏?"), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
     }
 
     private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
