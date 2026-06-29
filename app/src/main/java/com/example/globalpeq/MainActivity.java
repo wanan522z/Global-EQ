@@ -3046,16 +3046,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private boolean isUserInstalledApp(ApplicationInfo info) {
-        if (info == null) {
-            return false;
-        }
-        int flags = info.flags;
-        boolean systemApp = (flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-        boolean updatedSystemApp = (flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
-        return !systemApp || updatedSystemApp;
-    }
-
     private View createMonitoredAppClearRow(boolean active, AlertDialog[] dialogHolder) {
         Drawable icon = getResources().getDrawable(android.R.drawable.ic_menu_close_clear_cancel);
         return createMonitoredAppMenuRow(
