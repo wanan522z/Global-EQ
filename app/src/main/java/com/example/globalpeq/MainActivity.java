@@ -5755,30 +5755,6 @@ public final class MainActivity extends Activity {
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
-    private void exportCurrentDeviceConfigJsonLegacy() {
-        exportCurrentDeviceConfigJson();
-        return;
-        /*
-        Preset preset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
-        if (currentDevice == null || preset == null) {
-            Toast.makeText(this, tr("No global config to export", "没有可导出的全局配置"), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        DeviceConfigFile config = new DeviceConfigFile(
-                currentDevice,
-                processingMode,
-                advancedModeConfig,
-                preset,
-                exportPresetLibrary(preset),
-                preset.name,
-                autoSwitchOutput
-        );
-        pendingExportJson = config.toJson();
-        pendingExportSuccessMessage = tr("Global config exported", "全局配置已导出");
-        openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
-        */
-    }
-
     private void applyImportedPreset(Preset imported, boolean applyLive) {
         Preset limited = limitPresetForHeadroom(imported);
         runningPreset = limited.withEnabled(currentMasterEnabled());
