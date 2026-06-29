@@ -5728,7 +5728,7 @@ public final class MainActivity extends Activity {
                 handleImportedPreset(imported, true);
                 return;
             }
-            Toast.makeText(this, tr("Preset imported", "预设已导�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Preset imported", "?????"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
             Toast.makeText(this, tr("Invalid JSON file", "JSON 文件无效"), Toast.LENGTH_SHORT).show();
         }
@@ -5743,7 +5743,7 @@ public final class MainActivity extends Activity {
         try {
             DeviceConfigFile config = DeviceConfigFile.fromJson(json);
             applyImportedDeviceConfig(config);
-            Toast.makeText(this, tr("Global config imported", "全局配置已导�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Global config imported", "???????"), Toast.LENGTH_SHORT).show();
         } catch (JSONException ex) {
             Toast.makeText(this, tr("Unrecognized global config JSON", "无法识别的全局配置 JSON"), Toast.LENGTH_SHORT).show();
         }
@@ -5756,14 +5756,14 @@ public final class MainActivity extends Activity {
             return;
         }
         pendingExportJson = new PresetFile(preset).toJson();
-        pendingExportSuccessMessage = tr("Preset exported", "预设已导�?);
+        pendingExportSuccessMessage = tr("Preset exported", "?????");
         openJsonExport(safeJsonFileName(preset.name, "preset"), REQUEST_EXPORT_PRESET_JSON);
     }
 
     private void showExportPresetChoiceDialog() {
         List<String> names = repository.loadNamedPresetNames();
         if (names.isEmpty()) {
-            Toast.makeText(this, tr("No saved presets to export", "没有可导出的已保存预�?), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("No saved presets to export", "???????????"), Toast.LENGTH_SHORT).show();
             return;
         }
         String currentName = presetName(editingPreset);
@@ -5818,12 +5818,12 @@ public final class MainActivity extends Activity {
     private void showImportedPresetConflictDialog(Preset imported, Preset existing, boolean applyLive) {
         String importedName = presetDisplayName(imported);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Preset already exists", "预设名称已存�?)))
+                .setCustomTitle(dialogTitleView(tr("Preset already exists", "???????")))
                 .setMessage(tr(
                         "A preset named \"" + importedName + "\" already exists. Replace it or rename the existing preset first?",
-                        "名为�? + importedName + "”的预设已存在。要直接替换，还是先重命名现有预设？"))
+                        "???" + importedName + "?????????????????????????"))
                 .setNegativeButton(tr("Cancel", "取消"), null)
-                .setNeutralButton(tr("Rename current", "重命名当前预�?), null)
+                .setNeutralButton(tr("Rename current", "???????"), null)
                 .setPositiveButton(tr("Replace", "????"), null)
                 .create();
         dialog.setOnShowListener(d -> {
@@ -5869,7 +5869,7 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Rename existing preset", "重命名现有预�?)))
+                .setCustomTitle(dialogTitleView(tr("Rename existing preset", "???????")))
                 .setView(container)
                 .setNegativeButton(tr("Cancel", "取消"), null)
                 .setPositiveButton(tr("Rename and import", "重命名后导入"), null)
@@ -5880,11 +5880,11 @@ public final class MainActivity extends Activity {
                 positive.setOnClickListener(v -> {
                     String renamed = input.getText() == null ? "" : input.getText().toString().trim();
                     if (renamed.isEmpty()) {
-                        Toast.makeText(this, tr("Preset name required", "需要填写预设名�?), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name required", "????????"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     if (repository.loadNamedPreset(renamed) != null) {
-                        Toast.makeText(this, tr("Preset name already exists", "预设名称已存�?), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, tr("Preset name already exists", "???????"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     setDialogButtonsEnabled(dialog, false);
@@ -6072,7 +6072,7 @@ public final class MainActivity extends Activity {
         layout.setPadding(dp(20), dp(16), dp(20), dp(8));
 
         TextView targetLabel = new TextView(this);
-        targetLabel.setText(tr("Save to", "保存�?));
+        targetLabel.setText(tr("Save to", "???"));
         targetLabel.setTextSize(12);
         targetLabel.setTextColor(Color.rgb(142, 154, 168));
         targetLabel.setPadding(dp(2), 0, dp(2), dp(6));
