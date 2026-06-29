@@ -4297,7 +4297,13 @@ public final class MainActivity extends Activity {
         if (editingPreset == null || index < 0 || index >= editingPreset.bands.length || band == null) {
             return;
         }
+        if (pendingPeqPreviewBand != null && pendingPeqPreviewIndex != index) {
+            flushPendingPeqBandPreview();
+        }
         ParametricBand current = editingPreset.bands[index];
+        if (pendingPeqPreviewBand != null && pendingPeqPreviewIndex == index) {
+            current = pendingPeqPreviewBand;
+        }
         if (sameBandState(current, band)) {
             return;
         }
@@ -4412,9 +4418,14 @@ public final class MainActivity extends Activity {
         if (editingPreset == null || index < 0 || index >= editingPreset.geqGainsMb.length) {
             return;
         }
+        if (pendingGeqPreviewIndex >= 0 && pendingGeqPreviewIndex != index) {
+            flushPendingGeqPreview();
+        }
         gainMb = clamp(gainMb, -1800, 1800);
-        if (editingPreset.geqGainsMb[index] == gainMb
-                && !(pendingGeqPreviewIndex == index && pendingGeqPreviewGainMb != gainMb)) {
+        int currentGainMb = pendingGeqPreviewIndex == index
+                ? pendingGeqPreviewGainMb
+                : editingPreset.geqGainsMb[index];
+        if (currentGainMb == gainMb) {
             return;
         }
         if (pendingGeqHistorySnapshot == null) {
