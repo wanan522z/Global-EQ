@@ -5793,10 +5793,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void applyImportedDeviceConfigLegacy(DeviceConfigFile config) {
-        applyImportedDeviceConfig(config);
-    }
-
     private void exportCurrentDeviceConfigJson() {
         Preset exportEditingPreset = withCurrentCurveSettings(editingPreset != null ? editingPreset : runningPreset);
         Preset exportRunningPreset = withCurrentCurveSettings(runningPreset);
