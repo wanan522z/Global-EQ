@@ -212,7 +212,7 @@ final class PcmDspProcessor {
     }
 
     private static final class PsychoacousticBassProcessor {
-        private static final int MIN_CUTOFF_HZ = 35;
+        private static final int MIN_CUTOFF_HZ = 20;
         private static final int MAX_CUTOFF_HZ = 220;
         private final int sampleRate;
         private final int channelCount;
@@ -264,13 +264,13 @@ final class PcmDspProcessor {
             if (requestedCutoff <= 0) {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
-            int cutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
+            int targetCutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
             float amount = amountPercent / 100f;
 
-            rebuildFilters(cutoffHz, amount);
+            rebuildFilters(targetCutoffHz, amount);
 
             float shapedAmount = (float) Math.pow(amount, 1.12f);
-            drive = 1.16f + shapedAmount * 2.05f;
+            drive = 1.10f + shapedAmount * 1.72f;
             wetMix = 0.24f + (float) Math.pow(amount, 1.10f) * 2.85f;
 
             float riseMs = 0.20f;
@@ -278,8 +278,8 @@ final class PcmDspProcessor {
             riseAlpha = envelopeAlpha(riseMs);
             fallAlpha = envelopeAlpha(Math.max(2.8f, fallMs));
 
-            blendToMethod2 = 0.18f + amount * 0.54f;
-            detectorTrimFloor = 0.70f - amount * 0.06f;
+            blendToMethod2 = 0.22f + amount * 0.48f;
+            detectorTrimFloor = 0.76f - amount * 0.05f;
 
             if (lowCpuMode) {
                 wetMix *= 0.97f;
@@ -342,27 +342,29 @@ final class PcmDspProcessor {
 
             float centered = blended - detectorState;
             float even = blended - detectorState * 0.82f;
-            float odd = softSaturate(centered * 1.72f) - centered * 0.36f;
-            float source = even * 0.62f + odd * 0.38f;
-            float trimmed = source * Math.max(detectorTrimFloor, 1f - levelState * 0.30f);
+            float odd = softSaturate(centered * 1.42f) - centered * 0.48f;
+            float source = even * 0.74f + odd * 0.26f;
+            float trimmed = source * Math.max(detectorTrimFloor, 1f - levelState * 0.24f);
 
             float bandLimited = harmonicHighPass.process(trimmed);
             bandLimited = harmonicLowPass.process(bandLimited);
             bandLimited = harmonicPeak.process(bandLimited);
 
-            return softSaturate(bandLimited * 1.95f);
+            return softSaturate(bandLimited * 1.72f);
         }
 
-        private void rebuildFilters(int cutoffHz, float amount) {
-            float safeCutoff = clamp(cutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.20f));
-            monoLowStageA = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
-            monoLowStageB = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
+        private void rebuildFilters(int targetCutoffHz, float amount) {
+            float safeTargetCutoff = clamp(targetCutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.20f));
+            float fundamentalCutoff = clamp(safeTargetCutoff * 0.5f, 12f, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.10f));
 
-            float harmonicHpHz = safeCutoff;
-            float harmonicLpHz = clamp(Math.max(360f, safeCutoff * 3.35f), 280f, Math.min(480f, sampleRate * 0.22f));
-            float harmonicPeakHz = clamp(safeCutoff * 1.95f + 24f, 105f, harmonicLpHz - 10f);
-            float harmonicPeakGainDb = 2.8f + amount * 5.8f;
-            float harmonicPeakQ = 0.86f + amount * 0.30f;
+            monoLowStageA = createMonoFilter(FilterType.LOW_PASS, fundamentalCutoff, 58);
+            monoLowStageB = createMonoFilter(FilterType.LOW_PASS, fundamentalCutoff, 58);
+
+            float harmonicHpHz = clamp(safeTargetCutoff * 0.72f, 28f, safeTargetCutoff * 0.95f);
+            float harmonicLpHz = clamp(Math.max(300f, safeTargetCutoff * 4.60f), 220f, Math.min(520f, sampleRate * 0.24f));
+            float harmonicPeakHz = clamp(safeTargetCutoff * 1.08f, 42f, harmonicLpHz - 10f);
+            float harmonicPeakGainDb = 2.2f + amount * 4.4f;
+            float harmonicPeakQ = 0.78f + amount * 0.22f;
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
             harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
