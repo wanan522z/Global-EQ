@@ -212,42 +212,44 @@ final class PcmDspProcessor {
     }
 
     private static final class PsychoacousticBassProcessor {
-        // Constants remain mostly the same for compatibility
-        private static final int MIN_CUTOFF_HZ = 30;
-        private static final int MAX_CUTOFF_HZ = 300;
-        private static final int Q15_SHIFT = 15;
-        private static final int COEF_SHIFT = 14;
-        private static final int Q15_ONE = 1 << Q15_SHIFT;
-        private static final int INTENSITY_Q15_MAX = 32767;
-        private static final int[] INTENSITY_COEF = buildIntensityCoef();
-
-        // State indices
-        private static final int CROSSOVER_LP_ROW = 0;
-        private static final int CROSSOVER_BIQUAD_ROW = 1;
-        private static final int POST_FILTER_ROW = 2;
-        private static final int DELAY_BUFFER_SIZE = 256; // Enough for ~5ms @ 48kHz
+        private static final int MIN_CUTOFF_HZ = 35;
+        private static final int MAX_CUTOFF_HZ = 220;
+        private static final int MAX_DELAY_SAMPLES = 512;
 
         private final int sampleRate;
         private final int channelCount;
-        private final VBContext context = new VBContext();
 
-        private int cutoffHz = 120;
-        private int intensityQ15;
-        private int harmonicDriveQ14;
-        private int harmonicTrimQ15;
-        private int lowKeepQ15;
-        private int outputTrimQ15;
-        private int cutoffCompQ15;
-        private int postLowPassAlphaQ15;
-        private int wetBoostQ15;
-        private boolean lowCpuMode;
-        private int hpDelaySamples = 0; // Calculated based on filter delay
+        private MonoBiquad monoLowStageA;
+        private MonoBiquad monoLowStageB;
+        private MonoBiquad[] channelLowStageA;
+        private MonoBiquad[] channelLowStageB;
+        private MonoBiquad harmonicHighPass;
+        private MonoBiquad harmonicLowPass;
+        private MonoPeakFilter harmonicPeak;
+
+        private float[][] highDelayBuffer;
+        private int[] highDelayIndices;
+        private int highDelaySamples;
+
+        private float smoothedMix;
+        private float detectorState;
+        private float asymmetricState;
+        private float levelState;
+
+        private float wetMix;
+        private float dryLowKeep;
+        private float drive;
+        private float outputTrim;
+        private float riseAlpha;
+        private float fallAlpha;
+        private float blendToMethod2;
+        private float detectorTrimFloor;
+        private boolean active;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
             this.sampleRate = Math.max(8000, sampleRate);
             this.channelCount = Math.max(1, channelCount);
-            // Default configuration
-            configure(95, 50, 95, 50, false);
+            rebuildFilters(95, 0f);
         }
 
         void configure(int virtualCutoffHz,
@@ -255,78 +257,58 @@ final class PcmDspProcessor {
                        int dspCutoffHz,
                        int dspAmountPercent,
                        boolean lowCpuMode) {
-
             int amountPercent = Math.max(
                     clampInt(virtualAmountPercent, 0, 100),
                     clampInt(dspAmountPercent, 0, 100)
             );
-
-            this.lowCpuMode = lowCpuMode;
-
-            // Bypass if amount is 0
             if (amountPercent <= 0) {
-                intensityQ15 = 0;
-                harmonicDriveQ14 = 0;
-                harmonicTrimQ15 = 0;
-                lowKeepQ15 = 0;
-                outputTrimQ15 = Q15_ONE; // Unity gain
-                cutoffCompQ15 = 0;
-                postLowPassAlphaQ15 = 0;
-                wetBoostQ15 = 0;
+                active = false;
+                wetMix = 0f;
+                dryLowKeep = 0f;
+                drive = 1f;
+                outputTrim = 1f;
+                smoothedMix = 0f;
                 resetRuntime();
                 return;
             }
 
-            // Determine Cutoff
             int requestedCutoff = dspAmountPercent > 0 ? dspCutoffHz : virtualCutoffHz;
             if (requestedCutoff <= 0) {
                 requestedCutoff = Math.max(virtualCutoffHz, dspCutoffHz);
             }
-            cutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
-            intensityQ15 = INTENSITY_COEF[amountPercent];
-
+            int cutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
             float amount = amountPercent / 100f;
 
-            // Improved parameter curves for better psychoacoustic effect
-            // Drive: slightly more aggressive to generate harmonics on small speakers
-            harmonicDriveQ14 = Math.round((1.2f + amount * 1.1f) * (1 << COEF_SHIFT));
+            rebuildFilters(cutoffHz, amount);
 
-            // Trim: control the volume of the harmonics
-            harmonicTrimQ15 = clampInt(Math.round((0.9f + amount * 0.5f) * Q15_ONE), 0, Q15_ONE);
+            float shapedAmount = (float) Math.pow(amount, 1.12f);
+            drive = 1.15f + shapedAmount * 2.55f;
+            wetMix = 0.22f + (float) Math.pow(amount, 1.30f) * 2.85f;
+            dryLowKeep = 0.10f - amount * 0.08f;
+            outputTrim = 1f / (1f + wetMix * 0.34f);
 
-            // Low Keep: Allow slightly more original low freq if intensity is high
-            lowKeepQ15 = clampInt(Math.round((0.02f + amount * 0.08f) * Q15_ONE), 0, INTENSITY_Q15_MAX);
+            float riseMs = 0.25f;
+            float fallMs = 5.4f - amount * 1.4f;
+            riseAlpha = envelopeAlpha(riseMs);
+            fallAlpha = envelopeAlpha(Math.max(2.8f, fallMs));
 
-            // Output Trim: Prevent clipping when adding wet signal
-            outputTrimQ15 = clampInt(Math.round((0.95f + amount * 0.05f) * Q15_ONE), 0, 32767);
-
-            // Cutoff Compensation: High shelf compensation to balance the spectrum
-            float cutoffNorm = (cutoffHz - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ);
-            cutoffCompQ15 = clampInt(Math.round((1.3f - cutoffNorm * 0.3f) * Q15_ONE), 26214, Q15_ONE);
-
-            // Post Filter: Smoothing the harmonics
-            float postLowPassCutoff = clamp(cutoffHz * 1.4f + 50f, 100f, 300f);
-            postLowPassAlphaQ15 = clampInt(Math.round(onePoleAlpha(sampleRate, postLowPassCutoff) * Q15_ONE), 0, INTENSITY_Q15_MAX);
-
-            // Wet Boost: Add a bit of extra juice to the harmonics
-            wetBoostQ15 = clampInt(Math.round((1.1f + amount * 0.8f) * Q15_ONE), Q15_ONE, 65000);
+            blendToMethod2 = 0.18f + amount * 0.70f;
+            detectorTrimFloor = 0.40f - amount * 0.10f;
 
             if (lowCpuMode) {
-                harmonicTrimQ15 = mulQ15(harmonicTrimQ15, 29491); // Slight reduction in low CPU mode
-                wetBoostQ15 = mulQ15(wetBoostQ15, 29491);
+                wetMix *= 0.88f;
+                drive *= 0.94f;
             }
 
-            // Calculate required delay to align HP phase with LP+Harmonics phase
-            // Approx group delay of 3rd order LPF + 2nd order BPF + Shaper
-            // Simplified estimation: ~3.5ms
-            hpDelaySamples = (int) (0.0035f * sampleRate);
-            if (hpDelaySamples >= DELAY_BUFFER_SIZE) hpDelaySamples = DELAY_BUFFER_SIZE - 1;
-
-            vbInit();
+            active = true;
+            smoothedMix = 0f;
+            detectorState = 0f;
+            asymmetricState = 0f;
+            levelState = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
-            if (!isActive() || samples == null || samples.length == 0) {
+            if (!active || samples == null || samples.length == 0) {
                 return;
             }
 
@@ -339,340 +321,148 @@ final class PcmDspProcessor {
 
             for (int frame = 0; frame < frameCount; frame++) {
                 int frameOffset = frame * safeChannelCount;
-
-                // 1. Downmix to mono for bass processing
-                int monoQ15 = 0;
+                float mono = 0f;
                 for (int ch = 0; ch < safeChannelCount; ch++) {
-                    monoQ15 += floatToQ15(samples[frameOffset + ch]);
+                    mono += finiteOrZero(samples[frameOffset + ch]);
                 }
-                monoQ15 /= safeChannelCount;
+                mono /= safeChannelCount;
 
-                // 2. Process Low Path (Crossover -> Harmonics -> Post Filter)
-                int low = processCrossoverLow(clampQ15(monoQ15));
-                int harmonic = generateHarmonics(low);
-                int bass = processPostFilter(harmonic);
+                float lowBand = monoLowStageB.process(monoLowStageA.process(mono));
+                float harmonic = shapeHarmonics(lowBand);
+                smoothedMix += (wetMix - smoothedMix) * 0.015f;
+                float wet = harmonic * smoothedMix;
 
-                // Smooth intensity transition to prevent clicks
-                context.state += (intensityQ15 - context.state) >> 5;
-
-                // Apply wet gain and boost
-                int wet = mulQ15(mulQ15(bass, context.state), wetBoostQ15);
-
-                // Calculate original low content to keep (if any)
-                int preservedLow = mulQ15(low, lowKeepQ15);
-
-                // 3. Process High Path (Phase aligned via delay)
                 for (int ch = 0; ch < safeChannelCount; ch++) {
-                    int inputQ15 = floatToQ15(samples[frameOffset + ch]);
-
-                    // Create HP signal: Input - Low
-                    int high = inputQ15 - low;
-
-                    // Apply delay to high path to align with processed low path
-                    int delayedHigh = writeReadDelay(high, ch);
-
-                    // Combine: Delayed High + Preserved Low + Wet Harmonics
-                    int dry = delayedHigh + preservedLow;
-                    int sum = dry + wet;
-
-                    // Safety soft clipper before output trim
-                    int safeSum = softClipQ15(sum);
-
-                    int outputQ15 = mulQ15(safeSum, outputTrimQ15);
-                    samples[frameOffset + ch] = q15ToFloat(outputQ15);
+                    float input = finiteOrZero(samples[frameOffset + ch]);
+                    float channelLow = channelLowStageB[ch].process(channelLowStageA[ch].process(input));
+                    float high = input - channelLow;
+                    float delayedHigh = delayHighPath(ch, high);
+                    float combined = delayedHigh + channelLow * dryLowKeep + wet;
+                    samples[frameOffset + ch] = clampSample(softSaturate(combined) * outputTrim);
                 }
             }
         }
 
         boolean isActive() {
-            return intensityQ15 > 0;
+            return active;
         }
 
-        // --- Helper: Delay Line for Phase Alignment ---
-        private int writeReadDelay(int input, int channel) {
-            // Interleave channels in the delay buffer to maintain stereo separation if needed,
-            // or just use one buffer if strict mono processing is acceptable.
-            // Here we use a simple delay logic. For stereo, we might want separate buffers,
-            // but to save RAM/context size we use a simple stride or shared buffer.
-            // Given the context buffer size, let's just use the first row for simplicity
-            // or map channel to delay buffer index.
-            // For strict compatibility with existing context structure which doesn't have a large delay buffer,
-            // we rely on a simple approximation or add logic to VBContext if possible.
-            // *Wait*, VBContext is private. I can add fields to it.
-            // But to strictly follow "don't change interfaces", I will stick to the logic provided
-            // or minimal additions. Let's assume we added a delay buffer to VBContext.
+        private float shapeHarmonics(float lowBand) {
+            float driven = softSaturate(lowBand * drive);
+            float alpha = driven > asymmetricState ? riseAlpha : fallAlpha;
+            asymmetricState += (driven - asymmetricState) * alpha;
 
-            // Note: Since I cannot modify the class definition passed by the user prompt's constraint "don't change interface",
-            // I must use existing fields OR add minimal private fields if the class is being copy-pasted entirely.
-            // The user said "send me a complete class". So I can modify VBContext inner class.
+            float clippedNegative = driven > 0f ? asymmetricState : 0f;
+            float blended = asymmetricState * (1f - blendToMethod2) + clippedNegative * blendToMethod2;
 
-            // Implementation using context.hpDelayBuffer
-            int idx = context.hpDelayIdx;
-            int delayedVal = context.hpDelayBuffer[idx];
+            detectorState += (Math.abs(blended) - detectorState) * 0.030f;
+            levelState += (Math.abs(lowBand) - levelState) * 0.012f;
 
-            context.hpDelayBuffer[idx] = input;
+            float centered = blended - detectorState;
+            float trimmed = centered * Math.max(detectorTrimFloor, 1f - levelState * 0.9f);
 
-            // Circular buffer index increment
-            context.hpDelayIdx++;
-            if (context.hpDelayIdx >= hpDelaySamples) {
-                context.hpDelayIdx = 0;
-            }
+            float bandLimited = harmonicHighPass.process(trimmed);
+            bandLimited = harmonicLowPass.process(bandLimited);
+            bandLimited = harmonicPeak.process(bandLimited);
 
-            return delayedVal;
+            return softSaturate(bandLimited * 1.75f);
         }
 
-        private void vbInit() {
-            context.sampleRate = sampleRate;
-            context.numChannels = channelCount;
-            context.state = 0;
-            context.sd = 0;
-            context.cs = 0;
-            context.hpDelayIdx = 0;
-
-            Arrays.fill(context.fco, 0);
-            Arrays.fill(context.ffb, 0);
-            for (int i = 0; i < context.d.length; i++) {
-                Arrays.fill(context.d[i], 0);
+        private float delayHighPath(int channel, float input) {
+            if (highDelaySamples <= 1 || highDelayBuffer == null || channel >= highDelayBuffer.length) {
+                return input;
             }
-            Arrays.fill(context.hpDelayBuffer, 0);
+            float[] buffer = highDelayBuffer[channel];
+            int index = highDelayIndices[channel];
+            float delayed = buffer[index];
+            buffer[index] = input;
+            index++;
+            if (index >= highDelaySamples) {
+                index = 0;
+            }
+            highDelayIndices[channel] = index;
+            return delayed;
+        }
 
-            genButterworthFiltersOrder3(sampleRate, cutoffHz, context.fco);
-            genButterworthFiltersOrder2(sampleRate, cutoffHz, context.ffb);
+        private void rebuildFilters(int cutoffHz, float amount) {
+            float safeCutoff = clamp(cutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.20f));
+            monoLowStageA = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
+            monoLowStageB = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
+
+            channelLowStageA = new MonoBiquad[channelCount];
+            channelLowStageB = new MonoBiquad[channelCount];
+            for (int ch = 0; ch < channelCount; ch++) {
+                channelLowStageA[ch] = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
+                channelLowStageB[ch] = createMonoFilter(FilterType.LOW_PASS, safeCutoff, 58);
+            }
+
+            float harmonicHpHz = safeCutoff;
+            float harmonicLpHz = clamp(Math.max(300f, safeCutoff * 3.15f), 240f, Math.min(420f, sampleRate * 0.22f));
+            float harmonicPeakHz = clamp(safeCutoff * 1.9f + 25f, 110f, harmonicLpHz - 15f);
+            float harmonicPeakGainDb = 2.2f + amount * 5.0f;
+            float harmonicPeakQ = 0.82f + amount * 0.35f;
+
+            harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
+            harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
+            harmonicPeak = new MonoPeakFilter(sampleRate);
+            harmonicPeak.configure(harmonicPeakHz, harmonicPeakGainDb, harmonicPeakQ);
+
+            float estimatedDelayMs = 2.1f + safeCutoff / 135f;
+            highDelaySamples = clampInt(Math.round(sampleRate * estimatedDelayMs / 1000f), 1, MAX_DELAY_SAMPLES);
+            highDelayBuffer = new float[channelCount][highDelaySamples];
+            highDelayIndices = new int[channelCount];
         }
 
         private void resetRuntime() {
-            context.sampleRate = sampleRate;
-            context.numChannels = channelCount;
-            context.state = 0;
-            context.sd = 0;
-            context.cs = 0;
-            context.hpDelayIdx = 0;
-            Arrays.fill(context.fco, 0);
-            Arrays.fill(context.ffb, 0);
-            for (int i = 0; i < context.d.length; i++) {
-                Arrays.fill(context.d[i], 0);
+            detectorState = 0f;
+            asymmetricState = 0f;
+            levelState = 0f;
+            if (monoLowStageA != null) {
+                monoLowStageA.reset();
             }
-            Arrays.fill(context.hpDelayBuffer, 0);
-        }
-
-        private int processCrossoverLow(int inputQ15) {
-            // 3rd Order Linkwitz-Riley equivalent: 1st Pole -> Biquad
-            int firstOrder = onePoleLowPassQ15(inputQ15, context.fco[5], context.d[CROSSOVER_LP_ROW], 0);
-            return biquadQ15(firstOrder, context.fco, context.d[CROSSOVER_BIQUAD_ROW]);
-        }
-
-        private int generateHarmonics(int lowQ15) {
-            // 1. Pre-gain drive (push signal into non-linear range)
-            int driven = clampQ15(mulQ14(lowQ15, harmonicDriveQ14));
-
-            // 2. Wave Folding / Rectification (The harmonic generator)
-            // Full wave rectification creates strong 2nd harmonics.
-            int folded = Math.abs(driven);
-
-            // 3. Dynamic Envelope Shaping (The "Psychoacoustic" part)
-            // We track the average level of the rectified signal (cs).
-            // Then we subtract it (centered) to remove DC and even out the envelope.
-            // Improved attack/release for better transient response.
-
-            if (folded > context.cs) {
-                // Attack: faster response to transients
-                context.cs += (folded - context.cs) >> 3;
-            } else {
-                // Release: slower decay to sustain bass
-                context.cs += (folded - context.cs) >> 5;
+            if (monoLowStageB != null) {
+                monoLowStageB.reset();
             }
-
-            // Center the signal (removes DC offset from rectification)
-            // We multiply by 2 here to restore lost headroom from rectification subtraction
-            int centered = (folded - context.cs) << 1;
-
-            // 4. Wave Shaping (Soft Clipping)
-            // Generates odd harmonics and smooths the harsh edges of the rectified square-like wave
-            int shaped = softClipQ15(centered);
-
-            // Restore polarity (optional, but good for symmetry if we weren't doing abs)
-            // Since we did abs, the signal is unipolar. softClipQ15 preserves sign.
-            // We want the result to be bipolar audio.
-            // The 'centered' variable is technically bipolar (oscillates around 0 after DC removal).
-
-            // 5. Apply Harmonic Trim and Dynamic Envelope Trim
-            int compensated = mulQ15(shaped, harmonicTrimQ15);
-
-            // Envelope Trim: Reduce harmonics if the original signal is very loud to prevent masking
-            // Update context.sd (signal detector) with slightly slower time constants
-            context.sd += (Math.abs(lowQ15) - context.sd) >> 5;
-            int envelopeTrim = clampInt(Q15_ONE - (context.sd >> 3), 20000, Q15_ONE);
-
-            return mulQ15(compensated, envelopeTrim);
-        }
-
-        private static int[] buildIntensityCoef() {
-            int[] table = new int[101];
-            for (int i = 0; i < table.length; i++) {
-                float x = i / 100f;
-                // Curve: Starts gentle, becomes exponential at high end for "MaxxBass" style feel
-                float curved = (float) Math.pow(x, 1.2f);
-                curved *= 1.1f; // Max gain boost
-                int coef = Math.round(curved * INTENSITY_Q15_MAX);
-                if (i >= 90) {
-                    coef = INTENSITY_Q15_MAX;
+            if (channelLowStageA != null) {
+                for (MonoBiquad filter : channelLowStageA) {
+                    if (filter != null) {
+                        filter.reset();
+                    }
                 }
-                table[i] = clampInt(coef, 0, INTENSITY_Q15_MAX);
             }
-            return table;
+            if (channelLowStageB != null) {
+                for (MonoBiquad filter : channelLowStageB) {
+                    if (filter != null) {
+                        filter.reset();
+                    }
+                }
+            }
+            if (harmonicHighPass != null) {
+                harmonicHighPass.reset();
+            }
+            if (harmonicLowPass != null) {
+                harmonicLowPass.reset();
+            }
+            if (harmonicPeak != null) {
+                harmonicPeak.reset();
+            }
+            if (highDelayBuffer != null) {
+                for (float[] channelBuffer : highDelayBuffer) {
+                    Arrays.fill(channelBuffer, 0f);
+                }
+            }
+            if (highDelayIndices != null) {
+                Arrays.fill(highDelayIndices, 0);
+            }
         }
 
-        private int processPostFilter(int sampleQ15) {
-            // Bandpass to isolate the harmonic frequency range
-            int bandPassed = bandPassQ15(sampleQ15, context.ffb, context.d[POST_FILTER_ROW]);
-            // Lowpass to smooth out high-frequency harshness generated by non-linearity
-            int smoothed = onePoleLowPassQ15(bandPassed, postLowPassAlphaQ15, context.d[POST_FILTER_ROW], 2);
-            // Apply compensation gain
-            return mulQ15(smoothed, cutoffCompQ15);
+        private MonoBiquad createMonoFilter(FilterType type, float frequencyHz, int qHundred) {
+            return MonoBiquad.fromBand(new ParametricBand(type, true, Math.round(frequencyHz), 0, qHundred), sampleRate);
         }
 
-        private static void genButterworthFiltersOrder3(int sampleRate, int cutoffHz, int[] out) {
-            float safeCutoff = clamp(cutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.22f));
-            float alpha = onePoleAlpha(sampleRate, safeCutoff);
-            float[] biquad = rbjLowPass(sampleRate, safeCutoff, 0.7071f);
-            out[0] = toCoefQ14(biquad[0]);
-            out[1] = toCoefQ14(biquad[1]);
-            out[2] = toCoefQ14(biquad[2]);
-            out[3] = toCoefQ14(biquad[3]);
-            out[4] = toCoefQ14(biquad[4]);
-            out[5] = clampInt(Math.round(alpha * Q15_ONE), 0, INTENSITY_Q15_MAX);
-            out[6] = clampInt(Q15_ONE - out[5], 0, Q15_ONE);
-        }
-
-        private static void genButterworthFiltersOrder2(int sampleRate, int cutoffHz, int[] out) {
-            // Bandpass center frequency calculation optimized for virtual bass
-            // We want to emphasize the 2nd and 3rd harmonics.
-            float upperLimit = Math.min(sampleRate * 0.16f, 320f);
-            float center = clamp(cutoffHz * 1.6f + 40f, 80f, upperLimit);
-            float q = 0.8f; // Slightly wider Q for smoother sound
-            float[] biquad = rbjBandPass(sampleRate, center, q);
-            out[0] = toCoefQ14(biquad[0]);
-            out[1] = toCoefQ14(biquad[2]);
-            out[2] = toCoefQ14(biquad[3]);
-            out[3] = toCoefQ14(biquad[4]);
-        }
-
-        private static int onePoleLowPassQ15(int inputQ15, int alphaQ15, int[] stateRow, int stateIndex) {
-            int state = stateRow[stateIndex];
-            state += mulQ15(inputQ15 - state, alphaQ15);
-            state = clampQ15(state);
-            stateRow[stateIndex] = state;
-            return state;
-        }
-
-        private static int biquadQ15(int inputQ15, int[] coefficients, int[] delay) {
-            int output = clampQ15(mulQ14(inputQ15, coefficients[0]) + delay[0]);
-            int nextZ1 = mulQ14(inputQ15, coefficients[1]) - mulQ14(output, coefficients[3]) + delay[1];
-            int nextZ2 = mulQ14(inputQ15, coefficients[2]) - mulQ14(output, coefficients[4]);
-            delay[0] = clampQ15(nextZ1);
-            delay[1] = clampQ15(nextZ2);
-            return output;
-        }
-
-        private static int bandPassQ15(int inputQ15, int[] coefficients, int[] delay) {
-            int output = clampQ15(mulQ14(inputQ15, coefficients[0]) + delay[0]);
-            int nextZ1 = -mulQ14(output, coefficients[2]) + delay[1];
-            int nextZ2 = mulQ14(inputQ15, coefficients[1]) - mulQ14(output, coefficients[3]);
-            delay[0] = clampQ15(nextZ1);
-            delay[1] = clampQ15(nextZ2);
-            return output;
-        }
-
-        private static int softClipQ15(int sampleQ15) {
-            // Improved soft clipper using a cubic approximation for smoother harmonics
-            // y = x - 0.25*x^3  (normalized)
-            int x = clampQ15(sampleQ15);
-            int x2 = mulQ15(x, x);
-            // Polynomial approximation: x * (1.0 - 0.25 * x^2)
-            // In Q15: 1.0 = 32768, 0.25 = 8192
-            // term = x2 * 8192 >> 15 = x2 >> 2 (approx)
-            int term = x2 >> 2;
-            int y = x - mulQ15(x, term);
-            return clampQ15(y);
-
-            /* Original Rational function preserved if preferred, but cubic is often faster/cleaner for "warmth"
-            int x = clampQ15(sampleQ15);
-            int x2 = mulQ15(x, x);
-            int numerator = x * 27 + mulQ15(x, x2);
-            int denominator = 27 * Q15_ONE + 9 * x2;
-            if (denominator == 0) return 0;
-            return clampQ15((int) (((long) numerator << Q15_SHIFT) / denominator));
-            */
-        }
-
-        private static int mulQ15(int sampleQ15, int gainQ15) {
-            return (int) ((((long) sampleQ15 * gainQ15) + (1 << (Q15_SHIFT - 1))) >> Q15_SHIFT);
-        }
-
-        private static int mulQ14(int sampleQ15, int coefQ14) {
-            return (int) ((((long) sampleQ15 * coefQ14) + (1 << (COEF_SHIFT - 1))) >> COEF_SHIFT);
-        }
-
-        private static int toCoefQ14(float value) {
-            return clampInt(Math.round(value * (1 << COEF_SHIFT)), -(1 << 18), 1 << 18);
-        }
-
-        private static int floatToQ15(float sample) {
-            return clampQ15(Math.round(clamp(sample, -1f, 1f) * 32767f));
-        }
-
-        private static float q15ToFloat(int sampleQ15) {
-            return clamp(sampleQ15 / 32768f, -1f, 1f);
-        }
-
-        private static int clampQ15(int value) {
-            return clampInt(value, -32768, 32767);
-        }
-
-        private static float[] rbjLowPass(int sampleRate, float cutoffHz, float q) {
-            float w0 = (float) (2.0 * Math.PI * cutoffHz / Math.max(1, sampleRate));
-            float cosW0 = (float) Math.cos(w0);
-            float sinW0 = (float) Math.sin(w0);
-            float alpha = sinW0 / (2f * Math.max(0.15f, q));
-
-            float b0 = (1f - cosW0) * 0.5f;
-            float b1 = 1f - cosW0;
-            float b2 = (1f - cosW0) * 0.5f;
-            float a0 = 1f + alpha;
-            float a1 = -2f * cosW0;
-            float a2 = 1f - alpha;
-            return normalizeBiquad(b0, b1, b2, a0, a1, a2);
-        }
-
-        private static float[] rbjBandPass(int sampleRate, float centerHz, float q) {
-            float w0 = (float) (2.0 * Math.PI * centerHz / Math.max(1, sampleRate));
-            float cosW0 = (float) Math.cos(w0);
-            float sinW0 = (float) Math.sin(w0);
-            float alpha = sinW0 / (2f * Math.max(0.15f, q));
-
-            float b0 = alpha;
-            float b1 = 0f;
-            float b2 = -alpha;
-            float a0 = 1f + alpha;
-            float a1 = -2f * cosW0;
-            float a2 = 1f - alpha;
-            return normalizeBiquad(b0, b1, b2, a0, a1, a2);
-        }
-
-        private static float[] normalizeBiquad(float b0, float b1, float b2, float a0, float a1, float a2) {
-            float invA0 = Math.abs(a0) < 1.0e-9f ? 1f : 1f / a0;
-            return new float[]{
-                    b0 * invA0,
-                    b1 * invA0,
-                    b2 * invA0,
-                    a1 * invA0,
-                    a2 * invA0
-            };
-        }
-
-        private static float onePoleAlpha(int sampleRate, float cutoffHz) {
-            float omega = (float) (2.0 * Math.PI * cutoffHz / Math.max(1, sampleRate));
-            return omega / (1f + omega);
+        private float envelopeAlpha(float timeMs) {
+            float safeMs = Math.max(0.05f, timeMs);
+            return 1f - (float) Math.exp(-1f / (sampleRate * safeMs * 0.001f));
         }
 
         private static float clamp(float value, float min, float max) {
@@ -681,21 +471,6 @@ final class PcmDspProcessor {
 
         private static int clampInt(int value, int min, int max) {
             return Math.max(min, Math.min(max, value));
-        }
-
-        private static final class VBContext {
-            int sampleRate;
-            int numChannels;
-            int state;
-            int sd; // Signal detector (envelope)
-            int cs; // Center signal (DC offset tracker)
-            final int[] fco = new int[7]; // Crossover coeffs
-            final int[] ffb = new int[4]; // Feedback/Post filter coeffs
-            final int[][] d = new int[11][4]; // Delay lines for filters
-
-            // New fields for phase alignment
-            int hpDelayIdx;
-            final int[] hpDelayBuffer = new int[DELAY_BUFFER_SIZE];
         }
     }
 
