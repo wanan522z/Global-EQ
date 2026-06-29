@@ -1463,7 +1463,7 @@ public final class MainActivity extends Activity {
         TextView exportDeviceConfigButton = createExtraChoiceButton();
         exportDeviceConfigButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportDeviceConfigButton, 132);
-        exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJsonV2());
+        exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
         panel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
 
         LinearLayout aboutPanel = new LinearLayout(this);
