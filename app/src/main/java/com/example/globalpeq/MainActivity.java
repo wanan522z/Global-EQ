@@ -5502,6 +5502,7 @@ public final class MainActivity extends Activity {
         pendingExportJson = config.toJson();
         pendingExportSuccessMessage = tr("Global config exported", "全局配置已导出");
         openJsonExport(safeJsonFileName(currentDevice.label, "global-config"), REQUEST_EXPORT_DEVICE_CONFIG_JSON);
+        */
     }
 
     private void applyImportedPreset(Preset imported, boolean applyLive) {
@@ -6174,12 +6175,6 @@ public final class MainActivity extends Activity {
         pendingEnabledApplyPreset = runningPreset;
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.postDelayed(commitEnabledToggleRunnable, computeEnabledToggleCommitDelayMs());
-    }
-
-    private void scheduleEnabledToggleUiRefresh() {
-        pendingEnabledUiRefresh = true;
-        uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
-        uiHandler.postDelayed(refreshEnabledToggleUiRunnable, ENABLE_TOGGLE_UI_DELAY_MS);
     }
 
     private void commitPendingEnabledToggle() {
@@ -10125,13 +10120,6 @@ public final class MainActivity extends Activity {
                 Shader.TileMode.REPEAT));
     }
 
-    private void applyStatusShimmerShader(TextView view, int width, int startColor, int endColor) {
-        if (width <= 0) {
-            return;
-        }
-        applyAnimatedStatusShimmerShader(view, width, 0f, startColor, endColor);
-    }
-
     private void applyAnimatedStatusShimmerShader(TextView view, int width, float phase, int startColor, int endColor) {
         if (width <= 0) {
             return;
@@ -10154,11 +10142,6 @@ public final class MainActivity extends Activity {
                 },
                 new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
-    }
-
-    private void applySettingsPageTitleShader(TextView view, int width) {
-        applyTitleGradientShader(view, width, 
-                Color.rgb(0, 245, 212), Color.rgb(80, 220, 255), Color.rgb(180, 100, 255));
     }
 
     private int settingsTitleGradientWidth(TextView view) {
@@ -10518,48 +10501,6 @@ public final class MainActivity extends Activity {
         };
     }
 
-    private Drawable glowRoundRectDrawable(int fillColor, int strokeColor, int radiusPx, int glowRadiusPx, int glowColor) {
-        return new Drawable() {
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final android.graphics.RectF rect = new android.graphics.RectF();
-
-            @Override
-            public void draw(Canvas canvas) {
-                Rect b = getBounds();
-                float inset = Math.max(dpf(1f), glowRadiusPx * 0.45f);
-                rect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset);
-                float radius = Math.max(1f, radiusPx - inset * 0.35f);
-
-                paint.setShader(null);
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(fillColor);
-                paint.setShadowLayer(glowRadiusPx, 0, 0, glowColor);
-                canvas.drawRoundRect(rect, radius, radius, paint);
-                paint.clearShadowLayer();
-
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(dpf(1.15f));
-                paint.setColor(strokeColor);
-                canvas.drawRoundRect(rect, radius, radius, paint);
-            }
-
-            @Override
-            public void setAlpha(int alpha) {
-                paint.setAlpha(alpha);
-            }
-
-            @Override
-            public void setColorFilter(ColorFilter colorFilter) {
-                paint.setColorFilter(colorFilter);
-            }
-
-            @Override
-            public int getOpacity() {
-                return PixelFormat.TRANSLUCENT;
-            }
-        };
-    }
-
     private Drawable iconGlowDrawable(int glowColor) {
         return new AppIconBloomDrawable(glowColor);
     }
@@ -10782,20 +10723,6 @@ public final class MainActivity extends Activity {
             }
         }
         updateBottomTabIndicator(activeIndex, true);
-    }
-
-    private boolean isActiveBottomTab(View view) {
-        if (view == null) {
-            return false;
-        }
-        switch (clamp(activeMainPageIndex, 0, 2)) {
-            case 0:
-                return view == eqTabButton;
-            case 1:
-                return view == extraTabButton;
-            default:
-                return view == settingsTabButton;
-        }
     }
 
     private void updateBottomTabIndicator(int activeIndex, boolean animate) {
