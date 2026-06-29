@@ -108,7 +108,6 @@ final class AdvancedModeConfig {
                 apps.put(app);
             }
             object.put("monitoredApps", apps);
-            object.put("manualMonitoredApps", apps);
         } catch (JSONException ignored) {
             return "{}";
         }
@@ -130,7 +129,7 @@ final class AdvancedModeConfig {
                     object.optInt("lookaheadMs", DEFAULT.lookaheadMs),
                     object.optInt("limiterCeilingPermille", DEFAULT.limiterCeilingPermille),
                     object.optInt("limiterReleaseMs", DEFAULT.limiterReleaseMs),
-                    parseApps(object.optJSONArray("manualMonitoredApps"))
+                    parseApps(object.optJSONArray("monitoredApps"))
             );
         } catch (JSONException ignored) {
             return DEFAULT;
