@@ -77,10 +77,6 @@ final class AdvancedModeConfig {
         return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
     }
 
-    AdvancedModeConfig withMonitorIntervalMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, value, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
-    }
-
     AdvancedModeConfig withLookaheadMs(int value) {
         return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
     }
