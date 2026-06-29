@@ -371,11 +371,11 @@ final class PcmDspProcessor {
                             / (slowEnvelope + 0.0015f);
                 }
 
-                float transient = smoothStep(0.10f, 0.78f, transientRatio);
+                float transientAmount = smoothStep(0.10f, 0.78f, transientRatio);
 
                 float levelGate = smoothStep(0.0008f, 0.012f, envelope);
                 float pitchGate = confidence * confidence;
-                float transientSuppress = 1f - transient * 0.82f;
+                float transientSuppress = 1f - transientAmount * 0.82f;
 
                 float gate = levelGate * pitchGate * transientSuppress;
 
