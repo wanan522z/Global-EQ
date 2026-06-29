@@ -5844,7 +5844,6 @@ public final class MainActivity extends Activity {
                 });
             }
         });
-                .create();
         dialog.show();
         styleDialog(dialog);
     }
@@ -5874,16 +5873,32 @@ public final class MainActivity extends Activity {
                 .setCustomTitle(dialogTitleView(tr("Rename existing preset", "重命名现有预�?)))
                 .setView(container)
                 .setNegativeButton(tr("Cancel", "取消"), null)
-                    setDialogButtonsEnabled(dialog, false);
-                    repository.renameNamedPreset(existing.name, existing.withName(renamed));
-                    dialog.dismiss();
-                    uiHandler.post(() -> finishImportedPreset(imported, applyLive, "Preset imported"));
+                .setPositiveButton(tr("Rename and import", "重命名后导入"), null)
+                .create();
+        dialog.setOnShowListener(d -> {
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             if (positive != null) {
                 positive.setOnClickListener(v -> {
                     String renamed = input.getText() == null ? "" : input.getText().toString().trim();
                     if (renamed.isEmpty()) {
                         Toast.makeText(this, tr("Preset name required", "需要填写预设名�?), Toast.LENGTH_SHORT).show();
                         return;
+                    }
+                    if (repository.loadNamedPreset(renamed) != null) {
+                        Toast.makeText(this, tr("Preset name already exists", "预设名称已存�?), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    setDialogButtonsEnabled(dialog, false);
+                    repository.renameNamedPreset(existing.name, existing.withName(renamed));
+                    dialog.dismiss();
+                    uiHandler.post(() -> finishImportedPreset(imported, applyLive, "Preset imported"));
+                });
+            }
+        });
+        dialog.show();
+        styleDialog(dialog);
+    }
+
     private void finishImportedPreset(Preset imported, boolean applyLive, String successMessage) {
         flushPendingPresetPersistence();
         applyImportedPreset(imported, applyLive);
@@ -5907,22 +5922,6 @@ public final class MainActivity extends Activity {
                 button.setEnabled(enabled);
             }
         }
-    }
-
-                    }
-                    if (repository.loadNamedPreset(renamed) != null) {
-                        Toast.makeText(this, tr("Preset name already exists", "预设名称已存�?), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    repository.renameNamedPreset(existing.name, existing.withName(renamed));
-                    dialog.dismiss();
-                    applyImportedPreset(imported, applyLive);
-                    Toast.makeText(this, tr("Preset imported", "预设已导�?), Toast.LENGTH_SHORT).show();
-                });
-            }
-        });
-        dialog.show();
-        styleDialog(dialog);
     }
 
     private void applyImportedPreset(Preset imported, boolean applyLive) {
