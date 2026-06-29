@@ -1204,60 +1204,125 @@ final class PcmDspProcessor {
 
     private static final class FdnReverbTank {
         private static final int MATRIX_ORDER = 8;
+
         private final FdnLine[] lines;
         private final float[] delayed = new float[MATRIX_ORDER];
         private final float[] mixed = new float[MATRIX_ORDER];
         private final float[] output = new float[2];
+
         private int activeLines = MATRIX_ORDER;
         private float stereoWidth;
         private float inputGain;
 
         FdnReverbTank(int sampleRate) {
+            /*
+             * Delay 基准改得更不规则一点，减少固定音高/金属振铃。
+             * 原来 40/47/55/63/72/81/91/103 太接近规律递增。
+             */
             lines = new FdnLine[] {
-                    new FdnLine(sampleRate, 40f),
-                    new FdnLine(sampleRate, 47f),
-                    new FdnLine(sampleRate, 55f),
-                    new FdnLine(sampleRate, 63f),
-                    new FdnLine(sampleRate, 72f),
-                    new FdnLine(sampleRate, 81f),
-                    new FdnLine(sampleRate, 91f),
-                    new FdnLine(sampleRate, 103f)
+                    new FdnLine(sampleRate, 37.9f),
+                    new FdnLine(sampleRate, 43.7f),
+                    new FdnLine(sampleRate, 52.3f),
+                    new FdnLine(sampleRate, 61.1f),
+                    new FdnLine(sampleRate, 71.9f),
+                    new FdnLine(sampleRate, 83.3f),
+                    new FdnLine(sampleRate, 96.7f),
+                    new FdnLine(sampleRate, 111.5f)
             };
         }
 
-        void configure(ReverbProfile profile, float size, float decaySeconds, float decayShape, boolean lowCpuMode) {
+        void configure(ReverbProfile profile,
+                       float size,
+                       float decaySeconds,
+                       float decayShape,
+                       boolean lowCpuMode) {
             activeLines = lowCpuMode ? 4 : MATRIX_ORDER;
+
             stereoWidth = profile.width * (0.88f + size * 0.12f);
             inputGain = profile.inputGain * (0.92f + size * 0.08f);
+
             for (int i = 0; i < lines.length; i++) {
                 float delayMs = profile.fdnDelayMs[i] * (profile.minSizeScale + size * profile.sizeScaleRange);
-                float feedback = clamp(calculateRt60Feedback(delayMs, decaySeconds) * profile.feedbackScale - i * 0.008f, 0.2f, 0.91f);
-                float damping = clamp(profile.damping + decayShape * 0.14f + i * 0.012f, 0.08f, 0.72f);
-                float modDepthMs = profile.modDepthMs * (0.6f + size * 0.32f);
+
+                /*
+                 * 关键改动：
+                 * feedback 上限降低，且高序号 line 稍微多衰减。
+                 * 这样可以明显减少 “叮——”“嗡——” 的固定频率尾巴。
+                 */
+                float feedback = clamp(
+                        calculateRt60Feedback(delayMs, decaySeconds)
+                                * profile.feedbackScale
+                                - i * 0.011f
+                                - decayShape * 0.010f,
+                        0.18f,
+                        0.875f
+                );
+
+                /*
+                 * damping 不再随着 decayShape 过度变暗。
+                 * 这里略提高基础 damping，让尾巴保持清楚，但不尖锐。
+                 */
+                float damping = clamp(
+                        profile.damping
+                                + decayShape * 0.08f
+                                + i * 0.008f,
+                        0.14f,
+                        0.68f
+                );
+
+                /*
+                 * 调制略微增强，用来打散固定 delay 共振。
+                 * 不要太大，否则尾巴会晃、跑调。
+                 */
+                float modDepthMs = profile.modDepthMs * (0.82f + size * 0.35f);
                 float modRateHz = profile.modRateHz + i * profile.modSpreadHz;
-                lines[i].configure(delayMs, feedback, damping, modDepthMs, modRateHz, i * 0.61f, i < activeLines);
+
+                lines[i].configure(
+                        delayMs,
+                        feedback,
+                        damping,
+                        modDepthMs,
+                        modRateHz,
+                        i * 0.61f,
+                        i < activeLines
+                );
             }
         }
 
         float[] process(float left, float right) {
             float mono = (left + right) * 0.5f * inputGain;
+
             for (int i = 0; i < lines.length; i++) {
                 delayed[i] = i < activeLines ? lines[i].read() : 0f;
             }
+
             hadamard8(delayed, mixed);
+
             for (int i = 0; i < lines.length; i++) {
                 if (i >= activeLines) {
                     continue;
                 }
-                float excitation = ((i & 1) == 0 ? left : right) * 0.32f
-                        + ((i & 2) == 0 ? mono : -mono) * 0.24f;
+
+                /*
+                 * 轻微降低 excitation，减少 FDN 被输入持续顶响。
+                 */
+                float excitation = ((i & 1) == 0 ? left : right) * 0.28f
+                        + ((i & 2) == 0 ? mono : -mono) * 0.21f;
+
                 lines[i].write(excitation + mixed[i] * 0.35355338f);
             }
+
+            /*
+             * 输出组合稍微换一下，减少左右固定相关振铃。
+             */
             float leftOut = (delayed[0] + delayed[2] + delayed[5] - delayed[7]) * 0.25f;
             float rightOut = (delayed[1] + delayed[3] + delayed[4] - delayed[6]) * 0.25f;
+
             float mid = (leftOut + rightOut) * 0.5f;
+
             output[0] = mid + (leftOut - mid) * stereoWidth;
             output[1] = mid + (rightOut - mid) * stereoWidth;
+
             return output;
         }
 
@@ -1294,6 +1359,10 @@ final class PcmDspProcessor {
             out[5] = b1 - b5;
             out[6] = b2 - b6;
             out[7] = b3 - b7;
+        }
+
+        private static float clamp(float value, float min, float max) {
+            return Math.max(min, Math.min(max, value));
         }
     }
 
@@ -1632,127 +1701,174 @@ final class PcmDspProcessor {
         final float highCutHz;
 
         /*
-         * 预创建 profile，避免每次 configure / 拖滑杆时 new 对象和 new float[]。
-         * 注意：这些数组不要在别处修改。
+         * 静态缓存，避免每次 configure 时 new ReverbProfile / new float[]。
          */
+
         private static final ReverbProfile HALL = new ReverbProfile(
-                new float[] {29.8f, 34.7f, 39.2f, 43.6f, 49.1f, 56.4f, 63.7f, 72.3f},
-                new float[] {3.7f, 6.1f, 9.6f},
+                /*
+                 * Delay 更不规则，减少金属音。
+                 */
+                new float[] {29.1f, 34.9f, 40.6f, 46.3f, 53.8f, 62.7f, 74.1f, 88.9f},
+                new float[] {3.5f, 5.8f, 8.9f},
                 new float[] {7.1f, 11.3f, 16.8f, 22.5f, 31.8f, 42.2f},
                 new float[] {9.2f, 14.7f, 19.4f, 27.6f, 36.1f, 48.7f},
                 new float[] {0.38f, 0.29f, 0.24f, 0.20f, 0.16f, 0.13f},
+
                 0.86f,
                 0.82f,
-                0.98f,
+
+                /*
+                 * feedbackScale 降一点，避免长尾固定共振。
+                 */
+                0.94f,
+
                 0.28f,
-                0.30f,
-                0.70f,
+
+                /*
+                 * damping 稍高，尾巴更清楚，但 diffusion 降低，减少 allpass 金属感。
+                 */
+                0.36f,
+                0.60f,
+
                 0.24f,
-                0.92f,
+                0.90f,
                 0.30f,
-                1.02f,
+                1.00f,
                 1.05f,
                 0.28f,
-                0.045f,
+
+                /*
+                 * 调制略加强，打散 ringing。
+                 */
+                0.070f,
                 0.12f,
                 0.007f,
-                11800f
+
+                /*
+                 * 不回到 5k 那种糊声，只稍微收一点。
+                 */
+                10800f
         );
 
         private static final ReverbProfile PLATE = new ReverbProfile(
-                new float[] {23.9f, 27.8f, 31.6f, 36.2f, 40.9f, 46.4f, 52.7f, 59.8f},
-                new float[] {2.8f, 4.9f, 7.1f},
+                new float[] {22.7f, 27.1f, 32.8f, 38.6f, 45.9f, 54.2f, 64.7f, 76.9f},
+                new float[] {2.7f, 4.6f, 6.8f},
                 new float[] {5.4f, 8.1f, 12.0f, 16.7f, 23.6f, 31.9f},
                 new float[] {6.2f, 9.8f, 13.7f, 18.8f, 25.4f, 34.1f},
                 new float[] {0.42f, 0.33f, 0.27f, 0.21f, 0.17f, 0.14f},
+
                 0.74f,
                 0.58f,
-                0.95f,
+                0.90f,
                 0.20f,
-                0.34f,
-                0.72f,
-                0.18f,
-                0.98f,
+                0.40f,
+                0.58f,
+
+                /*
+                 * Plate early 少一点，late 稍强，保留板式质感但减少尖锐振铃。
+                 */
+                0.17f,
+                0.94f,
                 0.28f,
-                1.00f,
+                0.96f,
                 0.98f,
                 0.24f,
-                0.034f,
+
+                0.055f,
                 0.18f,
                 0.010f,
-                15000f
+
+                12800f
         );
 
         private static final ReverbProfile CHAMBER = new ReverbProfile(
-                new float[] {21.3f, 24.7f, 28.6f, 33.1f, 37.4f, 42.9f, 48.5f, 55.9f},
-                new float[] {3.0f, 4.8f, 7.4f},
+                new float[] {20.8f, 25.4f, 30.7f, 36.8f, 43.3f, 51.6f, 61.2f, 72.8f},
+                new float[] {2.9f, 4.6f, 7.1f},
                 new float[] {5.8f, 9.1f, 13.9f, 19.7f, 28.1f, 37.3f},
                 new float[] {7.0f, 10.8f, 15.4f, 21.3f, 30.2f, 39.8f},
                 new float[] {0.39f, 0.31f, 0.25f, 0.20f, 0.16f, 0.13f},
+
                 0.76f,
                 0.62f,
-                0.96f,
+                0.92f,
                 0.22f,
-                0.31f,
-                0.69f,
+                0.37f,
+                0.59f,
+
                 0.22f,
-                0.95f,
+                0.91f,
                 0.29f,
-                0.98f,
+                0.96f,
                 1.00f,
                 0.25f,
-                0.036f,
+
+                0.060f,
                 0.14f,
                 0.009f,
-                12500f
+
+                11200f
         );
 
         private static final ReverbProfile ROOM = new ReverbProfile(
-                new float[] {14.2f, 17.1f, 19.8f, 22.9f, 26.3f, 29.8f, 34.2f, 38.7f},
-                new float[] {2.2f, 3.6f, 5.3f},
+                new float[] {13.7f, 16.9f, 20.7f, 25.1f, 30.4f, 36.2f, 43.8f, 52.6f},
+                new float[] {2.1f, 3.4f, 5.0f},
                 new float[] {3.9f, 6.2f, 9.7f, 13.8f, 18.5f, 24.2f},
                 new float[] {4.8f, 7.4f, 10.9f, 15.1f, 20.4f, 26.7f},
                 new float[] {0.44f, 0.35f, 0.28f, 0.22f, 0.17f, 0.13f},
+
                 0.64f,
                 0.40f,
-                0.90f,
-                0.16f,
-                0.36f,
-                0.66f,
-                0.30f,
                 0.86f,
+                0.16f,
+                0.41f,
+                0.55f,
+
+                /*
+                 * Room 早反射多一点，late 少一点，减少“空桶金属尾巴”。
+                 */
+                0.30f,
+                0.80f,
                 0.32f,
-                0.90f,
+                0.88f,
                 0.92f,
                 0.21f,
-                0.028f,
+
+                0.040f,
                 0.12f,
                 0.008f,
-                10500f
+
+                9600f
         );
 
         private static final ReverbProfile STUDIO = new ReverbProfile(
-                new float[] {11.8f, 13.6f, 15.8f, 18.3f, 21.1f, 24.4f, 27.8f, 31.5f},
-                new float[] {1.8f, 2.9f, 4.4f},
+                new float[] {11.5f, 14.2f, 17.6f, 21.4f, 25.9f, 31.1f, 37.2f, 44.6f},
+                new float[] {1.7f, 2.8f, 4.1f},
                 new float[] {3.2f, 5.0f, 7.7f, 10.9f, 14.8f, 19.3f},
                 new float[] {3.8f, 5.9f, 8.5f, 11.9f, 15.7f, 20.9f},
                 new float[] {0.41f, 0.32f, 0.26f, 0.21f, 0.16f, 0.12f},
+
                 0.56f,
                 0.30f,
-                0.88f,
-                0.14f,
-                0.38f,
-                0.64f,
-                0.34f,
-                0.80f,
-                0.34f,
                 0.84f,
+                0.14f,
+                0.43f,
+                0.52f,
+
+                /*
+                 * Studio 更短、更干净，减少尾巴参与感。
+                 */
+                0.34f,
+                0.72f,
+                0.34f,
+                0.82f,
                 0.90f,
                 0.18f,
-                0.022f,
+
+                0.034f,
                 0.11f,
                 0.007f,
-                13200f
+
+                11500f
         );
 
         private static final ReverbProfile DEFAULT = new ReverbProfile(
@@ -1761,22 +1877,26 @@ final class PcmDspProcessor {
                 new float[] {4.9f, 7.7f, 11.8f, 16.4f, 22.9f, 31.2f},
                 new float[] {6.0f, 9.4f, 13.2f, 18.5f, 25.8f, 34.7f},
                 new float[] {0.40f, 0.31f, 0.25f, 0.20f, 0.16f, 0.13f},
+
                 0.70f,
                 0.50f,
-                0.93f,
+                0.88f,
                 0.20f,
-                0.32f,
-                0.68f,
+                0.38f,
+                0.56f,
+
                 0.24f,
-                0.90f,
+                0.84f,
                 0.30f,
-                0.94f,
+                0.90f,
                 0.96f,
                 0.23f,
-                0.032f,
+
+                0.042f,
                 0.13f,
                 0.008f,
-                12000f
+
+                10800f
         );
 
         ReverbProfile(float[] fdnDelayMs,
@@ -1827,18 +1947,23 @@ final class PcmDspProcessor {
             if ("Hall".equals(type)) {
                 return HALL;
             }
+
             if ("Plate".equals(type)) {
                 return PLATE;
             }
+
             if ("Chamber".equals(type)) {
                 return CHAMBER;
             }
+
             if ("Room".equals(type)) {
                 return ROOM;
             }
+
             if ("Studio".equals(type)) {
                 return STUDIO;
             }
+
             return DEFAULT;
         }
     }
