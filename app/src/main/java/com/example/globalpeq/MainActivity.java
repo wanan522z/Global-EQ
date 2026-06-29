@@ -7989,12 +7989,19 @@ public final class MainActivity extends Activity {
     }
 
     private void closeKeyboard(View view) {
+        hideEqEditOverlay();
+        dismissKeyboard(view, true);
+    }
+
+    private void dismissKeyboard(View view, boolean clearFocus) {
         InputMethodManager manager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         View focused = getCurrentFocus();
         View tokenView = focused != null ? focused : view;
-        hideEqEditOverlay();
         if (manager != null) {
             uiHandler.post(() -> manager.hideSoftInputFromWindow(tokenView.getWindowToken(), 0));
+        }
+        if (!clearFocus) {
+            return;
         }
         if (focused != null) {
             focused.clearFocus();
