@@ -3058,21 +3058,6 @@ public final class MainActivity extends Activity {
         );
     }
 
-    private View createMonitoredAppMenuRow(ResolveInfo info, boolean active, AlertDialog[] dialogHolder) {
-        Drawable icon = info.loadIcon(getPackageManager());
-        String packageName = info.activityInfo.packageName;
-        CharSequence label = info.loadLabel(getPackageManager());
-        String titleText = label == null ? packageName : label.toString();
-        return createMonitoredAppMenuRow(
-                icon,
-                titleText,
-                packageName,
-                active,
-                dialogHolder,
-                () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, titleText))
-        );
-    }
-
     private View createMonitoredAppMenuRow(Drawable iconDrawable,
                                            String titleText,
                                            String subtitleText,
