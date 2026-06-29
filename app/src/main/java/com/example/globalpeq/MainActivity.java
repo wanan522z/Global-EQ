@@ -773,7 +773,7 @@ public final class MainActivity extends Activity {
 
     private void removeKeyboardVisibilityListener() {
         if (contentRootView == null || keyboardLayoutListener == null) {
-            return; /*
+            return;
         }
         contentRootView.getViewTreeObserver().removeOnGlobalLayoutListener(keyboardLayoutListener);
         keyboardLayoutListener = null;
