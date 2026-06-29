@@ -47,11 +47,15 @@ public final class GlobalEqForegroundService extends Service {
     private AdvancedModeConfig pendingCaptureConfig = AdvancedModeConfig.DEFAULT;
     private int pendingCaptureVirtualBassModeIndex;
     private AudioOutputDevice pendingCaptureDevice = new AudioOutputDevice("none", "Output device");
+    private boolean pendingCaptureRouteRefresh;
     private final Runnable applyPendingCaptureUpdateRunnable = new Runnable() {
         @Override
         public void run() {
             if (captureEngine == null || shizukuMuteEngine == null) {
                 return;
+            }
+            if (pendingCaptureRouteRefresh) {
+                captureEngine.requestOutputRouteRefresh();
             }
             captureEngine.updateProcessing(
                     pendingCaptureMode,
@@ -59,6 +63,7 @@ public final class GlobalEqForegroundService extends Service {
                     pendingCaptureConfig,
                     pendingCaptureVirtualBassModeIndex,
                     pendingCaptureDevice);
+            pendingCaptureRouteRefresh = false;
             shizukuMuteEngine.updateProcessing(
                     pendingCaptureMode,
                     pendingCapturePreset,
@@ -129,7 +134,8 @@ public final class GlobalEqForegroundService extends Service {
                     currentAdvancedModeConfig,
                     virtualBassModeIndex,
                     currentDevice,
-                    CAPTURE_UPDATE_DEBOUNCE_MS);
+                    CAPTURE_UPDATE_DEBOUNCE_MS,
+                    sameRoute && currentProcessingMode == ProcessingMode.SHIZUKU_MUTE);
             updateNotification();
         });
     }
@@ -406,6 +412,16 @@ public final class GlobalEqForegroundService extends Service {
                                        int virtualBassModeIndex,
                                        AudioOutputDevice outputDevice,
                                        long delayMs) {
+        scheduleCaptureUpdate(processingMode, preset, config, virtualBassModeIndex, outputDevice, delayMs, false);
+    }
+
+    private void scheduleCaptureUpdate(ProcessingMode processingMode,
+                                       Preset preset,
+                                       AdvancedModeConfig config,
+                                       int virtualBassModeIndex,
+                                       AudioOutputDevice outputDevice,
+                                       long delayMs,
+                                       boolean forceRouteRefresh) {
         Handler handler = captureControlHandler;
         if (handler == null || captureEngine == null || shizukuMuteEngine == null) {
             return;
@@ -417,6 +433,7 @@ public final class GlobalEqForegroundService extends Service {
         pendingCaptureDevice = outputDevice == null
                 ? new AudioOutputDevice("none", "Output device")
                 : outputDevice;
+        pendingCaptureRouteRefresh = forceRouteRefresh;
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
         if (delayMs <= 0L) {
             handler.post(applyPendingCaptureUpdateRunnable);
