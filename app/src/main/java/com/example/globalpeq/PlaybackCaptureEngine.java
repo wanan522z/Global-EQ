@@ -41,6 +41,8 @@ final class PlaybackCaptureEngine {
     private static final int MAX_BLUETOOTH_CHUNK_FRAMES = 640;
     private static final int BLUETOOTH_HEAVY_DSP_CHUNK_FRAMES = 384;
     private static final int BLUETOOTH_PREFILL_CHUNKS = 4;
+    private static final long SILENCE_SELF_HEAL_AFTER_MS = 2200L;
+    private static final long SELF_HEAL_RESTART_COOLDOWN_MS = 4000L;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -76,6 +78,9 @@ final class PlaybackCaptureEngine {
     private boolean captureWaitingLogged;
     private String publishedStatus = "";
     private boolean publishedActive;
+    private boolean forceOutputRouteRefresh;
+    private long lastPipelineStartAt;
+    private long lastSelfHealRestartAt;
 
     PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
         this.appContext = context.getApplicationContext();
@@ -196,11 +201,13 @@ final class PlaybackCaptureEngine {
 
         boolean outputRouteRestartRequired = currentMode != ProcessingMode.SHIZUKU_MUTE
                 && !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
+        boolean forcedRouteRefreshRequired = forceOutputRouteRefresh;
         boolean requiresRestart = !running
                 || configuredTargetUid != currentTargetUid
                 || configuredBufferFrames != currentConfig.bufferSizeFrames
                 || configuredLatencyMs != currentConfig.latencyMs
-                || outputRouteRestartRequired;
+                || outputRouteRestartRequired
+                || forcedRouteRefreshRequired;
         if (requiresRestart) {
             startPipelineLocked();
         } else {
@@ -233,6 +240,10 @@ final class PlaybackCaptureEngine {
         stopPipelineLocked();
         releaseProjectionLocked();
         publishStatus("Native capture is idle.", false);
+    }
+
+    synchronized void requestOutputRouteRefresh() {
+        forceOutputRouteRefresh = true;
     }
 
     private int resolveTargetUid(String packageName) {
@@ -374,7 +385,9 @@ final class PlaybackCaptureEngine {
             configuredChunkFrames = processingChunkFrames;
             configuredLatencyMs = currentConfig.latencyMs;
             configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
+            forceOutputRouteRefresh = false;
             running = true;
+            lastPipelineStartAt = SystemClock.elapsedRealtime();
             reconfigureEffectsLocked();
 
             audioTrack.play();
@@ -489,6 +502,18 @@ final class PlaybackCaptureEngine {
                     publishStatus(waitingStatusText(), false);
                     signaledLive = false;
                 }
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastSignalAt >= SILENCE_SELF_HEAL_AFTER_MS
+                        && shouldSelfHealAfterSilence(now)) {
+                    Log.w(TAG, "Self-healing native capture after prolonged silence"
+                            + " target=" + currentTargetLabel
+                            + ", targetUid=" + currentTargetUid
+                            + ", output=" + configuredOutputDeviceKey
+                            + ", silentReadCount=" + silentReadCount
+                            + ", peak=" + peak);
+                    restartPipelineFromWorker(workerToken);
+                    return;
+                }
             }
 
             synchronized (dspLock) {
@@ -524,6 +549,27 @@ final class PlaybackCaptureEngine {
             stopPipelineLocked();
         }
         publishStatus("Native capture stopped. Re-authorize if the session was interrupted.", false);
+    }
+
+    private boolean shouldSelfHealAfterSilence(long now) {
+        if (!running || now - lastPipelineStartAt < 1200L) {
+            return false;
+        }
+        if (now - lastSelfHealRestartAt < SELF_HEAL_RESTART_COOLDOWN_MS) {
+            return false;
+        }
+        return hasRelevantActivePlayback();
+    }
+
+    private void restartPipelineFromWorker(Object workerToken) {
+        synchronized (this) {
+            if (!running || activeWorkerToken != workerToken) {
+                return;
+            }
+            lastSelfHealRestartAt = SystemClock.elapsedRealtime();
+            forceOutputRouteRefresh = true;
+            startPipelineLocked();
+        }
     }
 
     private void reconfigureEffectsLocked() {
@@ -804,6 +850,42 @@ final class PlaybackCaptureEngine {
             Log.w(TAG, "Unable to read playback client uid", ex);
         }
         return -1;
+    }
+
+    private boolean hasRelevantActivePlayback() {
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return false;
+        }
+        try {
+            for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                if (configuration == null) {
+                    continue;
+                }
+                android.media.AudioAttributes attributes = configuration.getAudioAttributes();
+                if (attributes == null) {
+                    continue;
+                }
+                int usage = attributes.getUsage();
+                if (usage != AudioAttributes.USAGE_MEDIA
+                        && usage != AudioAttributes.USAGE_GAME
+                        && usage != AudioAttributes.USAGE_UNKNOWN) {
+                    continue;
+                }
+                int uid = readPlaybackClientUid(configuration);
+                if (uid <= 0 || uid == android.os.Process.myUid()) {
+                    continue;
+                }
+                if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+                    return true;
+                }
+                if (uid == currentTargetUid) {
+                    return true;
+                }
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to inspect active playback during silence self-heal", ex);
+        }
+        return false;
     }
 
     private AudioDeviceInfo readPlaybackDeviceInfo(AudioPlaybackConfiguration configuration) {
