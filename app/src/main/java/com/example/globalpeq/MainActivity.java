@@ -7992,6 +7992,7 @@ public final class MainActivity extends Activity {
     }
 
     private void closeKeyboard(View view) {
+        suppressEqOverlayHideOnKeyboardDismiss = false;
         hideEqEditOverlay();
         dismissKeyboard(view, true);
     }
