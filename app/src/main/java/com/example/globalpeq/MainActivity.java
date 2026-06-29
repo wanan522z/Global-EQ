@@ -5726,10 +5726,11 @@ public final class MainActivity extends Activity {
         }
         try {
             Preset imported = PresetFile.fromJson(json).preset;
-            handleImportedPreset(imported, true);
-            return;
+            if (imported != null) {
+                handleImportedPreset(imported, true);
+                return;
+            }
             Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
-            */
         } catch (JSONException ex) {
             Toast.makeText(this, tr("Invalid JSON file", "JSON 文件无效"), Toast.LENGTH_SHORT).show();
         }
