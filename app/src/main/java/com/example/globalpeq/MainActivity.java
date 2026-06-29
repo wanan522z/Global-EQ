@@ -5824,11 +5824,26 @@ public final class MainActivity extends Activity {
                         "A preset named \"" + importedName + "\" already exists. Replace it or rename the existing preset first?",
                         "名为�? + importedName + "”的预设已存在。要直接替换，还是先重命名现有预设？"))
                 .setNegativeButton(tr("Cancel", "取消"), null)
-                .setNeutralButton(tr("Rename current", "重命名当前预�?), (d, which) -> showRenameExistingPresetDialog(imported, existing, applyLive))
-                .setPositiveButton(tr("Replace", "直接替换"), (d, which) -> {
-                    applyImportedPreset(imported, applyLive);
-                    Toast.makeText(this, tr("Preset replaced", "预设已替�?), Toast.LENGTH_SHORT).show();
-                })
+                .setNeutralButton(tr("Rename current", "重命名当前预�?), null)
+                .setPositiveButton(tr("Replace", "直接替换"), null)
+                .create();
+        dialog.setOnShowListener(d -> {
+            Button replaceButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (replaceButton != null) {
+                replaceButton.setOnClickListener(v -> {
+                    setDialogButtonsEnabled(dialog, false);
+                    dialog.dismiss();
+                    uiHandler.post(() -> finishImportedPreset(imported, applyLive, "Preset replaced"));
+                });
+            }
+            Button renameButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+            if (renameButton != null) {
+                renameButton.setOnClickListener(v -> {
+                    dialog.dismiss();
+                    uiHandler.post(() -> showRenameExistingPresetDialog(imported, existing, applyLive));
+                });
+            }
+        });
                 .create();
         dialog.show();
         styleDialog(dialog);
@@ -5859,16 +5874,41 @@ public final class MainActivity extends Activity {
                 .setCustomTitle(dialogTitleView(tr("Rename existing preset", "重命名现有预�?)))
                 .setView(container)
                 .setNegativeButton(tr("Cancel", "取消"), null)
-                .setPositiveButton(tr("Rename and import", "重命名后导入"), null)
-                .create();
-        dialog.setOnShowListener(d -> {
-            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                    setDialogButtonsEnabled(dialog, false);
+                    repository.renameNamedPreset(existing.name, existing.withName(renamed));
+                    dialog.dismiss();
+                    uiHandler.post(() -> finishImportedPreset(imported, applyLive, "Preset imported"));
             if (positive != null) {
                 positive.setOnClickListener(v -> {
                     String renamed = input.getText() == null ? "" : input.getText().toString().trim();
                     if (renamed.isEmpty()) {
                         Toast.makeText(this, tr("Preset name required", "需要填写预设名�?), Toast.LENGTH_SHORT).show();
                         return;
+    private void finishImportedPreset(Preset imported, boolean applyLive, String successMessage) {
+        flushPendingPresetPersistence();
+        applyImportedPreset(imported, applyLive);
+        if (successMessage != null && !successMessage.isEmpty()) {
+            Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void setDialogButtonsEnabled(AlertDialog dialog, boolean enabled) {
+        if (dialog == null) {
+            return;
+        }
+        int[] buttonTypes = new int[] {
+                AlertDialog.BUTTON_POSITIVE,
+                AlertDialog.BUTTON_NEGATIVE,
+                AlertDialog.BUTTON_NEUTRAL
+        };
+        for (int buttonType : buttonTypes) {
+            Button button = dialog.getButton(buttonType);
+            if (button != null) {
+                button.setEnabled(enabled);
+            }
+        }
+    }
+
                     }
                     if (repository.loadNamedPreset(renamed) != null) {
                         Toast.makeText(this, tr("Preset name already exists", "预设名称已存�?), Toast.LENGTH_SHORT).show();
