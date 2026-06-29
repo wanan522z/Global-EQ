@@ -5883,25 +5883,51 @@ public final class MainActivity extends Activity {
 
     private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
         String importedName = presetDisplayName(imported);
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(20), dp(10), dp(20), dp(16));
+
+        TextView message = new TextView(this);
+        message.setText(tr(
+                "A preset named \"" + importedName + "\" already exists. Replace it or rename the imported preset?",
+                "鍚嶄负鈥? + importedName + "鈥濈殑棰勮宸插瓨鍦ㄣ€傝鐩存帴鏇挎崲锛岃繕鏄厛閲嶅懡鍚嶅鍏ラ璁撅紵"));
+        message.setTextSize(14);
+        message.setTextColor(Color.rgb(200, 210, 230));
+        container.addView(message, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Preset already exists"))
-                .setMessage("A preset named \"" + importedName + "\" already exists. Replace it or rename the imported preset?")
-                .setNegativeButton("Cancel", null)
-                .setNeutralButton("Rename", null)
-                .setPositiveButton("Replace", (d, which) -> {
-                    applyImportedPreset(imported, applyLive);
-                    Toast.makeText(this, "Preset replaced", Toast.LENGTH_SHORT).show();
-                })
+                .setCustomTitle(dialogTitleView(tr("Preset already exists", "棰勮鍚嶇О宸插瓨鍦?)))
+                .setView(container)
                 .create();
-        dialog.setOnShowListener(d -> {
-            Button rename = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
-            if (rename != null) {
-                rename.setOnClickListener(v -> {
-                    dialog.dismiss();
-                    showRenameImportedPresetDialog(imported, applyLive);
-                });
-            }
+
+        Button rename = new Button(this);
+        rename.setText(tr("Rename imported preset", "閲嶅懡鍚嶅鍏ラ璁?));
+        styleButton(rename, false, true);
+        rename.setOnClickListener(v -> {
+            dialog.dismiss();
+            showRenameImportedPresetDialog(imported, applyLive);
         });
+        container.addView(rename, dialogActionButtonParams(16));
+
+        Button replace = new Button(this);
+        replace.setText(tr("Replace existing preset", "鐩存帴鏇挎崲棰勮"));
+        styleAccentButton(replace, true);
+        replace.setOnClickListener(v -> {
+            dialog.dismiss();
+            applyImportedPreset(imported, applyLive);
+            Toast.makeText(this, tr("Preset replaced", "棰勮宸叉浛鎹?), Toast.LENGTH_SHORT).show();
+        });
+        container.addView(replace, dialogActionButtonParams(10));
+
+        Button cancel = new Button(this);
+        cancel.setText(tr("Cancel", "鍙栨秷"));
+        styleButton(cancel, false, true);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        container.addView(cancel, dialogActionButtonParams(10));
+
         dialog.show();
         styleDialog(dialog);
     }
@@ -5921,37 +5947,48 @@ public final class MainActivity extends Activity {
 
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(dp(20), dp(4), dp(20), dp(8));
+        container.setPadding(dp(20), dp(4), dp(20), dp(16));
         container.addView(input, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(46)
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Rename imported preset"))
+                .setCustomTitle(dialogTitleView(tr("Rename imported preset", "閲嶅懡鍚嶅鍏ラ璁?)))
                 .setView(container)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Import", null)
                 .create();
-        dialog.setOnShowListener(d -> {
-            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            if (positive != null) {
-                positive.setOnClickListener(v -> {
-                    String renamed = input.getText() == null ? "" : input.getText().toString().trim();
-                    if (renamed.isEmpty()) {
-                        Toast.makeText(this, "Preset name required", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    if (repository.loadNamedPreset(renamed) != null) {
-                        Toast.makeText(this, "Preset name already exists", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    applyImportedPreset(imported.withName(renamed), applyLive);
-                    Toast.makeText(this, "Preset imported", Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
-                });
+
+        Button importButton = new Button(this);
+        importButton.setText(tr("Import", "瀵煎叆"));
+        styleAccentButton(importButton, true);
+        importButton.setOnClickListener(v -> {
+            String renamed = input.getText() == null ? "" : input.getText().toString().trim();
+            if (renamed.isEmpty()) {
+                Toast.makeText(this, tr("Preset name required", "闇€瑕佸～鍐欓璁惧悕绉?), Toast.LENGTH_SHORT).show();
+                return;
             }
+            if (repository.loadNamedPreset(renamed) != null) {
+                Toast.makeText(this, tr("Preset name already exists", "棰勮鍚嶇О宸插瓨鍦?), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            dialog.dismiss();
+            applyImportedPreset(imported.withName(renamed), applyLive);
+            Toast.makeText(this, tr("Preset imported", "棰勮宸插鍏?), Toast.LENGTH_SHORT).show();
+        });
+        container.addView(importButton, dialogActionButtonParams(16));
+
+        Button cancel = new Button(this);
+        cancel.setText(tr("Cancel", "鍙栨秷"));
+        styleButton(cancel, false, true);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        container.addView(cancel, dialogActionButtonParams(10));
+
+        dialog.setOnShowListener(d -> {
             input.requestFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+            }
         });
         dialog.show();
         styleDialog(dialog);
