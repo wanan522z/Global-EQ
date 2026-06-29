@@ -45,58 +45,6 @@ final class Preset {
            boolean extraBassEnabled,
            int pregainMb,
            int virtualBassModeIndex,
-           int virtualBassCutoffHz,
-           int extraBassCutoffHz,
-           int extraBassAmountPercent,
-           int virtualBassAmountPercent,
-           String reverbType,
-           int reverbDecayPercent,
-           int reverbPredelayMs,
-           int reverbSizePercent,
-           int reverbMixPercent,
-           int reverbMainMb,
-           String deviceCurveName,
-           String targetCurveName,
-           float deviceCurveGainOffsetDb,
-           float targetCurveGainOffsetDb,
-           String deviceCurveSmoothing,
-           String targetCurveSmoothing,
-           ParametricBand[] bands,
-           int[] geqGainsMb) {
-        this(name,
-                mode,
-                enabled,
-                extraBassEnabled,
-                pregainMb,
-                virtualBassModeIndex,
-                virtualBassCutoffHz,
-                virtualBassCutoffHz,
-                extraBassCutoffHz,
-                extraBassAmountPercent,
-                virtualBassAmountPercent,
-                virtualBassAmountPercent,
-                reverbType,
-                reverbDecayPercent,
-                reverbPredelayMs,
-                reverbSizePercent,
-                reverbMixPercent,
-                reverbMainMb,
-                deviceCurveName,
-                targetCurveName,
-                deviceCurveGainOffsetDb,
-                targetCurveGainOffsetDb,
-                deviceCurveSmoothing,
-                targetCurveSmoothing,
-                bands,
-                geqGainsMb);
-    }
-
-    Preset(String name,
-           EqMode mode,
-           boolean enabled,
-           boolean extraBassEnabled,
-           int pregainMb,
-           int virtualBassModeIndex,
            int systemVirtualBassCutoffHz,
            int dspVirtualBassCutoffHz,
            int extraBassCutoffHz,
@@ -283,12 +231,10 @@ final class Preset {
             object.put("extraBassEnabled", extraBassEnabled);
             object.put("pregainMb", pregainMb);
             object.put("virtualBassModeIndex", virtualBassModeIndex);
-            object.put("virtualBassCutoffHz", virtualBassCutoffHz);
             object.put("systemVirtualBassCutoffHz", systemVirtualBassCutoffHz);
             object.put("dspVirtualBassCutoffHz", dspVirtualBassCutoffHz);
             object.put("extraBassCutoffHz", extraBassCutoffHz);
             object.put("extraBassAmountPercent", extraBassAmountPercent);
-            object.put("virtualBassAmountPercent", virtualBassAmountPercent);
             object.put("systemVirtualBassAmountPercent", systemVirtualBassAmountPercent);
             object.put("dspVirtualBassAmountPercent", dspVirtualBassAmountPercent);
             object.put("reverbType", reverbType);
@@ -340,8 +286,6 @@ final class Preset {
                 }
             }
             int modeIndex = object.optInt("virtualBassModeIndex", 0);
-            int legacyCutoff = object.optInt("virtualBassCutoffHz", 95);
-            int legacyAmount = object.optInt("virtualBassAmountPercent", 0);
             return new Preset(
                     object.optString("name", "Default"),
                     EqMode.fromKey(object.optString("mode", EqMode.PEQ.key)),
@@ -349,12 +293,12 @@ final class Preset {
                     object.optBoolean("extraBassEnabled", false),
                     object.optInt("pregainMb", 0),
                     modeIndex,
-                    object.has("systemVirtualBassCutoffHz") ? object.optInt("systemVirtualBassCutoffHz", legacyCutoff) : legacyCutoff,
-                    object.has("dspVirtualBassCutoffHz") ? object.optInt("dspVirtualBassCutoffHz", legacyCutoff) : legacyCutoff,
+                    object.optInt("systemVirtualBassCutoffHz", 95),
+                    object.optInt("dspVirtualBassCutoffHz", 95),
                     object.optInt("extraBassCutoffHz", 120),
                     object.optInt("extraBassAmountPercent", 0),
-                    object.has("systemVirtualBassAmountPercent") ? object.optInt("systemVirtualBassAmountPercent", legacyAmount) : legacyAmount,
-                    object.has("dspVirtualBassAmountPercent") ? object.optInt("dspVirtualBassAmountPercent", legacyAmount) : legacyAmount,
+                    object.optInt("systemVirtualBassAmountPercent", 0),
+                    object.optInt("dspVirtualBassAmountPercent", 0),
                     object.optString("reverbType", "Default"),
                     object.optInt("reverbDecayPercent", 0),
                     object.optInt("reverbPredelayMs", 0),
