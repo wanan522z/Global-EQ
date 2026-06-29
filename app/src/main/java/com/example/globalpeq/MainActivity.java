@@ -2333,7 +2333,18 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < suggested.size(); i++) {
             ResolveInfo info = suggested.get(i);
             boolean active = info.activityInfo.packageName.equals(advancedModeConfig.monitoredAppPackage);
-            list.addView(createMonitoredAppMenuRow(info, active, dialogHolder), curveMenuRowParams(6));
+            Drawable icon = info.loadIcon(getPackageManager());
+            CharSequence label = info.loadLabel(getPackageManager());
+            String packageName = info.activityInfo.packageName;
+            String titleText = label == null ? packageName : label.toString();
+            list.addView(createMonitoredAppMenuRow(
+                    icon,
+                    titleText,
+                    packageName,
+                    active,
+                    dialogHolder,
+                    () -> updateAdvancedModeConfig(advancedModeConfig.withMonitoredApp(packageName, titleText))
+            ), curveMenuRowParams(6));
         }
         if (suggested.isEmpty()) {
             TextView empty = new TextView(this);
