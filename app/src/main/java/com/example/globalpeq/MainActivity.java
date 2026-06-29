@@ -4234,11 +4234,10 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (updatingUi || !input.hasFocus()) {
+                if (updatingUi) {
                     return;
                 }
                 uiHandler.removeCallbacks(commitRunnable);
-                uiHandler.postDelayed(commitRunnable, DEFERRED_INTEGER_INPUT_COMMIT_DELAY_MS);
             }
 
             @Override
