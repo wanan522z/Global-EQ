@@ -4331,6 +4331,8 @@ public final class MainActivity extends Activity {
             return;
         }
         if (sameBandState(editingPreset.bands[pendingPeqPreviewIndex], pendingPeqPreviewBand)) {
+            pendingPeqPreviewIndex = -1;
+            pendingPeqPreviewBand = null;
             return;
         }
         editingPreset = editingPreset.withBand(pendingPeqPreviewIndex, pendingPeqPreviewBand);
@@ -4434,6 +4436,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (editingPreset.geqGainsMb[pendingGeqPreviewIndex] == pendingGeqPreviewGainMb) {
+            pendingGeqPreviewIndex = -1;
             return;
         }
         editingPreset = editingPreset.withGeqGainMb(pendingGeqPreviewIndex, pendingGeqPreviewGainMb);
