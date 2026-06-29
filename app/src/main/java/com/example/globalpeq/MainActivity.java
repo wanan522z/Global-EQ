@@ -5768,27 +5768,16 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, tr("No saved presets to export", "没有可导出的已保存预设"), Toast.LENGTH_SHORT).show();
             return;
         }
+        String[] labels = names.toArray(new String[0]);
         String currentName = presetName(editingPreset);
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(14), dp(4), dp(14), dp(12));
-
-        AlertDialog[] dialogHolder = new AlertDialog[1];
-        for (String name : names) {
-            list.addView(createExportPresetMenuRow(name, samePresetSelection(name, currentName), dialogHolder),
-                    presetMenuRowParams(list.getChildCount() == 0 ? 0 : 8));
-        }
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(list);
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Export preset", "瀵煎嚭棰勮")))
-                .setView(scroll)
-                .setNegativeButton(tr("Close", "鍏抽棴"), null)
-                .create();
-        dialogHolder[0] = dialog;
-        dialog.show();
-        styleDialog(dialog);
+        int selected = currentName == null ? 0 : Math.max(0, names.indexOf(currentName));
+        View anchor = presetSelectButton != null ? presetSelectButton : settingsPage;
+        showLimitedChoiceMenu(anchor, labels, selected, position -> {
+            if (position < 0 || position >= labels.length) {
+                return;
+            }
+            exportPresetJsonForName(labels[position]);
+        });
     }
 
     private void exportPresetJsonForName(String name) {
@@ -5817,7 +5806,6 @@ public final class MainActivity extends Activity {
         Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
     }
 
-    /*
     private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
         String importedName = presetDisplayName(imported);
         AlertDialog dialog = new AlertDialog.Builder(this)
@@ -5875,121 +5863,6 @@ public final class MainActivity extends Activity {
                     Toast.makeText(this, tr("Preset imported", "预设已导入"), Toast.LENGTH_SHORT).show();
                 })
                 .create();
-        dialog.show();
-        styleDialog(dialog);
-    }
-
-    */
-
-    private void showImportedPresetConflictDialog(Preset imported, boolean applyLive) {
-        String importedName = presetDisplayName(imported);
-        LinearLayout container = new LinearLayout(this);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(dp(20), dp(10), dp(20), dp(16));
-
-        TextView message = new TextView(this);
-        message.setText(tr(
-                "A preset named \"" + importedName + "\" already exists. Replace it or rename the imported preset?",
-                "鍚嶄负鈥? + importedName + "鈥濈殑棰勮宸插瓨鍦ㄣ€傝鐩存帴鏇挎崲锛岃繕鏄厛閲嶅懡鍚嶅鍏ラ璁撅紵"));
-        message.setTextSize(14);
-        message.setTextColor(Color.rgb(200, 210, 230));
-        container.addView(message, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Preset already exists", "棰勮鍚嶇О宸插瓨鍦?)))
-                .setView(container)
-                .create();
-
-        Button rename = new Button(this);
-        rename.setText(tr("Rename imported preset", "閲嶅懡鍚嶅鍏ラ璁?));
-        styleButton(rename, false, true);
-        rename.setOnClickListener(v -> {
-            dialog.dismiss();
-            showRenameImportedPresetDialog(imported, applyLive);
-        });
-        container.addView(rename, dialogActionButtonParams(16));
-
-        Button replace = new Button(this);
-        replace.setText(tr("Replace existing preset", "鐩存帴鏇挎崲棰勮"));
-        styleAccentButton(replace, true);
-        replace.setOnClickListener(v -> {
-            dialog.dismiss();
-            applyImportedPreset(imported, applyLive);
-            Toast.makeText(this, tr("Preset replaced", "棰勮宸叉浛鎹?), Toast.LENGTH_SHORT).show();
-        });
-        container.addView(replace, dialogActionButtonParams(10));
-
-        Button cancel = new Button(this);
-        cancel.setText(tr("Cancel", "鍙栨秷"));
-        styleButton(cancel, false, true);
-        cancel.setOnClickListener(v -> dialog.dismiss());
-        container.addView(cancel, dialogActionButtonParams(10));
-
-        dialog.show();
-        styleDialog(dialog);
-    }
-
-    private void showRenameImportedPresetDialog(Preset imported, boolean applyLive) {
-        EditText input = new EditText(this);
-        input.setSingleLine(true);
-        input.setText(nextImportedPresetName(imported));
-        input.setSelectAllOnFocus(true);
-        input.setTextSize(14);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(120, 255, 255, 255));
-        input.setHint("Preset name");
-        input.setBackground(createFieldBackground(20, 40, 8));
-        input.setPadding(dp(12), dp(10), dp(12), dp(10));
-        input.setGravity(android.view.Gravity.CENTER_VERTICAL);
-
-        LinearLayout container = new LinearLayout(this);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(dp(20), dp(4), dp(20), dp(16));
-        container.addView(input, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(46)
-        ));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView(tr("Rename imported preset", "閲嶅懡鍚嶅鍏ラ璁?)))
-                .setView(container)
-                .create();
-
-        Button importButton = new Button(this);
-        importButton.setText(tr("Import", "瀵煎叆"));
-        styleAccentButton(importButton, true);
-        importButton.setOnClickListener(v -> {
-            String renamed = input.getText() == null ? "" : input.getText().toString().trim();
-            if (renamed.isEmpty()) {
-                Toast.makeText(this, tr("Preset name required", "闇€瑕佸～鍐欓璁惧悕绉?), Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (repository.loadNamedPreset(renamed) != null) {
-                Toast.makeText(this, tr("Preset name already exists", "棰勮鍚嶇О宸插瓨鍦?), Toast.LENGTH_SHORT).show();
-                return;
-            }
-            dialog.dismiss();
-            applyImportedPreset(imported.withName(renamed), applyLive);
-            Toast.makeText(this, tr("Preset imported", "棰勮宸插鍏?), Toast.LENGTH_SHORT).show();
-        });
-        container.addView(importButton, dialogActionButtonParams(16));
-
-        Button cancel = new Button(this);
-        cancel.setText(tr("Cancel", "鍙栨秷"));
-        styleButton(cancel, false, true);
-        cancel.setOnClickListener(v -> dialog.dismiss());
-        container.addView(cancel, dialogActionButtonParams(10));
-
-        dialog.setOnShowListener(d -> {
-            input.requestFocus();
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
-            }
-        });
         dialog.show();
         styleDialog(dialog);
     }
@@ -6304,56 +6177,10 @@ public final class MainActivity extends Activity {
         return row;
     }
 
-    private View createExportPresetMenuRow(String name, boolean active, AlertDialog[] dialogHolder) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(8), dp(6), dp(8), dp(6));
-
-        row.setBackground(active
-                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
-                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
-
-        TextView title = new TextView(this);
-        title.setText(name);
-        title.setTextSize(14);
-        title.setSingleLine(true);
-        title.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        title.setPadding(dp(8), 0, dp(8), 0);
-        if (active) {
-            styleCyanGlowText(title);
-        } else {
-            stylePlainWhiteText(title);
-        }
-
-        Runnable export = () -> {
-            if (dialogHolder[0] != null) {
-                dialogHolder[0].dismiss();
-            }
-            exportPresetJsonForName(name);
-        };
-        title.setOnClickListener(v -> export.run());
-        row.setOnClickListener(v -> export.run());
-        row.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(36)
-        ));
-        return row;
-    }
-
     private LinearLayout.LayoutParams presetMenuRowParams(int topMarginDp) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(topMarginDp);
-        return params;
-    }
-
-    private LinearLayout.LayoutParams dialogActionButtonParams(int topMarginDp) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(40)
         );
         params.topMargin = dp(topMarginDp);
         return params;
