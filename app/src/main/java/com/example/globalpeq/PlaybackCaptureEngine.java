@@ -864,6 +864,30 @@ final class PlaybackCaptureEngine {
         return null;
     }
 
+    private String resolveActiveTargetPlaybackChannelLabel() {
+        if (audioManager == null || currentTargetUid <= 0 || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return "";
+        }
+        String lastRelevantChannel = "";
+        try {
+            for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                if (configuration == null || readPlaybackClientUid(configuration) != currentTargetUid) {
+                    continue;
+                }
+                if (!isRelevantActivePlayback(configuration)) {
+                    continue;
+                }
+                String channel = describePlaybackChannelLabel(configuration);
+                if (!channel.isEmpty()) {
+                    lastRelevantChannel = channel;
+                }
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to resolve target playback channel", ex);
+        }
+        return lastRelevantChannel;
+    }
+
     private void refreshOutputRouteIfNeeded() {
         if (!currentMode.capturesSystemAudio()) {
             return;
