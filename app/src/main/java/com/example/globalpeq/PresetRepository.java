@@ -20,6 +20,7 @@ final class PresetRepository {
     private static final String LAST_DEVICE_KEY = "last_device_key";
     private static final String LAST_DEVICE_LABEL = "last_device_label";
     private static final String AUTO_SWITCH_OUTPUT = "auto_switch_output";
+    private static final String MANUAL_DEVICE_OVERRIDE_ROUTE_KEY = "manual_device_override_route_key";
     private static final String PROCESSING_MODE = "processing_mode";
     private static final String UI_LANGUAGE = "ui_language";
     private static final String ADVANCED_MODE_CONFIG = "advanced_mode_config";
@@ -115,6 +116,52 @@ final class PresetRepository {
         prefs.edit()
                 .putBoolean(AUTO_SWITCH_OUTPUT, enabled)
                 .commit();
+    }
+
+    void saveManualDeviceSelectionOverride(AudioOutputDevice routeDevice) {
+        if (routeDevice == null || routeDevice.key == null || routeDevice.key.trim().isEmpty()) {
+            clearManualDeviceSelectionOverride();
+            return;
+        }
+        prefs.edit()
+                .putString(MANUAL_DEVICE_OVERRIDE_ROUTE_KEY, routeDevice.key)
+                .apply();
+    }
+
+    void clearManualDeviceSelectionOverride() {
+        prefs.edit()
+                .remove(MANUAL_DEVICE_OVERRIDE_ROUTE_KEY)
+                .apply();
+    }
+
+    String loadManualDeviceSelectionOverrideRouteKey() {
+        String routeKey = prefs.getString(MANUAL_DEVICE_OVERRIDE_ROUTE_KEY, null);
+        if (routeKey == null || routeKey.trim().isEmpty()) {
+            return null;
+        }
+        return routeKey;
+    }
+
+    void reconcileManualDeviceSelectionOverride(AudioOutputDevice routeDevice) {
+        String routeKey = loadManualDeviceSelectionOverrideRouteKey();
+        if (routeKey == null) {
+            return;
+        }
+        if (routeDevice == null || routeDevice.key == null || routeDevice.key.trim().isEmpty()) {
+            clearManualDeviceSelectionOverride();
+            return;
+        }
+        if (!routeKey.equals(routeDevice.key)) {
+            clearManualDeviceSelectionOverride();
+        }
+    }
+
+    boolean isManualDeviceSelectionOverrideActiveFor(AudioOutputDevice routeDevice) {
+        String routeKey = loadManualDeviceSelectionOverrideRouteKey();
+        return routeKey != null
+                && routeDevice != null
+                && routeDevice.key != null
+                && routeKey.equals(routeDevice.key);
     }
 
     ProcessingMode loadProcessingMode() {
