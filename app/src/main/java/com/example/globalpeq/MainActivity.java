@@ -1569,6 +1569,25 @@ public final class MainActivity extends Activity {
         shizukuRuntimeReplayView.setTextColor(Color.rgb(190, 205, 230));
         shizukuRuntimePanel.addView(shizukuRuntimeReplayView, blockParams(2));
 
+        shizukuReplayFallbackSwitch = new Switch(this);
+        shizukuReplayFallbackSwitch.setText("");
+        shizukuReplayFallbackSwitch.setShowText(false);
+        shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
+        shizukuReplayFallbackSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (updatingUi) {
+                return;
+            }
+            updateAdvancedModeConfig(advancedModeConfig.withAllowReplayWithoutMute(isChecked));
+        });
+        styleTopSwitch(shizukuReplayFallbackSwitch, false);
+        shizukuRuntimePanel.addView(labeledSettingsRow(shizukuReplayFallbackLabelText(), shizukuReplayFallbackSwitch), blockParams(12));
+
+        shizukuReplayFallbackHintView = new TextView(this);
+        shizukuReplayFallbackHintView.setText(shizukuReplayFallbackHintText());
+        shizukuReplayFallbackHintView.setTextSize(12);
+        shizukuReplayFallbackHintView.setTextColor(Color.rgb(180, 190, 210));
+        shizukuRuntimePanel.addView(shizukuReplayFallbackHintView, blockParams(4));
+
         languageButton = createExtraChoiceButton();
         languageButton.setText(languageButtonText());
         styleMonitorActionButton(languageButton, 132);
@@ -1730,24 +1749,6 @@ public final class MainActivity extends Activity {
         panel.addView(createAdvancedNumberRow(limiterReleaseLabelText(), String.valueOf(advancedModeConfig.limiterReleaseMs), "20-400", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
 
-        shizukuReplayFallbackSwitch = new Switch(this);
-        shizukuReplayFallbackSwitch.setText("");
-        shizukuReplayFallbackSwitch.setShowText(false);
-        shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
-        shizukuReplayFallbackSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (updatingUi) {
-                return;
-            }
-            updateAdvancedModeConfig(advancedModeConfig.withAllowReplayWithoutMute(isChecked));
-        });
-        styleTopSwitch(shizukuReplayFallbackSwitch, false);
-        panel.addView(labeledSettingsRow(shizukuReplayFallbackLabelText(), shizukuReplayFallbackSwitch), blockParams(12));
-
-        shizukuReplayFallbackHintView = new TextView(this);
-        shizukuReplayFallbackHintView.setText(shizukuReplayFallbackHintText());
-        shizukuReplayFallbackHintView.setTextSize(12);
-        shizukuReplayFallbackHintView.setTextColor(Color.rgb(180, 190, 210));
-        panel.addView(shizukuReplayFallbackHintView, blockParams(4));
     }
 
     private View labeledSettingsRow(String labelText, View trailingView) {
@@ -2115,7 +2116,7 @@ public final class MainActivity extends Activity {
     }
 
     private String shizukuReplayFallbackLabelText() {
-        return tr("Replay if mute fails", "静音失败时继续回放");
+        return tr("When mute fails, keep replay", "静音失败时是否继续回放");
     }
 
     private String shizukuReplayFallbackHintText() {
@@ -2126,6 +2127,15 @@ public final class MainActivity extends Activity {
                 : tr(
                 "If Shizuku cannot mute the source app, processed replay will be turned off to avoid double playback.",
                 "如果 Shizuku 无法把源应用静音，处理后回放会直接关闭，避免原声和回放叠在一起。");
+    }
+
+    private boolean shouldShowShizukuReplayFallbackControl() {
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+            return false;
+        }
+        ShizukuStatusSummary summary = currentShizukuStatusSummary();
+        return summary.kind == ShizukuStatusSummary.Kind.UNMUTED_REPLAY
+                || summary.kind == ShizukuStatusSummary.Kind.CAPTURE_ONLY;
     }
 
     private String runtimePackageLine(String label, String packageName, String emptyText) {
