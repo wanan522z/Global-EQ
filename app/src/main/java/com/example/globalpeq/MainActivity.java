@@ -3533,6 +3533,9 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
+        if (shizukuRuntimePanel != null) {
+            shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
+        }
         if (shizukuRuntimeModeView != null) {
             setTextIfChanged(shizukuRuntimeModeView, shizukuRuntimeModeText());
         }
