@@ -53,7 +53,8 @@ final class ShizukuStatusSummary {
         String replayPackage = bestReplayPackage(safeState);
         String mutedPackage = normalize(safeState.activeMutedPackage);
         String captureStatus = normalize(safeState.captureStatus);
-        if (safeState.captureActive && safeState.muteActive) {
+        boolean muteVerified = safeState.muteActive && !isMuteVerificationUntrusted(safeState.activeOutputRoute);
+        if (safeState.captureActive && muteVerified) {
             return new ShizukuStatusSummary(
                     Kind.MUTED_REPLAY,
                     playbackPackage,
@@ -233,5 +234,18 @@ final class ShizukuStatusSummary {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static boolean isMuteVerificationUntrusted(String route) {
+        String normalized = normalize(route).toLowerCase(java.util.Locale.US);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        return normalized.contains("aaudio")
+                || normalized.contains("opensl")
+                || normalized.contains("sles")
+                || normalized.contains("hw source")
+                || normalized.contains("soundpool")
+                || normalized.contains("playertype");
     }
 }
