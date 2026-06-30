@@ -2010,6 +2010,67 @@ public final class MainActivity extends Activity {
         return isChineseUi() ? "\u4e2d\u6587" : "English";
     }
 
+    private String extraReverbTitleText() {
+        return tr("Reverb", "混响");
+    }
+
+    private String extraVirtualBassTitleText() {
+        return tr("Virtual Bass", "虚拟低音");
+    }
+
+    private String reverbSliderLabelText(String key) {
+        if ("Main".equals(key)) return tr("Main", "主增益");
+        if ("Decay".equals(key)) return tr("Decay", "衰减");
+        if ("Predelay".equals(key)) return tr("Predelay", "预延迟");
+        if ("Size".equals(key)) return tr("Size", "空间");
+        if ("Mix".equals(key)) return tr("Mix", "混合");
+        return key;
+    }
+
+    private String virtualBassBoostLabelText() {
+        return tr("Boost", "增强");
+    }
+
+    private String virtualBassAmountLabelText() {
+        return tr("Amount", "强度");
+    }
+
+    private String cutoffHintText() {
+        return tr("Cutoff Hz", "截止频率 Hz");
+    }
+
+    private String valueInputTitleText() {
+        return tr("Value Input", "数值输入");
+    }
+
+    private String applyButtonText() {
+        return tr("Apply", "应用");
+    }
+
+    private String cancelButtonText() {
+        return tr("Cancel", "取消");
+    }
+
+    private String rangeText() {
+        return tr("Range", "范围");
+    }
+
+    private String modeLockedTitleText() {
+        return tr("Mode locked", "模式受限");
+    }
+
+    private String modeLockedOkText() {
+        return tr("OK", "确定");
+    }
+
+    private String reverbRequiresShizukuMessage() {
+        return tr("Reverb requires Shizuku Mode.", "混响需要在 Shizuku Mode 下使用。");
+    }
+
+    private String dspBassRequiresShizukuMessage() {
+        return tr("DSP bass requires Shizuku Mode.", "虚拟低音的 DSP 模式需要在 Shizuku Mode 下使用。");
+    }
+
     private String virtualBassModeDisplayLabel(String value) {
         if (isChineseUi() && "system".equalsIgnoreCase(value)) {
             return "系统方案";
