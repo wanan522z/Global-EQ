@@ -266,11 +266,11 @@ final class PcmDspProcessor {
 
             rebuildFilters(targetCutoffHz, amount);
 
-            wetMix = 0.28f + (float) Math.pow(amount, 1.06f) * 3.10f;
+            wetMix = 0.38f + (float) Math.pow(amount, 1.04f) * 4.30f;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
-            thirdHarmonicGain = 0.02f + amount * 0.06f;
-            harmonicOutputGain = 0.80f + amount * 1.00f;
+            thirdHarmonicGain = 0f;
+            harmonicOutputGain = 1.05f + amount * 1.45f;
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
