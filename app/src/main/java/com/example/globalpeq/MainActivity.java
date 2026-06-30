@@ -6926,11 +6926,11 @@ public final class MainActivity extends Activity {
             return;
         }
         startupProcessingRecoveryPending = false;
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (processingMode.usesNativeCapture()) {
             if (serviceActive && repository.loadMonitorCaptureAuthorized()) {
                 return;
             }
-            ensureShizukuModeReady(true);
+            ensureNativeCaptureModeReady(true);
             return;
         }
         if (serviceActive) {
@@ -12017,7 +12017,7 @@ public final class MainActivity extends Activity {
         if (!granted) {
             Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
         } else {
-            ensureShizukuModeReady(true);
+            ensureNativeCaptureModeReady(true);
         }
         refreshRuntimeStatusUi();
     }
@@ -12032,7 +12032,7 @@ public final class MainActivity extends Activity {
         }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (granted) {
-            ensureShizukuModeReady(true);
+            ensureNativeCaptureModeReady(true);
             Toast.makeText(this, tr("Shizuku access granted", "Shizuku \u6388\u6743\u5df2\u6210\u529f"), Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(this, tr("Shizuku access was denied", "Shizuku \u6388\u6743\u88ab\u62d2\u7edd"), Toast.LENGTH_SHORT).show();
