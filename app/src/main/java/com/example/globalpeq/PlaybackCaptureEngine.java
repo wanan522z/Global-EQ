@@ -717,24 +717,6 @@ final class PlaybackCaptureEngine {
         configuredPreferredDeviceSignature = "none";
     }
 
-    private boolean hasRecentCaptureSignal() {
-        if (!running) {
-            return false;
-        }
-        long signalAt = lastCaptureSignalAtMs;
-        if (signalAt <= 0L) {
-            return false;
-        }
-        long holdMs = Math.max(
-                CAPTURE_SIGNAL_OWNERSHIP_HOLD_MS,
-                Math.min(
-                        CAPTURE_SIGNAL_OWNERSHIP_MAX_HOLD_MS,
-                        Math.max(
-                                currentConfig.monitorIntervalMs * 4L,
-                                currentConfig.latencyMs * 20L)));
-        return SystemClock.elapsedRealtime() - signalAt <= holdMs;
-    }
-
     private void bindTrackToPreferredOutputLocked(AudioTrack track, AudioDeviceInfo preferredDevice) {
         if (track == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return;
