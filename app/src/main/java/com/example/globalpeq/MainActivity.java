@@ -2105,13 +2105,27 @@ public final class MainActivity extends Activity {
         if (!state.activeReplayPackage.isEmpty()) {
             return state.activeReplayPackage;
         }
-        if (state.captureActive && !state.activeMutedPackage.isEmpty()) {
-            return state.activeMutedPackage;
-        }
         if (state.captureActive && !state.activePlaybackPackage.isEmpty()) {
             return state.activePlaybackPackage;
         }
+        if (state.captureActive && !state.activeMutedPackage.isEmpty()) {
+            return state.activeMutedPackage;
+        }
         return "";
+    }
+
+    private String shizukuReplayFallbackLabelText() {
+        return tr("Replay if mute fails", "静音失败时继续回放");
+    }
+
+    private String shizukuReplayFallbackHintText() {
+        return advancedModeConfig.allowReplayWithoutMute
+                ? tr(
+                "If Shizuku cannot mute the source app, processed replay will stay on and you'll need to lower the source volume yourself.",
+                "如果 Shizuku 无法把源应用静音，处理后回放会继续输出，需要你自己把原声音量拉低。")
+                : tr(
+                "If Shizuku cannot mute the source app, processed replay will be turned off to avoid double playback.",
+                "如果 Shizuku 无法把源应用静音，处理后回放会直接关闭，避免原声和回放叠在一起。");
     }
 
     private String runtimePackageLine(String label, String packageName, String emptyText) {
