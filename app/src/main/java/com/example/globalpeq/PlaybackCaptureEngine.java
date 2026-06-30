@@ -1168,6 +1168,14 @@ final class PlaybackCaptureEngine {
         return true;
     }
 
+    private boolean isFreshRuntimePackage(String packageName, long updatedAtMs) {
+        if (normalizePackageName(packageName).isEmpty() || updatedAtMs <= 0L) {
+            return false;
+        }
+        long ageMs = System.currentTimeMillis() - updatedAtMs;
+        return ageMs >= 0L && ageMs <= PACKAGE_STATE_FRESHNESS_MS;
+    }
+
     private LinkedHashSet<String> splitPackageList(String packages) {
         LinkedHashSet<String> result = new LinkedHashSet<>();
         String normalized = normalizePackageName(packages);
