@@ -281,7 +281,7 @@ final class PcmDspProcessor {
             bassCompressorRatio = 1.22f + amount * 0.16f;
             bassCompressorMakeup = 1.03f + amount * 0.07f;
             bassCompressorAttackCoeff = envelopeCoeff(0.0035f);
-            bassCompressorReleaseCoeff = envelopeCoeff(0.050f);
+            bassCompressorReleaseCoeff = envelopeCoeff(0.020f);
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
