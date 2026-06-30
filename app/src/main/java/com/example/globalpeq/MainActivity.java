@@ -897,9 +897,16 @@ public final class MainActivity extends Activity {
 
     private void handleDetectedOutputDevice(AudioOutputDevice device) {
         repository.saveKnownDevice(device);
+        repository.reconcileManualDeviceSelectionOverride(device);
+        boolean keepManualSelection = autoSwitchOutput
+                && repository.isManualDeviceSelectionOverrideActiveFor(device);
         boolean sameDevice = currentDevice != null && currentDevice.key.equals(device.key);
         if (awaitingInitialDeviceMonitorEvent) {
             awaitingInitialDeviceMonitorEvent = false;
+            if (keepManualSelection) {
+                refreshDeviceSelectionUi();
+                return;
+            }
             currentDevice = device;
             repository.saveSelectedDevice(currentDevice);
             if (suppressInitialDeviceReapply) {
@@ -921,6 +928,10 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!autoSwitchOutput) {
+            refreshDeviceSelectionUi();
+            return;
+        }
+        if (keepManualSelection) {
             refreshDeviceSelectionUi();
             return;
         }
