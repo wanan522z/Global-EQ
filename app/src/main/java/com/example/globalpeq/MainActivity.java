@@ -2354,13 +2354,7 @@ public final class MainActivity extends Activity {
     }
 
     private void setUiLanguage(String nextLanguage) {
-        String normalized = UI_LANGUAGE_ZH.equals(nextLanguage) ? UI_LANGUAGE_ZH : UI_LANGUAGE_EN;
-        if (normalized.equals(uiLanguage)) {
-            return;
-        }
-        uiLanguage = normalized;
-        repository.saveUiLanguage(uiLanguage);
-        refreshSettingsLanguageViews();
+        languageController.setLanguage(nextLanguage);
     }
 
     private void refreshSettingsLanguageViews() {
