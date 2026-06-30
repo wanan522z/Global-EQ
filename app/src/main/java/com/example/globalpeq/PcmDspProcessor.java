@@ -389,25 +389,29 @@ final class PcmDspProcessor {
                     safeTargetCutoff * (1.08f - cutoffProgress * 0.06f),
                     32f,
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.16f));
+            float sourceHpFloorHz = 12f + cutoffProgress * 8f;
+            float sourceMinBandwidthHz = 6f + cutoffProgress * 8f;
+            float harmonicHpFloorHz = 20f + cutoffProgress * 18f;
+            float harmonicMinBandwidthHz = 10f + cutoffProgress * 10f;
 
             float sourceHpHz = clamp(
                     safeTargetCutoff * sourceHpRatio,
-                    20f,
+                    sourceHpFloorHz,
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.12f));
             float sourceLpHz = clamp(
                     safeTargetCutoff * sourceLpRatio,
-                    sourceHpHz + (18f - cutoffProgress * 10f),
+                    sourceHpHz + sourceMinBandwidthHz,
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.18f));
             sourceHighPass = createMonoFilter(FilterType.HIGH_PASS, sourceHpHz, 85);
             sourceLowPass = createMonoFilter(FilterType.LOW_PASS, sourceLpHz, 85);
 
             float harmonicHpHz = clamp(
                     safeTargetCutoff * 1.74f,
-                    Math.max(38f, safeTargetCutoff * 1.58f),
+                    Math.max(harmonicHpFloorHz, safeTargetCutoff * 1.42f),
                     safeTargetCutoff * 1.92f);
             float harmonicLpHz = clamp(
                     safeTargetCutoff * (2.30f + amount * 0.08f),
-                    harmonicHpHz + 20f,
+                    harmonicHpHz + harmonicMinBandwidthHz,
                     Math.min(560f, sampleRate * 0.14f));
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
