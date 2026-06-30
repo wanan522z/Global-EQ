@@ -1110,7 +1110,11 @@ final class PlaybackCaptureEngine {
                             + " fallback=" + fallbackPackage);
                 }
             }
-            String joinedPackages = joinPackageList(candidatePackages);
+            String joinedPackages = orderPackageListByPriority(
+                    joinPackageList(candidatePackages),
+                    repository.loadActivePlaybackPackage(),
+                    repository.loadActiveMutedPackage(),
+                    repository.loadActiveReplayPackage());
             if (!joinedPackages.isEmpty()) {
                 return joinedPackages;
             }
@@ -1274,6 +1278,25 @@ final class PlaybackCaptureEngine {
             }
         }
         return result;
+    }
+
+    private String orderPackageListByPriority(String packages, String... references) {
+        LinkedHashSet<String> remaining = splitPackageList(packages);
+        if (remaining.isEmpty()) {
+            return "";
+        }
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        if (references != null) {
+            for (String reference : references) {
+                for (String packageName : splitPackageList(reference)) {
+                    if (remaining.remove(packageName)) {
+                        ordered.add(packageName);
+                    }
+                }
+            }
+        }
+        ordered.addAll(remaining);
+        return joinPackageList(ordered);
     }
 
     private String joinPackageList(Set<String> packages) {

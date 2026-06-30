@@ -2006,7 +2006,7 @@ public final class MainActivity extends Activity {
     }
 
     private String languageButtonText() {
-        return isChineseUi() ? "中文" : "English";
+        return isChineseUi() ? "??" : "English";
     }
 
     private String virtualBassModeDisplayLabel(String value) {
@@ -2351,7 +2351,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showLanguageChoiceMenu(View anchor) {
-        showLimitedChoiceMenu(anchor, new String[]{"English", "中文"}, isChineseUi() ? 1 : 0, position ->
+        showLimitedChoiceMenu(anchor, languageController.languageOptions(), languageController.selectedLanguageIndex(), position ->
                 setUiLanguage(position == 1 ? UI_LANGUAGE_ZH : UI_LANGUAGE_EN));
     }
 
