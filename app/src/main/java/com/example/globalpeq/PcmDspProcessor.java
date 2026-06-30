@@ -221,6 +221,8 @@ final class PcmDspProcessor {
 
         private MonoBiquad sourceHighPass;
         private MonoBiquad sourceLowPass;
+        private MonoBiquad harmonicSourceHighPass;
+        private MonoBiquad harmonicSourceLowPass;
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
         private MonoBiquad[] dryBassLowStageA;
@@ -347,7 +349,8 @@ final class PcmDspProcessor {
                 mono /= safeChannelCount;
 
                 float lowBand = sourceLowPass.process(sourceHighPass.process(mono));
-                float harmonic = shapeHarmonics(lowBand);
+                float harmonicSource = harmonicSourceLowPass.process(harmonicSourceHighPass.process(mono));
+                float harmonic = shapeHarmonics(harmonicSource);
                 float wet = applyTransientWetDuck(lowBand, harmonic * wetMix);
                 float dryBassGain = applyDryBassSidechain(wet);
 
@@ -385,12 +388,15 @@ final class PcmDspProcessor {
             float cutoffProgress = clamp((safeTargetCutoff - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
             float sourceHpRatio = 0.54f + cutoffProgress * 0.28f;
             float sourceLpRatio = (1.38f + amount * 0.05f) - cutoffProgress * 0.26f;
+            float harmonicSourceHpRatio = 0.74f + cutoffProgress * 0.12f;
+            float harmonicSourceLpRatio = (1.20f - cutoffProgress * 0.12f) + amount * 0.03f;
             float dryBassLpHz = clamp(
                     safeTargetCutoff * (1.08f - cutoffProgress * 0.06f),
                     32f,
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.16f));
             float sourceHpFloorHz = 12f + cutoffProgress * 8f;
             float sourceMinBandwidthHz = 6f + cutoffProgress * 8f;
+            float harmonicSourceMinBandwidthHz = 4f + cutoffProgress * 5f;
             float harmonicHpFloorHz = 20f + cutoffProgress * 18f;
             float harmonicMinBandwidthHz = 10f + cutoffProgress * 10f;
 
@@ -404,6 +410,17 @@ final class PcmDspProcessor {
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.18f));
             sourceHighPass = createMonoFilter(FilterType.HIGH_PASS, sourceHpHz, 85);
             sourceLowPass = createMonoFilter(FilterType.LOW_PASS, sourceLpHz, 85);
+
+            float harmonicSourceHpHz = clamp(
+                    safeTargetCutoff * harmonicSourceHpRatio,
+                    sourceHpHz,
+                    Math.min(sourceLpHz - harmonicSourceMinBandwidthHz, sampleRate * 0.12f));
+            float harmonicSourceLpHz = clamp(
+                    safeTargetCutoff * harmonicSourceLpRatio,
+                    harmonicSourceHpHz + harmonicSourceMinBandwidthHz,
+                    sourceLpHz);
+            harmonicSourceHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicSourceHpHz, 95);
+            harmonicSourceLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicSourceLpHz, 95);
 
             float harmonicHpHz = clamp(
                     safeTargetCutoff * 1.74f,
@@ -436,6 +453,12 @@ final class PcmDspProcessor {
             }
             if (sourceLowPass != null) {
                 sourceLowPass.reset();
+            }
+            if (harmonicSourceHighPass != null) {
+                harmonicSourceHighPass.reset();
+            }
+            if (harmonicSourceLowPass != null) {
+                harmonicSourceLowPass.reset();
             }
             if (harmonicHighPass != null) {
                 harmonicHighPass.reset();
