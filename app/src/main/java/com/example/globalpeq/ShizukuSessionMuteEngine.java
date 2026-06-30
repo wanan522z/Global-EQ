@@ -119,15 +119,27 @@ final class ShizukuSessionMuteEngine {
         final String mutedPackageName;
         final String activeSessionIds;
         final String mutedSessionIds;
+        final int desiredMuteSessionCount;
+        final int verifiedMutedSessionCount;
+        final int failedMuteSessionCount;
+        final boolean fastModeIncompatible;
 
         MuteScanResult(String activePackageName,
                        String mutedPackageName,
                        String activeSessionIds,
-                       String mutedSessionIds) {
+                       String mutedSessionIds,
+                       int desiredMuteSessionCount,
+                       int verifiedMutedSessionCount,
+                       int failedMuteSessionCount,
+                       boolean fastModeIncompatible) {
             this.activePackageName = activePackageName == null ? "" : activePackageName;
             this.mutedPackageName = mutedPackageName == null ? "" : mutedPackageName;
             this.activeSessionIds = activeSessionIds == null ? "" : activeSessionIds;
             this.mutedSessionIds = mutedSessionIds == null ? "" : mutedSessionIds;
+            this.desiredMuteSessionCount = Math.max(0, desiredMuteSessionCount);
+            this.verifiedMutedSessionCount = Math.max(0, verifiedMutedSessionCount);
+            this.failedMuteSessionCount = Math.max(0, failedMuteSessionCount);
+            this.fastModeIncompatible = fastModeIncompatible;
         }
     }
 
@@ -321,9 +333,21 @@ final class ShizukuSessionMuteEngine {
         if (!applyMuteEffects) {
             return;
         }
-        int mutedCount = muteEffects.size();
+        int mutedCount = scanResult.verifiedMutedSessionCount;
         if (mutedCount == 0) {
+            if (scanResult.failedMuteSessionCount > 0) {
+                publishStatus(scanResult.fastModeIncompatible
+                        ? "Active playback is on a fast output thread; mute effect cannot attach."
+                        : "Detected playback sessions could not be muted.", false);
+                return;
+            }
             publishStatus("Waiting for active playback sessions.", false);
+            return;
+        }
+        if (scanResult.failedMuteSessionCount > 0) {
+            publishStatus("Muted " + mutedCount + " session(s); "
+                    + scanResult.failedMuteSessionCount
+                    + " session(s) could not be muted.", true);
             return;
         }
         publishStatus("Muted " + mutedCount + " session(s) while monitoring system audio.", true);
@@ -602,12 +626,15 @@ final class ShizukuSessionMuteEngine {
                                              boolean applyMuteEffects) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
         Set<Integer> desiredMuteSessionIds = new LinkedHashSet<>();
+        Set<Integer> verifiedMutedSessionIds = new LinkedHashSet<>();
+        Set<Integer> failedMuteSessionIds = new LinkedHashSet<>();
         String firstActivePackageName = activePlayback == null
                 ? ""
                 : joinPackageNames(activePlayback.activePackages);
         String firstMutedPackageName = "";
         SessionInfo preferredDesiredSession = null;
         LinkedHashSet<String> mutedPackages = new LinkedHashSet<>();
+        boolean fastModeIncompatible = false;
         Log.d(TAG, "TRACE_SWITCH muteScanStart"
                 + " applyMuteEffects=" + applyMuteEffects
                 + " activeSessionIds=" + (activePlayback == null ? "null" : activePlayback.activeSessionIds)
@@ -692,6 +719,7 @@ final class ShizukuSessionMuteEngine {
                 continue;
             }
             if (muteEffects.containsKey(session.sessionId)) {
+                verifiedMutedSessionIds.add(session.sessionId);
                 continue;
             }
 
@@ -705,23 +733,34 @@ final class ShizukuSessionMuteEngine {
                 DynamicsProcessing muteEffect = makeMuteEffect(session.sessionId, session.packageName);
                 if (muteEffect != null) {
                     muteEffects.put(session.sessionId, muteEffect);
+                    verifiedMutedSessionIds.add(session.sessionId);
                     String normalizedPackage = normalizePackageName(session.packageName);
                     if (!normalizedPackage.isEmpty()) {
                         mutedPackages.add(normalizedPackage);
                     }
                 } else {
+                    failedMuteSessionIds.add(session.sessionId);
                     Log.w(TAG, "Failed to create mute effect for session: " + session.sessionId
                             + ", package: " + session.packageName);
                 }
             } catch (RuntimeException ex) {
+                failedMuteSessionIds.add(session.sessionId);
+                boolean incompatible = isFastModeAttachFailure(ex);
+                fastModeIncompatible = fastModeIncompatible || incompatible;
+                Log.w(TAG, "TRACE_MUTE effectCreateFailed sessionId=" + session.sessionId
+                        + " package=" + session.packageName
+                        + " usage=" + session.usage
+                        + " content=" + session.content
+                        + " fastModeIncompatible=" + incompatible
+                        + " error=" + ex.getMessage());
                 Log.e(TAG, "Error creating mute effect for session: " + session.sessionId, ex);
             }
         }
-        if (muteEffects.isEmpty()) {
+        if (verifiedMutedSessionIds.isEmpty()) {
             firstMutedPackageName = "";
         } else {
             for (SessionInfo session : sessions) {
-                if (muteEffects.containsKey(session.sessionId) && !session.packageName.isEmpty()) {
+                if (verifiedMutedSessionIds.contains(session.sessionId) && !session.packageName.isEmpty()) {
                     mutedPackages.add(normalizePackageName(session.packageName));
                 }
             }
@@ -730,15 +769,29 @@ final class ShizukuSessionMuteEngine {
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
                 + " desiredMuteSessionIds=" + desiredMuteSessionIds
                 + " activeSessionIds=" + (activePlayback == null ? "" : activePlayback.activeSessionIds)
-                + " mutedSessionIds=" + muteEffects.keySet()
+                + " mutedSessionIds=" + verifiedMutedSessionIds
+                + " failedMuteSessionIds=" + failedMuteSessionIds
                 + " activePkg=" + firstActivePackageName
                 + " mutedPkg=" + firstMutedPackageName
+                + " fastModeIncompatible=" + fastModeIncompatible
                 + " muteEffects=" + muteEffects.keySet());
         return new MuteScanResult(
                 firstActivePackageName,
                 firstMutedPackageName,
                 joinSessionIds(activePlayback == null ? null : activePlayback.activeSessionIds),
-                joinSessionIds(muteEffects.keySet()));
+                joinSessionIds(verifiedMutedSessionIds),
+                desiredMuteSessionIds.size(),
+                verifiedMutedSessionIds.size(),
+                failedMuteSessionIds.size(),
+                fastModeIncompatible);
+    }
+
+    private boolean isFastModeAttachFailure(RuntimeException ex) {
+        if (ex == null) {
+            return false;
+        }
+        String message = ex.getMessage();
+        return message != null && message.contains("Error: -3");
     }
 
     private String joinSessionIds(Set<Integer> sessionIds) {
