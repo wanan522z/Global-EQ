@@ -920,6 +920,9 @@ public final class MainActivity extends Activity {
                 suppressInitialDeviceReapply = false;
                 adoptDevicePresetForCurrentMode(currentDevice, true);
                 renderAll();
+                if (!sameDevice && autoSwitchOutput) {
+                    applyRunningPreset(shouldForceFullResetForCurrentMode());
+                }
                 return;
             }
             if (!autoSwitchOutput) {
