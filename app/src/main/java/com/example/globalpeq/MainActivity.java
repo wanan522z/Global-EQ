@@ -7750,9 +7750,6 @@ public final class MainActivity extends Activity {
         if (hasClip) {
             return "CLIP";
         }
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
-            return currentShizukuStatusSummary().compactText(isChineseUi());
-        }
         return isEditingPresetActive() ? "Live" : "Edit";
     }
 
