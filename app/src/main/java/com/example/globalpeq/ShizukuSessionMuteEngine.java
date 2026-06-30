@@ -633,6 +633,7 @@ final class ShizukuSessionMuteEngine {
         Set<Integer> verifiedMutedSessionIds = new LinkedHashSet<>();
         Set<Integer> failedMuteSessionIds = new LinkedHashSet<>();
         LinkedHashSet<String> failedMutePackages = new LinkedHashSet<>();
+        LinkedHashSet<String> desiredPackages = new LinkedHashSet<>();
         String firstActivePackageName = activePlayback == null
                 ? ""
                 : joinPackageNames(activePlayback.activePackages);
@@ -687,13 +688,18 @@ final class ShizukuSessionMuteEngine {
                 continue;
             }
             desiredMuteSessionIds.add(session.sessionId);
+            String normalizedPackage = normalizePackageName(session.packageName);
+            if (!normalizedPackage.isEmpty()) {
+                desiredPackages.add(normalizedPackage);
+            }
             preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, session);
             Log.d(TAG, "TRACE_SWITCH selectMuteSession sid=" + session.sessionId
                     + ", uid=" + session.uid
                     + ", pkg=" + session.packageName
                     + ", usage=" + session.usage);
         }
-        if (firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
+        boolean ambiguousDesiredPackages = firstActivePackageName.isEmpty() && desiredPackages.size() > 1;
+        if (!ambiguousDesiredPackages && firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
             firstActivePackageName = preferredDesiredSession.packageName;
         }
         for (Integer sid : muteEffects.keySet()) {
@@ -790,8 +796,14 @@ final class ShizukuSessionMuteEngine {
             verifiedMutedSessionIds = safeVerifiedMutedSessionIds;
             firstMutedPackageName = joinPackageNames(mutedPackages);
         }
+        String desiredMuteSessionIdsForVerification = ambiguousDesiredPackages
+                ? ""
+                : joinSessionIds(filterSessionIdsByPackage(sessions, desiredMuteSessionIds, firstActivePackageName));
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
                 + " desiredMuteSessionIds=" + desiredMuteSessionIds
+                + " verificationDesiredMuteSessionIds=" + desiredMuteSessionIdsForVerification
+                + " desiredPackages=" + desiredPackages
+                + " ambiguousDesiredPackages=" + ambiguousDesiredPackages
                 + " activeSessionIds=" + (activePlayback == null ? "" : activePlayback.activeSessionIds)
                 + " mutedSessionIds=" + verifiedMutedSessionIds
                 + " failedMuteSessionIds=" + failedMuteSessionIds
@@ -804,12 +816,35 @@ final class ShizukuSessionMuteEngine {
                 firstActivePackageName,
                 firstMutedPackageName,
                 joinSessionIds(activePlayback == null ? null : activePlayback.activeSessionIds),
-                joinSessionIds(desiredMuteSessionIds),
+                desiredMuteSessionIdsForVerification,
                 joinSessionIds(verifiedMutedSessionIds),
                 desiredMuteSessionIds.size(),
                 verifiedMutedSessionIds.size(),
                 failedMuteSessionIds.size(),
                 fastModeIncompatible);
+    }
+
+    private Set<Integer> filterSessionIdsByPackage(List<SessionInfo> sessions,
+                                                   Set<Integer> sessionIds,
+                                                   String packageName) {
+        LinkedHashSet<Integer> filtered = new LinkedHashSet<>();
+        if (sessions == null || sessionIds == null || sessionIds.isEmpty()) {
+            return filtered;
+        }
+        String normalizedPackage = normalizePackageName(packageName);
+        if (normalizedPackage.isEmpty()) {
+            filtered.addAll(sessionIds);
+            return filtered;
+        }
+        for (SessionInfo session : sessions) {
+            if (!sessionIds.contains(session.sessionId)) {
+                continue;
+            }
+            if (normalizedPackage.equals(normalizePackageName(session.packageName))) {
+                filtered.add(session.sessionId);
+            }
+        }
+        return filtered;
     }
 
     private boolean isFastModeAttachFailure(RuntimeException ex) {
