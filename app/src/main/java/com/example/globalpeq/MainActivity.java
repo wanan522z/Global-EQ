@@ -112,6 +112,7 @@ public final class MainActivity extends Activity {
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final long ACTIVE_APP_REFRESH_INTERVAL_MS = 5000L;
+    private static final long RUNTIME_STATUS_REFRESH_INTERVAL_MS = 1000L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
@@ -558,6 +559,17 @@ public final class MainActivity extends Activity {
             uiHandler.postDelayed(this, ACTIVE_APP_REFRESH_INTERVAL_MS);
         }
     };
+    private final Runnable runtimeStatusRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!shouldKeepRuntimeStatusFresh()) {
+                return;
+            }
+            refreshActivePlaybackPackageFromRepository();
+            refreshRuntimeStatusUi();
+            uiHandler.postDelayed(this, RUNTIME_STATUS_REFRESH_INTERVAL_MS);
+        }
+    };
     private boolean awaitingInitialDeviceMonitorEvent;
     private boolean suppressInitialDeviceReapply;
     private boolean hasStartedDeviceMonitorOnce;
@@ -661,6 +673,7 @@ public final class MainActivity extends Activity {
         refreshActivePlaybackPackageFromRepository();
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.post(activePlaybackPackageRefreshRunnable);
+        updateRuntimeStatusRefreshLoop();
         boolean serviceActive = repository != null && syncRuntimeStateWithServiceProcess();
         suppressInitialDeviceReapply = hasStartedDeviceMonitorOnce && serviceActive;
         hasStartedDeviceMonitorOnce = true;
@@ -679,6 +692,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
+        uiHandler.removeCallbacks(runtimeStatusRefreshRunnable);
         cancelEnabledNeonSequence();
         refreshPendingEnabledToggleUi();
         commitPendingEnabledToggle();
@@ -700,6 +714,7 @@ public final class MainActivity extends Activity {
         }
         refreshActivePlaybackPackageFromRepository();
         refreshRuntimeStatusUi();
+        updateRuntimeStatusRefreshLoop();
         refreshDeviceSelectionUi();
         updateEditStateLabels();
         maybeEnsureProcessingActive();
@@ -742,6 +757,7 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
         uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
+        uiHandler.removeCallbacks(runtimeStatusRefreshRunnable);
         uiHandler.removeCallbacks(persistPresetStateRunnable);
         cancelEnabledNeonSequence();
         removeKeyboardVisibilityListener();
@@ -3498,6 +3514,19 @@ public final class MainActivity extends Activity {
         uiHandler.post(this::updateMonitoredAppIcon);
     }
 
+    private boolean shouldKeepRuntimeStatusFresh() {
+        return !isFinishing()
+                && !isDestroyedCompat()
+                && (activeMainPageIndex == 2 || monitorSettingsOpen);
+    }
+
+    private void updateRuntimeStatusRefreshLoop() {
+        uiHandler.removeCallbacks(runtimeStatusRefreshRunnable);
+        if (shouldKeepRuntimeStatusFresh()) {
+            uiHandler.post(runtimeStatusRefreshRunnable);
+        }
+    }
+
     private boolean isDestroyedCompat() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed();
     }
@@ -3532,21 +3561,6 @@ public final class MainActivity extends Activity {
         }
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
-        }
-        if (shizukuRuntimePanel != null) {
-            shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
-        }
-        if (shizukuRuntimeModeView != null) {
-            setTextIfChanged(shizukuRuntimeModeView, shizukuRuntimeModeText());
-        }
-        if (shizukuRuntimePlaybackView != null) {
-            setTextIfChanged(shizukuRuntimePlaybackView, shizukuRuntimePlaybackText());
-        }
-        if (shizukuRuntimeMuteView != null) {
-            setTextIfChanged(shizukuRuntimeMuteView, shizukuRuntimeMuteText());
-        }
-        if (shizukuRuntimeReplayView != null) {
-            setTextIfChanged(shizukuRuntimeReplayView, shizukuRuntimeReplayText());
         }
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
@@ -3638,6 +3652,7 @@ public final class MainActivity extends Activity {
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
         }
+        refreshShizukuRuntimePanelUi();
         if (shizukuAccessButton != null) {
             setTextIfChanged(shizukuAccessButton, shizukuAccessButtonText());
             shizukuAccessButton.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
@@ -3653,6 +3668,25 @@ public final class MainActivity extends Activity {
             setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
+        }
+        updateRuntimeStatusRefreshLoop();
+    }
+
+    private void refreshShizukuRuntimePanelUi() {
+        if (shizukuRuntimePanel != null) {
+            shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuRuntimeModeView != null) {
+            setTextIfChanged(shizukuRuntimeModeView, shizukuRuntimeModeText());
+        }
+        if (shizukuRuntimePlaybackView != null) {
+            setTextIfChanged(shizukuRuntimePlaybackView, shizukuRuntimePlaybackText());
+        }
+        if (shizukuRuntimeMuteView != null) {
+            setTextIfChanged(shizukuRuntimeMuteView, shizukuRuntimeMuteText());
+        }
+        if (shizukuRuntimeReplayView != null) {
+            setTextIfChanged(shizukuRuntimeReplayView, shizukuRuntimeReplayText());
         }
     }
 
