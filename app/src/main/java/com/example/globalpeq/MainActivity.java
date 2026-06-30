@@ -3475,6 +3475,18 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
+        if (shizukuRuntimeModeView != null) {
+            setTextIfChanged(shizukuRuntimeModeView, shizukuRuntimeModeText());
+        }
+        if (shizukuRuntimePlaybackView != null) {
+            setTextIfChanged(shizukuRuntimePlaybackView, shizukuRuntimePlaybackText());
+        }
+        if (shizukuRuntimeMuteView != null) {
+            setTextIfChanged(shizukuRuntimeMuteView, shizukuRuntimeMuteText());
+        }
+        if (shizukuRuntimeReplayView != null) {
+            setTextIfChanged(shizukuRuntimeReplayView, shizukuRuntimeReplayText());
+        }
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
         }
