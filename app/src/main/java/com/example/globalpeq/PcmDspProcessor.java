@@ -286,16 +286,18 @@ final class PcmDspProcessor {
             int targetCutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
             float amount = amountPercent / 100f;
             float cutoffProgress = clamp((targetCutoffHz - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
-            float cutoffCompensation = 1.90f - 1.35f * (float) Math.sqrt(cutoffProgress);
-            float outputTrim = 1.08f - 0.42f * cutoffProgress;
+            float cutoffRoot = (float) Math.sqrt(cutoffProgress);
+            float lowCutoffLift = 1f - cutoffProgress;
+            float cutoffCompensation = 2.18f - 1.78f * cutoffRoot;
+            float outputTrim = 1.18f - 0.56f * cutoffProgress;
 
             rebuildFilters(targetCutoffHz, amount);
 
             wetMix = (0.72f + (float) Math.pow(amount, 0.98f) * 8.80f) * cutoffCompensation;
 
-            secondHarmonicGain = 1.20f + amount * 1.80f;
-            thirdHarmonicGain = 0.04f + amount * 0.10f;
-            harmonicOutputGain = (0.72f + amount * 0.88f) * outputTrim;
+            secondHarmonicGain = (1.18f + amount * 1.92f) * (1.08f + lowCutoffLift * 0.20f - cutoffProgress * 0.10f);
+            thirdHarmonicGain = (0.035f + amount * 0.085f) * (1.02f - cutoffProgress * 0.38f);
+            harmonicOutputGain = (0.78f + amount * 1.02f) * outputTrim;
             bassCompressorThreshold = (0.28f - amount * 0.025f) - (1f - cutoffProgress) * 0.025f;
             bassCompressorRatio = 1.14f + amount * 0.12f + (1f - cutoffProgress) * 0.10f;
             bassCompressorMakeup = 0.99f + amount * 0.02f;
@@ -387,18 +389,18 @@ final class PcmDspProcessor {
             float safeTargetCutoff = clamp(targetCutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.20f));
             float cutoffProgress = clamp((safeTargetCutoff - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
             float sourceHpRatio = 0.54f + cutoffProgress * 0.28f;
-            float sourceLpRatio = (1.38f + amount * 0.05f) - cutoffProgress * 0.26f;
-            float harmonicSourceHpRatio = 0.76f + cutoffProgress * 0.14f;
-            float harmonicSourceLpRatio = (1.16f - cutoffProgress * 0.14f) + amount * 0.02f;
+            float sourceLpRatio = (1.44f + amount * 0.06f) - cutoffProgress * 0.34f;
+            float harmonicSourceHpRatio = 0.72f + cutoffProgress * 0.18f;
+            float harmonicSourceLpRatio = (1.20f - cutoffProgress * 0.20f) + amount * 0.02f;
             float dryBassLpHz = clamp(
                     safeTargetCutoff * (1.08f - cutoffProgress * 0.06f),
                     32f,
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.16f));
             float sourceHpFloorHz = 12f + cutoffProgress * 8f;
-            float sourceMinBandwidthHz = 6f + cutoffProgress * 8f;
-            float harmonicSourceMinBandwidthHz = 4f + cutoffProgress * 5f;
+            float sourceMinBandwidthHz = 7f + cutoffProgress * 6f;
+            float harmonicSourceMinBandwidthHz = 5f + cutoffProgress * 4f;
             float harmonicHpFloorHz = 20f + cutoffProgress * 18f;
-            float harmonicMinBandwidthHz = 10f + cutoffProgress * 10f;
+            float harmonicMinBandwidthHz = 12f + cutoffProgress * 6f;
 
             float sourceHpHz = clamp(
                     safeTargetCutoff * sourceHpRatio,
@@ -428,13 +430,13 @@ final class PcmDspProcessor {
             harmonicSourceLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicSourceLpHz, 95);
 
             float harmonicHpHz = clamp(
-                    safeTargetCutoff * 1.74f,
-                    Math.max(harmonicHpFloorHz, safeTargetCutoff * 1.42f),
-                    safeTargetCutoff * 1.92f);
+                    safeTargetCutoff * (1.68f - cutoffProgress * 0.06f),
+                    Math.max(harmonicHpFloorHz, safeTargetCutoff * (1.38f + cutoffProgress * 0.04f)),
+                    safeTargetCutoff * (1.88f - cutoffProgress * 0.04f));
             float harmonicLpHz = clamp(
-                    safeTargetCutoff * (2.30f + amount * 0.08f),
+                    safeTargetCutoff * ((2.26f + amount * 0.06f) - cutoffProgress * 0.14f),
                     harmonicHpHz + harmonicMinBandwidthHz,
-                    Math.min(560f, sampleRate * 0.14f));
+                    Math.min(500f, sampleRate * 0.13f));
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
             harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
