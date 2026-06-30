@@ -638,7 +638,7 @@ final class ShizukuSessionMuteEngine {
         if (configuration == null) {
             return false;
         }
-        if (!isPlaybackStarted(playerState)) {
+        if (!isPlaybackActive(configuration, playerState)) {
             return false;
         }
         try {
@@ -654,6 +654,25 @@ final class ShizukuSessionMuteEngine {
             Log.w(TAG, "Unable to inspect playback attributes", ex);
             return false;
         }
+    }
+
+    private boolean isPlaybackActive(AudioPlaybackConfiguration configuration, int playerState) {
+        if (configuration == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
+            Object value = method.invoke(configuration);
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+        } catch (NoSuchMethodException ignored) {
+        } catch (ReflectiveOperationException ex) {
+            Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#isActive", ex);
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback active state", ex);
+        }
+        return isPlaybackStarted(playerState);
     }
 
     private boolean isPlaybackStarted(int playerState) {
