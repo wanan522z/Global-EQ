@@ -82,6 +82,7 @@ final class PlaybackCaptureEngine {
     private volatile long lastCaptureSignalAtMs;
     private volatile String currentReplayPackageName = "";
     private long lastReplayPackageRefreshAtMs;
+    private String lastReplayDecisionTrace = "";
     PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
         this.appContext = context.getApplicationContext();
         this.audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
@@ -920,15 +921,22 @@ final class PlaybackCaptureEngine {
     }
 
     private boolean shouldOutputProcessedReplay() {
+        boolean allowed;
         if (!currentMode.requiresShizukuMute()) {
-            return true;
+            allowed = true;
+            traceReplayDecision("modeDoesNotRequireMute", "", "", "");
+            return allowed;
         }
         if (repository.loadShizukuMuteActive()) {
-            return true;
+            allowed = true;
+            traceReplayDecision("muteActive", "", "", "");
+            return allowed;
         }
         String mutedPackage = normalizePackageName(repository.loadActiveMutedPackage());
         if (mutedPackage.isEmpty()) {
-            return false;
+            allowed = false;
+            traceReplayDecision("mutedPackageEmpty", mutedPackage, "", "");
+            return allowed;
         }
         String expectedReplayPackage = normalizePackageName(currentReplayPackageName);
         if (expectedReplayPackage.isEmpty()) {
@@ -937,7 +945,10 @@ final class PlaybackCaptureEngine {
         if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
             expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
         }
-        return !expectedReplayPackage.isEmpty() && expectedReplayPackage.equals(mutedPackage);
+        allowed = !expectedReplayPackage.isEmpty() && expectedReplayPackage.equals(mutedPackage);
+        traceReplayDecision("comparePackages", mutedPackage, expectedReplayPackage,
+                normalizePackageName(currentConfig.monitoredAppPackage));
+        return allowed;
     }
 
     private void refreshReplayPackageNameIfNeeded(long now, boolean forceRefresh) {
@@ -1093,6 +1104,37 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
+    }
+
+    private void traceReplayDecision(String reason,
+                                     String mutedPackage,
+                                     String expectedReplayPackage,
+                                     String monitoredPackage) {
+        String trace = "reason=" + reason
+                + ", allowed=" + computeReplayAllowedPreview(mutedPackage, expectedReplayPackage)
+                + ", mode=" + currentMode
+                + ", replayPkg=" + normalizePackageName(currentReplayPackageName)
+                + ", mutedPkg=" + normalizePackageName(repository.loadActiveMutedPackage())
+                + ", activePlaybackPkg=" + normalizePackageName(repository.loadActivePlaybackPackage())
+                + ", expectedPkg=" + normalizePackageName(expectedReplayPackage)
+                + ", monitoredPkg=" + normalizePackageName(monitoredPackage);
+        if (trace.equals(lastReplayDecisionTrace)) {
+            return;
+        }
+        lastReplayDecisionTrace = trace;
+        Log.d(TAG, "TRACE_SWITCH replayDecision " + trace);
+    }
+
+    private boolean computeReplayAllowedPreview(String mutedPackage, String expectedReplayPackage) {
+        if (!currentMode.requiresShizukuMute()) {
+            return true;
+        }
+        if (repository.loadShizukuMuteActive()) {
+            return true;
+        }
+        String muted = normalizePackageName(mutedPackage);
+        String expected = normalizePackageName(expectedReplayPackage);
+        return !muted.isEmpty() && !expected.isEmpty() && expected.equals(muted);
     }
 
     private int readPlaybackSessionId(AudioPlaybackConfiguration configuration) {
