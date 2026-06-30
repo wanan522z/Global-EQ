@@ -935,6 +935,7 @@ final class ShizukuSessionMuteEngine {
     private void updateActivePackageName(String packageName) {
         String normalized = packageName == null ? "" : packageName.trim();
         if (normalized.equals(currentActivePackageName)) {
+            repository.touchActivePlaybackPackage(normalized);
             return;
         }
         Log.d(TAG, "TRACE_SWITCH activePackageUpdate from=" + currentActivePackageName + " to=" + normalized);
@@ -949,6 +950,7 @@ final class ShizukuSessionMuteEngine {
     private void updateMutedPackageName(String packageName) {
         String normalized = packageName == null ? "" : packageName.trim();
         if (normalized.equals(currentMutedPackageName)) {
+            repository.touchActiveMutedPackage(normalized);
             return;
         }
         Log.d(TAG, "TRACE_SWITCH mutedPackageUpdate from=" + currentMutedPackageName + " to=" + normalized);
