@@ -665,6 +665,7 @@ public final class MainActivity extends Activity {
         setContentView(buildContent());
         installKeyboardVisibilityListener();
         languageController.bindRefresh(() -> {
+            refreshExtraPageLanguageViews();
             if (mainPageHost != null && editingPreset != null) {
                 renderAll();
             }
