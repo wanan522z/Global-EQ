@@ -1849,6 +1849,16 @@ public final class MainActivity extends Activity {
         return tr("Language", "语言");
     }
 
+    private String settingsImportPanelTitleText() {
+        return tr("Language & JSON", "语言和 JSON");
+    }
+
+    private String settingsImportPanelDetailText() {
+        return tr(
+                "Change the UI language here, then import or export preset and global config JSON files.",
+                "这里可以切换界面语言，并导入或导出预设与全局配置 JSON。");
+    }
+
     private String languageButtonText() {
         return isChineseUi() ? "中文" : "English";
     }
