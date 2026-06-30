@@ -4026,9 +4026,6 @@ public final class MainActivity extends Activity {
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
-        if (shizukuReplayFallbackRowView != null) {
-            shizukuReplayFallbackRowView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
-        }
     }
 
     private void refreshShizukuRuntimePanelUi() {
