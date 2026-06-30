@@ -6187,6 +6187,9 @@ public final class MainActivity extends Activity {
         Preset systemDevicePreset = processingMode == ProcessingMode.SYSTEM_EQ
                 ? exportRunningPreset
                 : loadScopedPreset(currentDevice, ProcessingMode.SYSTEM_EQ);
+        Preset globalDspDevicePreset = processingMode == ProcessingMode.GLOBAL_DSP
+                ? exportRunningPreset
+                : loadScopedPreset(currentDevice, ProcessingMode.GLOBAL_DSP);
         Preset shizukuDevicePreset = processingMode == ProcessingMode.SHIZUKU_MUTE
                 ? exportRunningPreset
                 : loadScopedPreset(currentDevice, ProcessingMode.SHIZUKU_MUTE);
@@ -6199,6 +6202,11 @@ public final class MainActivity extends Activity {
                         AdvancedModeConfig.DEFAULT,
                         systemDevicePreset,
                         activePresetName(processingMode == ProcessingMode.SYSTEM_EQ ? exportEditingPreset : null, systemDevicePreset)),
+                new DeviceConfigFile.ModeState(
+                        ProcessingMode.GLOBAL_DSP,
+                        advancedModeConfig,
+                        globalDspDevicePreset,
+                        activePresetName(processingMode == ProcessingMode.GLOBAL_DSP ? exportEditingPreset : null, globalDspDevicePreset)),
                 new DeviceConfigFile.ModeState(
                         ProcessingMode.SHIZUKU_MUTE,
                         advancedModeConfig,
