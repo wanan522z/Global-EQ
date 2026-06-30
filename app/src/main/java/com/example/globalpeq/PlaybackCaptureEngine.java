@@ -1063,6 +1063,9 @@ final class PlaybackCaptureEngine {
         String activePlaybackSessionIds = resolveFreshRuntimePackages(
                 repository.loadActivePlaybackSessionIds(),
                 repository.loadActivePlaybackSessionIdsUpdatedAt());
+        String desiredMutedSessionIds = resolveFreshRuntimePackages(
+                repository.loadDesiredMutedSessionIds(),
+                repository.loadDesiredMutedSessionIdsUpdatedAt());
         String activeMutedSessionIds = resolveFreshRuntimePackages(
                 repository.loadActiveMutedSessionIds(),
                 repository.loadActiveMutedSessionIdsUpdatedAt());
@@ -1099,22 +1102,43 @@ final class PlaybackCaptureEngine {
             return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
         }
 
-        boolean fullyMutedBySessions = sessionListFullyCoveredBy(activePlaybackSessionIds, activeMutedSessionIds);
-        boolean fullyMuted = fullyMutedBySessions || packageListFullyCoveredBy(playbackPackages, mutedPackages);
+        String verificationSessionIds = selectMuteVerificationSessionIds(
+                activePlaybackSessionIds,
+                desiredMutedSessionIds);
+        boolean fullyMutedBySessions = sessionListFullyCoveredBy(verificationSessionIds, activeMutedSessionIds);
+        boolean hasSessionLevelConfirmation = !splitSessionIdList(verificationSessionIds).isEmpty();
+        boolean fullyMutedByPackages = hasSessionLevelConfirmation
+                && packageListFullyCoveredBy(playbackPackages, mutedPackages);
+        boolean fullyMuted = fullyMutedBySessions || fullyMutedByPackages;
         boolean allowed = fullyMuted || currentConfig.allowReplayWithoutMute;
         String reason;
         if (fullyMutedBySessions) {
             reason = "allActivePlaybackSessionsMuted";
-        } else if (fullyMuted) {
+        } else if (fullyMutedByPackages) {
             reason = "allActivePlaybackPackagesMuted";
         } else if (currentConfig.allowReplayWithoutMute) {
             reason = "allowReplayWithoutMuteUnmutedPlayback";
+        } else if (!hasSessionLevelConfirmation) {
+            reason = "missingSessionLevelMuteVerification";
         } else {
             reason = "activePlaybackIncludesUnmutedPackages";
         }
         String replayPackages = allowed ? playbackPackages : "";
         traceReplayDecision(reason, mutedPackages, playbackPackages, replayPackages, pcmActive);
         return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
+    }
+
+    private String selectMuteVerificationSessionIds(String activePlaybackSessionIds,
+                                                    String desiredMutedSessionIds) {
+        LinkedHashSet<String> active = splitSessionIdList(activePlaybackSessionIds);
+        if (!active.isEmpty()) {
+            return joinSessionIds(active);
+        }
+        LinkedHashSet<String> desired = splitSessionIdList(desiredMutedSessionIds);
+        if (!desired.isEmpty()) {
+            return joinSessionIds(desired);
+        }
+        return "";
     }
 
     private String resolvePlaybackPackagesForReplayDecision(boolean refreshFromAudioManager) {
@@ -1342,6 +1366,24 @@ final class PlaybackCaptureEngine {
             }
         }
         return true;
+    }
+
+    private String joinSessionIds(LinkedHashSet<String> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String sessionId : sessionIds) {
+            String normalized = normalizePackageName(sessionId);
+            if (normalized.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(normalized);
+        }
+        return builder.toString();
     }
 
     private boolean isFreshRuntimePackage(String packageName, long updatedAtMs) {
