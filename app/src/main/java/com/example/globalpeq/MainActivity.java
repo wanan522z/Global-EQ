@@ -2132,12 +2132,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean shouldShowShizukuReplayFallbackControl() {
-        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
-            return false;
-        }
-        ShizukuStatusSummary summary = currentShizukuStatusSummary();
-        return summary.kind == ShizukuStatusSummary.Kind.UNMUTED_REPLAY
-                || summary.kind == ShizukuStatusSummary.Kind.CAPTURE_ONLY;
+        return processingMode == ProcessingMode.SHIZUKU_MUTE;
     }
 
     private String runtimePackageLine(String label, String packageName, String emptyText) {
