@@ -1578,24 +1578,28 @@ public final class MainActivity extends Activity {
         importExportPanel.addView(labeledSettingsRow(this::settingsLanguageLabelText, languageButton, view -> languageLabelView = view), blockParams(12));
 
         TextView importPresetButton = createExtraChoiceButton();
+        bindText(importPresetButton, () -> tr("Import", "导入"));
         importPresetButton.setText(tr("Import", "导入"));
         styleMonitorActionButton(importPresetButton, 132);
         importPresetButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_PRESET_JSON));
         importExportPanel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(12));
 
         TextView exportPresetButton = createExtraChoiceButton();
+        bindText(exportPresetButton, () -> tr("Export", "导出"));
         exportPresetButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportPresetButton, 132);
         exportPresetButton.setOnClickListener(v -> showExportPresetChoiceDialog());
         importExportPanel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
 
         TextView importDeviceConfigButton = createExtraChoiceButton();
+        bindText(importDeviceConfigButton, () -> tr("Import", "导入"));
         importDeviceConfigButton.setText(tr("Import", "导入"));
         styleMonitorActionButton(importDeviceConfigButton, 132);
         importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
         importExportPanel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(12));
 
         TextView exportDeviceConfigButton = createExtraChoiceButton();
+        bindText(exportDeviceConfigButton, () -> tr("Export", "导出"));
         exportDeviceConfigButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportDeviceConfigButton, 132);
         exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
