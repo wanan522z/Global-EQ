@@ -944,7 +944,7 @@ final class PlaybackCaptureEngine {
         if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
             expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
         }
-        boolean replayCoveredByMute = packageListsIntersect(expectedReplayPackage, mutedPackage);
+        boolean replayCoveredByMute = packageListFullyCoveredBy(expectedReplayPackage, mutedPackage);
         allowed = replayCoveredByMute || currentConfig.allowReplayWithoutMute;
         traceReplayDecision(replayCoveredByMute
                         ? "replayCoveredByMute"
@@ -1131,21 +1131,21 @@ final class PlaybackCaptureEngine {
         if (currentConfig.allowReplayWithoutMute) {
             return true;
         }
-        return packageListsIntersect(expectedReplayPackage, mutedPackage);
+        return packageListFullyCoveredBy(expectedReplayPackage, mutedPackage);
     }
 
-    private boolean packageListsIntersect(String leftPackages, String rightPackages) {
-        LinkedHashSet<String> left = splitPackageList(leftPackages);
-        LinkedHashSet<String> right = splitPackageList(rightPackages);
-        if (left.isEmpty() || right.isEmpty()) {
+    private boolean packageListFullyCoveredBy(String expectedPackages, String mutedPackages) {
+        LinkedHashSet<String> expected = splitPackageList(expectedPackages);
+        LinkedHashSet<String> muted = splitPackageList(mutedPackages);
+        if (expected.isEmpty() || muted.isEmpty()) {
             return false;
         }
-        for (String packageName : left) {
-            if (right.contains(packageName)) {
-                return true;
+        for (String packageName : expected) {
+            if (!muted.contains(packageName)) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     private LinkedHashSet<String> splitPackageList(String packages) {
