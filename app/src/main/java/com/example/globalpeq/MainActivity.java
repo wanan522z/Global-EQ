@@ -8174,7 +8174,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout extraBassPanel = createExtraPanelShell();
         page.addView(extraBassPanel, extraPanelParams(12));
-        LinearLayout extraBassHeader = createExtraHeaderRow("Extra Bass");
+        LinearLayout extraBassHeader = createExtraHeaderRow(extraBassTitleText());
         extraBassTitleView = (TextView) extraBassHeader.getChildAt(0);
         extraBassSwitch = new Switch(this);
         extraBassSwitch.setText("");
@@ -8184,7 +8184,7 @@ public final class MainActivity extends Activity {
         extraBassHeader.addView(extraBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
         extraBassPanel.addView(extraBassHeader, blockParams(4));
         LinearLayout extraBassKnobs = createExtraKnobRow(extraBassPanel);
-        extraBassKnobs.addView(createExtraBassControl("Cutoff", true), knobColumnParams());
+        extraBassKnobs.addView(createExtraBassControl(cutoffLabelText(), true), knobColumnParams());
         extraBassKnobs.addView(createExtraBassControl(virtualBassBoostLabelText(), false), knobColumnParams());
     }
 
