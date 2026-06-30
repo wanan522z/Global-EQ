@@ -259,6 +259,7 @@ public final class MainActivity extends Activity {
     private TextView shizukuRuntimeReplayView;
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
+    private View shizukuReplayFallbackRowView;
     private TextView shizukuReplayFallbackLabelView;
     private TextView shizukuReplayFallbackHintView;
     private TextView advancedModeSummaryView;
@@ -1580,7 +1581,8 @@ public final class MainActivity extends Activity {
             updateAdvancedModeConfig(advancedModeConfig.withAllowReplayWithoutMute(isChecked));
         });
         styleTopSwitch(shizukuReplayFallbackSwitch, false);
-        shizukuRuntimePanel.addView(labeledSettingsRow(shizukuReplayFallbackLabelText(), shizukuReplayFallbackSwitch), blockParams(12));
+        shizukuReplayFallbackRowView = labeledSettingsRow(shizukuReplayFallbackLabelText(), shizukuReplayFallbackSwitch);
+        shizukuRuntimePanel.addView(shizukuReplayFallbackRowView, blockParams(12));
 
         shizukuReplayFallbackHintView = new TextView(this);
         shizukuReplayFallbackHintView.setText(shizukuReplayFallbackHintText());
