@@ -1757,7 +1757,11 @@ final class PlaybackCaptureEngine {
         if (restartForCaptureActive) {
             mainHandler.post(() -> {
                 synchronized (PlaybackCaptureEngine.this) {
-                    restartPipelineLocked("capture active state changed");
+                    boolean restarted = restartPipelineLocked("capture active state changed");
+                    if (!restarted) {
+                        suppressNextCaptureActiveRestart = false;
+                        captureActiveRestartArmed = true;
+                    }
                 }
             });
         }
