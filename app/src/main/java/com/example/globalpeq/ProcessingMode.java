@@ -2,6 +2,7 @@ package com.example.globalpeq;
 
 enum ProcessingMode {
     SYSTEM_EQ("SYSTEM_EQ", "Default"),
+    GLOBAL_DSP("GLOBAL_DSP", "Global DSP"),
     SHIZUKU_MUTE("SHIZUKU_MUTE", "Shizuku Mode");
 
     final String key;
@@ -24,6 +25,18 @@ enum ProcessingMode {
             }
         }
         return SYSTEM_EQ;
+    }
+
+    boolean usesNativeCapture() {
+        return this != SYSTEM_EQ;
+    }
+
+    boolean capturesSystemAudio() {
+        return this == GLOBAL_DSP || this == SHIZUKU_MUTE;
+    }
+
+    boolean requiresShizukuMute() {
+        return this == SHIZUKU_MUTE;
     }
 
     static String[] labels() {
