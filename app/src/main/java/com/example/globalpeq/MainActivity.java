@@ -5392,7 +5392,7 @@ public final class MainActivity extends Activity {
         }
 
         FrequencyCurve currentSource = targetCurve ? selectedTargetCurveSource : selectedDeviceCurveSource;
-        if (!renamed) {
+        if (currentSource == null || currentSource.isDefault()) {
             Toast.makeText(this, tr("Curve rename failed", "曲线重命名失败"), Toast.LENGTH_SHORT).show();
             return false;
         }
