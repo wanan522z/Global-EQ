@@ -747,30 +747,48 @@ final class ShizukuSessionMuteEngine {
         if (firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
             firstActivePackageName = preferredDesiredSession.packageName;
         }
-        String preferredMutePackage = resolvePreferredMutePackage(
+        String candidateMutePackage = resolveCandidateMutePackage(
                 activePlayback,
                 desiredMuteSessionIds,
                 sessions,
                 preferredDesiredSession);
-        if (!preferredMutePackage.isEmpty()) {
+        String lockedSourcePackage = resolveLockedSourcePackage(
+                candidateMutePackage,
+                desiredMuteSessionIds,
+                sessions);
+        Set<String> desiredPackages = collectDesiredPackages(desiredMuteSessionIds, sessions);
+        LinkedHashSet<String> packageScope = new LinkedHashSet<>();
+        if (!lockedSourcePackage.isEmpty()) {
+            packageScope.add(lockedSourcePackage);
+        }
+        String pendingCandidate = normalizePackageName(candidateMutePackage);
+        if (!pendingCandidate.isEmpty()
+                && !pendingCandidate.equals(lockedSourcePackage)
+                && desiredPackages.contains(pendingCandidate)) {
+            packageScope.add(pendingCandidate);
+        }
+        if (!packageScope.isEmpty()) {
             Set<Integer> packageScopedMuteSessionIds = new LinkedHashSet<>();
             SessionInfo preferredPackageSession = null;
             for (SessionInfo session : sessions) {
                 if (!desiredMuteSessionIds.contains(session.sessionId)) {
                     continue;
                 }
-                if (!preferredMutePackage.equals(session.packageName)) {
+                String normalizedPackage = normalizePackageName(session.packageName);
+                if (!packageScope.contains(normalizedPackage)) {
                     continue;
                 }
                 packageScopedMuteSessionIds.add(session.sessionId);
-                preferredPackageSession = preferNewerPackagedSession(preferredPackageSession, session);
+                if (lockedSourcePackage.equals(normalizedPackage) || preferredPackageSession == null) {
+                    preferredPackageSession = preferNewerPackagedSession(preferredPackageSession, session);
+                }
             }
             if (!packageScopedMuteSessionIds.isEmpty()) {
                 desiredMuteSessionIds = packageScopedMuteSessionIds;
                 preferredDesiredSession = preferredPackageSession;
-                firstActivePackageName = preferredPackageSession == null
-                        ? preferredMutePackage
-                        : preferredPackageSession.packageName;
+                firstActivePackageName = !pendingCandidate.isEmpty()
+                        ? pendingCandidate
+                        : (preferredPackageSession == null ? lockedSourcePackage : preferredPackageSession.packageName);
             }
         }
         List<Integer> staleMutedSessions = new ArrayList<>();
@@ -825,7 +843,9 @@ final class ShizukuSessionMuteEngine {
         }
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
                 + " desiredMuteSessionIds=" + desiredMuteSessionIds
-                + " preferredMutePackage=" + preferredMutePackage
+                + " candidateMutePackage=" + candidateMutePackage
+                + " lockedSourcePackage=" + lockedSourcePackage
+                + " packageScope=" + packageScope
                 + " activePkg=" + firstActivePackageName
                 + " mutedPkg=" + firstMutedPackageName
                 + " muteEffects=" + muteEffects.keySet());
