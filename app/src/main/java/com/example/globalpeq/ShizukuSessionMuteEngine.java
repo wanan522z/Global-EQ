@@ -209,6 +209,7 @@ final class ShizukuSessionMuteEngine {
         releaseAllEffects();
         currentAppSessionIds = new LinkedHashSet<>();
         updateActivePackageName("");
+        updateMutedPackageName("");
         publishStatus("Shizuku mute is idle.", false);
     }
 
@@ -257,8 +258,9 @@ final class ShizukuSessionMuteEngine {
                 + ", muteMode=" + applyMuteEffects
                 + ", activePlaybackUids=" + activePlayback.activeUids.size());
         logSessionSnapshot("scanSessionsAndRefreshState", sessions);
-        String activePackageName = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
-        updateActivePackageName(activePackageName);
+        MuteScanResult scanResult = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
+        updateActivePackageName(scanResult.activePackageName);
+        updateMutedPackageName(scanResult.mutedPackageName);
         if (wantsMuteEffects && !applyMuteEffects) {
             publishStatus(repository.loadMonitorCaptureActive()
                     ? "Waiting for native capture playback session."
