@@ -237,6 +237,7 @@ final class PcmDspProcessor {
         private float bassCompressorThreshold = 0.24f;
         private float bassCompressorRatio = 1.24f;
         private float bassCompressorMakeup = 1.04f;
+        private float bassCompressorKnee = 0.08f;
         private float transientFastEnvelope;
         private float transientSlowEnvelope;
         private float transientFastCoeff;
@@ -285,10 +286,11 @@ final class PcmDspProcessor {
             secondHarmonicGain = 1.20f + amount * 1.80f;
             thirdHarmonicGain = 0.04f + amount * 0.10f;
             harmonicOutputGain = (0.72f + amount * 0.88f) * outputTrim;
-            bassCompressorThreshold = 0.24f - amount * 0.03f;
-            bassCompressorRatio = 1.22f + amount * 0.16f;
-            bassCompressorMakeup = 1.03f + amount * 0.07f;
-            bassCompressorAttackCoeff = envelopeCoeff(0.0035f);
+            bassCompressorThreshold = 0.30f - amount * 0.02f;
+            bassCompressorRatio = 1.10f + amount * 0.10f;
+            bassCompressorMakeup = 1.00f + amount * 0.03f;
+            bassCompressorKnee = 0.07f + amount * 0.02f;
+            bassCompressorAttackCoeff = envelopeCoeff(0.0055f);
             bassCompressorReleaseCoeff = envelopeCoeff(0.020f);
             transientFastCoeff = envelopeCoeff(0.0020f);
             transientSlowCoeff = envelopeCoeff(0.030f);
@@ -419,10 +421,21 @@ final class PcmDspProcessor {
             float level = Math.abs(sample);
             float coeff = level > bassCompressorEnvelope ? bassCompressorAttackCoeff : bassCompressorReleaseCoeff;
             bassCompressorEnvelope = level + coeff * (bassCompressorEnvelope - level);
-            float compressedLevel = bassCompressorEnvelope <= bassCompressorThreshold
-                    ? bassCompressorEnvelope
-                    : bassCompressorThreshold
-                    + (bassCompressorEnvelope - bassCompressorThreshold) / Math.max(1.0f, bassCompressorRatio);
+            float halfKnee = bassCompressorKnee * 0.5f;
+            float compressedLevel;
+            if (bassCompressorEnvelope <= bassCompressorThreshold - halfKnee) {
+                compressedLevel = bassCompressorEnvelope;
+            } else if (bassCompressorEnvelope >= bassCompressorThreshold + halfKnee) {
+                compressedLevel = bassCompressorThreshold
+                        + (bassCompressorEnvelope - bassCompressorThreshold) / Math.max(1.0f, bassCompressorRatio);
+            } else {
+                float dryLevel = bassCompressorEnvelope;
+                float wetLevel = bassCompressorThreshold
+                        + (bassCompressorEnvelope - bassCompressorThreshold) / Math.max(1.0f, bassCompressorRatio);
+                float t = (bassCompressorEnvelope - (bassCompressorThreshold - halfKnee)) / Math.max(0.0001f, bassCompressorKnee);
+                t = t * t * (3f - 2f * t);
+                compressedLevel = dryLevel + (wetLevel - dryLevel) * t;
+            }
             float gain = bassCompressorEnvelope > 0.0001f ? compressedLevel / bassCompressorEnvelope : 1f;
             return finiteOrZero(sample * gain * bassCompressorMakeup);
         }
