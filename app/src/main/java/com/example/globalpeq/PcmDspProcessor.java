@@ -226,6 +226,7 @@ final class PcmDspProcessor {
 
         private float smoothedMix;
         private float detectorState;
+        private float envelopeState;
         private float cubicState;
 
         private float wetMix;
@@ -266,11 +267,11 @@ final class PcmDspProcessor {
 
             rebuildFilters(targetCutoffHz, amount);
 
-            wetMix = 0.38f + (float) Math.pow(amount, 1.04f) * 4.30f;
+            wetMix = 0.22f + (float) Math.pow(amount, 1.08f) * 2.35f;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
-            thirdHarmonicGain = 0f;
-            harmonicOutputGain = 1.05f + amount * 1.45f;
+            thirdHarmonicGain = 0.02f + amount * 0.06f;
+            harmonicOutputGain = 0.80f + amount * 1.00f;
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
@@ -280,6 +281,7 @@ final class PcmDspProcessor {
             active = true;
             smoothedMix = 0f;
             detectorState = 0f;
+            envelopeState = 0f;
             cubicState = 0f;
         }
 
@@ -320,7 +322,9 @@ final class PcmDspProcessor {
         }
 
         private float shapeHarmonics(float lowBand) {
-            float normalized = finiteOrZero(lowBand);
+            envelopeState += (Math.abs(lowBand) - envelopeState) * 0.020f;
+            float normalization = Math.max(0.12f, envelopeState * 1.75f);
+            float normalized = finiteOrZero(lowBand / normalization);
 
             float squared = normalized * normalized;
             detectorState += (squared - detectorState) * 0.010f;
@@ -364,6 +368,7 @@ final class PcmDspProcessor {
 
         private void resetRuntime() {
             detectorState = 0f;
+            envelopeState = 0f;
             cubicState = 0f;
             if (sourceHighPass != null) {
                 sourceHighPass.reset();
