@@ -3704,6 +3704,17 @@ public final class MainActivity extends Activity {
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
+        if (shizukuReplayFallbackSwitch != null) {
+            shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
+            shizukuReplayFallbackSwitch.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuReplayFallbackHintView != null) {
+            setTextIfChanged(shizukuReplayFallbackHintView, shizukuReplayFallbackHintText());
+            shizukuReplayFallbackHintView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuReplayFallbackLabelView != null) {
+            shizukuReplayFallbackLabelView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
+        }
         if (presetSelectButton != null) {
             setTextIfChanged(presetSelectButton, presetDisplayName(editingPreset));
         }
@@ -3791,6 +3802,17 @@ public final class MainActivity extends Activity {
             setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
+        }
+        if (shizukuReplayFallbackSwitch != null) {
+            shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
+            shizukuReplayFallbackSwitch.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuReplayFallbackHintView != null) {
+            setTextIfChanged(shizukuReplayFallbackHintView, shizukuReplayFallbackHintText());
+            shizukuReplayFallbackHintView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
+        }
+        if (shizukuReplayFallbackLabelView != null) {
+            shizukuReplayFallbackLabelView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
     }
 
