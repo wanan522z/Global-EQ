@@ -1276,10 +1276,7 @@ final class PlaybackCaptureEngine {
         if (!currentMode.requiresShizukuMute()) {
             return true;
         }
-        if (currentConfig.allowReplayWithoutMute) {
-            return true;
-        }
-        return packageListFullyCoveredBy(expectedReplayPackage, mutedPackage);
+        return !normalizePackageName(expectedReplayPackage).isEmpty();
     }
 
     private boolean packageListFullyCoveredBy(String expectedPackages, String mutedPackages) {
