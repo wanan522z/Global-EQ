@@ -8936,6 +8936,10 @@ public final class MainActivity extends Activity {
         void onChoice(int position);
     }
 
+    private interface TextViewBinder {
+        void onBound(TextView view);
+    }
+
     private interface CurveMenuSelected {
         void onSelected(int which);
     }
