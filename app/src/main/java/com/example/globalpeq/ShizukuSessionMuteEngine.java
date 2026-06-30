@@ -711,10 +711,12 @@ final class ShizukuSessionMuteEngine {
             if (!currentSessionIds.contains(sid)) {
                 continue;
             }
-            desiredMuteSessionIds.add(sid);
-            SessionInfo existingSession = knownSessions.get(sid);
-            if (existingSession != null) {
-                preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, existingSession);
+            if (!ambiguousDesiredPackages) {
+                desiredMuteSessionIds.add(sid);
+                SessionInfo existingSession = knownSessions.get(sid);
+                if (existingSession != null) {
+                    preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, existingSession);
+                }
             }
         }
         List<Integer> staleMutedSessions = new ArrayList<>();
