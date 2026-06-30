@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ final class ShizukuSessionMuteEngine {
     private static final float MUTE_GAIN_DB = -144f;
     private static final long ACTIVE_RESCAN_INTERVAL_MS = 750L;
     private static final long PASSIVE_RESCAN_INTERVAL_MS = 5000L;
+    private static final long SOURCE_SWITCH_CONFIRMATION_MS = 220L;
     private static final Pattern SESSION_REGEX = Pattern.compile(
             "Session Id:\\s*(\\d+)\\s+UID:\\s*(\\d+)[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
