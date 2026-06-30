@@ -1048,6 +1048,12 @@ final class PlaybackCaptureEngine {
     private ReplayDecision resolveReplayDecision(long now, boolean refreshPlaybackPackages) {
         String playbackPackages = resolvePlaybackPackagesForReplayDecision(refreshPlaybackPackages);
         String mutedPackages = normalizePackageName(repository.loadActiveMutedPackage());
+        String activePlaybackSessionIds = resolveFreshRuntimePackages(
+                repository.loadActivePlaybackSessionIds(),
+                repository.loadActivePlaybackSessionIdsUpdatedAt());
+        String activeMutedSessionIds = resolveFreshRuntimePackages(
+                repository.loadActiveMutedSessionIds(),
+                repository.loadActiveMutedSessionIdsUpdatedAt());
         boolean pcmActive = hasRecentPcmActivity(now, REPLAY_DECISION_PCM_HOLD_MS);
 
         if (!currentMode.requiresShizukuMute()) {
@@ -1071,10 +1077,13 @@ final class PlaybackCaptureEngine {
             return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
         }
 
-        boolean fullyMuted = packageListFullyCoveredBy(playbackPackages, mutedPackages);
+        boolean fullyMutedBySessions = sessionListFullyCoveredBy(activePlaybackSessionIds, activeMutedSessionIds);
+        boolean fullyMuted = fullyMutedBySessions || packageListFullyCoveredBy(playbackPackages, mutedPackages);
         boolean allowed = fullyMuted || currentConfig.allowReplayWithoutMute;
         String reason;
-        if (fullyMuted) {
+        if (fullyMutedBySessions) {
+            reason = "allActivePlaybackSessionsMuted";
+        } else if (fullyMuted) {
             reason = "allActivePlaybackPackagesMuted";
         } else if (currentConfig.allowReplayWithoutMute) {
             reason = "allowReplayWithoutMuteUnmutedPlayback";
@@ -1295,6 +1304,20 @@ final class PlaybackCaptureEngine {
         return true;
     }
 
+    private boolean sessionListFullyCoveredBy(String activeSessionIds, String mutedSessionIds) {
+        LinkedHashSet<String> active = splitSessionIdList(activeSessionIds);
+        LinkedHashSet<String> muted = splitSessionIdList(mutedSessionIds);
+        if (active.isEmpty() || muted.isEmpty()) {
+            return false;
+        }
+        for (String sessionId : active) {
+            if (!muted.contains(sessionId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private boolean isFreshRuntimePackage(String packageName, long updatedAtMs) {
         if (normalizePackageName(packageName).isEmpty() || updatedAtMs <= 0L) {
             return false;
@@ -1332,6 +1355,22 @@ final class PlaybackCaptureEngine {
             String packageName = normalizePackageName(part);
             if (!packageName.isEmpty()) {
                 result.add(packageName);
+            }
+        }
+        return result;
+    }
+
+    private LinkedHashSet<String> splitSessionIdList(String sessionIds) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        String normalized = normalizePackageName(sessionIds);
+        if (normalized.isEmpty()) {
+            return result;
+        }
+        String[] parts = normalized.split(",");
+        for (String part : parts) {
+            String sessionId = normalizePackageName(part);
+            if (!sessionId.isEmpty()) {
+                result.add(sessionId);
             }
         }
         return result;
