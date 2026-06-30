@@ -2013,6 +2013,35 @@ public final class MainActivity extends Activity {
                 tr("Replay has not locked onto a package yet", "回放链路暂时还没有锁定到包名"));
     }
 
+    private String bestPlaybackRuntimePackage(ShizukuRuntimeState state) {
+        if (state == null) {
+            return "";
+        }
+        if (!state.activePlaybackPackage.isEmpty()) {
+            return state.activePlaybackPackage;
+        }
+        if (!state.activeMutedPackage.isEmpty()) {
+            return state.activeMutedPackage;
+        }
+        return state.activeReplayPackage;
+    }
+
+    private String bestReplayRuntimePackage(ShizukuRuntimeState state) {
+        if (state == null) {
+            return "";
+        }
+        if (!state.activeReplayPackage.isEmpty()) {
+            return state.activeReplayPackage;
+        }
+        if (state.captureActive && !state.activeMutedPackage.isEmpty()) {
+            return state.activeMutedPackage;
+        }
+        if (state.captureActive && !state.activePlaybackPackage.isEmpty()) {
+            return state.activePlaybackPackage;
+        }
+        return "";
+    }
+
     private String runtimePackageLine(String label, String packageName, String emptyText) {
         String safeLabel = label == null ? "" : label;
         String normalized = packageName == null ? "" : packageName.trim();
