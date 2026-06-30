@@ -938,11 +938,20 @@ final class PlaybackCaptureEngine {
             return allowed;
         }
         String expectedReplayPackage = normalizePackageName(currentReplayPackageName);
-        if (expectedReplayPackage.isEmpty()) {
+        if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
             expectedReplayPackage = normalizePackageName(repository.loadActivePlaybackPackage());
         }
         if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
             expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
+        }
+        if (expectedReplayPackage.isEmpty()) {
+            allowed = currentConfig.allowReplayWithoutMute;
+            traceReplayDecision(
+                    allowed ? "allowReplayWithoutResolvedReplayPackage" : "replayPackageUnknown",
+                    mutedPackage,
+                    expectedReplayPackage,
+                    normalizePackageName(currentConfig.monitoredAppPackage));
+            return allowed;
         }
         boolean replayCoveredByMute = packageListFullyCoveredBy(expectedReplayPackage, mutedPackage);
         allowed = replayCoveredByMute || currentConfig.allowReplayWithoutMute;
