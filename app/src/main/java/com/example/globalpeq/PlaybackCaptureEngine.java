@@ -1763,14 +1763,14 @@ final class PlaybackCaptureEngine {
         String keyProduct = product.isEmpty()
                 ? "default"
                 : product.toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]+", "_");
-        return device.getType() + ":" + keyProduct;
+        return device.getType() + ":" + keyProduct + "#" + device.getId();
     }
 
     private String describeResolvedDeviceSignature(AudioDeviceInfo device) {
         if (device == null) {
             return "none";
         }
-        return describeOutputDeviceKey(device) + "#" + device.getId();
+        return describeOutputDeviceKey(device);
     }
 
     private String safeDeviceKey(AudioOutputDevice outputDevice) {
