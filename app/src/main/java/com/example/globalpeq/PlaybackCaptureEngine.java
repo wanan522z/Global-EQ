@@ -950,7 +950,7 @@ final class PlaybackCaptureEngine {
         if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
             expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
         }
-        allowed = !expectedReplayPackage.isEmpty() && expectedReplayPackage.equals(mutedPackage);
+        allowed = packageListsIntersect(expectedReplayPackage, mutedPackage);
         traceReplayDecision("comparePackages", mutedPackage, expectedReplayPackage,
                 normalizePackageName(currentConfig.monitoredAppPackage));
         return allowed;
@@ -977,7 +977,7 @@ final class PlaybackCaptureEngine {
             return fallbackPackage == null ? "" : fallbackPackage.trim();
         }
         try {
-            String candidatePackage = "";
+            LinkedHashSet<String> candidatePackages = new LinkedHashSet<>();
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
                 if (configuration == null) {
                     continue;
@@ -1014,15 +1014,16 @@ final class PlaybackCaptureEngine {
                 }
                 String[] packages = packageManager.getPackagesForUid(clientUid);
                 if (packages != null && packages.length > 0 && packages[0] != null) {
-                    candidatePackage = packages[0].trim();
+                    candidatePackages.add(packages[0].trim());
                     Log.d(TAG, "TRACE_SWITCH replayPackageChosen"
-                            + " pkg=" + candidatePackage
+                            + " pkg=" + packages[0].trim()
                             + " uid=" + clientUid
                             + " fallback=" + fallbackPackage);
                 }
             }
-            if (!candidatePackage.isEmpty()) {
-                return candidatePackage;
+            String joinedPackages = joinPackageList(candidatePackages);
+            if (!joinedPackages.isEmpty()) {
+                return joinedPackages;
             }
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to resolve replay package name", ex);
@@ -1134,9 +1135,55 @@ final class PlaybackCaptureEngine {
         if (currentConfig.allowReplayWithoutMute) {
             return true;
         }
-        String muted = normalizePackageName(mutedPackage);
-        String expected = normalizePackageName(expectedReplayPackage);
-        return !muted.isEmpty() && !expected.isEmpty() && expected.equals(muted);
+        return packageListsIntersect(expectedReplayPackage, mutedPackage);
+    }
+
+    private boolean packageListsIntersect(String leftPackages, String rightPackages) {
+        LinkedHashSet<String> left = splitPackageList(leftPackages);
+        LinkedHashSet<String> right = splitPackageList(rightPackages);
+        if (left.isEmpty() || right.isEmpty()) {
+            return false;
+        }
+        for (String packageName : left) {
+            if (right.contains(packageName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private LinkedHashSet<String> splitPackageList(String packages) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        String normalized = normalizePackageName(packages);
+        if (normalized.isEmpty()) {
+            return result;
+        }
+        String[] parts = normalized.split(",");
+        for (String part : parts) {
+            String packageName = normalizePackageName(part);
+            if (!packageName.isEmpty()) {
+                result.add(packageName);
+            }
+        }
+        return result;
+    }
+
+    private String joinPackageList(Set<String> packages) {
+        if (packages == null || packages.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String packageName : packages) {
+            String normalized = normalizePackageName(packageName);
+            if (normalized.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(normalized);
+        }
+        return builder.toString();
     }
 
     private int readPlaybackSessionId(AudioPlaybackConfiguration configuration) {
