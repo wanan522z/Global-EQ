@@ -699,28 +699,25 @@ final class ShizukuSessionMuteEngine {
                     + ", usage=" + session.usage);
         }
         boolean ambiguousDesiredPackages = firstActivePackageName.isEmpty() && desiredPackages.size() > 1;
-        if (!ambiguousDesiredPackages && firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
+        if (firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
             firstActivePackageName = preferredDesiredSession.packageName;
         }
         if (ambiguousDesiredPackages) {
-            firstActivePackageName = orderPackageNamesByPriority(
-                    desiredPackages,
-                    repository.loadActiveReplayPackage(),
-                    repository.loadActivePlaybackPackage());
             Log.w(TAG, "TRACE_SWITCH ambiguousMuteCandidates desiredPackages=" + desiredPackages
-                    + ", clearing mute targets to avoid cross-app pollution");
-            desiredMuteSessionIds.clear();
+                    + ", selectedPackage=" + firstActivePackageName
+                    + " via newest session to avoid cross-app pollution");
+            desiredMuteSessionIds = filterSessionIdsByPackage(sessions, desiredMuteSessionIds, firstActivePackageName);
         }
         for (Integer sid : muteEffects.keySet()) {
             if (!currentSessionIds.contains(sid)) {
                 continue;
             }
-            if (!ambiguousDesiredPackages) {
+            SessionInfo existingSession = knownSessions.get(sid);
+            if (existingSession != null
+                    && normalizePackageName(firstActivePackageName)
+                    .equals(normalizePackageName(existingSession.packageName))) {
                 desiredMuteSessionIds.add(sid);
-                SessionInfo existingSession = knownSessions.get(sid);
-                if (existingSession != null) {
-                    preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, existingSession);
-                }
+                preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, existingSession);
             }
         }
         List<Integer> staleMutedSessions = new ArrayList<>();
@@ -835,9 +832,9 @@ final class ShizukuSessionMuteEngine {
                 fastModeIncompatible);
     }
 
-    private Set<Integer> filterSessionIdsByPackage(List<SessionInfo> sessions,
-                                                   Set<Integer> sessionIds,
-                                                   String packageName) {
+    private LinkedHashSet<Integer> filterSessionIdsByPackage(List<SessionInfo> sessions,
+                                                             Set<Integer> sessionIds,
+                                                             String packageName) {
         LinkedHashSet<Integer> filtered = new LinkedHashSet<>();
         if (sessions == null || sessionIds == null || sessionIds.isEmpty()) {
             return filtered;
@@ -856,49 +853,6 @@ final class ShizukuSessionMuteEngine {
             }
         }
         return filtered;
-    }
-
-    private String orderPackageNamesByPriority(Set<String> packageNames, String... references) {
-        LinkedHashSet<String> remaining = new LinkedHashSet<>();
-        if (packageNames != null) {
-            for (String packageName : packageNames) {
-                String normalized = normalizePackageName(packageName);
-                if (!normalized.isEmpty()) {
-                    remaining.add(normalized);
-                }
-            }
-        }
-        if (remaining.isEmpty()) {
-            return "";
-        }
-        LinkedHashSet<String> ordered = new LinkedHashSet<>();
-        if (references != null) {
-            for (String reference : references) {
-                for (String packageName : splitPackageList(reference)) {
-                    if (remaining.remove(packageName)) {
-                        ordered.add(packageName);
-                    }
-                }
-            }
-        }
-        ordered.addAll(remaining);
-        return joinPackageNames(ordered);
-    }
-
-    private Set<String> splitPackageList(String packages) {
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        String normalized = normalizePackageName(packages);
-        if (normalized.isEmpty()) {
-            return result;
-        }
-        String[] parts = normalized.split(",");
-        for (String part : parts) {
-            String packageName = normalizePackageName(part);
-            if (!packageName.isEmpty()) {
-                result.add(packageName);
-            }
-        }
-        return result;
     }
 
     private boolean isFastModeAttachFailure(RuntimeException ex) {
