@@ -2403,12 +2403,20 @@ public final class MainActivity extends Activity {
             launchMonitorCaptureAuthorization();
             return;
         }
-        boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
+        ShizukuCompat.PermissionRequestOutcome permissionOutcome =
+                ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
+        boolean granted = permissionOutcome == ShizukuCompat.PermissionRequestOutcome.GRANTED;
         if (granted) {
             ShizukuCompat.grantPermissionsAndAppOps(this);
         }
         repository.saveShizukuMuteStatus(ShizukuCompat.describeState(this), granted);
         if (!granted) {
+            if (permissionOutcome == ShizukuCompat.PermissionRequestOutcome.UNAVAILABLE) {
+                handleShizukuPermissionFailure(
+                        tr("Shizuku access is unavailable", "Shizuku 授权当前不可用"),
+                        tr("Shizuku permission request failed. The main switch has been turned off. Please open Shizuku, complete authorization, and try again.",
+                                "Shizuku 权限请求失败，总开关已自动关闭。请先打开 Shizuku 完成授权后再重试。"));
+            }
             refreshRuntimeStatusUi();
             return;
         }
