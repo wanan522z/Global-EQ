@@ -300,11 +300,11 @@ final class PcmDspProcessor {
             bassCompressorKnee = 0.07f + amount * 0.02f;
             bassCompressorAttackCoeff = envelopeCoeff(0.0055f);
             bassCompressorReleaseCoeff = envelopeCoeff(0.020f);
-            transientFastCoeff = envelopeCoeff(0.0020f);
+            transientFastCoeff = envelopeCoeff(0.0055f);
             transientSlowCoeff = envelopeCoeff(0.030f);
             transientDuckThreshold = 0.010f + amount * 0.004f;
-            transientDuckRange = 0.055f + amount * 0.020f;
-            transientDuckDepth = 0.24f + amount * 0.12f;
+            transientDuckRange = 0.040f + amount * 0.015f;
+            transientDuckDepth = 0.34f + amount * 0.16f;
             dryBassDuckAttackCoeff = envelopeCoeff(0.0045f);
             dryBassDuckReleaseCoeff = envelopeCoeff(0.045f);
             dryBassDuckThreshold = 0.075f + amount * 0.020f;
