@@ -5391,9 +5391,7 @@ public final class MainActivity extends Activity {
             return false;
         }
 
-        boolean renamed = targetCurve
-                ? repository.renameTargetCurve(oldName, nextName)
-                : repository.renameDeviceCurve(oldName, nextName);
+        FrequencyCurve currentSource = targetCurve ? selectedTargetCurveSource : selectedDeviceCurveSource;
         if (!renamed) {
             Toast.makeText(this, tr("Curve rename failed", "曲线重命名失败"), Toast.LENGTH_SHORT).show();
             return false;
