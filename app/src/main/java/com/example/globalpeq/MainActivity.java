@@ -3821,7 +3821,7 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable loadMonitoredAppDrawable() {
-        String packageName = currentHomepageIconPackage();
+        String packageName = firstRuntimePackage(currentHomepageIconPackage());
         if (packageName != null && !packageName.isEmpty()) {
             try {
                 return getPackageManager().getApplicationIcon(packageName);
@@ -3857,12 +3857,26 @@ public final class MainActivity extends Activity {
     }
 
     private void updateActivePlaybackPackage(String packageName) {
-        String normalized = packageName == null ? "" : packageName.trim();
+        String normalized = firstRuntimePackage(packageName);
         if (normalized.equals(activePlaybackPackageName)) {
             return;
         }
         activePlaybackPackageName = normalized;
         uiHandler.post(this::updateMonitoredAppIcon);
+    }
+
+    private String firstRuntimePackage(String packages) {
+        if (packages == null || packages.trim().isEmpty()) {
+            return "";
+        }
+        String[] parts = packages.split(",");
+        for (String part : parts) {
+            String packageName = part == null ? "" : part.trim();
+            if (!packageName.isEmpty()) {
+                return packageName;
+            }
+        }
+        return "";
     }
 
     private boolean shouldKeepRuntimeStatusFresh() {
