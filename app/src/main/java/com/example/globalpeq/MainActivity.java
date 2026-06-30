@@ -8405,7 +8405,8 @@ public final class MainActivity extends Activity {
         column.setClipToPadding(false);
 
         VerticalReverbSlider slider = new VerticalReverbSlider(this);
-        slider.configure(label, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin,
+        String displayLabel = reverbSliderLabelText(label);
+        slider.configure(displayLabel, min, max, value, suffix, displayScale, displayDecimals, negativeInfinityAtMin,
                 mapper == null ? LINEAR_SLIDER_MAPPER : mapper, listener::onChanged);
         // 强制方形：弧形填满 view，标题紧贴弧形下方
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);

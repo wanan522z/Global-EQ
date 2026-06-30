@@ -99,7 +99,20 @@ public final class GlobalEqForegroundService extends Service {
                 this,
                 repository,
                 this::updateNotification,
-                () -> captureEngine == null ? java.util.Collections.emptySet() : captureEngine.getOwnedAudioSessionIds());
+                new ShizukuSessionMuteEngine.SessionIdProvider() {
+                    @Override
+                    public java.util.Set<Integer> getOwnedAudioSessionIds() {
+                        return captureEngine == null
+                                ? java.util.Collections.emptySet()
+                                : captureEngine.getOwnedAudioSessionIds();
+                    }
+
+                    @Override
+                    public boolean hasRecentCaptureActivity(long withinMs) {
+                        return captureEngine != null
+                                && captureEngine.hasRecentCaptureActivity(withinMs);
+                    }
+                });
         captureControlThread = new HandlerThread("global-peq-capture-control");
         captureControlThread.start();
         captureControlHandler = new Handler(captureControlThread.getLooper());
