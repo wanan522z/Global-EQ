@@ -916,6 +916,7 @@ final class PlaybackCaptureEngine {
                     continue;
                 }
                 String channel = describePlaybackChannelLabel(configuration);
+                logPlaybackChannelCandidate("target", configuration, channel);
                 if (!channel.isEmpty()) {
                     lastRelevantChannel = channel;
                 }
@@ -931,30 +932,13 @@ final class PlaybackCaptureEngine {
     }
 
     private String resolveCurrentOutputRouteLabel(AudioDeviceInfo preferredDevice) {
-        String ownCaptureChannel = describeOwnCapturePlaybackChannelLabel();
-        if (!ownCaptureChannel.isEmpty()) {
-            return ownCaptureChannel;
-        }
         String playerTypeLabel = currentMode.capturesSystemAudio()
                 ? resolveActiveSystemPlaybackChannelLabel()
                 : resolveActiveTargetPlaybackChannelLabel();
         if (!playerTypeLabel.isEmpty()) {
             return playerTypeLabel;
         }
-        return "";
-    }
-
-    private String describeOwnCapturePlaybackChannelLabel() {
-        AudioTrack track = audioTrack;
-        if (track == null) {
-            return "";
-        }
-        try {
-            return track.getState() == AudioTrack.STATE_INITIALIZED ? "AudioTrack" : "";
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to inspect capture playback track state", ex);
-            return "";
-        }
+        return describeReplayTrackChannelLabel();
     }
 
     private String resolveActiveSystemPlaybackChannelLabel() {
@@ -972,6 +956,7 @@ final class PlaybackCaptureEngine {
                     continue;
                 }
                 String channel = describePlaybackChannelLabel(configuration);
+                logPlaybackChannelCandidate("system", configuration, channel);
                 if (!channel.isEmpty()) {
                     lastRelevantChannel = channel;
                 }
@@ -980,6 +965,19 @@ final class PlaybackCaptureEngine {
             Log.w(TAG, "Unable to resolve active system playback channel", ex);
         }
         return lastRelevantChannel;
+    }
+
+    private String describeReplayTrackChannelLabel() {
+        AudioTrack track = audioTrack;
+        if (track == null) {
+            return "";
+        }
+        try {
+            return track.getState() == AudioTrack.STATE_INITIALIZED ? "Replay AudioTrack" : "";
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to inspect capture playback track state", ex);
+            return "";
+        }
     }
 
     private String detectSilentCaptureStall(long now, long lastSignalAt) {
