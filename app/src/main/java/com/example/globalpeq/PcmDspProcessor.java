@@ -227,13 +227,12 @@ final class PcmDspProcessor {
         private float smoothedMix;
         private float detectorState;
         private float envelopeState;
+        private float cubicState;
 
         private float wetMix;
-        private float drive;
         private float secondHarmonicGain;
         private float thirdHarmonicGain;
         private float harmonicOutputGain;
-        private float normalizationFloor;
         private boolean active;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
@@ -254,7 +253,6 @@ final class PcmDspProcessor {
             if (amountPercent <= 0) {
                 active = false;
                 wetMix = 0f;
-                drive = 1f;
                 smoothedMix = 0f;
                 resetRuntime();
                 return;
@@ -269,18 +267,14 @@ final class PcmDspProcessor {
 
             rebuildFilters(targetCutoffHz, amount);
 
-            float shapedAmount = (float) Math.pow(amount, 1.12f);
-            drive = 1.10f + shapedAmount * 1.72f;
             wetMix = 0.22f + (float) Math.pow(amount, 1.08f) * 2.35f;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
-            thirdHarmonicGain = 0.06f + amount * 0.16f;
+            thirdHarmonicGain = 0.02f + amount * 0.06f;
             harmonicOutputGain = 0.80f + amount * 1.00f;
-            normalizationFloor = 0.20f - amount * 0.05f;
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
-                drive *= 0.98f;
                 harmonicOutputGain *= 0.95f;
             }
 
@@ -288,6 +282,7 @@ final class PcmDspProcessor {
             smoothedMix = 0f;
             detectorState = 0f;
             envelopeState = 0f;
+            cubicState = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -327,16 +322,16 @@ final class PcmDspProcessor {
         }
 
         private float shapeHarmonics(float lowBand) {
-            float driven = finiteOrZero(lowBand * drive);
-            envelopeState += (Math.abs(driven) - envelopeState) * 0.020f;
-            float normalization = Math.max(normalizationFloor, envelopeState * 1.30f);
-            float normalized = finiteOrZero(driven / normalization);
-            normalized = clamp(normalized, -1.15f, 1.15f);
+            envelopeState += (Math.abs(lowBand) - envelopeState) * 0.020f;
+            float normalization = Math.max(0.12f, envelopeState * 1.75f);
+            float normalized = finiteOrZero(lowBand / normalization);
 
             float squared = normalized * normalized;
             detectorState += (squared - detectorState) * 0.010f;
             float second = (squared - detectorState) * secondHarmonicGain;
-            float third = (squared * normalized - normalized * 0.82f) * thirdHarmonicGain;
+            float cubic = normalized * normalized * normalized;
+            cubicState += (cubic - cubicState) * 0.010f;
+            float third = (cubic - cubicState) * thirdHarmonicGain;
             float source = second + third;
 
             float bandLimited = harmonicHighPass.process(source);
@@ -374,6 +369,7 @@ final class PcmDspProcessor {
         private void resetRuntime() {
             detectorState = 0f;
             envelopeState = 0f;
+            cubicState = 0f;
             if (sourceHighPass != null) {
                 sourceHighPass.reset();
             }
