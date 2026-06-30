@@ -1104,10 +1104,7 @@ final class PlaybackCaptureEngine {
             return normalizePackageName(currentConfig.monitoredAppPackage);
         }
         if (!refreshFromAudioManager) {
-            return orderPackageListByPriority(
-                    currentReplayPackageName,
-                    runtimeReplayPackages,
-                    repository.loadActiveMutedPackage());
+            return "";
         }
         String livePlaybackPackages = resolveLivePlaybackPackagesFromAudioManager();
         if (!livePlaybackPackages.isEmpty()) {
@@ -1117,10 +1114,7 @@ final class PlaybackCaptureEngine {
                     runtimeReplayPackages,
                     repository.loadActiveMutedPackage());
         }
-        return orderPackageListByPriority(
-                currentReplayPackageName,
-                runtimeReplayPackages,
-                repository.loadActiveMutedPackage());
+        return "";
     }
 
     private String resolveLivePlaybackPackagesFromAudioManager() {
