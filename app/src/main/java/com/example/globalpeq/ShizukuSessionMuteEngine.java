@@ -220,7 +220,7 @@ final class ShizukuSessionMuteEngine {
 
     private boolean wantsToMuteSessions() {
         return shouldMonitorPlaybackSessions()
-                && currentMode == ProcessingMode.SHIZUKU_MUTE
+                && currentMode.requiresShizukuMute()
                 && currentPreset != null
                 && currentPreset.enabled;
     }

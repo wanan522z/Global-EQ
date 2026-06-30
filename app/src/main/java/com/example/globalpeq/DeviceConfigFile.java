@@ -133,9 +133,17 @@ final class DeviceConfigFile {
                 mode,
                 autoSwitchOutput,
                 ModeState.fromJsonObject(object.optJSONObject("systemEqState"), ProcessingMode.SYSTEM_EQ),
-                ModeState.fromJsonObject(
+                object.has("globalDspState")
+                        ? ModeState.fromJsonObject(
                         object.optJSONObject("globalDspState"),
-                        ProcessingMode.GLOBAL_DSP),
+                        ProcessingMode.GLOBAL_DSP)
+                        : new ModeState(
+                        ProcessingMode.GLOBAL_DSP,
+                        AdvancedModeConfig.DEFAULT,
+                        ModeState.fromJsonObject(
+                                object.optJSONObject("shizukuState"),
+                                ProcessingMode.SHIZUKU_MUTE).devicePreset,
+                        "Default"),
                 ModeState.fromJsonObject(object.optJSONObject("shizukuState"), ProcessingMode.SHIZUKU_MUTE),
                 presets
         );
