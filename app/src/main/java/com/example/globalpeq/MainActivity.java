@@ -7291,10 +7291,44 @@ public final class MainActivity extends Activity {
     private void selectOutputDevice(AudioOutputDevice selected) {
         flushPendingPresetPersistence();
         repository.saveSelectedDevice(selected);
+        rememberManualDeviceSelectionOverride();
         currentDevice = selected;
         adoptDevicePresetForCurrentMode(currentDevice, true);
         renderAll();
         applyRunningPreset(shouldForceFullResetForCurrentMode());
+    }
+
+    private void rememberManualDeviceSelectionOverride() {
+        if (!autoSwitchOutput || deviceMonitor == null) {
+            repository.clearManualDeviceSelectionOverride();
+            return;
+        }
+        AudioOutputDevice detectedRoute = deviceMonitor.currentOutputDevice();
+        if (isBluetoothRoute(detectedRoute)) {
+            repository.saveManualDeviceSelectionOverride(detectedRoute);
+            return;
+        }
+        repository.clearManualDeviceSelectionOverride();
+    }
+
+    private boolean isBluetoothRoute(AudioOutputDevice device) {
+        if (device == null || device.key == null) {
+            return false;
+        }
+        int separator = device.key.indexOf(':');
+        if (separator <= 0) {
+            return false;
+        }
+        try {
+            int type = Integer.parseInt(device.key.substring(0, separator));
+            return type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                    || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                    || type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                    || type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+                    || type == AudioDeviceInfo.TYPE_BLE_BROADCAST;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private void renderSavedPresetSpinner() {
