@@ -610,6 +610,7 @@ final class ShizukuSessionMuteEngine {
         LinkedHashSet<String> mutedPackages = new LinkedHashSet<>();
         Log.d(TAG, "TRACE_SWITCH muteScanStart"
                 + " applyMuteEffects=" + applyMuteEffects
+                + " activeSessionIds=" + (activePlayback == null ? "null" : activePlayback.activeSessionIds)
                 + " activeUids=" + (activePlayback == null ? "null" : activePlayback.activeUids)
                 + " activePackages=" + (activePlayback == null ? "" : activePlayback.activePackages)
                 + " ownedSessions=" + currentAppSessionIds
@@ -728,6 +729,8 @@ final class ShizukuSessionMuteEngine {
         }
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
                 + " desiredMuteSessionIds=" + desiredMuteSessionIds
+                + " activeSessionIds=" + (activePlayback == null ? "" : activePlayback.activeSessionIds)
+                + " mutedSessionIds=" + muteEffects.keySet()
                 + " activePkg=" + firstActivePackageName
                 + " mutedPkg=" + firstMutedPackageName
                 + " muteEffects=" + muteEffects.keySet());
@@ -1011,7 +1014,9 @@ final class ShizukuSessionMuteEngine {
         effect.setInputGainAllChannelsTo(MUTE_GAIN_DB);
         effect.setEnabled(true);
         setupEffectListeners(effect, sessionId, packageName);
-        Log.i(TAG, "Muted foreign audio session " + sessionId + " package=" + packageName);
+        Log.i(TAG, "TRACE_MUTE effectCreated sessionId=" + sessionId
+                + " package=" + packageName
+                + " muteGainDb=" + MUTE_GAIN_DB);
         return effect;
     }
 
@@ -1161,7 +1166,7 @@ final class ShizukuSessionMuteEngine {
         }
         try {
             effect.release();
-            Log.d(TAG, "Released mute effect for session: " + sessionId);
+            Log.d(TAG, "TRACE_MUTE effectReleased sessionId=" + sessionId);
         } catch (RuntimeException ex) {
             Log.w(TAG, "Error releasing mute effect for session: " + sessionId, ex);
         }
