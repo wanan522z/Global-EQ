@@ -706,14 +706,16 @@ final class ShizukuSessionMuteEngine {
                                              boolean applyMuteEffects) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
         Set<Integer> desiredMuteSessionIds = new LinkedHashSet<>();
-        String firstActivePackageName = activePlayback == null ? "" : activePlayback.primaryPackageName;
+        String firstActivePackageName = activePlayback == null
+                ? ""
+                : joinPackageNames(activePlayback.activePackages);
         String firstMutedPackageName = "";
         SessionInfo preferredDesiredSession = null;
-        SessionInfo preferredMutedSession = null;
+        LinkedHashSet<String> mutedPackages = new LinkedHashSet<>();
         Log.d(TAG, "TRACE_SWITCH muteScanStart"
                 + " applyMuteEffects=" + applyMuteEffects
                 + " activeUids=" + (activePlayback == null ? "null" : activePlayback.activeUids)
-                + " activePrimaryPkg=" + (activePlayback == null ? "" : activePlayback.primaryPackageName)
+                + " activePackages=" + (activePlayback == null ? "" : activePlayback.activePackages)
                 + " ownedSessions=" + currentAppSessionIds
                 + " knownMuteEffects=" + muteEffects.keySet());
         for (SessionInfo session : sessions) {
@@ -765,56 +767,14 @@ final class ShizukuSessionMuteEngine {
         if (firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
             firstActivePackageName = preferredDesiredSession.packageName;
         }
-        String candidateMutePackage = resolveCandidateMutePackage(
-                activePlayback,
-                desiredMuteSessionIds,
-                sessions,
-                preferredDesiredSession);
-        String lockedSourcePackage = resolveLockedSourcePackage(
-                candidateMutePackage,
-                desiredMuteSessionIds,
-                sessions);
-        Set<String> desiredPackages = collectDesiredPackages(desiredMuteSessionIds, sessions);
-        LinkedHashSet<String> packageScope = new LinkedHashSet<>();
-        if (!lockedSourcePackage.isEmpty()) {
-            packageScope.add(lockedSourcePackage);
-        }
-        String pendingCandidate = normalizePackageName(candidateMutePackage);
-        if (!pendingCandidate.isEmpty()
-                && !pendingCandidate.equals(lockedSourcePackage)
-                && desiredPackages.contains(pendingCandidate)) {
-            packageScope.add(pendingCandidate);
-        }
-        if (activePlayback != null && activePlayback.activePackages.size() > 1) {
-            for (String activePackage : activePlayback.activePackages) {
-                String normalizedActivePackage = normalizePackageName(activePackage);
-                if (!normalizedActivePackage.isEmpty() && desiredPackages.contains(normalizedActivePackage)) {
-                    packageScope.add(normalizedActivePackage);
-                }
+        for (Integer sid : muteEffects.keySet()) {
+            if (!currentSessionIds.contains(sid)) {
+                continue;
             }
-        }
-        if (!packageScope.isEmpty()) {
-            Set<Integer> packageScopedMuteSessionIds = new LinkedHashSet<>();
-            SessionInfo preferredPackageSession = null;
-            for (SessionInfo session : sessions) {
-                if (!desiredMuteSessionIds.contains(session.sessionId)) {
-                    continue;
-                }
-                String normalizedPackage = normalizePackageName(session.packageName);
-                if (!packageScope.contains(normalizedPackage)) {
-                    continue;
-                }
-                packageScopedMuteSessionIds.add(session.sessionId);
-                if (lockedSourcePackage.equals(normalizedPackage) || preferredPackageSession == null) {
-                    preferredPackageSession = preferNewerPackagedSession(preferredPackageSession, session);
-                }
-            }
-            if (!packageScopedMuteSessionIds.isEmpty()) {
-                desiredMuteSessionIds = packageScopedMuteSessionIds;
-                preferredDesiredSession = preferredPackageSession;
-                firstActivePackageName = !pendingCandidate.isEmpty()
-                        ? pendingCandidate
-                        : (preferredPackageSession == null ? lockedSourcePackage : preferredPackageSession.packageName);
+            desiredMuteSessionIds.add(sid);
+            SessionInfo existingSession = knownSessions.get(sid);
+            if (existingSession != null) {
+                preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, existingSession);
             }
         }
         List<Integer> staleMutedSessions = new ArrayList<>();
@@ -848,7 +808,10 @@ final class ShizukuSessionMuteEngine {
                 DynamicsProcessing muteEffect = makeMuteEffect(session.sessionId, session.packageName);
                 if (muteEffect != null) {
                     muteEffects.put(session.sessionId, muteEffect);
-                    preferredMutedSession = preferNewerPackagedSession(preferredMutedSession, session);
+                    String normalizedPackage = normalizePackageName(session.packageName);
+                    if (!normalizedPackage.isEmpty()) {
+                        mutedPackages.add(normalizedPackage);
+                    }
                 } else {
                     Log.w(TAG, "Failed to create mute effect for session: " + session.sessionId
                             + ", package: " + session.packageName);
@@ -857,21 +820,18 @@ final class ShizukuSessionMuteEngine {
                 Log.e(TAG, "Error creating mute effect for session: " + session.sessionId, ex);
             }
         }
-        if (preferredMutedSession == null && !muteEffects.isEmpty()) {
+        if (muteEffects.isEmpty()) {
+            firstMutedPackageName = "";
+        } else {
             for (SessionInfo session : sessions) {
                 if (muteEffects.containsKey(session.sessionId) && !session.packageName.isEmpty()) {
-                    preferredMutedSession = preferNewerPackagedSession(preferredMutedSession, session);
+                    mutedPackages.add(normalizePackageName(session.packageName));
                 }
             }
-        }
-        if (preferredMutedSession != null) {
-            firstMutedPackageName = preferredMutedSession.packageName;
+            firstMutedPackageName = joinPackageNames(mutedPackages);
         }
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
                 + " desiredMuteSessionIds=" + desiredMuteSessionIds
-                + " candidateMutePackage=" + candidateMutePackage
-                + " lockedSourcePackage=" + lockedSourcePackage
-                + " packageScope=" + packageScope
                 + " activePkg=" + firstActivePackageName
                 + " mutedPkg=" + firstMutedPackageName
                 + " muteEffects=" + muteEffects.keySet());
