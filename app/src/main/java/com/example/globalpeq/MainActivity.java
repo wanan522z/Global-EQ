@@ -4923,12 +4923,22 @@ public final class MainActivity extends Activity {
     }
 
     private void refreshDeviceCurveCache() {
-        selectedDeviceCurveBase = applyCurveSmoothing(repository.loadDeviceCurve(selectedDeviceCurveName), deviceCurveSmoothing);
+        if (selectedDeviceCurveSource == null
+                || !curveNameMatches(selectedDeviceCurveSource.name, selectedDeviceCurveName)) {
+            selectedDeviceCurveSource = resolveCurveSource(selectedDeviceCurveName,
+                    editingPreset == null ? FrequencyCurve.DEFAULT : editingPreset.deviceCurveData, false);
+        }
+        selectedDeviceCurveBase = applyCurveSmoothing(selectedDeviceCurveSource, deviceCurveSmoothing);
         selectedDeviceCurve = applyCurveGainOffset(selectedDeviceCurveBase, deviceCurveGainOffsetDb);
     }
 
     private void refreshTargetCurveCache() {
-        selectedTargetCurveBase = applyCurveSmoothing(repository.loadTargetCurve(selectedTargetCurveName), targetCurveSmoothing);
+        if (selectedTargetCurveSource == null
+                || !curveNameMatches(selectedTargetCurveSource.name, selectedTargetCurveName)) {
+            selectedTargetCurveSource = resolveCurveSource(selectedTargetCurveName,
+                    editingPreset == null ? FrequencyCurve.DEFAULT : editingPreset.targetCurveData, true);
+        }
+        selectedTargetCurveBase = applyCurveSmoothing(selectedTargetCurveSource, targetCurveSmoothing);
         selectedTargetCurve = applyCurveGainOffset(selectedTargetCurveBase, targetCurveGainOffsetDb);
     }
 
@@ -4938,6 +4948,8 @@ public final class MainActivity extends Activity {
         }
         selectedDeviceCurveName = preset.deviceCurveName;
         selectedTargetCurveName = preset.targetCurveName;
+        selectedDeviceCurveSource = resolveCurveSource(selectedDeviceCurveName, preset.deviceCurveData, false);
+        selectedTargetCurveSource = resolveCurveSource(selectedTargetCurveName, preset.targetCurveData, true);
         deviceCurveGainOffsetDb = preset.deviceCurveGainOffsetDb;
         targetCurveGainOffsetDb = preset.targetCurveGainOffsetDb;
         deviceCurveSmoothing = preset.deviceCurveSmoothing;
@@ -4957,8 +4969,30 @@ public final class MainActivity extends Activity {
                 deviceCurveGainOffsetDb,
                 targetCurveGainOffsetDb,
                 deviceCurveSmoothing,
-                targetCurveSmoothing
+                targetCurveSmoothing,
+                embeddedCurveForPreset(selectedDeviceCurveName, selectedDeviceCurveSource),
+                embeddedCurveForPreset(selectedTargetCurveName, selectedTargetCurveSource)
         );
+    }
+
+    private FrequencyCurve resolveCurveSource(String curveName, FrequencyCurve embeddedCurve, boolean targetCurve) {
+        if (embeddedCurve != null && !embeddedCurve.isDefault() && curveNameMatches(embeddedCurve.name, curveName)) {
+            return embeddedCurve.withName(curveName);
+        }
+        return targetCurve ? repository.loadTargetCurve(curveName) : repository.loadDeviceCurve(curveName);
+    }
+
+    private FrequencyCurve embeddedCurveForPreset(String curveName, FrequencyCurve curve) {
+        if (curve == null || curve.isDefault() || "Default".equals(curveName)) {
+            return FrequencyCurve.DEFAULT;
+        }
+        return curve.withName(curveName);
+    }
+
+    private boolean curveNameMatches(String left, String right) {
+        String normalizedLeft = left == null ? "" : left.trim();
+        String normalizedRight = right == null ? "" : right.trim();
+        return normalizedLeft.equalsIgnoreCase(normalizedRight);
     }
 
     private void syncCurrentCurveSettingsToEditingPreset(boolean recordHistory) {
