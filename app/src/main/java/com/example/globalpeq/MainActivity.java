@@ -478,7 +478,7 @@ public final class MainActivity extends Activity {
     private final Runnable enableNeonCurveRunnable = this::activateEnabledNeonCurve;
     private final Runnable disableNeonCurveRunnable = this::activateDisabledNeonCurve;
     private final Runnable enablePeqBandStepRunnable = this::activateNextPeqBandVisual;
-    private final Runnable delayedShizukuReadyRunnable = () -> ensureShizukuModeReady(true);
+    private final Runnable delayedShizukuReadyRunnable = () -> ensureNativeCaptureModeReady(true);
     private final Runnable persistPresetStateRunnable = this::flushPendingPresetPersistence;
     private boolean supported;
     private boolean updatingUi;
@@ -6228,10 +6228,11 @@ public final class MainActivity extends Activity {
             repository.saveNamedPreset(preset);
         }
         repository.savePreset(currentDevice, ProcessingMode.SYSTEM_EQ, config.systemEqState.devicePreset);
+        repository.savePreset(currentDevice, ProcessingMode.GLOBAL_DSP, config.globalDspState.devicePreset);
         repository.savePreset(currentDevice, ProcessingMode.SHIZUKU_MUTE, config.shizukuState.devicePreset);
-        advancedModeConfig = config.shizukuState.advancedModeConfig;
+        advancedModeConfig = config.stateFor(processingMode).advancedModeConfig;
         repository.saveAdvancedModeConfig(advancedModeConfig);
-        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+        if (!processingMode.requiresShizukuMute()) {
             stopShizukuCaptureNow();
         }
         Preset activeDevicePreset = loadScopedPreset(currentDevice, processingMode);
@@ -6241,8 +6242,8 @@ public final class MainActivity extends Activity {
         renderDeviceSpinner();
         renderAll();
         applyRunningPreset(shouldForceFullResetForCurrentMode());
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE && runningPreset.enabled) {
-            ensureShizukuModeReady(true);
+        if (processingMode.usesNativeCapture() && runningPreset.enabled) {
+            ensureNativeCaptureModeReady(true);
         }
     }
 
