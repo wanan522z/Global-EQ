@@ -1,0 +1,144 @@
+package com.example.globalpeq;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+final class ShizukuRuntimeState {
+    static final ShizukuRuntimeState DEFAULT = new ShizukuRuntimeState(
+            "Native capture is idle.",
+            false,
+            "Shizuku mute is idle.",
+            false,
+            "",
+            "",
+            ""
+    );
+
+    final String captureStatus;
+    final boolean captureActive;
+    final String muteStatus;
+    final boolean muteActive;
+    final String activePlaybackPackage;
+    final String activeMutedPackage;
+    final String activeReplayPackage;
+
+    ShizukuRuntimeState(String captureStatus,
+                        boolean captureActive,
+                        String muteStatus,
+                        boolean muteActive,
+                        String activePlaybackPackage,
+                        String activeMutedPackage,
+                        String activeReplayPackage) {
+        this.captureStatus = normalize(captureStatus, "Native capture is idle.");
+        this.captureActive = captureActive;
+        this.muteStatus = normalize(muteStatus, "Shizuku mute is idle.");
+        this.muteActive = muteActive;
+        this.activePlaybackPackage = normalize(activePlaybackPackage, "");
+        this.activeMutedPackage = normalize(activeMutedPackage, "");
+        this.activeReplayPackage = normalize(activeReplayPackage, "");
+    }
+
+    ShizukuRuntimeState withCaptureStatus(String status, boolean active) {
+        return new ShizukuRuntimeState(
+                status,
+                active,
+                muteStatus,
+                muteActive,
+                activePlaybackPackage,
+                activeMutedPackage,
+                activeReplayPackage
+        );
+    }
+
+    ShizukuRuntimeState withMuteStatus(String status, boolean active) {
+        return new ShizukuRuntimeState(
+                captureStatus,
+                captureActive,
+                status,
+                active,
+                activePlaybackPackage,
+                activeMutedPackage,
+                activeReplayPackage
+        );
+    }
+
+    ShizukuRuntimeState withActivePlaybackPackage(String packageName) {
+        return new ShizukuRuntimeState(
+                captureStatus,
+                captureActive,
+                muteStatus,
+                muteActive,
+                packageName,
+                activeMutedPackage,
+                activeReplayPackage
+        );
+    }
+
+    ShizukuRuntimeState withActiveMutedPackage(String packageName) {
+        return new ShizukuRuntimeState(
+                captureStatus,
+                captureActive,
+                muteStatus,
+                muteActive,
+                activePlaybackPackage,
+                packageName,
+                activeReplayPackage
+        );
+    }
+
+    ShizukuRuntimeState withActiveReplayPackage(String packageName) {
+        return new ShizukuRuntimeState(
+                captureStatus,
+                captureActive,
+                muteStatus,
+                muteActive,
+                activePlaybackPackage,
+                activeMutedPackage,
+                packageName
+        );
+    }
+
+    String toJson() {
+        JSONObject object = new JSONObject();
+        try {
+            object.put("captureStatus", captureStatus);
+            object.put("captureActive", captureActive);
+            object.put("muteStatus", muteStatus);
+            object.put("muteActive", muteActive);
+            object.put("activePlaybackPackage", activePlaybackPackage);
+            object.put("activeMutedPackage", activeMutedPackage);
+            object.put("activeReplayPackage", activeReplayPackage);
+        } catch (JSONException ignored) {
+            return "{}";
+        }
+        return object.toString();
+    }
+
+    static ShizukuRuntimeState fromJson(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            return DEFAULT;
+        }
+        try {
+            JSONObject object = new JSONObject(json);
+            return new ShizukuRuntimeState(
+                    object.optString("captureStatus", DEFAULT.captureStatus),
+                    object.optBoolean("captureActive", DEFAULT.captureActive),
+                    object.optString("muteStatus", DEFAULT.muteStatus),
+                    object.optBoolean("muteActive", DEFAULT.muteActive),
+                    object.optString("activePlaybackPackage", DEFAULT.activePlaybackPackage),
+                    object.optString("activeMutedPackage", DEFAULT.activeMutedPackage),
+                    object.optString("activeReplayPackage", DEFAULT.activeReplayPackage)
+            );
+        } catch (JSONException ignored) {
+            return DEFAULT;
+        }
+    }
+
+    private static String normalize(String value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? fallback : trimmed;
+    }
+}
