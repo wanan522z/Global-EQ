@@ -135,8 +135,7 @@ public final class GlobalEqForegroundService extends Service {
                 return;
             }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
-            boolean newBluetoothDevice = sameRoute
-                    && isBluetoothRoute(device)
+            boolean newBluetoothDevice = isBluetoothRoute(device)
                     && !safeRouteSignature(currentDevice).equals(safeRouteSignature(device));
             currentProcessingMode = repository.loadProcessingMode();
             currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
