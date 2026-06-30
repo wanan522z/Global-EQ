@@ -1743,6 +1743,8 @@ final class PlaybackCaptureEngine {
         String nextStatus = status == null || status.trim().isEmpty()
                 ? "Native capture is idle."
                 : status;
+        boolean activeChanged = active != publishedActive;
+        boolean restartForCaptureActive = shouldRestartForCaptureActiveChangeLocked(activeChanged, active);
         if (nextStatus.equals(publishedStatus) && active == publishedActive) {
             return;
         }
@@ -1752,6 +1754,34 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
+        if (restartForCaptureActive) {
+            mainHandler.post(() -> {
+                synchronized (PlaybackCaptureEngine.this) {
+                    restartPipelineLocked("capture active state changed");
+                }
+            });
+        }
+    }
+
+    private boolean shouldRestartForCaptureActiveChangeLocked(boolean activeChanged, boolean active) {
+        if (!activeChanged) {
+            return false;
+        }
+        if (!active) {
+            captureActiveRestartArmed = true;
+            return false;
+        }
+        if (suppressNextCaptureActiveRestart) {
+            suppressNextCaptureActiveRestart = false;
+            captureActiveRestartArmed = false;
+            return false;
+        }
+        if (!running || !captureActiveRestartArmed) {
+            return false;
+        }
+        captureActiveRestartArmed = false;
+        suppressNextCaptureActiveRestart = true;
+        return true;
     }
 
     private String summarizeConfig(AudioPlaybackConfiguration configuration) {
