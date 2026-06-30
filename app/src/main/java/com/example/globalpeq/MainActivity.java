@@ -1543,13 +1543,11 @@ public final class MainActivity extends Activity {
         shizukuReplayFallbackSwitch = new Switch(this);
         shizukuReplayFallbackSwitch.setText("");
         shizukuReplayFallbackSwitch.setShowText(false);
-        shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
-        shizukuReplayFallbackSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (updatingUi) {
-                return;
-            }
-            updateAdvancedModeConfig(advancedModeConfig.withAllowReplayWithoutMute(isChecked));
-        });
+        shizukuReplayFallbackSwitch.setChecked(true);
+        shizukuReplayFallbackSwitch.setEnabled(false);
+        shizukuReplayFallbackSwitch.setClickable(false);
+        shizukuReplayFallbackSwitch.setFocusable(false);
+        shizukuReplayFallbackSwitch.setVisibility(View.GONE);
         styleTopSwitch(shizukuReplayFallbackSwitch, false);
         shizukuReplayFallbackRowView = labeledSettingsRow(this::shizukuReplayFallbackLabelText, shizukuReplayFallbackSwitch, view -> shizukuReplayFallbackLabelView = view);
         shizukuRuntimePanel.addView(shizukuReplayFallbackRowView, blockParams(12));
