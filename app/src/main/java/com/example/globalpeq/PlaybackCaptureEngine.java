@@ -227,7 +227,7 @@ final class PlaybackCaptureEngine {
     }
 
     synchronized Set<Integer> getOwnedAudioSessionIds() {
-        if (!hasRecentCaptureSignal()) {
+        if (!running) {
             return java.util.Collections.emptySet();
         }
         Set<Integer> sessionIds = new LinkedHashSet<>();
