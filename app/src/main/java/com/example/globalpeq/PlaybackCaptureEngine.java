@@ -253,6 +253,20 @@ final class PlaybackCaptureEngine {
         return sessionIds;
     }
 
+    synchronized boolean hasRecentCaptureActivity(long withinMs) {
+        if (!running) {
+            return false;
+        }
+        if (publishedActive) {
+            return true;
+        }
+        if (withinMs <= 0L || lastCaptureSignalAtMs <= 0L) {
+            return false;
+        }
+        long ageMs = SystemClock.elapsedRealtime() - lastCaptureSignalAtMs;
+        return ageMs >= 0L && ageMs <= withinMs;
+    }
+
     synchronized void stopAll() {
         stopPipelineLocked();
         releaseProjectionLocked();
