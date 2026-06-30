@@ -49,49 +49,52 @@ final class ShizukuStatusSummary {
                     safeState.activeMutedPackage,
                     bestReplayPackage(safeState));
         }
+        String playbackPackage = bestPlaybackPackage(safeState);
+        String replayPackage = bestReplayPackage(safeState);
+        String mutedPackage = normalize(safeState.activeMutedPackage);
         String captureStatus = normalize(safeState.captureStatus);
-        if ("Choose an app to monitor.".equals(captureStatus) || safeConfig.monitoredAppPackage.isEmpty()) {
+        if (safeState.captureActive && safeState.muteActive) {
             return new ShizukuStatusSummary(
-                    Kind.PICK_APP,
-                    bestPlaybackPackage(safeState),
-                    safeState.activeMutedPackage,
-                    bestReplayPackage(safeState));
+                    Kind.MUTED_REPLAY,
+                    playbackPackage,
+                    mutedPackage,
+                    replayPackage);
+        }
+        if (safeState.captureActive) {
+            return new ShizukuStatusSummary(
+                    safeConfig.allowReplayWithoutMute ? Kind.UNMUTED_REPLAY : Kind.CAPTURE_ONLY,
+                    playbackPackage,
+                    mutedPackage,
+                    replayPackage);
+        }
+        if (!playbackPackage.isEmpty()) {
+            return new ShizukuStatusSummary(
+                    Kind.CAPTURE_MISSING_SKIP_MUTE,
+                    playbackPackage,
+                    mutedPackage,
+                    replayPackage);
         }
         if (captureStatus.contains("not authorized")
                 || captureStatus.contains("authorization")
                 || captureStatus.contains("Authorize again")) {
             return new ShizukuStatusSummary(
                     Kind.CAPTURE_AUTH_REQUIRED,
-                    bestPlaybackPackage(safeState),
-                    safeState.activeMutedPackage,
-                    bestReplayPackage(safeState));
+                    playbackPackage,
+                    mutedPackage,
+                    replayPackage);
         }
-        if (safeState.captureActive && safeState.muteActive) {
+        if ("Choose an app to monitor.".equals(captureStatus) || safeConfig.monitoredAppPackage.isEmpty()) {
             return new ShizukuStatusSummary(
-                    Kind.MUTED_REPLAY,
-                    bestPlaybackPackage(safeState),
-                    safeState.activeMutedPackage,
-                    bestReplayPackage(safeState));
-        }
-        if (safeState.captureActive) {
-            return new ShizukuStatusSummary(
-                    safeConfig.allowReplayWithoutMute ? Kind.UNMUTED_REPLAY : Kind.CAPTURE_ONLY,
-                    bestPlaybackPackage(safeState),
-                    safeState.activeMutedPackage,
-                    bestReplayPackage(safeState));
-        }
-        if (!bestPlaybackPackage(safeState).isEmpty()) {
-            return new ShizukuStatusSummary(
-                    Kind.CAPTURE_MISSING_SKIP_MUTE,
-                    bestPlaybackPackage(safeState),
-                    safeState.activeMutedPackage,
-                    bestReplayPackage(safeState));
+                    Kind.PICK_APP,
+                    playbackPackage,
+                    mutedPackage,
+                    replayPackage);
         }
         return new ShizukuStatusSummary(
                 Kind.WAITING_PLAYBACK,
-                bestPlaybackPackage(safeState),
-                safeState.activeMutedPackage,
-                bestReplayPackage(safeState));
+                playbackPackage,
+                mutedPackage,
+                replayPackage);
     }
 
     String compactText(boolean chinese) {
