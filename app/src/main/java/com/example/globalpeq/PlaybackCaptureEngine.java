@@ -858,6 +858,58 @@ final class PlaybackCaptureEngine {
         return null;
     }
 
+    private void refreshOutputRouteIfNeeded() {
+        if (!currentMode.capturesSystemAudio()) {
+            return;
+        }
+        updateOutputRouteLabel(resolveCurrentOutputRouteLabel(null));
+    }
+
+    private String resolveCurrentOutputRouteLabel(AudioDeviceInfo preferredDevice) {
+        AudioDeviceInfo resolvedDevice = preferredDevice;
+        if (resolvedDevice == null) {
+            resolvedDevice = currentMode.capturesSystemAudio()
+                    ? resolveActiveSystemPlaybackDeviceInfo()
+                    : resolveActiveTargetPlaybackDeviceInfo();
+        }
+        if (resolvedDevice == null) {
+            resolvedDevice = resolvePreferredOutputDeviceInfo();
+        }
+        if (resolvedDevice == null && currentOutputDevice != null) {
+            String label = currentOutputDevice.label == null ? "" : currentOutputDevice.label.trim();
+            if (!label.isEmpty() && !"Output device".equalsIgnoreCase(label)) {
+                return label;
+            }
+        }
+        return describeOutputRouteLabel(resolvedDevice);
+    }
+
+    private AudioDeviceInfo resolveActiveSystemPlaybackDeviceInfo() {
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return null;
+        }
+        AudioDeviceInfo lastRelevantDevice = null;
+        try {
+            for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                if (configuration == null || !isRelevantActivePlayback(configuration)) {
+                    continue;
+                }
+                int clientUid = readPlaybackClientUid(configuration);
+                if (clientUid <= 0 || clientUid == android.os.Process.myUid()) {
+                    continue;
+                }
+                AudioDeviceInfo device = readPlaybackDeviceInfo(configuration);
+                if (device == null || !device.isSink()) {
+                    continue;
+                }
+                lastRelevantDevice = device;
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to resolve active system playback output device", ex);
+        }
+        return lastRelevantDevice;
+    }
+
     private String detectSilentCaptureStall(long now, long lastSignalAt) {
         long silentForMs = now - lastSignalAt;
         long recoveryThresholdMs = Math.max(
