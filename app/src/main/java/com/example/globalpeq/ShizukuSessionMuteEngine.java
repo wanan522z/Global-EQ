@@ -661,11 +661,12 @@ final class ShizukuSessionMuteEngine {
         if (configuration == null) {
             return false;
         }
+        boolean activeByState = isPlaybackStarted(playerState);
         try {
             java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
             Object value = method.invoke(configuration);
             if (value instanceof Boolean) {
-                return (Boolean) value;
+                return (Boolean) value || activeByState;
             }
         } catch (NoSuchMethodException ignored) {
         } catch (ReflectiveOperationException ex) {
@@ -673,7 +674,7 @@ final class ShizukuSessionMuteEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to read playback active state", ex);
         }
-        return isPlaybackStarted(playerState);
+        return activeByState;
     }
 
     private boolean isPlaybackStarted(int playerState) {
