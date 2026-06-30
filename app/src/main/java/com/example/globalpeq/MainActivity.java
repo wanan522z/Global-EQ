@@ -247,6 +247,8 @@ public final class MainActivity extends Activity {
     private TextView processingModeButton;
     private TextView settingsPanelDetailView;
     private TextView settingsStatusLabelView;
+    private TextView settingsImportPanelTitleView;
+    private TextView settingsImportPanelDetailView;
     private LinearLayout shizukuRuntimePanel;
     private TextView advancedModeDetailButton;
     private TextView advancedMonitorAppButton;
@@ -2141,7 +2143,27 @@ public final class MainActivity extends Activity {
         if (normalized.isEmpty()) {
             return safeLabel + ": " + emptyText;
         }
-        return safeLabel + ": " + describeRuntimePackage(normalized);
+        return safeLabel + ": " + describeRuntimePackages(normalized);
+    }
+
+    private String describeRuntimePackages(String packageNames) {
+        if (packageNames == null || packageNames.trim().isEmpty()) {
+            return "";
+        }
+        String normalized = packageNames.trim();
+        String[] parts = normalized.split(",");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            String packageName = describeRuntimePackage(part == null ? "" : part.trim());
+            if (packageName.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(packageName);
+        }
+        return builder.length() == 0 ? normalized : builder.toString();
     }
 
     private String describeRuntimePackage(String packageName) {
