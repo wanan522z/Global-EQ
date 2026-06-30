@@ -282,6 +282,9 @@ final class ShizukuSessionMuteEngine {
         unregisterPlaybackCallback();
         releaseAllEffects();
         currentAppSessionIds = new LinkedHashSet<>();
+        trackedSourcePackageName = "";
+        pendingSourcePackageName = "";
+        pendingSourcePackageSinceMs = 0L;
         updateActivePackageName("");
         updateMutedPackageName("");
         publishStatus("Shizuku mute is idle.", false);
