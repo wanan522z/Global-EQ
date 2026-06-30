@@ -1519,6 +1519,12 @@ public final class MainActivity extends Activity {
         shizukuRuntimeModeView.setTextColor(Color.rgb(225, 235, 255));
         shizukuRuntimePanel.addView(shizukuRuntimeModeView, blockParams(4));
 
+        shizukuRuntimeRouteView = new TextView(this);
+        shizukuRuntimeRouteView.setText(shizukuRuntimeRouteText());
+        shizukuRuntimeRouteView.setTextSize(12);
+        shizukuRuntimeRouteView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimePanel.addView(shizukuRuntimeRouteView, blockParams(2));
+
         shizukuRuntimePlaybackView = new TextView(this);
         shizukuRuntimePlaybackView.setText(shizukuRuntimePlaybackText());
         shizukuRuntimePlaybackView.setTextSize(12);
