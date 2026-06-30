@@ -3548,14 +3548,14 @@ public final class MainActivity extends Activity {
         }
         if (shizukuAccessButton != null) {
             setTextIfChanged(shizukuAccessButton, shizukuAccessButtonText());
-            shizukuAccessButton.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+            shizukuAccessButton.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessStatusView != null) {
             setTextIfChanged(shizukuAccessStatusView, shizukuAccessStatusText());
-            shizukuAccessStatusView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+            shizukuAccessStatusView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessLabelView != null) {
-            shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+            shizukuAccessLabelView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (advancedMonitorAppButton != null) {
             setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
@@ -3635,14 +3635,14 @@ public final class MainActivity extends Activity {
         }
         if (shizukuAccessButton != null) {
             setTextIfChanged(shizukuAccessButton, shizukuAccessButtonText());
-            shizukuAccessButton.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+            shizukuAccessButton.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessStatusView != null) {
             setTextIfChanged(shizukuAccessStatusView, shizukuAccessStatusText());
-            shizukuAccessStatusView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+            shizukuAccessStatusView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (shizukuAccessLabelView != null) {
-            shizukuAccessLabelView.setVisibility(processingMode == ProcessingMode.SHIZUKU_MUTE ? View.VISIBLE : View.GONE);
+            shizukuAccessLabelView.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (advancedMonitorAppButton != null) {
             setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
@@ -6806,7 +6806,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean shouldForceFullResetForCurrentMode() {
-        return processingMode != ProcessingMode.SHIZUKU_MUTE;
+        return !processingMode.usesNativeCapture();
     }
 
     private void applyRunningPreset() {
@@ -6910,7 +6910,7 @@ public final class MainActivity extends Activity {
         }
         if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
                 && applyPreset.enabled == runningPreset.enabled) {
-            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            if (processingMode.usesNativeCapture()) {
                 if (applyPreset.enabled) {
                     applyRunningPreset(false, false);
                     scheduleDelayedShizukuReady();
@@ -6963,14 +6963,14 @@ public final class MainActivity extends Activity {
     }
 
     private long computeEnabledToggleCommitDelayMs() {
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE && runningPreset != null && runningPreset.enabled) {
+        if (processingMode.usesNativeCapture() && runningPreset != null && runningPreset.enabled) {
             return ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS;
         }
         return ENABLE_TOGGLE_COMMIT_DELAY_MS;
     }
 
     private long computeEnabledToggleInteractionLockMs() {
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (processingMode.usesNativeCapture()) {
             return ENABLE_TOGGLE_SHIZUKU_INTERACTION_LOCK_MS;
         }
         return ENABLE_TOGGLE_INTERACTION_LOCK_MS;
