@@ -1860,7 +1860,13 @@ public final class MainActivity extends Activity {
     }
 
     private String processingModeDisplayLabel(ProcessingMode mode) {
-        return mode == ProcessingMode.SHIZUKU_MUTE ? "Shizuku Mode" : "Default";
+        if (mode == ProcessingMode.SHIZUKU_MUTE) {
+            return "Shizuku Mode";
+        }
+        if (mode == ProcessingMode.GLOBAL_DSP) {
+            return "Global DSP";
+        }
+        return "Default";
     }
 
     private String engineStatusText() {
