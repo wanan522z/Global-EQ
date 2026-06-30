@@ -70,7 +70,7 @@ final class Preset {
         this(name, mode, enabled, extraBassEnabled, pregainMb, virtualBassModeIndex, systemVirtualBassCutoffHz,
                 dspVirtualBassCutoffHz, extraBassCutoffHz, extraBassAmountPercent, systemVirtualBassAmountPercent,
                 dspVirtualBassAmountPercent, reverbType, reverbDecayPercent, reverbPredelayMs, reverbSizePercent,
-                reverbMixPercent, reverbMainMb, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb,
+                reverbWetPercent, reverbDryMb, deviceCurveName, targetCurveName, deviceCurveGainOffsetDb,
                 targetCurveGainOffsetDb, deviceCurveSmoothing, targetCurveSmoothing, bands, geqGainsMb,
                 FrequencyCurve.DEFAULT, FrequencyCurve.DEFAULT);
     }
@@ -127,8 +127,8 @@ final class Preset {
         this.reverbDecayPercent = clamp(reverbDecayPercent, 0, 1200);
         this.reverbPredelayMs = clamp(reverbPredelayMs, 0, 250);
         this.reverbSizePercent = clamp(reverbSizePercent, 0, 100);
-        this.reverbMixPercent = clamp(reverbMixPercent, 0, 100);
-        this.reverbMainMb = clamp(reverbMainMb, -12000, 300);
+        this.reverbWetPercent = clamp(reverbWetPercent, 0, 100);
+        this.reverbDryMb = clamp(reverbDryMb, -12000, 300);
         this.deviceCurveName = normalizeCurveName(deviceCurveName);
         this.targetCurveName = normalizeCurveName(targetCurveName);
         this.deviceCurveData = normalizeEmbeddedCurve(this.deviceCurveName, deviceCurveData);
