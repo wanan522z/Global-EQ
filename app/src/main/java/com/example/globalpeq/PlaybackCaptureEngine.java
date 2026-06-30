@@ -1274,6 +1274,10 @@ final class PlaybackCaptureEngine {
         if (normalized.equals(currentOutputRouteLabel)) {
             return;
         }
+        Log.d(TAG, "TRACE_ROUTE outputRouteUpdate from=" + currentOutputRouteLabel
+                + " to=" + normalized
+                + " replayTrack=" + describeReplayTrackChannelLabel()
+                + " mode=" + currentMode);
         currentOutputRouteLabel = normalized;
         repository.saveActiveOutputRoute(normalized);
         if (notificationCallback != null) {
@@ -1547,6 +1551,33 @@ final class PlaybackCaptureEngine {
             Log.w(TAG, "Unable to read playback player type", ex);
         }
         return -1;
+    }
+
+    private void logPlaybackChannelCandidate(String scope,
+                                             AudioPlaybackConfiguration configuration,
+                                             String channel) {
+        if (configuration == null) {
+            return;
+        }
+        int sessionId = readPlaybackSessionId(configuration);
+        int uid = readPlaybackClientUid(configuration);
+        int playerState = readPlaybackPlayerState(configuration);
+        int playerType = readPlaybackPlayerType(configuration);
+        int usage = -1;
+        try {
+            AudioAttributes attributes = configuration.getAudioAttributes();
+            usage = attributes == null ? -1 : attributes.getUsage();
+        } catch (RuntimeException ignored) {
+        }
+        Log.d(TAG, "TRACE_ROUTE candidate"
+                + " scope=" + scope
+                + " uid=" + uid
+                + " sessionId=" + sessionId
+                + " playerState=" + playerState
+                + " playerType=" + playerType
+                + " channel=" + channel
+                + " usage=" + usage
+                + " raw=" + summarizeConfig(configuration));
     }
 
     private String playbackPlayerTypeName(int playerType) {
