@@ -81,6 +81,8 @@ final class PlaybackCaptureEngine {
     private boolean publishedActive;
     private long lastAutoRestartAtMs;
     private volatile long lastCaptureSignalAtMs;
+    private volatile String currentReplayPackageName = "";
+    private long lastReplayPackageRefreshAtMs;
     PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
         this.appContext = context.getApplicationContext();
         this.audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
@@ -504,6 +506,7 @@ final class PlaybackCaptureEngine {
                     Log.i(TAG, "Capture loop detected signal: readSamples=" + read + ", peak=" + peak);
                     captureSignalLogged = true;
                 }
+                refreshReplayPackageNameIfNeeded(signalAt, !signaledLive);
                 if (!signaledLive) {
                     publishStatus(monitoringStatusText(), true);
                     signaledLive = true;
@@ -642,6 +645,8 @@ final class PlaybackCaptureEngine {
         running = false;
         activeWorkerToken = null;
         lastCaptureSignalAtMs = 0L;
+        lastReplayPackageRefreshAtMs = 0L;
+        updateReplayPackageName("");
 
         AudioRecord record = audioRecord;
         audioRecord = null;
@@ -913,6 +918,63 @@ final class PlaybackCaptureEngine {
         Log.i(TAG, "Auto-restarting capture pipeline, reason=" + reason);
         startPipelineLocked();
         return running;
+    }
+
+    private void refreshReplayPackageNameIfNeeded(long now, boolean forceRefresh) {
+        if (!forceRefresh && now - lastReplayPackageRefreshAtMs < 900L) {
+            return;
+        }
+        lastReplayPackageRefreshAtMs = now;
+        updateReplayPackageName(resolveCurrentReplayPackageName());
+    }
+
+    private String resolveCurrentReplayPackageName() {
+        if (currentMode != ProcessingMode.SHIZUKU_MUTE) {
+            return currentConfig.monitoredAppPackage == null ? "" : currentConfig.monitoredAppPackage.trim();
+        }
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return "";
+        }
+        try {
+            for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                if (configuration == null) {
+                    continue;
+                }
+                int clientUid = readPlaybackClientUid(configuration);
+                if (clientUid <= 0 || clientUid == android.os.Process.myUid()) {
+                    continue;
+                }
+                android.media.AudioAttributes attributes = configuration.getAudioAttributes();
+                if (attributes == null) {
+                    continue;
+                }
+                int usage = attributes.getUsage();
+                if (usage != AudioAttributes.USAGE_MEDIA
+                        && usage != AudioAttributes.USAGE_GAME
+                        && usage != AudioAttributes.USAGE_UNKNOWN) {
+                    continue;
+                }
+                String[] packages = packageManager.getPackagesForUid(clientUid);
+                if (packages != null && packages.length > 0 && packages[0] != null) {
+                    return packages[0].trim();
+                }
+            }
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to resolve replay package name", ex);
+        }
+        return "";
+    }
+
+    private void updateReplayPackageName(String packageName) {
+        String normalized = packageName == null ? "" : packageName.trim();
+        if (normalized.equals(currentReplayPackageName)) {
+            return;
+        }
+        currentReplayPackageName = normalized;
+        repository.saveActiveReplayPackage(normalized);
+        if (notificationCallback != null) {
+            mainHandler.post(notificationCallback);
+        }
     }
 
     private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
