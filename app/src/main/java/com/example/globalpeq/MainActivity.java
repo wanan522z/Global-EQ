@@ -2090,13 +2090,13 @@ public final class MainActivity extends Activity {
         if (state == null) {
             return "";
         }
-        if (!state.activePlaybackPackage.isEmpty()) {
-            return state.activePlaybackPackage;
+        if (!state.activeReplayPackage.isEmpty()) {
+            return state.activeReplayPackage;
         }
         if (!state.activeMutedPackage.isEmpty()) {
             return state.activeMutedPackage;
         }
-        return state.activeReplayPackage;
+        return state.activePlaybackPackage;
     }
 
     private String bestReplayRuntimePackage(ShizukuRuntimeState state) {
