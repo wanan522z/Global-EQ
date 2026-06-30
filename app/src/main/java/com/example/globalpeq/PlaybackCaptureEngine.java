@@ -1746,7 +1746,7 @@ final class PlaybackCaptureEngine {
                 ? "Native capture is idle."
                 : status;
         boolean activeChanged = active != publishedActive;
-        boolean restartForCaptureActive = shouldRestartForCaptureActiveChangeLocked(activeChanged, active);
+        handleCaptureActiveChangeLocked(activeChanged, active);
         if (nextStatus.equals(publishedStatus) && active == publishedActive) {
             return;
         }
@@ -1756,33 +1756,19 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
-        if (restartForCaptureActive) {
-            mainHandler.post(() -> {
-                synchronized (PlaybackCaptureEngine.this) {
-                    boolean restarted = restartPipelineLocked("capture active state changed");
-                    if (!restarted) {
-                        captureActiveRestartArmed = true;
-                    }
-                }
-            });
-        }
     }
 
-    private boolean shouldRestartForCaptureActiveChangeLocked(boolean activeChanged, boolean active) {
+    private void handleCaptureActiveChangeLocked(boolean activeChanged, boolean active) {
         if (!activeChanged) {
-            return false;
+            return;
         }
         if (!active) {
             captureActiveRestartArmed = true;
             captureBecameInactiveAtMs = SystemClock.elapsedRealtime();
             scheduleRestartAfterSustainedInactiveLocked();
-            return false;
+            return;
         }
         captureInactiveRestartGeneration++;
-        if (!running || !captureActiveRestartArmed) {
-            return false;
-        }
-        return false;
     }
 
     private void scheduleRestartAfterSustainedInactiveLocked() {
