@@ -1941,6 +1941,11 @@ public final class MainActivity extends Activity {
                     "切换到 Shizuku Mode 后，这里会显示实时静音和回放状态。");
         }
         ShizukuRuntimeState state = currentShizukuRuntimeState();
+        if ("Source app could not be muted. Processed replay is off.".equals(state.captureStatus)) {
+            return tr(
+                    "Live output: the source app could not be muted, so processed replay has been turned off.",
+                    "当前输出：源应用无法静音，所以处理后的回放已经关闭。");
+        }
         boolean hasReplay = !state.activeReplayPackage.isEmpty();
         boolean hasMute = !state.activeMutedPackage.isEmpty();
         if (hasReplay && hasMute) {
