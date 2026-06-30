@@ -1059,16 +1059,6 @@ final class PlaybackCaptureEngine {
 
     private ReplayDecision resolveReplayDecision(long now, boolean refreshPlaybackPackages) {
         String playbackPackages = resolvePlaybackPackagesForReplayDecision(refreshPlaybackPackages);
-        String mutedPackages = normalizePackageName(repository.loadActiveMutedPackage());
-        String activePlaybackSessionIds = resolveFreshRuntimePackages(
-                repository.loadActivePlaybackSessionIds(),
-                repository.loadActivePlaybackSessionIdsUpdatedAt());
-        String desiredMutedSessionIds = resolveFreshRuntimePackages(
-                repository.loadDesiredMutedSessionIds(),
-                repository.loadDesiredMutedSessionIdsUpdatedAt());
-        String activeMutedSessionIds = resolveFreshRuntimePackages(
-                repository.loadActiveMutedSessionIds(),
-                repository.loadActiveMutedSessionIdsUpdatedAt());
         boolean pcmActive = hasRecentPcmActivity(now, REPLAY_DECISION_PCM_HOLD_MS);
 
         if (!currentMode.requiresShizukuMute()) {
@@ -1076,69 +1066,21 @@ final class PlaybackCaptureEngine {
             if (replayPackages.isEmpty() && !currentMode.capturesSystemAudio()) {
                 replayPackages = normalizePackageName(currentConfig.monitoredAppPackage);
             }
-            traceReplayDecision("modeDoesNotRequireMute", mutedPackages, playbackPackages, replayPackages, pcmActive);
-            return new ReplayDecision(true, pcmActive, playbackPackages, mutedPackages, replayPackages, "modeDoesNotRequireMute");
+            traceReplayDecision("modeDoesNotRequireMute", "", playbackPackages, replayPackages, pcmActive);
+            return new ReplayDecision(true, pcmActive, playbackPackages, "", replayPackages, "modeDoesNotRequireMute");
         }
 
         if (playbackPackages.isEmpty()) {
-            boolean allowed = pcmActive && currentConfig.allowReplayWithoutMute;
-            String reason = pcmActive
-                    ? (allowed ? "allowReplayWithoutMuteUnknownPlayback" : "pcmActivePlaybackUnknown")
-                    : "pcmInactive";
-            String replayPackages = allowed
+            String replayPackages = pcmActive
                     ? normalizePackageName(currentConfig.monitoredAppPackage)
                     : "";
-            traceReplayDecision(reason, mutedPackages, playbackPackages, replayPackages, pcmActive);
-            return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
+            String reason = pcmActive ? "pcmActivePlaybackUnknown" : "pcmInactive";
+            traceReplayDecision(reason, "", playbackPackages, replayPackages, pcmActive);
+            return new ReplayDecision(pcmActive, pcmActive, playbackPackages, "", replayPackages, reason);
         }
 
-        if (isMuteVerificationUntrustedForCurrentRoute()) {
-            boolean allowed = currentConfig.allowReplayWithoutMute;
-            String reason = allowed
-                    ? "allowReplayWithoutMuteUnverifiedLowLatencyPath"
-                    : "muteUnverifiedLowLatencyPath";
-            String replayPackages = allowed ? playbackPackages : "";
-            traceReplayDecision(reason, mutedPackages, playbackPackages, replayPackages, pcmActive);
-            return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
-        }
-
-        String verificationSessionIds = selectMuteVerificationSessionIds(
-                activePlaybackSessionIds,
-                desiredMutedSessionIds);
-        boolean fullyMutedBySessions = sessionListFullyCoveredBy(verificationSessionIds, activeMutedSessionIds);
-        boolean hasSessionLevelConfirmation = !splitSessionIdList(verificationSessionIds).isEmpty();
-        boolean fullyMutedByPackages = hasSessionLevelConfirmation
-                && packageListFullyCoveredBy(playbackPackages, mutedPackages);
-        boolean fullyMuted = fullyMutedBySessions || fullyMutedByPackages;
-        boolean allowed = fullyMuted || currentConfig.allowReplayWithoutMute;
-        String reason;
-        if (fullyMutedBySessions) {
-            reason = "allActivePlaybackSessionsMuted";
-        } else if (fullyMutedByPackages) {
-            reason = "allActivePlaybackPackagesMuted";
-        } else if (currentConfig.allowReplayWithoutMute) {
-            reason = "allowReplayWithoutMuteUnmutedPlayback";
-        } else if (!hasSessionLevelConfirmation) {
-            reason = "missingSessionLevelMuteVerification";
-        } else {
-            reason = "activePlaybackIncludesUnmutedPackages";
-        }
-        String replayPackages = allowed ? playbackPackages : "";
-        traceReplayDecision(reason, mutedPackages, playbackPackages, replayPackages, pcmActive);
-        return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
-    }
-
-    private String selectMuteVerificationSessionIds(String activePlaybackSessionIds,
-                                                    String desiredMutedSessionIds) {
-        LinkedHashSet<String> active = splitSessionIdList(activePlaybackSessionIds);
-        if (!active.isEmpty()) {
-            return joinSessionIds(active);
-        }
-        LinkedHashSet<String> desired = splitSessionIdList(desiredMutedSessionIds);
-        if (!desired.isEmpty()) {
-            return joinSessionIds(desired);
-        }
-        return "";
+        traceReplayDecision("globalMuteReplay", "", playbackPackages, playbackPackages, pcmActive);
+        return new ReplayDecision(true, pcmActive, playbackPackages, "", playbackPackages, "globalMuteReplay");
     }
 
     private String resolvePlaybackPackagesForReplayDecision(boolean refreshFromAudioManager) {
