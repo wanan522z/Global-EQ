@@ -872,29 +872,20 @@ final class PlaybackCaptureEngine {
     }
 
     private String resolveCurrentOutputRouteLabel(AudioDeviceInfo preferredDevice) {
-        AudioDeviceInfo resolvedDevice = preferredDevice;
-        if (resolvedDevice == null) {
-            resolvedDevice = currentMode.capturesSystemAudio()
-                    ? resolveActiveSystemPlaybackDeviceInfo()
-                    : resolveActiveTargetPlaybackDeviceInfo();
+        String playerTypeLabel = currentMode.capturesSystemAudio()
+                ? resolveActiveSystemPlaybackChannelLabel()
+                : resolveActiveTargetPlaybackChannelLabel();
+        if (!playerTypeLabel.isEmpty()) {
+            return playerTypeLabel;
         }
-        if (resolvedDevice == null) {
-            resolvedDevice = resolvePreferredOutputDeviceInfo();
-        }
-        if (resolvedDevice == null && currentOutputDevice != null) {
-            String label = currentOutputDevice.label == null ? "" : currentOutputDevice.label.trim();
-            if (!label.isEmpty() && !"Output device".equalsIgnoreCase(label)) {
-                return label;
-            }
-        }
-        return describeOutputRouteLabel(resolvedDevice);
+        return "";
     }
 
-    private AudioDeviceInfo resolveActiveSystemPlaybackDeviceInfo() {
+    private String resolveActiveSystemPlaybackChannelLabel() {
         if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return null;
+            return "";
         }
-        AudioDeviceInfo lastRelevantDevice = null;
+        String lastRelevantChannel = "";
         try {
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
                 if (configuration == null || !isRelevantActivePlayback(configuration)) {
@@ -904,16 +895,15 @@ final class PlaybackCaptureEngine {
                 if (clientUid <= 0 || clientUid == android.os.Process.myUid()) {
                     continue;
                 }
-                AudioDeviceInfo device = readPlaybackDeviceInfo(configuration);
-                if (device == null || !device.isSink()) {
-                    continue;
+                String channel = describePlaybackChannelLabel(configuration);
+                if (!channel.isEmpty()) {
+                    lastRelevantChannel = channel;
                 }
-                lastRelevantDevice = device;
             }
         } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to resolve active system playback output device", ex);
+            Log.w(TAG, "Unable to resolve active system playback channel", ex);
         }
-        return lastRelevantDevice;
+        return lastRelevantChannel;
     }
 
     private String detectSilentCaptureStall(long now, long lastSignalAt) {
