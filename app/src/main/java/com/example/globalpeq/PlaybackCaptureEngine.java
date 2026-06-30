@@ -31,8 +31,6 @@ final class PlaybackCaptureEngine {
     private static final int SAMPLE_RATE = 48000;
     private static final float SIGNAL_THRESHOLD = 0.0018f;
     private static final int SOURCE_APP_STREAM = AudioManager.STREAM_MUSIC;
-    private static final long CAPTURE_SIGNAL_OWNERSHIP_HOLD_MS = 2200L;
-    private static final long CAPTURE_SIGNAL_OWNERSHIP_MAX_HOLD_MS = 5000L;
     private static final int MIN_PIPELINE_BUFFER_FRAMES = 128;
     private static final int MIN_TRACK_LATENCY_MS = 40;
     private static final int MIN_PROCESSING_CHUNK_FRAMES = 256;
