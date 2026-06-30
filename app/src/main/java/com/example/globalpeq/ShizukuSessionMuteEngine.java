@@ -311,8 +311,9 @@ final class ShizukuSessionMuteEngine {
                     continue;
                 }
                 activeUids.add(uid);
-                if (primaryPackageName.isEmpty()) {
-                    primaryPackageName = getPackageNameForUid(uid);
+                String resolvedPackageName = getPackageNameForUid(uid);
+                if (!resolvedPackageName.isEmpty()) {
+                    primaryPackageName = resolvedPackageName;
                 }
             }
         } catch (RuntimeException ex) {
