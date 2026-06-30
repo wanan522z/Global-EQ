@@ -768,6 +768,7 @@ final class ShizukuSessionMuteEngine {
         if (verifiedMutedSessionIds.isEmpty()) {
             firstMutedPackageName = "";
         } else {
+            mutedPackages.clear();
             LinkedHashSet<Integer> safeVerifiedMutedSessionIds = new LinkedHashSet<>();
             for (SessionInfo session : sessions) {
                 if (!verifiedMutedSessionIds.contains(session.sessionId)) {
