@@ -2084,6 +2084,18 @@ public final class MainActivity extends Activity {
         return tr("DSP bass requires Shizuku Mode.", "虚拟低音的 DSP 模式需要在 Shizuku Mode 下使用。");
     }
 
+    private void refreshExtraPageLanguageViews() {
+        if (reverbTitleView != null) {
+            reverbTitleView.setText(extraReverbTitleText());
+        }
+        if (virtualBassTitleView != null) {
+            virtualBassTitleView.setText(extraVirtualBassTitleText());
+        }
+        if (extraBassTitleView != null) {
+            extraBassTitleView.setText(extraBassTitleText());
+        }
+    }
+
     private String virtualBassModeDisplayLabel(String value) {
         if (isChineseUi() && "system".equalsIgnoreCase(value)) {
             return "系统方案";
