@@ -644,7 +644,7 @@ public final class MainActivity extends Activity {
         installKeyboardVisibilityListener();
         renderAll();
         if (loadedWasLimited && runningPreset.enabled) {
-            if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            if (processingMode.usesNativeCapture()) {
                 applyRunningPreset(false, false);
             } else {
                 applyRunningPreset();
@@ -3466,7 +3466,7 @@ public final class MainActivity extends Activity {
         if (activePlaybackPackageName != null && !activePlaybackPackageName.isEmpty()) {
             return activePlaybackPackageName;
         }
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE
+        if (processingMode.usesNativeCapture()
                 && advancedModeConfig.monitoredAppPackage != null
                 && !advancedModeConfig.monitoredAppPackage.isEmpty()) {
             return advancedModeConfig.monitoredAppPackage;
