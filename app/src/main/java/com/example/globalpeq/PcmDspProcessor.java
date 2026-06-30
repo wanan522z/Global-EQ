@@ -224,9 +224,7 @@ final class PcmDspProcessor {
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
 
-        private float smoothedMix;
         private float detectorState;
-        private float envelopeState;
         private float cubicState;
 
         private float wetMix;
@@ -253,7 +251,6 @@ final class PcmDspProcessor {
             if (amountPercent <= 0) {
                 active = false;
                 wetMix = 0f;
-                smoothedMix = 0f;
                 resetRuntime();
                 return;
             }
@@ -267,7 +264,7 @@ final class PcmDspProcessor {
 
             rebuildFilters(targetCutoffHz, amount);
 
-            wetMix = 0.22f + (float) Math.pow(amount, 1.08f) * 2.35f;
+            wetMix = 0.55f + (float) Math.pow(amount, 1.02f) * 6.50f;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
             thirdHarmonicGain = 0.02f + amount * 0.06f;
@@ -279,9 +276,7 @@ final class PcmDspProcessor {
             }
 
             active = true;
-            smoothedMix = 0f;
             detectorState = 0f;
-            envelopeState = 0f;
             cubicState = 0f;
         }
 
@@ -307,8 +302,7 @@ final class PcmDspProcessor {
 
                 float lowBand = sourceLowPass.process(sourceHighPass.process(mono));
                 float harmonic = shapeHarmonics(lowBand);
-                smoothedMix += (wetMix - smoothedMix) * 0.080f;
-                float wet = harmonic * smoothedMix;
+                float wet = harmonic * wetMix;
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     float input = finiteOrZero(samples[frameOffset + ch]);
@@ -322,9 +316,7 @@ final class PcmDspProcessor {
         }
 
         private float shapeHarmonics(float lowBand) {
-            envelopeState += (Math.abs(lowBand) - envelopeState) * 0.020f;
-            float normalization = Math.max(0.12f, envelopeState * 1.75f);
-            float normalized = finiteOrZero(lowBand / normalization);
+            float normalized = finiteOrZero(lowBand);
 
             float squared = normalized * normalized;
             detectorState += (squared - detectorState) * 0.010f;
@@ -368,7 +360,6 @@ final class PcmDspProcessor {
 
         private void resetRuntime() {
             detectorState = 0f;
-            envelopeState = 0f;
             cubicState = 0f;
             if (sourceHighPass != null) {
                 sourceHighPass.reset();
