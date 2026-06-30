@@ -467,6 +467,8 @@ final class PlaybackCaptureEngine {
                 Log.w(TAG, "Capture read failed", ex);
                 break;
             }
+            long now = SystemClock.elapsedRealtime();
+            refreshReplayPackageNameIfNeeded(now, false);
             if (read <= 0) {
                 stalledReadCount++;
                 if (!captureWaitingLogged) {
@@ -483,7 +485,7 @@ final class PlaybackCaptureEngine {
                     running = false;
                     break;
                 }
-                if (SystemClock.elapsedRealtime() - lastSignalAt > currentConfig.monitorIntervalMs) {
+                if (now - lastSignalAt > currentConfig.monitorIntervalMs) {
                     publishStatus(waitingStatusText(), false);
                     signaledLive = false;
                 }
@@ -537,7 +539,6 @@ final class PlaybackCaptureEngine {
                     publishStatus(waitingStatusText(), false);
                     signaledLive = false;
                 }
-                long now = SystemClock.elapsedRealtime();
                 if (now >= nextRecoveryCheckAt) {
                     nextRecoveryCheckAt = now + 450L;
                     restartReason = detectSilentCaptureStall(now, lastSignalAt);
@@ -951,11 +952,16 @@ final class PlaybackCaptureEngine {
     }
 
     private String resolveCurrentReplayPackageName() {
+        String fallbackPackage = repository.loadActiveMutedPackage();
+        if (fallbackPackage == null || fallbackPackage.trim().isEmpty()) {
+            fallbackPackage = repository.loadActivePlaybackPackage();
+        }
         if (!currentMode.capturesSystemAudio()) {
-            return currentConfig.monitoredAppPackage == null ? "" : currentConfig.monitoredAppPackage.trim();
+            String monitoredPackage = currentConfig.monitoredAppPackage == null ? "" : currentConfig.monitoredAppPackage.trim();
+            return monitoredPackage.isEmpty() ? fallbackPackage : monitoredPackage;
         }
         if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return "";
+            return fallbackPackage == null ? "" : fallbackPackage.trim();
         }
         try {
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
@@ -984,7 +990,7 @@ final class PlaybackCaptureEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to resolve replay package name", ex);
         }
-        return "";
+        return fallbackPackage == null ? "" : fallbackPackage.trim();
     }
 
     private void updateReplayPackageName(String packageName) {
