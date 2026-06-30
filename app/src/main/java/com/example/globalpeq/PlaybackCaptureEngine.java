@@ -978,14 +978,12 @@ final class PlaybackCaptureEngine {
         }
         try {
             String candidatePackage = "";
-            int candidateSessionId = -1;
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
                 if (configuration == null) {
                     continue;
                 }
                 boolean relevant = isRelevantActivePlayback(configuration);
                 int clientUid = readPlaybackClientUid(configuration);
-                int sessionId = readPlaybackSessionId(configuration);
                 int playerState = readPlaybackPlayerState(configuration);
                 int usage = -1;
                 AudioAttributes attributes = null;
@@ -997,7 +995,6 @@ final class PlaybackCaptureEngine {
                 Log.d(TAG, "TRACE_SWITCH replayCandidate"
                         + " relevant=" + relevant
                         + " uid=" + clientUid
-                        + " sessionId=" + sessionId
                         + " playerState=" + playerState
                         + " usage=" + usage
                         + " raw=" + summarizeConfig(configuration));
@@ -1017,12 +1014,10 @@ final class PlaybackCaptureEngine {
                 }
                 String[] packages = packageManager.getPackagesForUid(clientUid);
                 if (packages != null && packages.length > 0 && packages[0] != null
-                        && sessionId >= candidateSessionId) {
-                    candidateSessionId = sessionId;
+                        && candidatePackage.isEmpty()) {
                     candidatePackage = packages[0].trim();
                     Log.d(TAG, "TRACE_SWITCH replayPackageChosen"
                             + " pkg=" + candidatePackage
-                            + " sessionId=" + sessionId
                             + " uid=" + clientUid
                             + " fallback=" + fallbackPackage);
                 }

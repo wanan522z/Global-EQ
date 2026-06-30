@@ -349,7 +349,6 @@ final class ShizukuSessionMuteEngine {
         }
         LinkedHashSet<Integer> activeUids = new LinkedHashSet<>();
         String primaryPackageName = "";
-        int primarySessionId = -1;
         boolean activePlaybackDetected = false;
         try {
             List<AudioPlaybackConfiguration> configs = audioManager.getActivePlaybackConfigurations();
@@ -377,10 +376,11 @@ final class ShizukuSessionMuteEngine {
                     continue;
                 }
                 activeUids.add(uid);
-                int sessionId = readPlaybackSessionId(configuration);
                 String resolvedPackageName = getPackageNameForUid(uid);
-                if (!resolvedPackageName.isEmpty() && sessionId >= primarySessionId) {
-                    primarySessionId = sessionId;
+                // Follow the first currently-active playback config instead of the
+                // largest session id. Newer session ids can remain in the list after
+                // being interrupted, which makes the state stick to the old app.
+                if (!resolvedPackageName.isEmpty() && primaryPackageName.isEmpty()) {
                     primaryPackageName = resolvedPackageName;
                 }
             }
@@ -390,7 +390,6 @@ final class ShizukuSessionMuteEngine {
         Log.d(TAG, "TRACE_SWITCH activePlaybackSnapshot"
                 + " activeDetected=" + activePlaybackDetected
                 + " uids=" + activeUids
-                + " primarySessionId=" + primarySessionId
                 + " primaryPkg=" + primaryPackageName);
         return new ActivePlaybackSnapshot(activePlaybackDetected, activeUids, primaryPackageName);
     }
@@ -793,7 +792,7 @@ final class ShizukuSessionMuteEngine {
     }
 
     private boolean isPlaybackStarted(int playerState) {
-        return playerState < 0 || playerState == PLAYER_STATE_STARTED;
+        return playerState == PLAYER_STATE_STARTED;
     }
 
     private static int resolveStartedPlayerState() {
