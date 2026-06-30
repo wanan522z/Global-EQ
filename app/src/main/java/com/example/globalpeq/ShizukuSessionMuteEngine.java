@@ -423,15 +423,16 @@ final class ShizukuSessionMuteEngine {
 
     private ActivePlaybackSnapshot captureActivePlaybackSnapshot() {
         if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return new ActivePlaybackSnapshot(false, new LinkedHashSet<>(), "");
+            return new ActivePlaybackSnapshot(false, new LinkedHashSet<>(), new LinkedHashSet<>(), "");
         }
         LinkedHashSet<Integer> activeUids = new LinkedHashSet<>();
+        LinkedHashSet<String> activePackages = new LinkedHashSet<>();
         String primaryPackageName = "";
         boolean activePlaybackDetected = false;
         try {
             List<AudioPlaybackConfiguration> configs = audioManager.getActivePlaybackConfigurations();
             if (configs == null) {
-                return new ActivePlaybackSnapshot(false, activeUids, primaryPackageName);
+                return new ActivePlaybackSnapshot(false, activeUids, activePackages, primaryPackageName);
             }
             Log.d(TAG, "Active playback config count=" + configs.size());
             for (AudioPlaybackConfiguration configuration : configs) {
@@ -455,6 +456,9 @@ final class ShizukuSessionMuteEngine {
                 }
                 activeUids.add(uid);
                 String resolvedPackageName = getPackageNameForUid(uid);
+                if (!resolvedPackageName.isEmpty()) {
+                    activePackages.add(resolvedPackageName);
+                }
                 // Follow the first currently-active playback config instead of the
                 // largest session id. Newer session ids can remain in the list after
                 // being interrupted, which makes the state stick to the old app.
@@ -468,8 +472,9 @@ final class ShizukuSessionMuteEngine {
         Log.d(TAG, "TRACE_SWITCH activePlaybackSnapshot"
                 + " activeDetected=" + activePlaybackDetected
                 + " uids=" + activeUids
+                + " packages=" + activePackages
                 + " primaryPkg=" + primaryPackageName);
-        return new ActivePlaybackSnapshot(activePlaybackDetected, activeUids, primaryPackageName);
+        return new ActivePlaybackSnapshot(activePlaybackDetected, activeUids, activePackages, primaryPackageName);
     }
 
     private int readPlaybackUsage(AudioPlaybackConfiguration configuration) {
