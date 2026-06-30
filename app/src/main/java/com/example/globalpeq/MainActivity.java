@@ -2261,6 +2261,9 @@ public final class MainActivity extends Activity {
         if (shizukuRuntimeModeView != null) {
             shizukuRuntimeModeView.setText(shizukuRuntimeModeText());
         }
+        if (shizukuRuntimeRouteView != null) {
+            shizukuRuntimeRouteView.setText(shizukuRuntimeRouteText());
+        }
         if (shizukuRuntimePlaybackView != null) {
             shizukuRuntimePlaybackView.setText(shizukuRuntimePlaybackText());
         }
@@ -3874,6 +3877,9 @@ public final class MainActivity extends Activity {
         }
         if (shizukuRuntimeModeView != null) {
             setTextIfChanged(shizukuRuntimeModeView, shizukuRuntimeModeText());
+        }
+        if (shizukuRuntimeRouteView != null) {
+            setTextIfChanged(shizukuRuntimeRouteView, shizukuRuntimeRouteText());
         }
         if (shizukuRuntimePlaybackView != null) {
             setTextIfChanged(shizukuRuntimePlaybackView, shizukuRuntimePlaybackText());
