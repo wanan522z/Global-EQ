@@ -3447,7 +3447,12 @@ public final class MainActivity extends Activity {
             updateActivePlaybackPackage("");
             return;
         }
-        updateActivePlaybackPackage(repository.loadActivePlaybackPackage());
+        ShizukuRuntimeState runtimeState = repository.loadShizukuRuntimeState();
+        String packageName = runtimeState.activePlaybackPackage;
+        if (packageName == null || packageName.trim().isEmpty()) {
+            packageName = runtimeState.activeReplayPackage;
+        }
+        updateActivePlaybackPackage(packageName);
     }
 
     private void updateActivePlaybackPackage(String packageName) {
