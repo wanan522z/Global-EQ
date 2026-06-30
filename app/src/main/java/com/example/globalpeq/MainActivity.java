@@ -12176,14 +12176,23 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, tr("Switch to Shizuku Mode first", "请先切换到 Shizuku Mode 模式"), Toast.LENGTH_SHORT).show();
             return;
         }
-        boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
+        ShizukuCompat.PermissionRequestOutcome permissionOutcome =
+                ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
+        boolean granted = permissionOutcome == ShizukuCompat.PermissionRequestOutcome.GRANTED;
         String status = ShizukuCompat.describeState(this);
         if (granted) {
             ShizukuCompat.grantPermissionsAndAppOps(this);
         }
         repository.saveShizukuMuteStatus(status, granted);
         if (!granted) {
-            Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
+            if (permissionOutcome == ShizukuCompat.PermissionRequestOutcome.UNAVAILABLE) {
+                handleShizukuPermissionFailure(
+                        tr("Shizuku access is unavailable", "Shizuku 授权当前不可用"),
+                        tr("Shizuku permission request failed. The main switch has been turned off. Please open Shizuku, complete authorization, and try again.",
+                                "Shizuku 权限请求失败，总开关已自动关闭。请先打开 Shizuku 完成授权后再重试。"));
+            } else {
+                Toast.makeText(this, tr("Open Shizuku and grant access, then return here", "\u8bf7\u6253\u5f00 Shizuku \u5b8c\u6210\u6388\u6743\u540e\u518d\u56de\u5230\u8fd9\u91cc"), Toast.LENGTH_SHORT).show();
+            }
         } else {
             ensureNativeCaptureModeReady(true);
         }
@@ -12203,7 +12212,10 @@ public final class MainActivity extends Activity {
             ensureNativeCaptureModeReady(true);
             Toast.makeText(this, tr("Shizuku access granted", "Shizuku \u6388\u6743\u5df2\u6210\u529f"), Toast.LENGTH_SHORT).show();
         } else {
-            Toast.makeText(this, tr("Shizuku access was denied", "Shizuku \u6388\u6743\u88ab\u62d2\u7edd"), Toast.LENGTH_SHORT).show();
+            handleShizukuPermissionFailure(
+                    tr("Shizuku access was denied", "Shizuku 授权被拒绝"),
+                    tr("Shizuku permission request failed. The main switch has been turned off. Please grant access in Shizuku before enabling it again.",
+                            "Shizuku 权限请求失败，总开关已自动关闭。请先在 Shizuku 中完成授权，再重新打开。"));
         }
         refreshRuntimeStatusUi();
     }
