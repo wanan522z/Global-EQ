@@ -1997,11 +1997,23 @@ public final class MainActivity extends Activity {
                     "Native capture is only used by Global DSP and Shizuku Mode.",
                     "原生捕获仅在第二套后端模式下使用。");
         }
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            return currentShizukuStatusSummary().detailText(isChineseUi());
+        }
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
     }
 
     private ShizukuRuntimeState currentShizukuRuntimeState() {
         return repository == null ? ShizukuRuntimeState.DEFAULT : repository.loadShizukuRuntimeState();
+    }
+
+    private ShizukuStatusSummary currentShizukuStatusSummary() {
+        return ShizukuStatusSummary.resolve(
+                processingMode,
+                runningPreset != null && runningPreset.enabled,
+                advancedModeConfig,
+                currentShizukuRuntimeState(),
+                ShizukuCompat.hasPermission());
     }
 
     private String shizukuRuntimeTitleText() {
