@@ -43,6 +43,7 @@ final class PlaybackCaptureEngine {
     private static final int STALLED_READ_LIMIT = 6;
     private static final long ACTIVE_PLAYBACK_RECOVERY_MIN_MS = 1800L;
     private static final long AUTO_RESTART_COOLDOWN_MS = 1500L;
+    private static final int PLAYER_STATE_STARTED = 2;
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -854,6 +855,9 @@ final class PlaybackCaptureEngine {
                 if (configuration == null || readPlaybackClientUid(configuration) != currentTargetUid) {
                     continue;
                 }
+                if (!isRelevantActivePlayback(configuration)) {
+                    continue;
+                }
                 AudioDeviceInfo device = readPlaybackDeviceInfo(configuration);
                 if (device == null || !device.isSink()) {
                     continue;
@@ -894,7 +898,7 @@ final class PlaybackCaptureEngine {
         }
         try {
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
-                if (configuration == null) {
+                if (configuration == null || !isRelevantActivePlayback(configuration)) {
                     continue;
                 }
                 int clientUid = readPlaybackClientUid(configuration);
@@ -964,8 +968,12 @@ final class PlaybackCaptureEngine {
             return fallbackPackage == null ? "" : fallbackPackage.trim();
         }
         try {
+            String candidatePackage = "";
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
                 if (configuration == null) {
+                    continue;
+                }
+                if (!isRelevantActivePlayback(configuration)) {
                     continue;
                 }
                 int clientUid = readPlaybackClientUid(configuration);
@@ -984,13 +992,76 @@ final class PlaybackCaptureEngine {
                 }
                 String[] packages = packageManager.getPackagesForUid(clientUid);
                 if (packages != null && packages.length > 0 && packages[0] != null) {
-                    return packages[0].trim();
+                    candidatePackage = packages[0].trim();
                 }
+            }
+            if (!candidatePackage.isEmpty()) {
+                return candidatePackage;
             }
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to resolve replay package name", ex);
         }
         return fallbackPackage == null ? "" : fallbackPackage.trim();
+    }
+
+    private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return false;
+        }
+        if (!isPlaybackActive(configuration)) {
+            return false;
+        }
+        try {
+            AudioAttributes attributes = configuration.getAudioAttributes();
+            if (attributes == null) {
+                return false;
+            }
+            int usage = attributes.getUsage();
+            return usage == AudioAttributes.USAGE_MEDIA
+                    || usage == AudioAttributes.USAGE_GAME
+                    || usage == AudioAttributes.USAGE_UNKNOWN;
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to inspect replay playback attributes", ex);
+            return false;
+        }
+    }
+
+    private boolean isPlaybackActive(AudioPlaybackConfiguration configuration) {
+        if (configuration == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
+            Object value = method.invoke(configuration);
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+        } catch (NoSuchMethodException ignored) {
+        } catch (ReflectiveOperationException ex) {
+            Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#isActive", ex);
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback active state", ex);
+        }
+        return readPlaybackPlayerState(configuration) == PLAYER_STATE_STARTED;
+    }
+
+    private int readPlaybackPlayerState(AudioPlaybackConfiguration configuration) {
+        if (configuration == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return -1;
+        }
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerState");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                return (Integer) value;
+            }
+        } catch (NoSuchMethodException ignored) {
+        } catch (ReflectiveOperationException ex) {
+            Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#getPlayerState", ex);
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback player state", ex);
+        }
+        return -1;
     }
 
     private void updateReplayPackageName(String packageName) {
