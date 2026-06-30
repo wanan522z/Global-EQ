@@ -1547,23 +1547,11 @@ public final class MainActivity extends Activity {
         shizukuRuntimeReplayView.setTextColor(Color.rgb(190, 205, 230));
         shizukuRuntimePanel.addView(shizukuRuntimeReplayView, blockParams(2));
 
-        shizukuReplayFallbackSwitch = new Switch(this);
-        shizukuReplayFallbackSwitch.setText("");
-        shizukuReplayFallbackSwitch.setShowText(false);
-        shizukuReplayFallbackSwitch.setChecked(true);
-        shizukuReplayFallbackSwitch.setEnabled(false);
-        shizukuReplayFallbackSwitch.setClickable(false);
-        shizukuReplayFallbackSwitch.setFocusable(false);
-        shizukuReplayFallbackSwitch.setVisibility(View.GONE);
-        styleTopSwitch(shizukuReplayFallbackSwitch, false);
-        shizukuReplayFallbackRowView = labeledSettingsRow(this::shizukuReplayPromptLabelText, shizukuReplayFallbackSwitch, view -> shizukuReplayFallbackLabelView = view);
-        shizukuRuntimePanel.addView(shizukuReplayFallbackRowView, blockParams(12));
-
-        shizukuReplayFallbackHintView = new TextView(this);
-        bindText(shizukuReplayFallbackHintView, this::shizukuReplayPromptHintText);
-        shizukuReplayFallbackHintView.setTextSize(12);
-        shizukuReplayFallbackHintView.setTextColor(Color.rgb(180, 190, 210));
-        shizukuRuntimePanel.addView(shizukuReplayFallbackHintView, blockParams(4));
+        TextView shizukuReplayPromptView = new TextView(this);
+        bindText(shizukuReplayPromptView, this::shizukuReplayPromptLabelText);
+        shizukuReplayPromptView.setTextSize(12);
+        shizukuReplayPromptView.setTextColor(Color.rgb(180, 190, 210));
+        shizukuRuntimePanel.addView(shizukuReplayPromptView, blockParams(12));
 
         LinearLayout importExportPanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(importExportPanel);
