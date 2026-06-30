@@ -231,6 +231,12 @@ final class PcmDspProcessor {
         private float secondHarmonicGain;
         private float thirdHarmonicGain;
         private float harmonicOutputGain;
+        private float bassCompressorEnvelope;
+        private float bassCompressorAttackCoeff;
+        private float bassCompressorReleaseCoeff;
+        private float bassCompressorThreshold = 0.24f;
+        private float bassCompressorRatio = 1.24f;
+        private float bassCompressorMakeup = 1.04f;
         private boolean active;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
@@ -271,15 +277,22 @@ final class PcmDspProcessor {
             secondHarmonicGain = 1.20f + amount * 1.80f;
             thirdHarmonicGain = 0.02f + amount * 0.06f;
             harmonicOutputGain = 0.80f + amount * 1.00f;
+            bassCompressorThreshold = 0.24f - amount * 0.03f;
+            bassCompressorRatio = 1.22f + amount * 0.16f;
+            bassCompressorMakeup = 1.03f + amount * 0.07f;
+            bassCompressorAttackCoeff = envelopeCoeff(0.0035f);
+            bassCompressorReleaseCoeff = envelopeCoeff(0.050f);
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
                 harmonicOutputGain *= 0.95f;
+                bassCompressorMakeup *= 0.99f;
             }
 
             active = true;
             detectorState = 0f;
             cubicState = 0f;
+            bassCompressorEnvelope = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -330,7 +343,7 @@ final class PcmDspProcessor {
 
             float bandLimited = harmonicHighPass.process(source);
             bandLimited = harmonicLowPass.process(bandLimited);
-            return finiteOrZero(bandLimited * harmonicOutputGain);
+            return applyBassCompressor(finiteOrZero(bandLimited * harmonicOutputGain));
         }
 
         private void rebuildFilters(int targetCutoffHz, float amount) {
@@ -366,6 +379,7 @@ final class PcmDspProcessor {
         private void resetRuntime() {
             detectorState = 0f;
             cubicState = 0f;
+            bassCompressorEnvelope = 0f;
             if (sourceHighPass != null) {
                 sourceHighPass.reset();
             }
@@ -382,6 +396,23 @@ final class PcmDspProcessor {
 
         private MonoBiquad createMonoFilter(FilterType type, float frequencyHz, int qHundred) {
             return MonoBiquad.fromBand(new ParametricBand(type, true, Math.round(frequencyHz), 0, qHundred), sampleRate);
+        }
+
+        private float applyBassCompressor(float sample) {
+            float level = Math.abs(sample);
+            float coeff = level > bassCompressorEnvelope ? bassCompressorAttackCoeff : bassCompressorReleaseCoeff;
+            bassCompressorEnvelope = level + coeff * (bassCompressorEnvelope - level);
+            float compressedLevel = bassCompressorEnvelope <= bassCompressorThreshold
+                    ? bassCompressorEnvelope
+                    : bassCompressorThreshold
+                    + (bassCompressorEnvelope - bassCompressorThreshold) / Math.max(1.0f, bassCompressorRatio);
+            float gain = bassCompressorEnvelope > 0.0001f ? compressedLevel / bassCompressorEnvelope : 1f;
+            return finiteOrZero(sample * gain * bassCompressorMakeup);
+        }
+
+        private float envelopeCoeff(float seconds) {
+            float safeSeconds = Math.max(0.001f, seconds);
+            return (float) Math.exp(-1.0 / (sampleRate * safeSeconds));
         }
 
         private static float clamp(float value, float min, float max) {
