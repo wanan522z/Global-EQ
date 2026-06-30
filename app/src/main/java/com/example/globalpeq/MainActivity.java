@@ -2448,9 +2448,7 @@ public final class MainActivity extends Activity {
     }
 
     private String shizukuReplayPromptHintText() {
-        return tr(
-                "Global mute replay is used now. The only remaining rule is: if no playback is captured, mute will not be applied.",
-                "现在改为全局静音回放。唯一保留的判定是：如果没有抓到回放，就不要静音。");
+        return "";
     }
 
     private String runtimePackageLine(String label, String packageName, String emptyText) {
