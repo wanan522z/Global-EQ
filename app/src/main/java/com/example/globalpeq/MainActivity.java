@@ -664,6 +664,11 @@ public final class MainActivity extends Activity {
         requestRuntimePermissions();
         setContentView(buildContent());
         installKeyboardVisibilityListener();
+        languageController.bindRefresh(() -> {
+            if (mainPageHost != null && editingPreset != null) {
+                renderAll();
+            }
+        });
         renderAll();
         if (loadedWasLimited && runningPreset.enabled) {
             if (processingMode.usesNativeCapture()) {
