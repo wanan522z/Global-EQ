@@ -12,6 +12,8 @@ final class ShizukuRuntimeState {
             "",
             "",
             "",
+            "",
+            "",
             ""
     );
 
@@ -23,6 +25,8 @@ final class ShizukuRuntimeState {
     final String activePlaybackPackage;
     final String activeMutedPackage;
     final String activeReplayPackage;
+    final String activePlaybackSessionIds;
+    final String activeMutedSessionIds;
 
     ShizukuRuntimeState(String captureStatus,
                         boolean captureActive,
@@ -31,7 +35,9 @@ final class ShizukuRuntimeState {
                         String activeOutputRoute,
                         String activePlaybackPackage,
                         String activeMutedPackage,
-                        String activeReplayPackage) {
+                        String activeReplayPackage,
+                        String activePlaybackSessionIds,
+                        String activeMutedSessionIds) {
         this.captureStatus = normalize(captureStatus, "Native capture is idle.");
         this.captureActive = captureActive;
         this.muteStatus = normalize(muteStatus, "Shizuku mute is idle.");
@@ -40,6 +46,8 @@ final class ShizukuRuntimeState {
         this.activePlaybackPackage = normalize(activePlaybackPackage, "");
         this.activeMutedPackage = normalize(activeMutedPackage, "");
         this.activeReplayPackage = normalize(activeReplayPackage, "");
+        this.activePlaybackSessionIds = normalize(activePlaybackSessionIds, "");
+        this.activeMutedSessionIds = normalize(activeMutedSessionIds, "");
     }
 
     ShizukuRuntimeState withCaptureStatus(String status, boolean active) {
@@ -51,7 +59,9 @@ final class ShizukuRuntimeState {
                 activeOutputRoute,
                 activePlaybackPackage,
                 activeMutedPackage,
-                activeReplayPackage
+                activeReplayPackage,
+                activePlaybackSessionIds,
+                activeMutedSessionIds
         );
     }
 
@@ -64,7 +74,9 @@ final class ShizukuRuntimeState {
                 activeOutputRoute,
                 activePlaybackPackage,
                 activeMutedPackage,
-                activeReplayPackage
+                activeReplayPackage,
+                activePlaybackSessionIds,
+                activeMutedSessionIds
         );
     }
 
@@ -77,7 +89,9 @@ final class ShizukuRuntimeState {
                 route,
                 activePlaybackPackage,
                 activeMutedPackage,
-                activeReplayPackage
+                activeReplayPackage,
+                activePlaybackSessionIds,
+                activeMutedSessionIds
         );
     }
 
@@ -90,7 +104,9 @@ final class ShizukuRuntimeState {
                 activeOutputRoute,
                 packageName,
                 activeMutedPackage,
-                activeReplayPackage
+                activeReplayPackage,
+                activePlaybackSessionIds,
+                activeMutedSessionIds
         );
     }
 
@@ -103,7 +119,9 @@ final class ShizukuRuntimeState {
                 activeOutputRoute,
                 activePlaybackPackage,
                 packageName,
-                activeReplayPackage
+                activeReplayPackage,
+                activePlaybackSessionIds,
+                activeMutedSessionIds
         );
     }
 
@@ -116,7 +134,39 @@ final class ShizukuRuntimeState {
                 activeOutputRoute,
                 activePlaybackPackage,
                 activeMutedPackage,
-                packageName
+                packageName,
+                activePlaybackSessionIds,
+                activeMutedSessionIds
+        );
+    }
+
+    ShizukuRuntimeState withActivePlaybackSessionIds(String sessionIds) {
+        return new ShizukuRuntimeState(
+                captureStatus,
+                captureActive,
+                muteStatus,
+                muteActive,
+                activeOutputRoute,
+                activePlaybackPackage,
+                activeMutedPackage,
+                activeReplayPackage,
+                sessionIds,
+                activeMutedSessionIds
+        );
+    }
+
+    ShizukuRuntimeState withActiveMutedSessionIds(String sessionIds) {
+        return new ShizukuRuntimeState(
+                captureStatus,
+                captureActive,
+                muteStatus,
+                muteActive,
+                activeOutputRoute,
+                activePlaybackPackage,
+                activeMutedPackage,
+                activeReplayPackage,
+                activePlaybackSessionIds,
+                sessionIds
         );
     }
 
@@ -131,6 +181,8 @@ final class ShizukuRuntimeState {
             object.put("activePlaybackPackage", activePlaybackPackage);
             object.put("activeMutedPackage", activeMutedPackage);
             object.put("activeReplayPackage", activeReplayPackage);
+            object.put("activePlaybackSessionIds", activePlaybackSessionIds);
+            object.put("activeMutedSessionIds", activeMutedSessionIds);
         } catch (JSONException ignored) {
             return "{}";
         }
@@ -151,7 +203,9 @@ final class ShizukuRuntimeState {
                     object.optString("activeOutputRoute", DEFAULT.activeOutputRoute),
                     object.optString("activePlaybackPackage", DEFAULT.activePlaybackPackage),
                     object.optString("activeMutedPackage", DEFAULT.activeMutedPackage),
-                    object.optString("activeReplayPackage", DEFAULT.activeReplayPackage)
+                    object.optString("activeReplayPackage", DEFAULT.activeReplayPackage),
+                    object.optString("activePlaybackSessionIds", DEFAULT.activePlaybackSessionIds),
+                    object.optString("activeMutedSessionIds", DEFAULT.activeMutedSessionIds)
             );
         } catch (JSONException ignored) {
             return DEFAULT;
