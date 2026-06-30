@@ -2079,6 +2079,13 @@ public final class MainActivity extends Activity {
                 tr("No active package yet", "暂时还没有检测到活跃包名"));
     }
 
+    private String shizukuRuntimeRouteText() {
+        return runtimePackageLine(
+                tr("Output route", "当前输出通道"),
+                currentShizukuRuntimeState().activeOutputRoute,
+                tr("Capture could not resolve the output route yet", "当前还无法判断 capture 正在走哪条输出通道"));
+    }
+
     private String shizukuRuntimeMuteText() {
         return runtimePackageLine(
                 tr("Muted package", "当前静音包名"),
