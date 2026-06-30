@@ -47,6 +47,7 @@ final class PlaybackCaptureEngine {
     private static final long PACKAGE_STATE_FRESHNESS_MS = 1500L;
     private static final long REPLAY_DECISION_PCM_HOLD_MS = 2000L;
     private static final long REPLAY_PACKAGE_REFRESH_INTERVAL_MS = 250L;
+    private static final long CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS = 2500L;
     private static final int PLAYER_STATE_STARTED = 2;
     private static final Pattern PLAYER_TYPE_NAME_REGEX = Pattern.compile(
             "\\b(?:playerType|type)\\b\\s*[:=]\\s*([A-Z_]+|[A-Za-z]+AudioTrack|AAudio|OpenSL(?:ES)?|SLES)",
@@ -90,6 +91,7 @@ final class PlaybackCaptureEngine {
     private long lastAutoRestartAtMs;
     private boolean captureActiveRestartArmed = true;
     private boolean suppressNextCaptureActiveRestart;
+    private long captureBecameInactiveAtMs;
     private volatile long lastCaptureSignalAtMs;
     private volatile String currentReplayPackageName = "";
     private volatile String currentOutputRouteLabel = "";
@@ -1773,6 +1775,7 @@ final class PlaybackCaptureEngine {
         }
         if (!active) {
             captureActiveRestartArmed = true;
+            captureBecameInactiveAtMs = SystemClock.elapsedRealtime();
             return false;
         }
         if (suppressNextCaptureActiveRestart) {
@@ -1781,6 +1784,11 @@ final class PlaybackCaptureEngine {
             return false;
         }
         if (!running || !captureActiveRestartArmed) {
+            return false;
+        }
+        long now = SystemClock.elapsedRealtime();
+        long inactiveForMs = captureBecameInactiveAtMs <= 0L ? 0L : now - captureBecameInactiveAtMs;
+        if (inactiveForMs < CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS) {
             return false;
         }
         captureActiveRestartArmed = false;
