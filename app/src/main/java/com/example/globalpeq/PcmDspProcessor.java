@@ -272,9 +272,9 @@ final class PcmDspProcessor {
 
             rebuildFilters(targetCutoffHz, amount);
 
-            float shapedAmount = (float) Math.pow(amount, 1.06f);
-            drive = 1.60f + shapedAmount * 4.60f;
-            wetMix = 0.38f + (float) Math.pow(amount, 1.02f) * 4.90f;
+            float shapedAmount = (float) Math.pow(amount, 1.12f);
+            drive = 1.10f + shapedAmount * 1.72f;
+            wetMix = 0.32f + (float) Math.pow(amount, 1.05f) * 4.20f;
 
             float riseMs = 0.12f;
             float fallMs = 3.8f - amount * 1.0f;
@@ -288,7 +288,7 @@ final class PcmDspProcessor {
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
-                drive *= 0.97f;
+                drive *= 0.98f;
                 harmonicOutputGain *= 0.95f;
             }
 
@@ -346,9 +346,11 @@ final class PcmDspProcessor {
             envelopeState += (Math.abs(centered) - envelopeState) * 0.018f;
             float normalization = Math.max(normalizationFloor, envelopeState * 1.85f);
             float normalized = finiteOrZero(centered / normalization);
+            normalized = clamp(normalized, -1.35f, 1.35f);
 
-            float second = normalized * normalized;
-            float third = second * normalized;
+            float squared = normalized * normalized;
+            float second = squared - 0.5f;
+            float third = squared * normalized - normalized * 0.75f;
             float source = second * secondHarmonicGain + third * thirdHarmonicGain;
 
             float bandLimited = harmonicHighPass.process(source);
