@@ -1420,11 +1420,31 @@ public final class MainActivity extends Activity {
     }
 
     private void buildSettingsPage(LinearLayout page) {
-        page.setPadding(0, dp(16), 0, 0);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setClipChildren(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(0, dp(16), 0, dp(18));
+        page.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setClipChildren(false);
+        body.setClipToPadding(false);
+        body.setPadding(dp(2), 0, dp(2), dp(20));
+        scroll.addView(body, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
 
         settingsRootContent = new LinearLayout(this);
         settingsRootContent.setOrientation(LinearLayout.VERTICAL);
-        page.addView(settingsRootContent, new LinearLayout.LayoutParams(
+        settingsRootContent.setClipChildren(false);
+        settingsRootContent.setClipToPadding(false);
+        body.addView(settingsRootContent, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
