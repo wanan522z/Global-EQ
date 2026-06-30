@@ -129,20 +129,44 @@ final class ShizukuSessionMuteEngine {
         return packageName == null ? "" : packageName.trim();
     }
 
-    private String resolvePreferredMutePackage(ActivePlaybackSnapshot activePlayback, SessionInfo preferredDesiredSession) {
-        String replayPackage = normalizePackageName(repository.loadActiveReplayPackage());
-        if (!replayPackage.isEmpty()) {
-            return replayPackage;
-        }
-        String activePackage = normalizePackageName(repository.loadActivePlaybackPackage());
-        if (!activePackage.isEmpty()) {
-            return activePackage;
-        }
+    private String resolvePreferredMutePackage(ActivePlaybackSnapshot activePlayback,
+                                               Set<Integer> desiredMuteSessionIds,
+                                               List<SessionInfo> sessions,
+                                               SessionInfo preferredDesiredSession) {
         String snapshotPackage = activePlayback == null ? "" : normalizePackageName(activePlayback.primaryPackageName);
-        if (!snapshotPackage.isEmpty()) {
+        if (isPackagePresentInDesiredSessions(snapshotPackage, desiredMuteSessionIds, sessions)) {
             return snapshotPackage;
         }
+
+        String activePackage = normalizePackageName(repository.loadActivePlaybackPackage());
+        if (isPackagePresentInDesiredSessions(activePackage, desiredMuteSessionIds, sessions)) {
+            return activePackage;
+        }
+
+        String replayPackage = normalizePackageName(repository.loadActiveReplayPackage());
+        if (isPackagePresentInDesiredSessions(replayPackage, desiredMuteSessionIds, sessions)) {
+            return replayPackage;
+        }
+
         return preferredDesiredSession == null ? "" : normalizePackageName(preferredDesiredSession.packageName);
+    }
+
+    private boolean isPackagePresentInDesiredSessions(String packageName,
+                                                      Set<Integer> desiredMuteSessionIds,
+                                                      List<SessionInfo> sessions) {
+        String normalized = normalizePackageName(packageName);
+        if (normalized.isEmpty() || desiredMuteSessionIds == null || sessions == null) {
+            return false;
+        }
+        for (SessionInfo session : sessions) {
+            if (!desiredMuteSessionIds.contains(session.sessionId)) {
+                continue;
+            }
+            if (normalized.equals(normalizePackageName(session.packageName))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private final Context appContext;
@@ -626,7 +650,11 @@ final class ShizukuSessionMuteEngine {
         if (firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
             firstActivePackageName = preferredDesiredSession.packageName;
         }
-        String preferredMutePackage = resolvePreferredMutePackage(activePlayback, preferredDesiredSession);
+        String preferredMutePackage = resolvePreferredMutePackage(
+                activePlayback,
+                desiredMuteSessionIds,
+                sessions,
+                preferredDesiredSession);
         if (!preferredMutePackage.isEmpty()) {
             Set<Integer> packageScopedMuteSessionIds = new LinkedHashSet<>();
             SessionInfo preferredPackageSession = null;
