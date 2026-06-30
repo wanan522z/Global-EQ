@@ -3716,6 +3716,9 @@ public final class MainActivity extends Activity {
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
+        if (shizukuReplayFallbackRowView != null) {
+            shizukuReplayFallbackRowView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
+        }
         if (shizukuReplayFallbackSwitch != null) {
             shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
             shizukuReplayFallbackSwitch.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
@@ -3814,6 +3817,9 @@ public final class MainActivity extends Activity {
             setTextIfChanged(advancedMonitorAppButton, advancedModeConfig.monitoredAppLabel.isEmpty()
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
+        }
+        if (shizukuReplayFallbackRowView != null) {
+            shizukuReplayFallbackRowView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
         }
         if (shizukuReplayFallbackSwitch != null) {
             shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
