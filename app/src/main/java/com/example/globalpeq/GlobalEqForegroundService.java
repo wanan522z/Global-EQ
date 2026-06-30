@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
@@ -365,7 +366,7 @@ public final class GlobalEqForegroundService extends Service {
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_PRESENT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(screenStateReceiver, filter, RECEIVER_NOT_EXPORTED);
+            registerReceiver(screenStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             registerReceiver(screenStateReceiver, filter);
         }
