@@ -2018,6 +2018,14 @@ public final class MainActivity extends Activity {
         return tr("Virtual Bass", "虚拟低音");
     }
 
+    private String extraBassTitleText() {
+        return tr("Extra Bass", "额外低音");
+    }
+
+    private String cutoffLabelText() {
+        return tr("Cutoff", "截止");
+    }
+
     private String reverbSliderLabelText(String key) {
         if ("Main".equals(key)) return tr("Main", "主增益");
         if ("Decay".equals(key)) return tr("Decay", "衰减");
