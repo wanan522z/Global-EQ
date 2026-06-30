@@ -1917,12 +1917,57 @@ public final class MainActivity extends Activity {
         return row;
     }
 
+    private LanguageController.TextProvider settingsTextProvider(String text) {
+        if (text == null) {
+            return null;
+        }
+        if (text.equals(processingModeTitleText())) return this::processingModeTitleText;
+        if (text.equals(settingsModeDetailText())) return this::settingsModeDetailText;
+        if (text.equals(settingsStatusLabelText())) return this::settingsStatusLabelText;
+        if (text.equals(monitorSettingsTitleText())) return this::monitorSettingsTitleText;
+        if (text.equals(advancedModeSummaryText())) return this::advancedModeSummaryText;
+        if (text.equals(shizukuRuntimeTitleText())) return this::shizukuRuntimeTitleText;
+        if (text.equals(shizukuRuntimeDetailText())) return this::shizukuRuntimeDetailText;
+        if (text.equals(shizukuRuntimeModeText())) return this::shizukuRuntimeModeText;
+        if (text.equals(shizukuRuntimeRouteText())) return this::shizukuRuntimeRouteText;
+        if (text.equals(shizukuRuntimePlaybackText())) return this::shizukuRuntimePlaybackText;
+        if (text.equals(shizukuRuntimeMuteText())) return this::shizukuRuntimeMuteText;
+        if (text.equals(shizukuRuntimeReplayText())) return this::shizukuRuntimeReplayText;
+        if (text.equals(shizukuReplayFallbackLabelText())) return this::shizukuReplayFallbackLabelText;
+        if (text.equals(shizukuReplayFallbackHintText())) return this::shizukuReplayFallbackHintText;
+        if (text.equals(settingsImportPanelTitleText())) return this::settingsImportPanelTitleText;
+        if (text.equals(settingsImportPanelDetailText())) return this::settingsImportPanelDetailText;
+        if (text.equals(settingsLanguageLabelText())) return this::settingsLanguageLabelText;
+        if (text.equals(aboutTitleText())) return this::aboutTitleText;
+        if (text.equals(aboutBodyText())) return this::aboutBodyText;
+        if (text.equals(footerText())) return this::footerText;
+        if (text.equals(shizukuAccessLabelText())) return this::shizukuAccessLabelText;
+        if (text.equals(shizukuAccessButtonText())) return this::shizukuAccessButtonText;
+        if (text.equals(shizukuAccessStatusText())) return this::shizukuAccessStatusText;
+        if (text.equals(monitoredAppLabelText())) return this::monitoredAppLabelText;
+        if (text.equals(latencyLabelText())) return this::latencyLabelText;
+        if (text.equals(bufferLabelText())) return this::bufferLabelText;
+        if (text.equals(pollIntervalLabelText())) return this::pollIntervalLabelText;
+        if (text.equals(lookaheadLabelText())) return this::lookaheadLabelText;
+        if (text.equals(limiterCeilingLabelText())) return this::limiterCeilingLabelText;
+        if (text.equals(limiterReleaseLabelText())) return this::limiterReleaseLabelText;
+        if (text.equals(monitorCaptureStatusText())) return this::monitorCaptureStatusText;
+        if (text.equals(languageButtonText())) return this::languageButtonText;
+        if (text.equals(tr("Import", "导入"))) return () -> tr("Import", "导入");
+        if (text.equals(tr("Export", "导出"))) return () -> tr("Export", "导出");
+        if (text.equals(tr("Preset JSON", "预设 JSON"))) return () -> tr("Preset JSON", "预设 JSON");
+        if (text.equals(tr("Preset JSON export", "预设 JSON 导出"))) return () -> tr("Preset JSON export", "预设 JSON 导出");
+        if (text.equals(tr("Global config JSON", "全局配置 JSON"))) return () -> tr("Global config JSON", "全局配置 JSON");
+        if (text.equals(tr("Global config export", "全局配置 JSON 导出"))) return () -> tr("Global config export", "全局配置 JSON 导出");
+        return null;
+    }
+
     private boolean isChineseUi() {
-        return UI_LANGUAGE_ZH.equals(uiLanguage);
+        return languageController.isChinese();
     }
 
     private String tr(String english, String chinese) {
-        return isChineseUi() ? chinese : english;
+        return languageController.tr(english, chinese);
     }
 
     private String chooseAppText() {
