@@ -84,15 +84,18 @@ final class ShizukuSessionMuteEngine {
 
     private static final class ActivePlaybackSnapshot {
         final boolean activePlaybackDetected;
+        final Set<Integer> activeSessionIds;
         final Set<Integer> activeUids;
         final Set<String> activePackages;
         final String primaryPackageName;
 
         ActivePlaybackSnapshot(boolean activePlaybackDetected,
+                               Set<Integer> activeSessionIds,
                                Set<Integer> activeUids,
                                Set<String> activePackages,
                                String primaryPackageName) {
             this.activePlaybackDetected = activePlaybackDetected;
+            this.activeSessionIds = activeSessionIds == null ? new LinkedHashSet<>() : activeSessionIds;
             this.activeUids = activeUids == null ? new LinkedHashSet<>() : activeUids;
             this.activePackages = activePackages == null ? new LinkedHashSet<>() : activePackages;
             this.primaryPackageName = primaryPackageName == null ? "" : primaryPackageName;
@@ -114,10 +117,17 @@ final class ShizukuSessionMuteEngine {
     private static final class MuteScanResult {
         final String activePackageName;
         final String mutedPackageName;
+        final String activeSessionIds;
+        final String mutedSessionIds;
 
-        MuteScanResult(String activePackageName, String mutedPackageName) {
+        MuteScanResult(String activePackageName,
+                       String mutedPackageName,
+                       String activeSessionIds,
+                       String mutedSessionIds) {
             this.activePackageName = activePackageName == null ? "" : activePackageName;
             this.mutedPackageName = mutedPackageName == null ? "" : mutedPackageName;
+            this.activeSessionIds = activeSessionIds == null ? "" : activeSessionIds;
+            this.mutedSessionIds = mutedSessionIds == null ? "" : mutedSessionIds;
         }
     }
 
