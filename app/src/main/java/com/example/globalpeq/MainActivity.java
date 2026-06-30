@@ -118,8 +118,6 @@ public final class MainActivity extends Activity {
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
     private static final String[] VIRTUAL_BASS_MODE_LABELS = {"Default", "System", "DSP"};
-    private static final String UI_LANGUAGE_EN = "en";
-    private static final String UI_LANGUAGE_ZH = "zh";
     private static final SliderValueMapper LINEAR_SLIDER_MAPPER = new SliderValueMapper() {
         @Override
         public float valueToFraction(int value, int min, int max) {
@@ -206,6 +204,7 @@ public final class MainActivity extends Activity {
     };
 
     private PresetRepository repository;
+    private LanguageController languageController;
     private GlobalEqualizerEngine engine;
     private AudioOutputDeviceMonitor deviceMonitor;
     private AudioOutputDevice currentDevice;
@@ -520,7 +519,6 @@ public final class MainActivity extends Activity {
     private int activeMainPageIndex;
     private int selectedBassModeIndex;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
-    private String uiLanguage = UI_LANGUAGE_EN;
     private AdvancedModeConfig advancedModeConfig = AdvancedModeConfig.DEFAULT;
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
@@ -629,11 +627,11 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         registerSystemBackCallback();
         repository = new PresetRepository(this);
+        languageController = new LanguageController(repository);
         engine = GlobalEqRuntime.engine();
         supported = true;
         autoSwitchOutput = repository.loadAutoSwitchOutput();
         processingMode = repository.loadProcessingMode();
-        uiLanguage = repository.loadUiLanguage();
         advancedModeConfig = repository.loadAdvancedModeConfig();
         selectedDeviceCurveName = repository.loadSelectedDeviceCurveName();
         selectedTargetCurveName = repository.loadSelectedTargetCurveName();
