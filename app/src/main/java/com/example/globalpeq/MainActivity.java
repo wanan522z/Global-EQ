@@ -3941,21 +3941,6 @@ public final class MainActivity extends Activity {
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
-        if (shizukuReplayFallbackRowView != null) {
-            shizukuReplayFallbackRowView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
-        }
-        if (shizukuReplayFallbackSwitch != null) {
-            shizukuReplayFallbackSwitch.setChecked(true);
-            shizukuReplayFallbackSwitch.setEnabled(false);
-            shizukuReplayFallbackSwitch.setVisibility(View.GONE);
-        }
-        if (shizukuReplayFallbackHintView != null) {
-            setTextIfChanged(shizukuReplayFallbackHintView, shizukuReplayPromptHintText());
-            shizukuReplayFallbackHintView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
-        }
-        if (shizukuReplayFallbackLabelView != null) {
-            shizukuReplayFallbackLabelView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
-        }
         if (presetSelectButton != null) {
             setTextIfChanged(presetSelectButton, presetDisplayName(editingPreset));
         }
@@ -4046,18 +4031,6 @@ public final class MainActivity extends Activity {
         }
         if (shizukuReplayFallbackRowView != null) {
             shizukuReplayFallbackRowView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
-        }
-        if (shizukuReplayFallbackSwitch != null) {
-            shizukuReplayFallbackSwitch.setChecked(true);
-            shizukuReplayFallbackSwitch.setEnabled(false);
-            shizukuReplayFallbackSwitch.setVisibility(View.GONE);
-        }
-        if (shizukuReplayFallbackHintView != null) {
-            setTextIfChanged(shizukuReplayFallbackHintView, shizukuReplayPromptHintText());
-            shizukuReplayFallbackHintView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
-        }
-        if (shizukuReplayFallbackLabelView != null) {
-            shizukuReplayFallbackLabelView.setVisibility(shouldShowShizukuReplayFallbackControl() ? View.VISIBLE : View.GONE);
         }
     }
 
