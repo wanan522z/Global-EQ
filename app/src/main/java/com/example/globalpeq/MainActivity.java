@@ -1623,6 +1623,37 @@ public final class MainActivity extends Activity {
 
     }
 
+    private LinearLayout createSettingsSectionPanel(int alphaPercent, int topMarginDp) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setClipChildren(false);
+        panel.setClipToPadding(false);
+        panel.setPadding(dp(16), dp(16), dp(16), dp(16));
+        panel.setBackground(createGlassCard(alphaPercent));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        if (topMarginDp > 0) {
+            params.topMargin = dp(topMarginDp);
+        }
+        panel.setLayoutParams(params);
+        return panel;
+    }
+
+    private TextView addSettingsSectionTitle(LinearLayout panel, String text, int textSizeSp) {
+        TextView title = gradientTitleView(text);
+        title.setText(text);
+        title.setTextSize(textSizeSp);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleGradientTitle(title);
+        LinearLayout.LayoutParams titleParams = blockParams(0);
+        titleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(title, 12);
+        panel.addView(title, titleParams);
+        return title;
+    }
+
     private void buildMonitorSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
