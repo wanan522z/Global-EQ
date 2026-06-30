@@ -10,7 +10,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
-import android.os.SystemClock;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -28,7 +27,6 @@ final class ShizukuSessionMuteEngine {
     private static final float MUTE_GAIN_DB = -144f;
     private static final long ACTIVE_RESCAN_INTERVAL_MS = 750L;
     private static final long PASSIVE_RESCAN_INTERVAL_MS = 5000L;
-    private static final long SOURCE_SWITCH_CONFIRMATION_MS = 220L;
     private static final Pattern SESSION_REGEX = Pattern.compile(
             "Session Id:\\s*(\\d+)\\s+UID:\\s*(\\d+)[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
@@ -134,89 +132,6 @@ final class ShizukuSessionMuteEngine {
         return packageName == null ? "" : packageName.trim();
     }
 
-    private String resolveCandidateMutePackage(ActivePlaybackSnapshot activePlayback,
-                                               Set<Integer> desiredMuteSessionIds,
-                                               List<SessionInfo> sessions,
-                                               SessionInfo preferredDesiredSession) {
-        String snapshotPackage = activePlayback == null ? "" : normalizePackageName(activePlayback.primaryPackageName);
-        if (isPackagePresentInDesiredSessions(snapshotPackage, desiredMuteSessionIds, sessions)) {
-            return snapshotPackage;
-        }
-
-        if (activePlayback == null || !activePlayback.hasResolvedActiveUids()) {
-            String preferredDesiredPackage = preferredDesiredSession == null
-                    ? ""
-                    : normalizePackageName(preferredDesiredSession.packageName);
-            if (!preferredDesiredPackage.isEmpty()) {
-                Log.d(TAG, "TRACE_SWITCH preferredMutePackageUsingNewestSession package="
-                        + preferredDesiredPackage
-                        + " because active playback uid/session was unavailable");
-                return preferredDesiredPackage;
-            }
-        }
-
-        return preferredDesiredSession == null ? "" : normalizePackageName(preferredDesiredSession.packageName);
-    }
-
-    private String resolveLockedSourcePackage(String candidatePackage,
-                                             Set<Integer> desiredMuteSessionIds,
-                                             List<SessionInfo> sessions) {
-        String normalizedCandidate = normalizePackageName(candidatePackage);
-        String trackedPackage = normalizePackageName(trackedSourcePackageName);
-        boolean trackedPresent = isPackagePresentInDesiredSessions(trackedPackage, desiredMuteSessionIds, sessions);
-        if (normalizedCandidate.isEmpty()) {
-            clearPendingSourcePackage();
-            if (trackedPresent) {
-                return trackedPackage;
-            }
-            trackedSourcePackageName = "";
-            return "";
-        }
-        if (trackedPackage.isEmpty()) {
-            adoptTrackedSourcePackage(normalizedCandidate, "initialCandidate");
-            return normalizedCandidate;
-        }
-        if (normalizedCandidate.equals(trackedPackage)) {
-            clearPendingSourcePackage();
-            return trackedPackage;
-        }
-        if (!trackedPresent) {
-            adoptTrackedSourcePackage(normalizedCandidate, "trackedPackageMissing");
-            return normalizedCandidate;
-        }
-
-        long now = SystemClock.elapsedRealtime();
-        if (!normalizedCandidate.equals(normalizePackageName(pendingSourcePackageName))) {
-            pendingSourcePackageName = normalizedCandidate;
-            pendingSourcePackageSinceMs = now;
-            Log.d(TAG, "TRACE_SWITCH pendingSourceCandidate start tracked=" + trackedPackage
-                    + " candidate=" + normalizedCandidate);
-            return trackedPackage;
-        }
-        if (now - pendingSourcePackageSinceMs >= SOURCE_SWITCH_CONFIRMATION_MS) {
-            adoptTrackedSourcePackage(normalizedCandidate, "confirmedSwitch");
-            return normalizedCandidate;
-        }
-        return trackedPackage;
-    }
-
-    private void adoptTrackedSourcePackage(String packageName, String reason) {
-        String normalized = normalizePackageName(packageName);
-        if (normalized.equals(normalizePackageName(trackedSourcePackageName))) {
-            clearPendingSourcePackage();
-            return;
-        }
-        Log.d(TAG, "TRACE_SWITCH trackedSourceUpdate from=" + trackedSourcePackageName
-                + " to=" + normalized + " reason=" + reason);
-        trackedSourcePackageName = normalized;
-        clearPendingSourcePackage();
-    }
-
-    private void clearPendingSourcePackage() {
-        pendingSourcePackageName = "";
-        pendingSourcePackageSinceMs = 0L;
-    }
-
     private boolean isPackagePresentInDesiredSessions(String packageName,
                                                       Set<Integer> desiredMuteSessionIds,
                                                       List<SessionInfo> sessions) {
@@ -233,24 +148,6 @@ final class ShizukuSessionMuteEngine {
             }
         }
         return false;
-    }
-
-    private Set<String> collectDesiredPackages(Set<Integer> desiredMuteSessionIds,
-                                               List<SessionInfo> sessions) {
-        LinkedHashSet<String> packages = new LinkedHashSet<>();
-        if (desiredMuteSessionIds == null || sessions == null) {
-            return packages;
-        }
-        for (SessionInfo session : sessions) {
-            if (!desiredMuteSessionIds.contains(session.sessionId)) {
-                continue;
-            }
-            String packageName = normalizePackageName(session.packageName);
-            if (!packageName.isEmpty()) {
-                packages.add(packageName);
-            }
-        }
-        return packages;
     }
 
     private String joinPackageNames(Set<String> packageNames) {
@@ -306,9 +203,6 @@ final class ShizukuSessionMuteEngine {
     private volatile Set<Integer> currentAppSessionIds = new LinkedHashSet<>();
     private volatile String currentActivePackageName = "";
     private volatile String currentMutedPackageName = "";
-    private volatile String trackedSourcePackageName = "";
-    private volatile String pendingSourcePackageName = "";
-    private volatile long pendingSourcePackageSinceMs;
     private volatile long currentRescanIntervalMs = PASSIVE_RESCAN_INTERVAL_MS;
     private String publishedStatus = "";
     private boolean publishedActive;
@@ -367,9 +261,6 @@ final class ShizukuSessionMuteEngine {
         unregisterPlaybackCallback();
         releaseAllEffects();
         currentAppSessionIds = new LinkedHashSet<>();
-        trackedSourcePackageName = "";
-        pendingSourcePackageName = "";
-        pendingSourcePackageSinceMs = 0L;
         updateActivePackageName("");
         updateMutedPackageName("");
         publishStatus("Shizuku mute is idle.", false);
