@@ -3669,7 +3669,6 @@ public final class MainActivity extends Activity {
                     ? chooseAppText()
                     : advancedModeConfig.monitoredAppLabel);
         }
-        updateRuntimeStatusRefreshLoop();
     }
 
     private void refreshShizukuRuntimePanelUi() {
@@ -11432,6 +11431,7 @@ public final class MainActivity extends Activity {
             }
             updateBottomNavSelection(nextIndex);
             updateCurveAnimationState(false);
+            updateRuntimeStatusRefreshLoop();
             return;
         }
         updateCurveAnimationState(true);
@@ -11480,6 +11480,7 @@ public final class MainActivity extends Activity {
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .start();
         updateBottomNavSelection(nextIndex);
+        updateRuntimeStatusRefreshLoop();
         uiHandler.postDelayed(() -> updateCurveAnimationState(false), 210L);
     }
 
