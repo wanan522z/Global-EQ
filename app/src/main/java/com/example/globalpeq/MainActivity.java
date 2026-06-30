@@ -1457,11 +1457,11 @@ public final class MainActivity extends Activity {
         LinearLayout panel = createSettingsSectionPanel(35, 0);
         settingsRootContent.addView(panel);
 
-        TextView title = addSettingsSectionTitle(panel, processingModeTitleText(), 18);
+        TextView title = addSettingsSectionTitle(panel, this::processingModeTitleText, 18);
         engineStatusTitleView = title;
 
         settingsPanelDetailView = new TextView(this);
-        settingsPanelDetailView.setText(settingsModeDetailText());
+        bindText(settingsPanelDetailView, this::settingsModeDetailText);
         settingsPanelDetailView.setTextSize(12);
         settingsPanelDetailView.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(settingsPanelDetailView, blockParams(2));
@@ -1472,29 +1472,28 @@ public final class MainActivity extends Activity {
         panel.addView(statusRow, blockParams(12));
 
         settingsStatusLabelView = new TextView(this);
-        settingsStatusLabelView.setText(settingsStatusLabelText());
+        bindText(settingsStatusLabelView, this::settingsStatusLabelText);
         settingsStatusLabelView.setTextSize(14);
         settingsStatusLabelView.setTextColor(Color.rgb(200, 210, 230));
         statusRow.addView(settingsStatusLabelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         engineStatusValueView = new GlowTitleTextView(this);
-        engineStatusValueView.setText(engineStatusText());
+        bindStyledText(engineStatusValueView, this::engineStatusText);
         engineStatusValueView.setTextSize(14);
         engineStatusValueView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         engineStatusValueView.setPadding(dp(10), dp(4), dp(10), dp(4));
         engineStatusValueView.setOnClickListener(this::showProcessingModeChoiceMenu);
-        styleGradientTitle(engineStatusValueView);
         statusRow.addView(engineStatusValueView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         processingModeButton = engineStatusValueView;
 
         advancedModeDetailButton = createExtraChoiceButton();
-        advancedModeDetailButton.setText(monitorSettingsTitleText());
+        bindText(advancedModeDetailButton, this::monitorSettingsTitleText);
         styleMonitorActionButton(advancedModeDetailButton, 0);
         advancedModeDetailButton.setOnClickListener(v -> showAdvancedSettingsSubpage());
         panel.addView(advancedModeDetailButton, blockParams(12));
 
         advancedModeSummaryView = new TextView(this);
-        advancedModeSummaryView.setText(advancedModeSummaryText());
+        bindText(advancedModeSummaryView, this::advancedModeSummaryText);
         advancedModeSummaryView.setTextSize(12);
         advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(advancedModeSummaryView, blockParams(4));
@@ -1503,40 +1502,40 @@ public final class MainActivity extends Activity {
         settingsRootContent.addView(shizukuRuntimePanel);
         shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
 
-        shizukuRuntimeTitleView = addSettingsSectionTitle(shizukuRuntimePanel, shizukuRuntimeTitleText(), 17);
+        shizukuRuntimeTitleView = addSettingsSectionTitle(shizukuRuntimePanel, this::shizukuRuntimeTitleText, 17);
 
         shizukuRuntimeDetailView = new TextView(this);
-        shizukuRuntimeDetailView.setText(shizukuRuntimeDetailText());
+        bindText(shizukuRuntimeDetailView, this::shizukuRuntimeDetailText);
         shizukuRuntimeDetailView.setTextSize(12);
         shizukuRuntimeDetailView.setTextColor(Color.rgb(160, 170, 190));
         shizukuRuntimePanel.addView(shizukuRuntimeDetailView, blockParams(4));
 
         shizukuRuntimeModeView = new TextView(this);
-        shizukuRuntimeModeView.setText(shizukuRuntimeModeText());
+        bindText(shizukuRuntimeModeView, this::shizukuRuntimeModeText);
         shizukuRuntimeModeView.setTextSize(13);
         shizukuRuntimeModeView.setTextColor(Color.rgb(225, 235, 255));
         shizukuRuntimePanel.addView(shizukuRuntimeModeView, blockParams(4));
 
         shizukuRuntimeRouteView = new TextView(this);
-        shizukuRuntimeRouteView.setText(shizukuRuntimeRouteText());
+        bindText(shizukuRuntimeRouteView, this::shizukuRuntimeRouteText);
         shizukuRuntimeRouteView.setTextSize(12);
         shizukuRuntimeRouteView.setTextColor(Color.rgb(190, 205, 230));
         shizukuRuntimePanel.addView(shizukuRuntimeRouteView, blockParams(2));
 
         shizukuRuntimePlaybackView = new TextView(this);
-        shizukuRuntimePlaybackView.setText(shizukuRuntimePlaybackText());
+        bindText(shizukuRuntimePlaybackView, this::shizukuRuntimePlaybackText);
         shizukuRuntimePlaybackView.setTextSize(12);
         shizukuRuntimePlaybackView.setTextColor(Color.rgb(190, 205, 230));
         shizukuRuntimePanel.addView(shizukuRuntimePlaybackView, blockParams(2));
 
         shizukuRuntimeMuteView = new TextView(this);
-        shizukuRuntimeMuteView.setText(shizukuRuntimeMuteText());
+        bindText(shizukuRuntimeMuteView, this::shizukuRuntimeMuteText);
         shizukuRuntimeMuteView.setTextSize(12);
         shizukuRuntimeMuteView.setTextColor(Color.rgb(190, 205, 230));
         shizukuRuntimePanel.addView(shizukuRuntimeMuteView, blockParams(2));
 
         shizukuRuntimeReplayView = new TextView(this);
-        shizukuRuntimeReplayView.setText(shizukuRuntimeReplayText());
+        bindText(shizukuRuntimeReplayView, this::shizukuRuntimeReplayText);
         shizukuRuntimeReplayView.setTextSize(12);
         shizukuRuntimeReplayView.setTextColor(Color.rgb(190, 205, 230));
         shizukuRuntimePanel.addView(shizukuRuntimeReplayView, blockParams(2));
@@ -1552,11 +1551,11 @@ public final class MainActivity extends Activity {
             updateAdvancedModeConfig(advancedModeConfig.withAllowReplayWithoutMute(isChecked));
         });
         styleTopSwitch(shizukuReplayFallbackSwitch, false);
-        shizukuReplayFallbackRowView = labeledSettingsRow(shizukuReplayFallbackLabelText(), shizukuReplayFallbackSwitch);
+        shizukuReplayFallbackRowView = labeledSettingsRow(this::shizukuReplayFallbackLabelText, shizukuReplayFallbackSwitch, view -> shizukuReplayFallbackLabelView = view);
         shizukuRuntimePanel.addView(shizukuReplayFallbackRowView, blockParams(12));
 
         shizukuReplayFallbackHintView = new TextView(this);
-        shizukuReplayFallbackHintView.setText(shizukuReplayFallbackHintText());
+        bindText(shizukuReplayFallbackHintView, this::shizukuReplayFallbackHintText);
         shizukuReplayFallbackHintView.setTextSize(12);
         shizukuReplayFallbackHintView.setTextColor(Color.rgb(180, 190, 210));
         shizukuRuntimePanel.addView(shizukuReplayFallbackHintView, blockParams(4));
@@ -1564,10 +1563,10 @@ public final class MainActivity extends Activity {
         LinearLayout importExportPanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(importExportPanel);
 
-        settingsImportPanelTitleView = addSettingsSectionTitle(importExportPanel, settingsImportPanelTitleText(), 18);
+        settingsImportPanelTitleView = addSettingsSectionTitle(importExportPanel, this::settingsImportPanelTitleText, 18);
 
         settingsImportPanelDetailView = new TextView(this);
-        settingsImportPanelDetailView.setText(settingsImportPanelDetailText());
+        bindText(settingsImportPanelDetailView, this::settingsImportPanelDetailText);
         settingsImportPanelDetailView.setTextSize(12);
         settingsImportPanelDetailView.setTextColor(Color.rgb(160, 170, 190));
         importExportPanel.addView(settingsImportPanelDetailView, blockParams(2));
@@ -1605,16 +1604,16 @@ public final class MainActivity extends Activity {
         LinearLayout aboutPanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(aboutPanel);
 
-        aboutTitleView = addSettingsSectionTitle(aboutPanel, aboutTitleText(), 18);
+        aboutTitleView = addSettingsSectionTitle(aboutPanel, this::aboutTitleText, 18);
 
         aboutTextView = new TextView(this);
-        aboutTextView.setText(aboutBodyText());
+        bindText(aboutTextView, this::aboutBodyText);
         aboutTextView.setTextSize(13);
         aboutTextView.setTextColor(Color.rgb(180, 190, 210));
         aboutPanel.addView(aboutTextView, blockParams(8));
 
         footerTextView = new TextView(this);
-        footerTextView.setText(footerText());
+        bindText(footerTextView, this::footerText);
         footerTextView.setTextSize(11);
         footerTextView.setTextColor(Color.rgb(100, 110, 130));
         footerTextView.setGravity(android.view.Gravity.CENTER);
