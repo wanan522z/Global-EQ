@@ -7,7 +7,7 @@ final class AudioProcessingPolicy {
     }
 
     static boolean advancedModeEnabled(ProcessingMode mode) {
-        return mode == ProcessingMode.SHIZUKU_MUTE;
+        return mode != null && mode.usesNativeCapture();
     }
 
     static boolean reverbAllowed(ProcessingMode mode) {

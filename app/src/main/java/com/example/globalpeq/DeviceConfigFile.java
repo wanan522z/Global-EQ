@@ -10,12 +10,13 @@ import java.util.List;
 
 final class DeviceConfigFile {
     private static final String FILE_TYPE = "global_peq_device_config";
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
 
     final AudioOutputDevice device;
     final ProcessingMode processingMode;
     final boolean autoSwitchOutput;
     final ModeState systemEqState;
+    final ModeState globalDspState;
     final ModeState shizukuState;
     final List<Preset> presets;
 
@@ -70,18 +71,26 @@ final class DeviceConfigFile {
                      ProcessingMode processingMode,
                      boolean autoSwitchOutput,
                      ModeState systemEqState,
+                     ModeState globalDspState,
                      ModeState shizukuState,
                      List<Preset> presets) {
         this.device = device == null ? new AudioOutputDevice("none", "Output device") : device;
         this.processingMode = processingMode == null ? ProcessingMode.SYSTEM_EQ : processingMode;
         this.autoSwitchOutput = autoSwitchOutput;
         this.systemEqState = requireModeState(systemEqState, ProcessingMode.SYSTEM_EQ);
+        this.globalDspState = requireModeState(globalDspState, ProcessingMode.GLOBAL_DSP);
         this.shizukuState = requireModeState(shizukuState, ProcessingMode.SHIZUKU_MUTE);
         this.presets = Collections.unmodifiableList(normalizePresets(presets));
     }
 
     ModeState stateFor(ProcessingMode mode) {
-        return mode == ProcessingMode.SHIZUKU_MUTE ? shizukuState : systemEqState;
+        if (mode == ProcessingMode.SHIZUKU_MUTE) {
+            return shizukuState;
+        }
+        if (mode == ProcessingMode.GLOBAL_DSP) {
+            return globalDspState;
+        }
+        return systemEqState;
     }
 
     String toJson() {
@@ -94,6 +103,7 @@ final class DeviceConfigFile {
             object.put("processingMode", processingMode.key);
             object.put("autoSwitchOutput", autoSwitchOutput);
             object.put("systemEqState", systemEqState.toJsonObject());
+            object.put("globalDspState", globalDspState.toJsonObject());
             object.put("shizukuState", shizukuState.toJsonObject());
             JSONArray presetsArray = new JSONArray();
             for (Preset preset : presets) {
@@ -123,6 +133,9 @@ final class DeviceConfigFile {
                 mode,
                 autoSwitchOutput,
                 ModeState.fromJsonObject(object.optJSONObject("systemEqState"), ProcessingMode.SYSTEM_EQ),
+                ModeState.fromJsonObject(
+                        object.optJSONObject("globalDspState"),
+                        ProcessingMode.GLOBAL_DSP),
                 ModeState.fromJsonObject(object.optJSONObject("shizukuState"), ProcessingMode.SHIZUKU_MUTE),
                 presets
         );

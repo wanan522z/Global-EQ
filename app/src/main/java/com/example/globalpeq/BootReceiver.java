@@ -12,7 +12,7 @@ public final class BootReceiver extends BroadcastReceiver {
         if (!repository.loadMasterEnabled()) {
             return;
         }
-        if (repository.loadProcessingMode() == ProcessingMode.SHIZUKU_MUTE) {
+        if (repository.loadProcessingMode().usesNativeCapture()) {
             repository.clearRuntimeAudioState(ShizukuCompat.describeState(context));
             return;
         }
