@@ -338,6 +338,7 @@ final class ShizukuSessionMuteEngine {
         }
         LinkedHashSet<Integer> activeUids = new LinkedHashSet<>();
         String primaryPackageName = "";
+        int primarySessionId = -1;
         boolean activePlaybackDetected = false;
         try {
             List<AudioPlaybackConfiguration> configs = audioManager.getActivePlaybackConfigurations();
@@ -365,8 +366,10 @@ final class ShizukuSessionMuteEngine {
                     continue;
                 }
                 activeUids.add(uid);
+                int sessionId = readPlaybackSessionId(configuration);
                 String resolvedPackageName = getPackageNameForUid(uid);
-                if (!resolvedPackageName.isEmpty()) {
+                if (!resolvedPackageName.isEmpty() && sessionId >= primarySessionId) {
+                    primarySessionId = sessionId;
                     primaryPackageName = resolvedPackageName;
                 }
             }
@@ -376,6 +379,7 @@ final class ShizukuSessionMuteEngine {
         Log.d(TAG, "TRACE_SWITCH activePlaybackSnapshot"
                 + " activeDetected=" + activePlaybackDetected
                 + " uids=" + activeUids
+                + " primarySessionId=" + primarySessionId
                 + " primaryPkg=" + primaryPackageName);
         return new ActivePlaybackSnapshot(activePlaybackDetected, activeUids, primaryPackageName);
     }
