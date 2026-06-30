@@ -22,8 +22,11 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
+import java.util.Locale;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class PlaybackCaptureEngine {
     private static final String TAG = "PlaybackCaptureEngine";
@@ -43,6 +46,9 @@ final class PlaybackCaptureEngine {
     private static final long AUTO_RESTART_COOLDOWN_MS = 1500L;
     private static final long PACKAGE_STATE_FRESHNESS_MS = 1500L;
     private static final int PLAYER_STATE_STARTED = 2;
+    private static final Pattern PLAYER_TYPE_NAME_REGEX = Pattern.compile(
+            "\\b(?:playerType|type)\\b\\s*[:=]\\s*([A-Z_]+|[A-Za-z]+AudioTrack|AAudio|OpenSL(?:ES)?|SLES)",
+            Pattern.CASE_INSENSITIVE);
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
