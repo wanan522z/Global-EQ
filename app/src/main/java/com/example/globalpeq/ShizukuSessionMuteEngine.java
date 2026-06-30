@@ -804,9 +804,8 @@ final class ShizukuSessionMuteEngine {
             verifiedMutedSessionIds = safeVerifiedMutedSessionIds;
             firstMutedPackageName = joinPackageNames(mutedPackages);
         }
-        String desiredMuteSessionIdsForVerification = ambiguousDesiredPackages
-                ? ""
-                : joinSessionIds(filterSessionIdsByPackage(sessions, desiredMuteSessionIds, firstActivePackageName));
+        String desiredMuteSessionIdsForVerification = joinSessionIds(
+                filterSessionIdsByPackage(sessions, desiredMuteSessionIds, firstActivePackageName));
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
                 + " desiredMuteSessionIds=" + desiredMuteSessionIds
                 + " verificationDesiredMuteSessionIds=" + desiredMuteSessionIdsForVerification
