@@ -223,6 +223,8 @@ final class PcmDspProcessor {
         private MonoBiquad sourceLowPass;
         private MonoBiquad harmonicHighPass;
         private MonoBiquad harmonicLowPass;
+        private MonoBiquad[] dryBassLowStageA;
+        private MonoBiquad[] dryBassLowStageB;
 
         private float detectorState;
         private float cubicState;
@@ -245,6 +247,12 @@ final class PcmDspProcessor {
         private float transientDuckThreshold = 0.010f;
         private float transientDuckRange = 0.060f;
         private float transientDuckDepth = 0.32f;
+        private float dryBassDuckEnvelope;
+        private float dryBassDuckAttackCoeff;
+        private float dryBassDuckReleaseCoeff;
+        private float dryBassDuckThreshold = 0.08f;
+        private float dryBassDuckRange = 0.20f;
+        private float dryBassDuckDepth = 0.18f;
         private boolean active;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
@@ -297,6 +305,11 @@ final class PcmDspProcessor {
             transientDuckThreshold = 0.010f + amount * 0.004f;
             transientDuckRange = 0.055f + amount * 0.020f;
             transientDuckDepth = 0.24f + amount * 0.12f;
+            dryBassDuckAttackCoeff = envelopeCoeff(0.0045f);
+            dryBassDuckReleaseCoeff = envelopeCoeff(0.045f);
+            dryBassDuckThreshold = 0.075f + amount * 0.020f;
+            dryBassDuckRange = 0.18f + amount * 0.06f;
+            dryBassDuckDepth = 0.12f + amount * 0.10f;
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
@@ -310,6 +323,7 @@ final class PcmDspProcessor {
             bassCompressorEnvelope = 0f;
             transientFastEnvelope = 0f;
             transientSlowEnvelope = 0f;
+            dryBassDuckEnvelope = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -335,10 +349,13 @@ final class PcmDspProcessor {
                 float lowBand = sourceLowPass.process(sourceHighPass.process(mono));
                 float harmonic = shapeHarmonics(lowBand);
                 float wet = applyTransientWetDuck(lowBand, harmonic * wetMix);
+                float dryBassGain = applyDryBassSidechain(wet);
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     float input = finiteOrZero(samples[frameOffset + ch]);
-                    samples[frameOffset + ch] = clampSample(input + wet);
+                    float dryBass = extractDryBass(input, ch);
+                    float dryRest = input - dryBass;
+                    samples[frameOffset + ch] = clampSample(dryRest + dryBass * dryBassGain + wet);
                 }
             }
         }
@@ -368,6 +385,10 @@ final class PcmDspProcessor {
             float cutoffProgress = clamp((safeTargetCutoff - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
             float sourceHpRatio = 0.54f + cutoffProgress * 0.28f;
             float sourceLpRatio = (1.38f + amount * 0.05f) - cutoffProgress * 0.26f;
+            float dryBassLpHz = clamp(
+                    safeTargetCutoff * (1.08f - cutoffProgress * 0.06f),
+                    32f,
+                    Math.min(MAX_CUTOFF_HZ, sampleRate * 0.16f));
 
             float sourceHpHz = clamp(
                     safeTargetCutoff * sourceHpRatio,
@@ -391,6 +412,12 @@ final class PcmDspProcessor {
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
             harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
+            dryBassLowStageA = new MonoBiquad[channelCount];
+            dryBassLowStageB = new MonoBiquad[channelCount];
+            for (int ch = 0; ch < channelCount; ch++) {
+                dryBassLowStageA[ch] = createMonoFilter(FilterType.LOW_PASS, dryBassLpHz, 80);
+                dryBassLowStageB[ch] = createMonoFilter(FilterType.LOW_PASS, dryBassLpHz, 80);
+            }
         }
 
         private void resetRuntime() {
@@ -399,6 +426,7 @@ final class PcmDspProcessor {
             bassCompressorEnvelope = 0f;
             transientFastEnvelope = 0f;
             transientSlowEnvelope = 0f;
+            dryBassDuckEnvelope = 0f;
             if (sourceHighPass != null) {
                 sourceHighPass.reset();
             }
@@ -410,6 +438,20 @@ final class PcmDspProcessor {
             }
             if (harmonicLowPass != null) {
                 harmonicLowPass.reset();
+            }
+            if (dryBassLowStageA != null) {
+                for (MonoBiquad filter : dryBassLowStageA) {
+                    if (filter != null) {
+                        filter.reset();
+                    }
+                }
+            }
+            if (dryBassLowStageB != null) {
+                for (MonoBiquad filter : dryBassLowStageB) {
+                    if (filter != null) {
+                        filter.reset();
+                    }
+                }
             }
         }
 
@@ -447,6 +489,23 @@ final class PcmDspProcessor {
             float transientAmount = Math.max(0f, transientFastEnvelope - transientSlowEnvelope - transientDuckThreshold);
             float duck = clamp(transientAmount / Math.max(0.0001f, transientDuckRange), 0f, transientDuckDepth);
             return finiteOrZero(wet * (1f - duck));
+        }
+
+        private float applyDryBassSidechain(float wet) {
+            float level = Math.abs(wet);
+            float coeff = level > dryBassDuckEnvelope ? dryBassDuckAttackCoeff : dryBassDuckReleaseCoeff;
+            dryBassDuckEnvelope = level + coeff * (dryBassDuckEnvelope - level);
+            float duckAmount = Math.max(0f, dryBassDuckEnvelope - dryBassDuckThreshold);
+            float duck = clamp(duckAmount / Math.max(0.0001f, dryBassDuckRange), 0f, dryBassDuckDepth);
+            return 1f - duck;
+        }
+
+        private float extractDryBass(float input, int channel) {
+            if (dryBassLowStageA == null || dryBassLowStageB == null || channel < 0 || channel >= dryBassLowStageA.length) {
+                return 0f;
+            }
+            float stageA = dryBassLowStageA[channel].process(input);
+            return dryBassLowStageB[channel].process(stageA);
         }
 
         private float envelopeCoeff(float seconds) {
