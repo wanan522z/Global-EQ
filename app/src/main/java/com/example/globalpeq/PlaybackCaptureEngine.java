@@ -923,6 +923,9 @@ final class PlaybackCaptureEngine {
         if (!currentMode.requiresShizukuMute()) {
             return true;
         }
+        if (repository.loadShizukuMuteActive()) {
+            return true;
+        }
         String mutedPackage = repository.loadActiveMutedPackage();
         return mutedPackage != null && !mutedPackage.trim().isEmpty();
     }
