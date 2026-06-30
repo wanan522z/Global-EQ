@@ -264,9 +264,6 @@ public final class MainActivity extends Activity {
     private TextView shizukuRuntimeReplayView;
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
-    private View shizukuReplayFallbackRowView;
-    private TextView shizukuReplayFallbackLabelView;
-    private TextView shizukuReplayFallbackHintView;
     private TextView advancedModeSummaryView;
     private TextView languageLabelView;
     private TextView languageButton;
