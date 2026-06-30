@@ -93,7 +93,12 @@ public final class GlobalEqForegroundService extends Service {
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(device -> {
             repository.saveKnownDevice(device);
+            repository.reconcileManualDeviceSelectionOverride(device);
             if (!repository.loadAutoSwitchOutput()) {
+                return;
+            }
+            if (repository.isManualDeviceSelectionOverrideActiveFor(device)) {
+                updateNotification();
                 return;
             }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
