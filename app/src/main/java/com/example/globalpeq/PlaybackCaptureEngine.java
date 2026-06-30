@@ -236,7 +236,7 @@ final class PlaybackCaptureEngine {
         }
 
         boolean outputRouteRestartRequired =
-                !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
+                !safeDeviceRouteSignature(currentOutputDevice).equals(configuredOutputDeviceKey);
         String desiredPreferredDeviceSignature =
                 describeResolvedDeviceSignature(resolvePreferredOutputDeviceInfo());
         boolean preferredRouteRestartRequired =
@@ -443,7 +443,7 @@ final class PlaybackCaptureEngine {
             configuredBufferFrames = currentConfig.bufferSizeFrames;
             configuredChunkFrames = processingChunkFrames;
             configuredLatencyMs = currentConfig.latencyMs;
-            configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
+            configuredOutputDeviceKey = safeDeviceRouteSignature(currentOutputDevice);
             configuredPreferredDeviceSignature =
                     describeResolvedDeviceSignature(preferredOutputDevice);
             running = true;
@@ -1733,6 +1733,16 @@ final class PlaybackCaptureEngine {
 
     private String safeDeviceKey(AudioOutputDevice outputDevice) {
         return outputDevice == null || outputDevice.key == null ? "" : outputDevice.key;
+    }
+
+    private String safeDeviceRouteSignature(AudioOutputDevice outputDevice) {
+        if (outputDevice == null) {
+            return "";
+        }
+        if (outputDevice.routeSignature != null && !outputDevice.routeSignature.trim().isEmpty()) {
+            return outputDevice.routeSignature.trim();
+        }
+        return safeDeviceKey(outputDevice);
     }
 
     private void releaseProjectionLocked() {
