@@ -1033,74 +1033,97 @@ final class PlaybackCaptureEngine {
     }
 
     private boolean shouldOutputProcessedReplay() {
-        boolean allowed;
-        if (!currentMode.requiresShizukuMute()) {
-            allowed = true;
-            traceReplayDecision("modeDoesNotRequireMute", "", "", "");
-            return allowed;
-        }
-        String mutedPackage = normalizePackageName(repository.loadActiveMutedPackage());
-        if (mutedPackage.isEmpty()) {
-            allowed = currentConfig.allowReplayWithoutMute;
-            traceReplayDecision(
-                    allowed ? "allowReplayWithoutMuteNoMutedPackage" : "mutedPackageEmpty",
-                    mutedPackage,
-                    "",
-                    "");
-            return allowed;
-        }
-        String expectedReplayPackage = normalizePackageName(currentReplayPackageName);
-        if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
-            expectedReplayPackage = normalizePackageName(repository.loadActivePlaybackPackage());
-        }
-        if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
-            expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
-        }
-        if (expectedReplayPackage.isEmpty() && currentMode.capturesSystemAudio()) {
-            String activePlaybackPackage = normalizePackageName(repository.loadActivePlaybackPackage());
-            if (isFreshRuntimePackage(activePlaybackPackage, repository.loadActivePlaybackPackageUpdatedAt())
-                    && isFreshRuntimePackage(mutedPackage, repository.loadActiveMutedPackageUpdatedAt())
-                    && packageListFullyCoveredBy(activePlaybackPackage, mutedPackage)) {
-                expectedReplayPackage = activePlaybackPackage;
-            }
-        }
-        if (expectedReplayPackage.isEmpty()) {
-            allowed = currentConfig.allowReplayWithoutMute;
-            traceReplayDecision(
-                    allowed ? "allowReplayWithoutResolvedReplayPackage" : "replayPackageUnknown",
-                    mutedPackage,
-                    expectedReplayPackage,
-                    normalizePackageName(currentConfig.monitoredAppPackage));
-            return allowed;
-        }
-        boolean replayCoveredByMute = packageListFullyCoveredBy(expectedReplayPackage, mutedPackage);
-        allowed = replayCoveredByMute || currentConfig.allowReplayWithoutMute;
-        traceReplayDecision(replayCoveredByMute
-                        ? "replayCoveredByMute"
-                        : (allowed ? "allowReplayWithoutMute" : "replayNotMuted"),
-                mutedPackage,
-                expectedReplayPackage,
-                normalizePackageName(currentConfig.monitoredAppPackage));
-        return allowed;
+        return resolveReplayDecision(SystemClock.elapsedRealtime(), false).allowed;
     }
 
     private void refreshReplayPackageNameIfNeeded(long now, boolean forceRefresh) {
-        if (!forceRefresh && now - lastReplayPackageRefreshAtMs < 900L) {
+        if (!forceRefresh && now - lastReplayPackageRefreshAtMs < REPLAY_PACKAGE_REFRESH_INTERVAL_MS) {
             return;
         }
         lastReplayPackageRefreshAtMs = now;
-        updateReplayPackageName(resolveCurrentReplayPackageName());
+        ReplayDecision decision = resolveReplayDecision(now, true);
+        updateReplayPackageName(decision.replayPackages);
     }
 
-    private String resolveCurrentReplayPackageName() {
-        String fallbackPackage = repository.loadActiveMutedPackage();
-        if (fallbackPackage == null || fallbackPackage.trim().isEmpty()) {
-            fallbackPackage = repository.loadActivePlaybackPackage();
+    private ReplayDecision resolveReplayDecision(long now, boolean refreshPlaybackPackages) {
+        String playbackPackages = resolvePlaybackPackagesForReplayDecision(refreshPlaybackPackages);
+        String mutedPackages = normalizePackageName(repository.loadActiveMutedPackage());
+        boolean pcmActive = hasRecentPcmActivity(now, REPLAY_DECISION_PCM_HOLD_MS);
+
+        if (!currentMode.requiresShizukuMute()) {
+            String replayPackages = playbackPackages;
+            if (replayPackages.isEmpty() && !currentMode.capturesSystemAudio()) {
+                replayPackages = normalizePackageName(currentConfig.monitoredAppPackage);
+            }
+            traceReplayDecision("modeDoesNotRequireMute", mutedPackages, playbackPackages, replayPackages, pcmActive);
+            return new ReplayDecision(true, pcmActive, playbackPackages, mutedPackages, replayPackages, "modeDoesNotRequireMute");
+        }
+
+        if (playbackPackages.isEmpty()) {
+            boolean allowed = pcmActive && currentConfig.allowReplayWithoutMute;
+            String reason = pcmActive
+                    ? (allowed ? "allowReplayWithoutMuteUnknownPlayback" : "pcmActivePlaybackUnknown")
+                    : "pcmInactive";
+            String replayPackages = allowed
+                    ? normalizePackageName(currentConfig.monitoredAppPackage)
+                    : "";
+            traceReplayDecision(reason, mutedPackages, playbackPackages, replayPackages, pcmActive);
+            return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
+        }
+
+        boolean fullyMuted = packageListFullyCoveredBy(playbackPackages, mutedPackages);
+        boolean allowed = fullyMuted || currentConfig.allowReplayWithoutMute;
+        String reason;
+        if (fullyMuted) {
+            reason = "allActivePlaybackPackagesMuted";
+        } else if (currentConfig.allowReplayWithoutMute) {
+            reason = "allowReplayWithoutMuteUnmutedPlayback";
+        } else {
+            reason = "activePlaybackIncludesUnmutedPackages";
+        }
+        String replayPackages = allowed ? playbackPackages : "";
+        traceReplayDecision(reason, mutedPackages, playbackPackages, replayPackages, pcmActive);
+        return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
+    }
+
+    private String resolvePlaybackPackagesForReplayDecision(boolean refreshFromAudioManager) {
+        String runtimePlaybackPackages = resolveFreshRuntimePackages(
+                repository.loadActivePlaybackPackage(),
+                repository.loadActivePlaybackPackageUpdatedAt());
+        String runtimeReplayPackages = resolveFreshRuntimePackages(
+                repository.loadActiveReplayPackage(),
+                repository.loadActiveReplayPackageUpdatedAt());
+        if (!runtimePlaybackPackages.isEmpty()) {
+            return orderPackageListByPriority(
+                    runtimePlaybackPackages,
+                    currentReplayPackageName,
+                    runtimeReplayPackages,
+                    repository.loadActiveMutedPackage());
         }
         if (!currentMode.capturesSystemAudio()) {
-            String monitoredPackage = currentConfig.monitoredAppPackage == null ? "" : currentConfig.monitoredAppPackage.trim();
-            return monitoredPackage.isEmpty() ? fallbackPackage : monitoredPackage;
+            return normalizePackageName(currentConfig.monitoredAppPackage);
         }
+        if (!refreshFromAudioManager) {
+            return orderPackageListByPriority(
+                    currentReplayPackageName,
+                    runtimeReplayPackages,
+                    repository.loadActiveMutedPackage());
+        }
+        String livePlaybackPackages = resolveLivePlaybackPackagesFromAudioManager();
+        if (!livePlaybackPackages.isEmpty()) {
+            return orderPackageListByPriority(
+                    livePlaybackPackages,
+                    runtimePlaybackPackages,
+                    runtimeReplayPackages,
+                    repository.loadActiveMutedPackage());
+        }
+        return orderPackageListByPriority(
+                currentReplayPackageName,
+                runtimeReplayPackages,
+                repository.loadActiveMutedPackage());
+    }
+
+    private String resolveLivePlaybackPackagesFromAudioManager() {
         if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return "";
         }
@@ -1126,13 +1149,7 @@ final class PlaybackCaptureEngine {
                         + " playerState=" + playerState
                         + " usage=" + usage
                         + " raw=" + summarizeConfig(configuration));
-                if (!relevant) {
-                    continue;
-                }
-                if (clientUid <= 0 || clientUid == android.os.Process.myUid()) {
-                    continue;
-                }
-                if (attributes == null) {
+                if (!relevant || clientUid <= 0 || clientUid == android.os.Process.myUid() || attributes == null) {
                     continue;
                 }
                 if (usage != AudioAttributes.USAGE_MEDIA
@@ -1143,26 +1160,13 @@ final class PlaybackCaptureEngine {
                 String[] packages = packageManager.getPackagesForUid(clientUid);
                 if (packages != null && packages.length > 0 && packages[0] != null) {
                     candidatePackages.add(packages[0].trim());
-                    Log.d(TAG, "TRACE_SWITCH replayPackageChosen"
-                            + " pkg=" + packages[0].trim()
-                            + " uid=" + clientUid
-                            + " fallback=" + fallbackPackage);
                 }
             }
-            String joinedPackages = orderPackageListByPriority(
-                    joinPackageList(candidatePackages),
-                    repository.loadActivePlaybackPackage(),
-                    repository.loadActiveMutedPackage(),
-                    repository.loadActiveReplayPackage());
-            if (!joinedPackages.isEmpty()) {
-                return joinedPackages;
-            }
+            return joinPackageList(candidatePackages);
         } catch (RuntimeException ex) {
-            Log.w(TAG, "Unable to resolve replay package name", ex);
+            Log.w(TAG, "Unable to resolve live playback packages", ex);
+            return "";
         }
-        Log.d(TAG, "TRACE_SWITCH replayPackageFallback fallbackSuppressed="
-                + (fallbackPackage == null ? "" : fallbackPackage));
-        return "";
     }
 
     private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
