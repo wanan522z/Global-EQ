@@ -8157,7 +8157,7 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbSlider("Main", -12000, 300, editingPreset.reverbMainMb, "dB", 0.01f, 1, true, REVERB_MAIN_SLIDER_MAPPER, value ->
+        reverbKnobs.addView(createReverbSlider("Dry", -12000, 300, editingPreset.reverbMainMb, "dB", 0.01f, 1, true, REVERB_MAIN_SLIDER_MAPPER, value ->
                 setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, false, REVERB_DECAY_SLIDER_MAPPER, value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
@@ -8165,7 +8165,7 @@ public final class MainActivity extends Activity {
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Size", 0, 100, editingPreset.reverbSizePercent, "%", false, value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Mix", 0, 100, editingPreset.reverbMixPercent, "%", 1f, 0, false, REVERB_MIX_SLIDER_MAPPER, value ->
+        reverbKnobs.addView(createReverbSlider("Wet", 0, 100, editingPreset.reverbMixPercent, "%", 1f, 0, false, REVERB_MIX_SLIDER_MAPPER, value ->
                 setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
