@@ -231,6 +231,7 @@ final class PcmDspProcessor {
         private float wetMix;
         private float drive;
         private float secondHarmonicGain;
+        private float thirdHarmonicGain;
         private float harmonicOutputGain;
         private float normalizationFloor;
         private boolean active;
@@ -273,6 +274,7 @@ final class PcmDspProcessor {
             wetMix = 0.22f + (float) Math.pow(amount, 1.08f) * 2.35f;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
+            thirdHarmonicGain = 0.06f + amount * 0.16f;
             harmonicOutputGain = 0.80f + amount * 1.00f;
             normalizationFloor = 0.20f - amount * 0.05f;
 
@@ -333,7 +335,9 @@ final class PcmDspProcessor {
 
             float squared = normalized * normalized;
             detectorState += (squared - detectorState) * 0.010f;
-            float source = (squared - detectorState) * secondHarmonicGain;
+            float second = (squared - detectorState) * secondHarmonicGain;
+            float third = (squared * normalized - normalized * 0.82f) * thirdHarmonicGain;
+            float source = second + third;
 
             float bandLimited = harmonicHighPass.process(source);
             bandLimited = harmonicLowPass.process(bandLimited);
@@ -344,24 +348,24 @@ final class PcmDspProcessor {
             float safeTargetCutoff = clamp(targetCutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.20f));
 
             float sourceHpHz = clamp(
-                    safeTargetCutoff * 0.72f,
+                    safeTargetCutoff * 0.64f,
                     20f,
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.12f));
             float sourceLpHz = clamp(
-                    safeTargetCutoff * (1.22f + amount * 0.04f),
-                    sourceHpHz + 12f,
-                    Math.min(MAX_CUTOFF_HZ, sampleRate * 0.16f));
+                    safeTargetCutoff * (1.32f + amount * 0.06f),
+                    sourceHpHz + 16f,
+                    Math.min(MAX_CUTOFF_HZ, sampleRate * 0.18f));
             sourceHighPass = createMonoFilter(FilterType.HIGH_PASS, sourceHpHz, 85);
             sourceLowPass = createMonoFilter(FilterType.LOW_PASS, sourceLpHz, 85);
 
             float harmonicHpHz = clamp(
-                    safeTargetCutoff * 1.82f,
-                    Math.max(42f, safeTargetCutoff * 1.68f),
-                    safeTargetCutoff * 1.94f);
+                    safeTargetCutoff * 1.74f,
+                    Math.max(38f, safeTargetCutoff * 1.58f),
+                    safeTargetCutoff * 1.92f);
             float harmonicLpHz = clamp(
-                    safeTargetCutoff * (2.18f + amount * 0.06f),
-                    harmonicHpHz + 14f,
-                    Math.min(520f, sampleRate * 0.12f));
+                    safeTargetCutoff * (2.30f + amount * 0.08f),
+                    harmonicHpHz + 20f,
+                    Math.min(560f, sampleRate * 0.14f));
 
             harmonicHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicHpHz, 70);
             harmonicLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicLpHz, 70);
