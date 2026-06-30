@@ -7693,11 +7693,11 @@ public final class MainActivity extends Activity {
             virtualBassCutoffInput.setHint(dspVirtualBassMode ? "Cutoff Hz" : "Boost");
             virtualBassCutoffInput.setVisibility(dspVirtualBassMode ? View.VISIBLE : View.GONE);
             virtualBassCutoffInput.setEnabled(virtualBassEnabled && dspVirtualBassMode);
-            String cutoffText = String.valueOf(editingPreset.virtualBassCutoffHz);
+            String cutoffText = String.valueOf(displayVirtualBassCutoffHz(editingPreset.virtualBassCutoffHz));
             if (!virtualBassCutoffInput.hasFocus() && !cutoffText.contentEquals(virtualBassCutoffInput.getText())) {
                 updatingUi = true;
                 virtualBassCutoffInput.setText(cutoffText);
-                virtualBassCutoffInput.setTag(editingPreset.virtualBassCutoffHz);
+                virtualBassCutoffInput.setTag(displayVirtualBassCutoffHz(editingPreset.virtualBassCutoffHz));
                 updatingUi = false;
             }
             virtualBassCutoffInput.setAlpha(dspVirtualBassMode ? 1f : 0.55f);
@@ -7897,11 +7897,11 @@ public final class MainActivity extends Activity {
         bassPanel.addView(virtualBassSlider, sliderParams);
 
         virtualBassCutoffInput = createDeferredIntegerInput(
-                String.valueOf(editingPreset.virtualBassCutoffHz),
+                String.valueOf(displayVirtualBassCutoffHz(editingPreset.virtualBassCutoffHz)),
                 "Cutoff Hz",
-                20,
-                250,
-                value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(value), true));
+                40,
+                500,
+                value -> setEditingPreset(editingPreset.withVirtualBassCutoffHz(internalVirtualBassCutoffHz(value)), true));
         virtualBassCutoffInput.setTextSize(13);
         virtualBassCutoffInput.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams cutoffParams = new LinearLayout.LayoutParams(
@@ -7925,6 +7925,14 @@ public final class MainActivity extends Activity {
         LinearLayout extraBassKnobs = createExtraKnobRow(extraBassPanel);
         extraBassKnobs.addView(createExtraBassControl("Cutoff", true), knobColumnParams());
         extraBassKnobs.addView(createExtraBassControl("Boost", false), knobColumnParams());
+    }
+
+    private int displayVirtualBassCutoffHz(int internalCutoffHz) {
+        return clamp(internalCutoffHz * 2, 40, 500);
+    }
+
+    private int internalVirtualBassCutoffHz(int displayedCutoffHz) {
+        return clamp(displayedCutoffHz / 2, 20, 250);
     }
 
     private LinearLayout createExtraPanelShell() {
