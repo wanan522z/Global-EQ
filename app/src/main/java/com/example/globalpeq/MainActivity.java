@@ -8417,7 +8417,7 @@ public final class MainActivity extends Activity {
         knobParams.bottomMargin = dp(2);
         column.addView(slider, knobParams);
 
-        if ("Main".equals(label)) {
+        if ("Main".equals(label) || "Dry".equals(label)) {
             reverbMainSlider = slider;
         } else if ("Decay".equals(label)) {
             reverbDecaySlider = slider;
@@ -8425,6 +8425,8 @@ public final class MainActivity extends Activity {
             reverbPredelaySlider = slider;
         } else if ("Size".equals(label)) {
             reverbSizeSlider = slider;
+        } else if ("Mix".equals(label) || "Wet".equals(label)) {
+            reverbMixSlider = slider;
         } else {
             reverbMixSlider = slider;
         }
