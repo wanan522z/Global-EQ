@@ -12265,6 +12265,7 @@ public final class MainActivity extends Activity {
         if ("Shizuku is ready.".equals(status)) return "Shizuku \u5df2\u5c31\u7eea\u3002";
         if ("Unable to resolve the selected app.".equals(status)) return "\u65e0\u6cd5\u89e3\u6790\u5f53\u524d\u9009\u62e9\u7684 App\u3002";
         if ("Waiting for active playback sessions.".equals(status)) return "\u6b63\u5728\u7b49\u5f85\u6d3b\u8dc3\u7684\u64ad\u653e session\u3002";
+        if ("Waiting for source capture before muting.".equals(status)) return "\u6b63\u5728\u7b49\u5f85\u5148\u6293\u5230\u539f\u58f0\u518d\u6267\u884c\u9759\u97f3\u3002";
         if (status.startsWith("Waiting for ") && status.endsWith(" sessions.")) {
             return "\u6b63\u5728\u7b49\u5f85 " + status.substring("Waiting for ".length(), status.length() - " sessions.".length()) + " \u7684\u64ad\u653e session\u3002";
         }
