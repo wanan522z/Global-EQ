@@ -2243,13 +2243,10 @@ public final class MainActivity extends Activity {
         if (state == null) {
             return "";
         }
-        if (!state.activeReplayPackage.isEmpty()) {
-            return state.activeReplayPackage;
-        }
-        if (!state.activeMutedPackage.isEmpty()) {
-            return state.activeMutedPackage;
-        }
-        return state.activePlaybackPackage;
+        return orderRuntimePackages(
+                state.activePlaybackPackage,
+                state.activeReplayPackage,
+                state.activeMutedPackage);
     }
 
     private String bestReplayRuntimePackage(ShizukuRuntimeState state) {
@@ -2257,15 +2254,73 @@ public final class MainActivity extends Activity {
             return "";
         }
         if (!state.activeReplayPackage.isEmpty()) {
-            return state.activeReplayPackage;
+            return orderRuntimePackages(
+                    state.activeReplayPackage,
+                    state.activePlaybackPackage,
+                    state.activeMutedPackage);
         }
         if (state.captureActive && !state.activePlaybackPackage.isEmpty()) {
-            return state.activePlaybackPackage;
+            return orderRuntimePackages(
+                    state.activePlaybackPackage,
+                    state.activeMutedPackage);
         }
         if (state.captureActive && !state.activeMutedPackage.isEmpty()) {
-            return state.activeMutedPackage;
+            return orderRuntimePackages(
+                    state.activeMutedPackage,
+                    state.activePlaybackPackage);
         }
         return "";
+    }
+
+    private String orderRuntimePackages(String primary, String... references) {
+        LinkedHashSet<String> remaining = splitRuntimePackageList(primary);
+        if (remaining.isEmpty()) {
+            return "";
+        }
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        if (references != null) {
+            for (String reference : references) {
+                for (String packageName : splitRuntimePackageList(reference)) {
+                    if (remaining.remove(packageName)) {
+                        ordered.add(packageName);
+                    }
+                }
+            }
+        }
+        ordered.addAll(remaining);
+        return joinRuntimePackageList(ordered);
+    }
+
+    private LinkedHashSet<String> splitRuntimePackageList(String packages) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        if (packages == null || packages.trim().isEmpty()) {
+            return result;
+        }
+        String[] parts = packages.split(",");
+        for (String part : parts) {
+            String packageName = part == null ? "" : part.trim();
+            if (!packageName.isEmpty()) {
+                result.add(packageName);
+            }
+        }
+        return result;
+    }
+
+    private String joinRuntimePackageList(LinkedHashSet<String> packages) {
+        if (packages == null || packages.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String packageName : packages) {
+            if (packageName == null || packageName.trim().isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(packageName.trim());
+        }
+        return builder.toString();
     }
 
     private String shizukuReplayFallbackLabelText() {
