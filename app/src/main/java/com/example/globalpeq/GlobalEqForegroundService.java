@@ -130,10 +130,6 @@ public final class GlobalEqForegroundService extends Service {
             if (!repository.loadAutoSwitchOutput()) {
                 return;
             }
-            if (repository.isManualDeviceSelectionOverrideActiveFor(device)) {
-                updateNotification();
-                return;
-            }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
             boolean newBluetoothDevice = isBluetoothRoute(device)
                     && !safeRouteSignature(currentDevice).equals(safeRouteSignature(device));
