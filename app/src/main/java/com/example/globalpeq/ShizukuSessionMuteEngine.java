@@ -84,13 +84,16 @@ final class ShizukuSessionMuteEngine {
     private static final class ActivePlaybackSnapshot {
         final boolean activePlaybackDetected;
         final Set<Integer> activeUids;
+        final Set<String> activePackages;
         final String primaryPackageName;
 
         ActivePlaybackSnapshot(boolean activePlaybackDetected,
                                Set<Integer> activeUids,
+                               Set<String> activePackages,
                                String primaryPackageName) {
             this.activePlaybackDetected = activePlaybackDetected;
             this.activeUids = activeUids == null ? new LinkedHashSet<>() : activeUids;
+            this.activePackages = activePackages == null ? new LinkedHashSet<>() : activePackages;
             this.primaryPackageName = primaryPackageName == null ? "" : primaryPackageName;
         }
 
