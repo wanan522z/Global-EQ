@@ -132,24 +132,6 @@ final class ShizukuSessionMuteEngine {
         return packageName == null ? "" : packageName.trim();
     }
 
-    private boolean isPackagePresentInDesiredSessions(String packageName,
-                                                      Set<Integer> desiredMuteSessionIds,
-                                                      List<SessionInfo> sessions) {
-        String normalized = normalizePackageName(packageName);
-        if (normalized.isEmpty() || desiredMuteSessionIds == null || sessions == null) {
-            return false;
-        }
-        for (SessionInfo session : sessions) {
-            if (!desiredMuteSessionIds.contains(session.sessionId)) {
-                continue;
-            }
-            if (normalized.equals(normalizePackageName(session.packageName))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private String joinPackageNames(Set<String> packageNames) {
         if (packageNames == null || packageNames.isEmpty()) {
             return "";
