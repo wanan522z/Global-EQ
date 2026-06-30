@@ -1790,12 +1790,16 @@ final class PlaybackCaptureEngine {
                     return;
                 }
                 if (!hasRecoverableActivePlayback()) {
+                    scheduleRestartAfterSustainedInactiveLocked();
                     return;
                 }
                 captureActiveRestartArmed = false;
                 boolean restarted = restartPipelineLocked("capture stayed inactive");
                 if (!restarted) {
                     captureActiveRestartArmed = true;
+                    if (!publishedActive) {
+                        scheduleRestartAfterSustainedInactiveLocked();
+                    }
                 }
             }
         }, CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS);
