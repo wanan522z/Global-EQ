@@ -2430,8 +2430,8 @@ public final class MainActivity extends Activity {
 
     private String shizukuReplayPromptLabelText() {
         return tr(
-                "If you hear two overlapping sounds, this app cannot be muted. Lower its volume manually, but do not mute it completely.",
-                "若出现两个声音重叠说明该 app 无法静音，请手动将此 app 音量调低，但不要完全静音。");
+                "If you hear two overlapping sounds, this app cannot be muted. Lower its volume manually, but do not mute it completely. If EQ does not take effect, the app most likely cannot be captured for replay.",
+                "若出现两个声音重叠说明该 app 无法静音，请手动将此 app 音量调低，但不要完全静音。如果 eq 未生效，大概率该 app 无法被捕获回放，请见谅。");
     }
 
     private String shizukuReplayPromptHintText() {
