@@ -6792,6 +6792,7 @@ public final class MainActivity extends Activity {
         if (autoSwitchOutput) {
             handleDetectedOutputDevice(deviceMonitor.currentOutputDevice());
         } else {
+            repository.clearManualDeviceSelectionOverride();
             refreshDeviceSelectionUi();
         }
     }
