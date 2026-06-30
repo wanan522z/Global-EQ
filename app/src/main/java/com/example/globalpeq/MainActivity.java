@@ -4321,7 +4321,7 @@ public final class MainActivity extends Activity {
         if (reverbTypeButton == null || editingPreset == null) {
             return;
         }
-        showLimitedChoiceMenu(reverbTypeButton, reverbTypeDisplayLabels(), reverbTypeIndex(editingPreset.reverbType), position -> {
+        showLimitedChoiceMenu(reverbTypeButton, REVERB_TYPE_LABELS, reverbTypeIndex(editingPreset.reverbType), position -> {
             String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
             if (!AudioProcessingPolicy.reverbAllowed(processingMode) && !"Default".equals(nextType)) {
                 showModeLockedDialog(reverbRequiresShizukuMessage());
@@ -7973,7 +7973,7 @@ public final class MainActivity extends Activity {
         updateExtraBassControl(cutoffKnob, editingPreset.extraBassCutoffHz, extraBassEnabled);
         updateExtraBassControl(amountKnob, editingPreset.extraBassAmountPercent, extraBassEnabled);
         if (reverbTypeButton != null) {
-            reverbTypeButton.setText(reverbTypeDisplayLabel(editingPreset.reverbType));
+            reverbTypeButton.setText(editingPreset.reverbType);
             reverbTypeButton.setEnabled(reverbAllowed);
             reverbTypeButton.setAlpha(reverbAllowed ? 1f : 0.5f);
         }
