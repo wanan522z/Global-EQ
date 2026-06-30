@@ -253,6 +253,24 @@ final class ShizukuSessionMuteEngine {
         return packages;
     }
 
+    private String joinPackageNames(Set<String> packageNames) {
+        if (packageNames == null || packageNames.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String packageName : packageNames) {
+            String normalized = normalizePackageName(packageName);
+            if (normalized.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(normalized);
+        }
+        return builder.toString();
+    }
+
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
