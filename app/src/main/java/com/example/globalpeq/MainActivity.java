@@ -4205,14 +4205,8 @@ public final class MainActivity extends Activity {
                 List<AudioOutputDevice> mergedChoices = new ArrayList<>(deviceChoices);
                 for (AudioOutputDevice liveDevice : liveDevices) {
                     boolean exists = false;
-                    String liveLabelKey = liveDevice.label == null
-                            ? ""
-                            : liveDevice.label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
                     for (AudioOutputDevice knownDevice : mergedChoices) {
-                        String knownLabelKey = knownDevice.label == null
-                                ? ""
-                                : knownDevice.label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
-                        if (knownDevice.key.equals(liveDevice.key) || knownLabelKey.equals(liveLabelKey)) {
+                        if (knownDevice.key.equals(liveDevice.key)) {
                             exists = true;
                             break;
                         }
@@ -4242,17 +4236,16 @@ public final class MainActivity extends Activity {
             deviceChoices.add(new AudioOutputDevice("none", "Default Output"));
         }
 
-        String[] labels = new String[deviceChoices.size()];
+        String[] labels = displayLabelsForDeviceChoices(deviceChoices);
         int selected = 0;
         for (int i = 0; i < deviceChoices.size(); i++) {
             AudioOutputDevice device = deviceChoices.get(i);
-            labels[i] = device.label;
             if (device.key.equals(currentDevice.key)) {
                 selected = i;
             }
         }
 
-        String signature = joinStrings(labels);
+        String signature = deviceChoiceSignature(deviceChoices, labels);
         String selectedKey = currentDevice.key == null ? "" : currentDevice.key;
         if (!signature.equals(lastDeviceSpinnerSignature)) {
             SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
@@ -4278,9 +4271,9 @@ public final class MainActivity extends Activity {
         }
         String[] labels = new String[deviceChoices.size()];
         int selected = 0;
+        labels = displayLabelsForDeviceChoices(deviceChoices);
         for (int i = 0; i < deviceChoices.size(); i++) {
             AudioOutputDevice device = deviceChoices.get(i);
-            labels[i] = device.label;
             if (currentDevice != null && device.key.equals(currentDevice.key)) {
                 selected = i;
             }
