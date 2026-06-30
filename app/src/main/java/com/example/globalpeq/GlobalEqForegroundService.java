@@ -130,9 +130,11 @@ public final class GlobalEqForegroundService extends Service {
             if (!repository.loadAutoSwitchOutput()) {
                 return;
             }
+            if (repository.isManualDeviceSelectionOverrideActiveFor(device)) {
+                updateNotification();
+                return;
+            }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
-            boolean newBluetoothDevice = isBluetoothRoute(device)
-                    && !safeRouteSignature(currentDevice).equals(safeRouteSignature(device));
             currentProcessingMode = repository.loadProcessingMode();
             currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
             if (awaitingInitialDeviceMonitorEvent) {
@@ -141,7 +143,7 @@ public final class GlobalEqForegroundService extends Service {
                 repository.saveSelectedDevice(currentDevice);
                 currentPreset = repository.loadPreset(device, currentProcessingMode)
                         .withEnabled(repository.loadMasterEnabled());
-                if (sameRoute && !newBluetoothDevice) {
+                if (sameRoute) {
                     updateNotification();
                     return;
                 }
@@ -153,7 +155,7 @@ public final class GlobalEqForegroundService extends Service {
             long routeSuppressionRemainingMs = currentProcessingMode.usesNativeCapture()
                     ? remainingCaptureRouteSuppressionMs()
                     : 0L;
-            if (routeSuppressionRemainingMs > 0L && sameRoute && !newBluetoothDevice) {
+            if (routeSuppressionRemainingMs > 0L && sameRoute) {
                 updateNotification();
                 return;
             }
@@ -172,9 +174,7 @@ public final class GlobalEqForegroundService extends Service {
                     currentAdvancedModeConfig,
                     virtualBassModeIndex,
                     currentDevice,
-                    newBluetoothDevice
-                            ? 0L
-                            : routeSuppressionRemainingMs > 0L
+                    routeSuppressionRemainingMs > 0L
                             ? routeSuppressionRemainingMs + CAPTURE_UPDATE_DEBOUNCE_MS
                             : CAPTURE_UPDATE_DEBOUNCE_MS);
             updateNotification();
@@ -502,22 +502,6 @@ public final class GlobalEqForegroundService extends Service {
     private long remainingCaptureRouteSuppressionMs() {
         long remaining = suppressCaptureRouteUpdatesUntilMs - SystemClock.elapsedRealtime();
         return Math.max(0L, remaining);
-    }
-
-    private boolean isBluetoothRoute(AudioOutputDevice device) {
-        String key = device == null || device.key == null ? "" : device.key;
-        return key.startsWith("7:")
-                || key.startsWith("8:")
-                || key.startsWith("26:")
-                || key.startsWith("27:")
-                || key.startsWith("30:");
-    }
-
-    private String safeRouteSignature(AudioOutputDevice device) {
-        if (device == null || device.routeSignature == null || device.routeSignature.trim().isEmpty()) {
-            return "";
-        }
-        return device.routeSignature.trim();
     }
 
     static boolean isRunningInProcess() {

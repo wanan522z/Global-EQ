@@ -91,7 +91,7 @@ final class PresetRepository {
     }
 
     void saveKnownDevice(AudioOutputDevice device) {
-        if (device == null || device.key == null || device.key.trim().isEmpty()) {
+        if (device == null || device.key == null || device.key.trim().isEmpty() || !device.isDisplayable()) {
             return;
         }
 
@@ -434,7 +434,7 @@ final class PresetRepository {
     List<AudioOutputDevice> loadKnownDevices() {
         Set<String> saved = prefs.getStringSet(KNOWN_DEVICES, Collections.emptySet());
         List<AudioOutputDevice> devices = new ArrayList<>();
-        Set<String> seenKeys = new HashSet<>();
+        Set<String> seenLabels = new HashSet<>();
         Set<String> cleaned = new HashSet<>();
         for (String value : saved) {
             int separator = value.indexOf(DEVICE_SEPARATOR);
@@ -448,7 +448,8 @@ final class PresetRepository {
             if (!device.isDisplayable()) {
                 continue;
             }
-            if (!seenKeys.add(device.key)) {
+            String labelKey = device.label.toLowerCase();
+            if (!seenLabels.add(labelKey)) {
                 continue;
             }
             devices.add(device);
