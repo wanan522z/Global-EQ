@@ -848,6 +848,19 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
+    private void updateMutedPackageName(String packageName) {
+        String normalized = packageName == null ? "" : packageName.trim();
+        if (normalized.equals(currentMutedPackageName)) {
+            return;
+        }
+        currentMutedPackageName = normalized;
+        Log.d(TAG, "Muted playback package -> " + normalized);
+        repository.saveActiveMutedPackage(normalized);
+        if (notificationCallback != null) {
+            mainHandler.post(notificationCallback);
+        }
+    }
+
     private DynamicsProcessing makeMuteEffect(int sessionId, String packageName) {
         DynamicsProcessing effect = new DynamicsProcessing(Integer.MAX_VALUE, sessionId, null);
         effect.setInputGainAllChannelsTo(MUTE_GAIN_DB);
