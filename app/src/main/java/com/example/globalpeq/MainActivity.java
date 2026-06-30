@@ -132,7 +132,7 @@ public final class MainActivity extends Activity {
             return Math.round(min + (max - min) * fraction);
         }
     };
-    private static final SliderValueMapper REVERB_MAIN_SLIDER_MAPPER = new SliderValueMapper() {
+    private static final SliderValueMapper REVERB_DRY_SLIDER_MAPPER = new SliderValueMapper() {
         @Override
         public float valueToFraction(int value, int min, int max) {
             if (value <= -300) {
@@ -169,7 +169,7 @@ public final class MainActivity extends Activity {
             return clamp(Math.round(400f + ((t - 0.6f) / 0.4f) * (max - 400f)), min, max);
         }
     };
-    private static final SliderValueMapper REVERB_MIX_SLIDER_MAPPER = new SliderValueMapper() {
+    private static final SliderValueMapper REVERB_WET_SLIDER_MAPPER = new SliderValueMapper() {
         @Override
         public float valueToFraction(int value, int min, int max) {
             if (value <= 50) {
@@ -226,11 +226,11 @@ public final class MainActivity extends Activity {
     private KnobView cutoffKnob;
     private KnobView amountKnob;
     private HorizontalBassSlider virtualBassSlider;
-    private VerticalReverbSlider reverbMainSlider;
+    private VerticalReverbSlider reverbDrySlider;
     private VerticalReverbSlider reverbDecaySlider;
     private VerticalReverbSlider reverbPredelaySlider;
     private VerticalReverbSlider reverbSizeSlider;
-    private VerticalReverbSlider reverbMixSlider;
+    private VerticalReverbSlider reverbWetSlider;
     private TextView reverbTypeButton;
     private TextView bassModeButton;
     private EditText virtualBassCutoffInput;
@@ -8002,11 +8002,11 @@ public final class MainActivity extends Activity {
         syncExtraSectionTitleVisual(reverbTitleView);
         syncExtraSectionTitleVisual(virtualBassTitleView);
         syncExtraSectionTitleVisual(extraBassTitleView);
-        updateReverbControl(reverbMainSlider, editingPreset.reverbMainMb, reverbAllowed);
+        updateReverbControl(reverbDrySlider, editingPreset.reverbDryMb, reverbAllowed);
         updateReverbControl(reverbDecaySlider, editingPreset.reverbDecayPercent, reverbEnabled);
         updateReverbControl(reverbPredelaySlider, editingPreset.reverbPredelayMs, reverbEnabled);
         updateReverbControl(reverbSizeSlider, editingPreset.reverbSizePercent, reverbEnabled);
-        updateReverbControl(reverbMixSlider, editingPreset.reverbMixPercent, reverbEnabled);
+        updateReverbControl(reverbWetSlider, editingPreset.reverbWetPercent, reverbEnabled);
     }
 
     private void updateExtraBassControl(KnobView knob, int value, boolean enabled) {
@@ -8162,16 +8162,16 @@ public final class MainActivity extends Activity {
         reverbHeader.addView(reverbTypeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         reverbPanel.addView(reverbHeader, blockParams(4));
         LinearLayout reverbKnobs = createExtraKnobRow(reverbPanel);
-        reverbKnobs.addView(createReverbSlider("Dry", -12000, 300, editingPreset.reverbMainMb, "dB", 0.01f, 1, true, REVERB_MAIN_SLIDER_MAPPER, value ->
-                setEditingPreset(editingPreset.withReverbSettings(value, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Dry", -12000, 300, editingPreset.reverbDryMb, "dB", 0.01f, 1, true, REVERB_DRY_SLIDER_MAPPER, value ->
+                setEditingPreset(editingPreset.withReverbSendSettings(value, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbWetPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Decay", 0, 1200, editingPreset.reverbDecayPercent, "s", 0.01f, 2, false, REVERB_DECAY_SLIDER_MAPPER, value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+                setEditingPreset(editingPreset.withReverbSendSettings(editingPreset.reverbDryMb, value, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, editingPreset.reverbWetPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Predelay", 0, 250, editingPreset.reverbPredelayMs, "ms", 1f, 0, false, REVERB_PREDELAY_SLIDER_MAPPER, value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbMixPercent), true)), knobColumnParams());
+                setEditingPreset(editingPreset.withReverbSendSettings(editingPreset.reverbDryMb, editingPreset.reverbDecayPercent, value, editingPreset.reverbSizePercent, editingPreset.reverbWetPercent), true)), knobColumnParams());
         reverbKnobs.addView(createReverbSlider("Size", 0, 100, editingPreset.reverbSizePercent, "%", false, value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbMixPercent), true)), knobColumnParams());
-        reverbKnobs.addView(createReverbSlider("Wet", 0, 100, editingPreset.reverbMixPercent, "%", 1f, 0, false, REVERB_MIX_SLIDER_MAPPER, value ->
-                setEditingPreset(editingPreset.withReverbSettings(editingPreset.reverbMainMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
+                setEditingPreset(editingPreset.withReverbSendSettings(editingPreset.reverbDryMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, value, editingPreset.reverbWetPercent), true)), knobColumnParams());
+        reverbKnobs.addView(createReverbSlider("Wet", 0, 100, editingPreset.reverbWetPercent, "%", 1f, 0, false, REVERB_WET_SLIDER_MAPPER, value ->
+                setEditingPreset(editingPreset.withReverbSendSettings(editingPreset.reverbDryMb, editingPreset.reverbDecayPercent, editingPreset.reverbPredelayMs, editingPreset.reverbSizePercent, value), true)), knobColumnParams());
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
@@ -8423,7 +8423,7 @@ public final class MainActivity extends Activity {
         column.addView(slider, knobParams);
 
         if ("Main".equals(label) || "Dry".equals(label)) {
-            reverbMainSlider = slider;
+            reverbDrySlider = slider;
         } else if ("Decay".equals(label)) {
             reverbDecaySlider = slider;
         } else if ("Predelay".equals(label)) {
@@ -8431,9 +8431,9 @@ public final class MainActivity extends Activity {
         } else if ("Size".equals(label)) {
             reverbSizeSlider = slider;
         } else if ("Mix".equals(label) || "Wet".equals(label)) {
-            reverbMixSlider = slider;
+            reverbWetSlider = slider;
         } else {
-            reverbMixSlider = slider;
+            reverbWetSlider = slider;
         }
 
         // 标签紧贴旋钮下方
