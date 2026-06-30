@@ -87,8 +87,8 @@ final class PcmDspProcessor {
                     preset.reverbDecayPercent,
                     preset.reverbPredelayMs,
                     preset.reverbSizePercent,
-                    preset.reverbMixPercent,
-                    preset.reverbMainMb,
+                    preset.reverbWetPercent,
+                    preset.reverbDryMb,
                     false);
         } else {
             psychoacousticBass.configure(95, 0, 95, 0, false);

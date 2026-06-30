@@ -352,7 +352,7 @@ final class PlaybackCaptureEngine {
         }
         boolean reverbEnabled = AudioProcessingPolicy.reverbAllowed(currentMode)
                 && !"Default".equals(currentPreset.reverbType)
-                && currentPreset.reverbMixPercent > 0;
+                && currentPreset.reverbWetPercent > 0;
         boolean dspBassEnabled = AudioProcessingPolicy.dspVirtualBassAllowed(currentMode, currentVirtualBassModeIndex)
                 && currentPreset.dspVirtualBassAmountPercent > 0;
         return reverbEnabled || dspBassEnabled;
