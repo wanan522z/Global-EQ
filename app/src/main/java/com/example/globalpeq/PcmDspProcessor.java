@@ -237,6 +237,13 @@ final class PcmDspProcessor {
         private float bassCompressorThreshold = 0.24f;
         private float bassCompressorRatio = 1.24f;
         private float bassCompressorMakeup = 1.04f;
+        private float transientFastEnvelope;
+        private float transientSlowEnvelope;
+        private float transientFastCoeff;
+        private float transientSlowCoeff;
+        private float transientDuckThreshold = 0.010f;
+        private float transientDuckRange = 0.060f;
+        private float transientDuckDepth = 0.32f;
         private boolean active;
 
         PsychoacousticBassProcessor(int sampleRate, int channelCount) {
@@ -282,6 +289,11 @@ final class PcmDspProcessor {
             bassCompressorMakeup = 1.03f + amount * 0.07f;
             bassCompressorAttackCoeff = envelopeCoeff(0.0035f);
             bassCompressorReleaseCoeff = envelopeCoeff(0.020f);
+            transientFastCoeff = envelopeCoeff(0.0020f);
+            transientSlowCoeff = envelopeCoeff(0.030f);
+            transientDuckThreshold = 0.010f + amount * 0.004f;
+            transientDuckRange = 0.055f + amount * 0.020f;
+            transientDuckDepth = 0.24f + amount * 0.12f;
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
@@ -293,6 +305,8 @@ final class PcmDspProcessor {
             detectorState = 0f;
             cubicState = 0f;
             bassCompressorEnvelope = 0f;
+            transientFastEnvelope = 0f;
+            transientSlowEnvelope = 0f;
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
@@ -317,7 +331,7 @@ final class PcmDspProcessor {
 
                 float lowBand = sourceLowPass.process(sourceHighPass.process(mono));
                 float harmonic = shapeHarmonics(lowBand);
-                float wet = harmonic * wetMix;
+                float wet = applyTransientWetDuck(lowBand, harmonic * wetMix);
 
                 for (int ch = 0; ch < safeChannelCount; ch++) {
                     float input = finiteOrZero(samples[frameOffset + ch]);
@@ -380,6 +394,8 @@ final class PcmDspProcessor {
             detectorState = 0f;
             cubicState = 0f;
             bassCompressorEnvelope = 0f;
+            transientFastEnvelope = 0f;
+            transientSlowEnvelope = 0f;
             if (sourceHighPass != null) {
                 sourceHighPass.reset();
             }
@@ -408,6 +424,15 @@ final class PcmDspProcessor {
                     + (bassCompressorEnvelope - bassCompressorThreshold) / Math.max(1.0f, bassCompressorRatio);
             float gain = bassCompressorEnvelope > 0.0001f ? compressedLevel / bassCompressorEnvelope : 1f;
             return finiteOrZero(sample * gain * bassCompressorMakeup);
+        }
+
+        private float applyTransientWetDuck(float lowBand, float wet) {
+            float level = Math.abs(lowBand);
+            transientFastEnvelope = level + transientFastCoeff * (transientFastEnvelope - level);
+            transientSlowEnvelope = level + transientSlowCoeff * (transientSlowEnvelope - level);
+            float transientAmount = Math.max(0f, transientFastEnvelope - transientSlowEnvelope - transientDuckThreshold);
+            float duck = clamp(transientAmount / Math.max(0.0001f, transientDuckRange), 0f, transientDuckDepth);
+            return finiteOrZero(wet * (1f - duck));
         }
 
         private float envelopeCoeff(float seconds) {
