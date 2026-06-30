@@ -2068,6 +2068,25 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             advancedModeSummaryView.setText(advancedModeSummaryText());
         }
+        if (shizukuRuntimeTitleView != null) {
+            shizukuRuntimeTitleView.setText(shizukuRuntimeTitleText());
+            styleGradientTitle(shizukuRuntimeTitleView);
+        }
+        if (shizukuRuntimeDetailView != null) {
+            shizukuRuntimeDetailView.setText(shizukuRuntimeDetailText());
+        }
+        if (shizukuRuntimeModeView != null) {
+            shizukuRuntimeModeView.setText(shizukuRuntimeModeText());
+        }
+        if (shizukuRuntimePlaybackView != null) {
+            shizukuRuntimePlaybackView.setText(shizukuRuntimePlaybackText());
+        }
+        if (shizukuRuntimeMuteView != null) {
+            shizukuRuntimeMuteView.setText(shizukuRuntimeMuteText());
+        }
+        if (shizukuRuntimeReplayView != null) {
+            shizukuRuntimeReplayView.setText(shizukuRuntimeReplayText());
+        }
         if (languageLabelView != null) {
             languageLabelView.setText(settingsLanguageLabelText());
         }
