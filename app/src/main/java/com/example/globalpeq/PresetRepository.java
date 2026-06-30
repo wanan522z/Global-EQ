@@ -44,6 +44,7 @@ final class PresetRepository {
     private static final String ACTIVE_MUTED_PACKAGE = "active_muted_package";
     private static final String ACTIVE_REPLAY_PACKAGE = "active_replay_package";
     private static final String ACTIVE_PLAYBACK_SESSION_IDS_UPDATED_AT = "active_playback_session_ids_updated_at";
+    private static final String DESIRED_MUTED_SESSION_IDS_UPDATED_AT = "desired_muted_session_ids_updated_at";
     private static final String ACTIVE_MUTED_SESSION_IDS_UPDATED_AT = "active_muted_session_ids_updated_at";
     private static final String ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT = "active_playback_package_updated_at";
     private static final String ACTIVE_MUTED_PACKAGE_UPDATED_AT = "active_muted_package_updated_at";
@@ -290,6 +291,15 @@ final class PresetRepository {
         saveShizukuRuntimeState(loadShizukuRuntimeState().withActivePlaybackSessionIds(sessionIds));
     }
 
+    String loadDesiredMutedSessionIds() {
+        return loadShizukuRuntimeState().desiredMutedSessionIds;
+    }
+
+    void saveDesiredMutedSessionIds(String sessionIds) {
+        saveRuntimePackageUpdatedAt(DESIRED_MUTED_SESSION_IDS_UPDATED_AT, sessionIds);
+        saveShizukuRuntimeState(loadShizukuRuntimeState().withDesiredMutedSessionIds(sessionIds));
+    }
+
     String loadActiveMutedSessionIds() {
         return loadShizukuRuntimeState().activeMutedSessionIds;
     }
@@ -328,6 +338,10 @@ final class PresetRepository {
         return prefs.getLong(ACTIVE_PLAYBACK_SESSION_IDS_UPDATED_AT, 0L);
     }
 
+    long loadDesiredMutedSessionIdsUpdatedAt() {
+        return prefs.getLong(DESIRED_MUTED_SESSION_IDS_UPDATED_AT, 0L);
+    }
+
     long loadActiveMutedSessionIdsUpdatedAt() {
         return prefs.getLong(ACTIVE_MUTED_SESSION_IDS_UPDATED_AT, 0L);
     }
@@ -348,6 +362,7 @@ final class PresetRepository {
                 .withActiveMutedPackage("")
                 .withActiveReplayPackage("")
                 .withActivePlaybackSessionIds("")
+                .withDesiredMutedSessionIds("")
                 .withActiveMutedSessionIds("");
         prefs.edit()
                 .putString(MONITOR_CAPTURE_STATUS, "Native capture is idle.")
@@ -359,6 +374,7 @@ final class PresetRepository {
                 .putString(ACTIVE_MUTED_PACKAGE, "")
                 .putString(ACTIVE_REPLAY_PACKAGE, "")
                 .putLong(ACTIVE_PLAYBACK_SESSION_IDS_UPDATED_AT, 0L)
+                .putLong(DESIRED_MUTED_SESSION_IDS_UPDATED_AT, 0L)
                 .putLong(ACTIVE_MUTED_SESSION_IDS_UPDATED_AT, 0L)
                 .putLong(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, 0L)
                 .putLong(ACTIVE_MUTED_PACKAGE_UPDATED_AT, 0L)
@@ -389,6 +405,7 @@ final class PresetRepository {
                 prefs.getString(ACTIVE_PLAYBACK_PACKAGE, ""),
                 prefs.getString(ACTIVE_MUTED_PACKAGE, ""),
                 prefs.getString(ACTIVE_REPLAY_PACKAGE, ""),
+                "",
                 "",
                 ""
         );
