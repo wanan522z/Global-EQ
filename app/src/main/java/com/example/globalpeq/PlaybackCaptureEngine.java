@@ -283,6 +283,13 @@ final class PlaybackCaptureEngine {
         return "Monitoring " + currentTargetLabel + " via native capture.";
     }
 
+    private String replayBlockedStatusText() {
+        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+            return "Source app could not be muted. Processed replay is off.";
+        }
+        return "Processed replay is off.";
+    }
+
     private String waitingStatusText() {
         if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
             return "Armed for system audio - waiting for playback.";
@@ -448,6 +455,7 @@ final class PlaybackCaptureEngine {
         long nextRecoveryCheckAt = 0L;
         boolean requestRestart = false;
         String restartReason = null;
+        short[] silence = new short[pcm.length];
 
         while (running) {
             int read;
@@ -507,9 +515,12 @@ final class PlaybackCaptureEngine {
                     captureSignalLogged = true;
                 }
                 refreshReplayPackageNameIfNeeded(signalAt, !signaledLive);
+                boolean replayAllowed = shouldOutputProcessedReplay();
                 if (!signaledLive) {
-                    publishStatus(monitoringStatusText(), true);
+                    publishStatus(replayAllowed ? monitoringStatusText() : replayBlockedStatusText(), true);
                     signaledLive = true;
+                } else if (replayAllowed != publishedStatus.equals(monitoringStatusText())) {
+                    publishStatus(replayAllowed ? monitoringStatusText() : replayBlockedStatusText(), true);
                 }
             } else {
                 silentReadCount++;
@@ -545,7 +556,8 @@ final class PlaybackCaptureEngine {
             }
 
             try {
-                if (!writeTrackFully(track, rendered, read)) {
+                short[] outputBuffer = shouldOutputProcessedReplay() ? rendered : silence;
+                if (!writeTrackFully(track, outputBuffer, read)) {
                     break;
                 }
             } catch (RuntimeException ex) {
@@ -918,6 +930,21 @@ final class PlaybackCaptureEngine {
         Log.i(TAG, "Auto-restarting capture pipeline, reason=" + reason);
         startPipelineLocked();
         return running;
+    }
+
+    private boolean shouldOutputProcessedReplay() {
+        if (currentMode != ProcessingMode.SHIZUKU_MUTE) {
+            return true;
+        }
+        String replayPackage = currentReplayPackageName == null ? "" : currentReplayPackageName.trim();
+        if (replayPackage.isEmpty()) {
+            return false;
+        }
+        String mutedPackage = repository.loadActiveMutedPackage();
+        if (mutedPackage == null) {
+            mutedPackage = "";
+        }
+        return replayPackage.equals(mutedPackage.trim());
     }
 
     private void refreshReplayPackageNameIfNeeded(long now, boolean forceRefresh) {
