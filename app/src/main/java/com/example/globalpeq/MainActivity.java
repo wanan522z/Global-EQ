@@ -1920,6 +1920,96 @@ public final class MainActivity extends Activity {
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
     }
 
+    private ShizukuRuntimeState currentShizukuRuntimeState() {
+        return repository == null ? ShizukuRuntimeState.DEFAULT : repository.loadShizukuRuntimeState();
+    }
+
+    private String shizukuRuntimeTitleText() {
+        return tr("Shizuku live status", "Shizuku 实时状态");
+    }
+
+    private String shizukuRuntimeDetailText() {
+        return tr(
+                "Shows the detected playback source, the package currently being muted, and the package currently being replayed.",
+                "这里会直接显示当前检测到的播放源、当前被静音的包名，以及当前被回放的包名。");
+    }
+
+    private String shizukuRuntimeModeText() {
+        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+            return tr(
+                    "Switch to Shizuku Mode to inspect live mute and replay state.",
+                    "切换到 Shizuku Mode 后，这里会显示实时静音和回放状态。");
+        }
+        ShizukuRuntimeState state = currentShizukuRuntimeState();
+        boolean hasReplay = !state.activeReplayPackage.isEmpty();
+        boolean hasMute = !state.activeMutedPackage.isEmpty();
+        if (hasReplay && hasMute) {
+            return tr(
+                    "Live output: processed replay is active and the source session is being muted.",
+                    "当前输出：处理后的回放已启用，并且源 session 正在被静音。");
+        }
+        if (hasReplay) {
+            return tr(
+                    "Live output: processed replay is active, but the source app may still be audible.",
+                    "当前输出：处理后的回放已启用，但源应用可能仍然在出原声。");
+        }
+        if (hasMute) {
+            return tr(
+                    "Live output: the source session is muted and capture is waiting for stable playback.",
+                    "当前输出：源 session 已被静音，捕获链路正在等待稳定回放。");
+        }
+        return tr(
+                "Live output: waiting for a stable playback source.",
+                "当前输出：正在等待稳定的播放源。");
+    }
+
+    private String shizukuRuntimePlaybackText() {
+        return runtimePackageLine(
+                tr("Detected playback", "检测到的播放源"),
+                currentShizukuRuntimeState().activePlaybackPackage,
+                tr("No active package yet", "暂时还没有检测到活跃包名"));
+    }
+
+    private String shizukuRuntimeMuteText() {
+        return runtimePackageLine(
+                tr("Muted package", "当前静音包名"),
+                currentShizukuRuntimeState().activeMutedPackage,
+                tr("No package is muted right now", "当前还没有成功静音任何包"));
+    }
+
+    private String shizukuRuntimeReplayText() {
+        return runtimePackageLine(
+                tr("Replay package", "当前回放包名"),
+                currentShizukuRuntimeState().activeReplayPackage,
+                tr("Replay has not locked onto a package yet", "回放链路暂时还没有锁定到包名"));
+    }
+
+    private String runtimePackageLine(String label, String packageName, String emptyText) {
+        String safeLabel = label == null ? "" : label;
+        String normalized = packageName == null ? "" : packageName.trim();
+        if (normalized.isEmpty()) {
+            return safeLabel + ": " + emptyText;
+        }
+        return safeLabel + ": " + describeRuntimePackage(normalized);
+    }
+
+    private String describeRuntimePackage(String packageName) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            return "";
+        }
+        String normalized = packageName.trim();
+        try {
+            CharSequence label = getPackageManager().getApplicationLabel(
+                    getPackageManager().getApplicationInfo(normalized, 0));
+            String safeLabel = label == null ? "" : label.toString().trim();
+            if (!safeLabel.isEmpty() && !safeLabel.equals(normalized)) {
+                return safeLabel + " · " + normalized;
+            }
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        return normalized;
+    }
+
     private String advancedModeSummaryText() {
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             return tr(
