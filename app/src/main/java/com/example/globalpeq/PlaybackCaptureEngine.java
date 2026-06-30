@@ -938,15 +938,8 @@ final class PlaybackCaptureEngine {
         if (!currentMode.requiresShizukuMute()) {
             return true;
         }
-        String replayPackage = currentReplayPackageName == null ? "" : currentReplayPackageName.trim();
-        if (replayPackage.isEmpty()) {
-            return false;
-        }
         String mutedPackage = repository.loadActiveMutedPackage();
-        if (mutedPackage == null) {
-            mutedPackage = "";
-        }
-        return replayPackage.equals(mutedPackage.trim());
+        return mutedPackage != null && !mutedPackage.trim().isEmpty();
     }
 
     private void refreshReplayPackageNameIfNeeded(long now, boolean forceRefresh) {
