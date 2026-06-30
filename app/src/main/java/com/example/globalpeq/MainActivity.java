@@ -6803,6 +6803,41 @@ public final class MainActivity extends Activity {
         scheduleEnabledToggleCommit();
     }
 
+    private void handleShizukuPermissionFailure(String title, String message) {
+        if (repository == null) {
+            return;
+        }
+        repository.saveMasterEnabled(false);
+        if (runningPreset != null) {
+            runningPreset = runningPreset.withEnabled(false);
+        }
+        if (editingPreset != null) {
+            editingPreset = editingPreset.withEnabled(false);
+            pendingEnabledPersistPreset = editingPreset;
+        } else {
+            pendingEnabledPersistPreset = null;
+        }
+        pendingEnabledApplyPreset = null;
+        uiHandler.removeCallbacks(commitEnabledToggleRunnable);
+        uiHandler.removeCallbacks(delayedShizukuReadyRunnable);
+        applyDisabledEnabledVisuals();
+        setEnabledSwitchChecked(false);
+        applyRunningPreset(false, false);
+        stopShizukuCaptureNow();
+        refreshPendingEnabledToggleUi();
+        refreshRuntimeStatusUi();
+        if (isFinishing() || isDestroyedCompat()) {
+            return;
+        }
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton(tr("OK", "确定"), null)
+                .create();
+        dialog.setOnShowListener(ignored -> styleDialog(dialog));
+        dialog.show();
+    }
+
     private void onAutoSwitchOutputChanged(CompoundButton buttonView, boolean isChecked) {
         if (updatingUi) {
             return;
