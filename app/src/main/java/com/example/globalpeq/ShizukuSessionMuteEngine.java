@@ -105,6 +105,16 @@ final class ShizukuSessionMuteEngine {
         }
     }
 
+    private static final class MuteScanResult {
+        final String activePackageName;
+        final String mutedPackageName;
+
+        MuteScanResult(String activePackageName, String mutedPackageName) {
+            this.activePackageName = activePackageName == null ? "" : activePackageName;
+            this.mutedPackageName = mutedPackageName == null ? "" : mutedPackageName;
+        }
+    }
+
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
@@ -139,6 +149,7 @@ final class ShizukuSessionMuteEngine {
     private volatile Preset currentPreset = Preset.flat(false);
     private volatile Set<Integer> currentAppSessionIds = new LinkedHashSet<>();
     private volatile String currentActivePackageName = "";
+    private volatile String currentMutedPackageName = "";
     private volatile long currentRescanIntervalMs = PASSIVE_RESCAN_INTERVAL_MS;
     private String publishedStatus = "";
     private boolean publishedActive;
