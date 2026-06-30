@@ -403,6 +403,7 @@ final class PlaybackCaptureEngine {
                     describeResolvedDeviceSignature(preferredOutputDevice);
             running = true;
             lastCaptureSignalAtMs = 0L;
+            updateOutputRouteLabel(resolveCurrentOutputRouteLabel(preferredOutputDevice));
             reconfigureEffectsLocked();
 
             audioTrack.play();
@@ -471,6 +472,7 @@ final class PlaybackCaptureEngine {
             }
             long now = SystemClock.elapsedRealtime();
             refreshReplayPackageNameIfNeeded(now, false);
+            refreshOutputRouteIfNeeded();
             if (read <= 0) {
                 stalledReadCount++;
                 if (!captureWaitingLogged) {
