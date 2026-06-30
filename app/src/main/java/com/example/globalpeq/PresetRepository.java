@@ -43,6 +43,9 @@ final class PresetRepository {
     private static final String ACTIVE_PLAYBACK_PACKAGE = "active_playback_package";
     private static final String ACTIVE_MUTED_PACKAGE = "active_muted_package";
     private static final String ACTIVE_REPLAY_PACKAGE = "active_replay_package";
+    private static final String ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT = "active_playback_package_updated_at";
+    private static final String ACTIVE_MUTED_PACKAGE_UPDATED_AT = "active_muted_package_updated_at";
+    private static final String ACTIVE_REPLAY_PACKAGE_UPDATED_AT = "active_replay_package_updated_at";
     private static final String SHIZUKU_RUNTIME_STATE = "shizuku_runtime_state";
     private static final String SERVICE_ACTIVE = "service_active";
     private static final String DEVICE_SEPARATOR = "\t";
@@ -243,7 +246,12 @@ final class PresetRepository {
     }
 
     void saveActivePlaybackPackage(String packageName) {
+        saveRuntimePackageUpdatedAt(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, packageName);
         saveShizukuRuntimeState(loadShizukuRuntimeState().withActivePlaybackPackage(packageName));
+    }
+
+    void touchActivePlaybackPackage(String packageName) {
+        saveRuntimePackageUpdatedAt(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, packageName);
     }
 
     String loadActiveMutedPackage() {
@@ -251,7 +259,12 @@ final class PresetRepository {
     }
 
     void saveActiveMutedPackage(String packageName) {
+        saveRuntimePackageUpdatedAt(ACTIVE_MUTED_PACKAGE_UPDATED_AT, packageName);
         saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveMutedPackage(packageName));
+    }
+
+    void touchActiveMutedPackage(String packageName) {
+        saveRuntimePackageUpdatedAt(ACTIVE_MUTED_PACKAGE_UPDATED_AT, packageName);
     }
 
     String loadActiveReplayPackage() {
@@ -259,7 +272,24 @@ final class PresetRepository {
     }
 
     void saveActiveReplayPackage(String packageName) {
+        saveRuntimePackageUpdatedAt(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, packageName);
         saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveReplayPackage(packageName));
+    }
+
+    void touchActiveReplayPackage(String packageName) {
+        saveRuntimePackageUpdatedAt(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, packageName);
+    }
+
+    long loadActivePlaybackPackageUpdatedAt() {
+        return prefs.getLong(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, 0L);
+    }
+
+    long loadActiveMutedPackageUpdatedAt() {
+        return prefs.getLong(ACTIVE_MUTED_PACKAGE_UPDATED_AT, 0L);
+    }
+
+    long loadActiveReplayPackageUpdatedAt() {
+        return prefs.getLong(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, 0L);
     }
 
     boolean loadServiceActive() {
@@ -285,9 +315,19 @@ final class PresetRepository {
                 .putString(ACTIVE_PLAYBACK_PACKAGE, "")
                 .putString(ACTIVE_MUTED_PACKAGE, "")
                 .putString(ACTIVE_REPLAY_PACKAGE, "")
+                .putLong(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, 0L)
+                .putLong(ACTIVE_MUTED_PACKAGE_UPDATED_AT, 0L)
+                .putLong(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, 0L)
                 .putString(SHIZUKU_RUNTIME_STATE, cleared.toJson())
                 .putBoolean(SERVICE_ACTIVE, false)
                 .apply();
+    }
+
+    private void saveRuntimePackageUpdatedAt(String key, String packageName) {
+        long updatedAt = packageName == null || packageName.trim().isEmpty()
+                ? 0L
+                : System.currentTimeMillis();
+        prefs.edit().putLong(key, updatedAt).apply();
     }
 
     ShizukuRuntimeState loadShizukuRuntimeState() {
