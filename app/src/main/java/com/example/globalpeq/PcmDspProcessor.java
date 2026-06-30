@@ -388,8 +388,8 @@ final class PcmDspProcessor {
             float cutoffProgress = clamp((safeTargetCutoff - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
             float sourceHpRatio = 0.54f + cutoffProgress * 0.28f;
             float sourceLpRatio = (1.38f + amount * 0.05f) - cutoffProgress * 0.26f;
-            float harmonicSourceHpRatio = 0.74f + cutoffProgress * 0.12f;
-            float harmonicSourceLpRatio = (1.20f - cutoffProgress * 0.12f) + amount * 0.03f;
+            float harmonicSourceHpRatio = 0.76f + cutoffProgress * 0.14f;
+            float harmonicSourceLpRatio = (1.16f - cutoffProgress * 0.14f) + amount * 0.02f;
             float dryBassLpHz = clamp(
                     safeTargetCutoff * (1.08f - cutoffProgress * 0.06f),
                     32f,
@@ -411,14 +411,19 @@ final class PcmDspProcessor {
             sourceHighPass = createMonoFilter(FilterType.HIGH_PASS, sourceHpHz, 85);
             sourceLowPass = createMonoFilter(FilterType.LOW_PASS, sourceLpHz, 85);
 
+            float harmonicSourceHpMaxHz = Math.max(
+                    sourceHpHz,
+                    Math.min(sourceLpHz - harmonicSourceMinBandwidthHz, sampleRate * 0.12f));
             float harmonicSourceHpHz = clamp(
                     safeTargetCutoff * harmonicSourceHpRatio,
                     sourceHpHz,
-                    Math.min(sourceLpHz - harmonicSourceMinBandwidthHz, sampleRate * 0.12f));
+                    harmonicSourceHpMaxHz);
+            float harmonicSourceLpMinHz = harmonicSourceHpHz + harmonicSourceMinBandwidthHz;
+            float harmonicSourceLpCeilingHz = Math.max(harmonicSourceLpMinHz, sourceLpHz);
             float harmonicSourceLpHz = clamp(
                     safeTargetCutoff * harmonicSourceLpRatio,
-                    harmonicSourceHpHz + harmonicSourceMinBandwidthHz,
-                    sourceLpHz);
+                    harmonicSourceLpMinHz,
+                    harmonicSourceLpCeilingHz);
             harmonicSourceHighPass = createMonoFilter(FilterType.HIGH_PASS, harmonicSourceHpHz, 95);
             harmonicSourceLowPass = createMonoFilter(FilterType.LOW_PASS, harmonicSourceLpHz, 95);
 
