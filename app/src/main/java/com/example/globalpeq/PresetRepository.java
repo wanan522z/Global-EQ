@@ -178,7 +178,7 @@ final class PresetRepository {
     }
 
     String loadUiLanguage() {
-        String value = prefs.getString(UI_LANGUAGE, "en");
+        String value = prefs.getString(UI_LANGUAGE, "zh");
         return "zh".equalsIgnoreCase(value) ? "zh" : "en";
     }
 
