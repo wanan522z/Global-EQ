@@ -149,13 +149,10 @@ final class ShizukuStatusSummary {
         if (state == null) {
             return "";
         }
-        if (!normalize(state.activeReplayPackage).isEmpty()) {
-            return normalize(state.activeReplayPackage);
-        }
-        if (!normalize(state.activeMutedPackage).isEmpty()) {
-            return normalize(state.activeMutedPackage);
-        }
-        return normalize(state.activePlaybackPackage);
+        return orderPackages(
+                state.activePlaybackPackage,
+                state.activeReplayPackage,
+                state.activeMutedPackage);
     }
 
     private static String bestReplayPackage(ShizukuRuntimeState state) {
@@ -163,15 +160,75 @@ final class ShizukuStatusSummary {
             return "";
         }
         if (!normalize(state.activeReplayPackage).isEmpty()) {
-            return normalize(state.activeReplayPackage);
+            return orderPackages(
+                    state.activeReplayPackage,
+                    state.activePlaybackPackage,
+                    state.activeMutedPackage);
         }
         if (state.captureActive && !normalize(state.activePlaybackPackage).isEmpty()) {
-            return normalize(state.activePlaybackPackage);
+            return orderPackages(
+                    state.activePlaybackPackage,
+                    state.activeMutedPackage);
         }
         if (state.captureActive && !normalize(state.activeMutedPackage).isEmpty()) {
-            return normalize(state.activeMutedPackage);
+            return orderPackages(
+                    state.activeMutedPackage,
+                    state.activePlaybackPackage);
         }
         return "";
+    }
+
+    private static String orderPackages(String primary, String... references) {
+        java.util.LinkedHashSet<String> remaining = splitPackages(primary);
+        if (remaining.isEmpty()) {
+            return "";
+        }
+        java.util.LinkedHashSet<String> ordered = new java.util.LinkedHashSet<>();
+        if (references != null) {
+            for (String reference : references) {
+                for (String packageName : splitPackages(reference)) {
+                    if (remaining.remove(packageName)) {
+                        ordered.add(packageName);
+                    }
+                }
+            }
+        }
+        ordered.addAll(remaining);
+        return joinPackages(ordered);
+    }
+
+    private static java.util.LinkedHashSet<String> splitPackages(String packages) {
+        java.util.LinkedHashSet<String> result = new java.util.LinkedHashSet<>();
+        String normalized = normalize(packages);
+        if (normalized.isEmpty()) {
+            return result;
+        }
+        String[] parts = normalized.split(",");
+        for (String part : parts) {
+            String packageName = normalize(part);
+            if (!packageName.isEmpty()) {
+                result.add(packageName);
+            }
+        }
+        return result;
+    }
+
+    private static String joinPackages(java.util.LinkedHashSet<String> packages) {
+        if (packages == null || packages.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String packageName : packages) {
+            String normalized = normalize(packageName);
+            if (normalized.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(normalized);
+        }
+        return builder.toString();
     }
 
     private static String normalize(String value) {
