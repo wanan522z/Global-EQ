@@ -315,7 +315,7 @@ public final class GlobalEqForegroundService extends Service {
         ProcessingMode mode = currentProcessingMode;
         String content;
         if (mode.requiresShizukuMute()) {
-            content = repository.loadShizukuMuteStatus();
+            content = currentShizukuSummary().compactText(isChineseUi());
         } else if (mode.usesNativeCapture()) {
             content = repository.loadMonitorCaptureStatus();
         } else {
@@ -328,6 +328,19 @@ public final class GlobalEqForegroundService extends Service {
                 .setContentIntent(pendingIntent)
                 .setOngoing(currentPreset.enabled)
                 .build();
+    }
+
+    private ShizukuStatusSummary currentShizukuSummary() {
+        return ShizukuStatusSummary.resolve(
+                currentProcessingMode,
+                currentPreset != null && currentPreset.enabled,
+                currentAdvancedModeConfig,
+                repository == null ? ShizukuRuntimeState.DEFAULT : repository.loadShizukuRuntimeState(),
+                ShizukuCompat.hasPermission());
+    }
+
+    private boolean isChineseUi() {
+        return repository != null && "zh".equalsIgnoreCase(repository.loadUiLanguage());
     }
 
     private void startForegroundInternal(boolean withProjection) {
