@@ -3,10 +3,18 @@ package com.example.globalpeq;
 final class AudioOutputDevice {
     final String key;
     final String label;
+    final String routeSignature;
 
     AudioOutputDevice(String key, String label) {
+        this(key, label, key);
+    }
+
+    AudioOutputDevice(String key, String label, String routeSignature) {
         this.key = key;
         this.label = displayLabel(label);
+        this.routeSignature = routeSignature == null || routeSignature.trim().isEmpty()
+                ? (key == null ? "" : key)
+                : routeSignature.trim();
     }
 
     private static String displayLabel(String label) {
