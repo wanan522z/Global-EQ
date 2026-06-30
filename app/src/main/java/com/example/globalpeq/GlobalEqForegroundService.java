@@ -5,13 +5,16 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 
 public final class GlobalEqForegroundService extends Service {
     static final String ACTION_APPLY = "com.example.globalpeq.APPLY";
@@ -27,6 +30,7 @@ public final class GlobalEqForegroundService extends Service {
     private static final String CHANNEL_ID = "global_eq";
     private static final int NOTIFICATION_ID = 10;
     private static final long CAPTURE_UPDATE_DEBOUNCE_MS = 350L;
+    private static final long CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS = 2500L;
     private static volatile boolean instanceRunning;
 
     private GlobalEqualizerEngine engine;
@@ -47,6 +51,20 @@ public final class GlobalEqForegroundService extends Service {
     private AdvancedModeConfig pendingCaptureConfig = AdvancedModeConfig.DEFAULT;
     private int pendingCaptureVirtualBassModeIndex;
     private AudioOutputDevice pendingCaptureDevice = new AudioOutputDevice("none", "Output device");
+    private long suppressCaptureRouteUpdatesUntilMs;
+    private final BroadcastReceiver screenStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context context, Intent intent) {
+            if (intent == null) {
+                return;
+            }
+            String action = intent.getAction();
+            if (Intent.ACTION_SCREEN_ON.equals(action) || Intent.ACTION_USER_PRESENT.equals(action)) {
+                suppressCaptureRouteUpdatesUntilMs = SystemClock.elapsedRealtime()
+                        + CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS;
+            }
+        }
+    };
     private final Runnable applyPendingCaptureUpdateRunnable = new Runnable() {
         @Override
         public void run() {
@@ -85,6 +103,7 @@ public final class GlobalEqForegroundService extends Service {
         captureControlThread.start();
         captureControlHandler = new Handler(captureControlThread.getLooper());
         deviceMonitor = new AudioOutputDeviceMonitor(this);
+        registerScreenStateReceiver();
         createNotificationChannel();
         AudioOutputDevice selected = repository.loadSelectedDevice();
         if (selected != null) {
@@ -119,6 +138,13 @@ public final class GlobalEqForegroundService extends Service {
             repository.saveSelectedDevice(currentDevice);
             currentPreset = repository.loadPreset(device, currentProcessingMode)
                     .withEnabled(repository.loadMasterEnabled());
+            long routeSuppressionRemainingMs = currentProcessingMode.usesNativeCapture()
+                    ? remainingCaptureRouteSuppressionMs()
+                    : 0L;
+            if (routeSuppressionRemainingMs > 0L && sameRoute) {
+                updateNotification();
+                return;
+            }
             int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, currentProcessingMode, virtualBassModeIndex);
             if (currentProcessingMode.usesNativeCapture()) {
@@ -134,7 +160,9 @@ public final class GlobalEqForegroundService extends Service {
                     currentAdvancedModeConfig,
                     virtualBassModeIndex,
                     currentDevice,
-                    CAPTURE_UPDATE_DEBOUNCE_MS);
+                    routeSuppressionRemainingMs > 0L
+                            ? routeSuppressionRemainingMs + CAPTURE_UPDATE_DEBOUNCE_MS
+                            : CAPTURE_UPDATE_DEBOUNCE_MS);
             updateNotification();
         });
     }
@@ -184,6 +212,7 @@ public final class GlobalEqForegroundService extends Service {
     public void onDestroy() {
         instanceRunning = false;
         deviceMonitor.stop();
+        unregisterReceiver(screenStateReceiver);
         if (repository != null) {
             repository.saveServiceActive(false);
         }
@@ -331,6 +360,17 @@ public final class GlobalEqForegroundService extends Service {
         manager.createNotificationChannel(channel);
     }
 
+    private void registerScreenStateReceiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenStateReceiver, filter, RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(screenStateReceiver, filter);
+        }
+    }
+
     private void scheduleCaptureBootstrap(int resultCode, Intent data) {
         Handler handler = captureControlHandler;
         if (handler == null || captureEngine == null) {
@@ -430,6 +470,11 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             handler.postDelayed(applyPendingCaptureUpdateRunnable, delayMs);
         }
+    }
+
+    private long remainingCaptureRouteSuppressionMs() {
+        long remaining = suppressCaptureRouteUpdatesUntilMs - SystemClock.elapsedRealtime();
+        return Math.max(0L, remaining);
     }
 
     static boolean isRunningInProcess() {
