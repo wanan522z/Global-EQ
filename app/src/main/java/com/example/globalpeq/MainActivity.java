@@ -7955,7 +7955,7 @@ public final class MainActivity extends Activity {
         boolean reverbEnabled = reverbAllowed && !"Default".equals(editingPreset.reverbType);
         if (virtualBassSlider != null) {
             virtualBassSlider.setValue(editingPreset.virtualBassAmountPercent, false);
-            virtualBassSlider.setLabel(dspVirtualBassMode ? "Amount" : "Boost");
+            virtualBassSlider.setLabel(dspVirtualBassMode ? virtualBassAmountLabelText() : virtualBassBoostLabelText());
             virtualBassSlider.setEnabled(virtualBassEnabled);
             virtualBassSlider.setAlpha(virtualBassEnabled ? 1f : 0.55f);
         }
@@ -7978,7 +7978,7 @@ public final class MainActivity extends Activity {
             bassModeButton.setAlpha(1f);
         }
         if (virtualBassCutoffInput != null) {
-            virtualBassCutoffInput.setHint(dspVirtualBassMode ? "Cutoff Hz" : "Boost");
+            virtualBassCutoffInput.setHint(dspVirtualBassMode ? cutoffHintText() : virtualBassBoostLabelText());
             virtualBassCutoffInput.setVisibility(dspVirtualBassMode ? View.VISIBLE : View.GONE);
             virtualBassCutoffInput.setEnabled(virtualBassEnabled && dspVirtualBassMode);
             String cutoffText = String.valueOf(displayVirtualBassCutoffHz(editingPreset.virtualBassCutoffHz));
