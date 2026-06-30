@@ -259,6 +259,8 @@ public final class MainActivity extends Activity {
     private TextView shizukuRuntimeReplayView;
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
+    private TextView shizukuReplayFallbackLabelView;
+    private TextView shizukuReplayFallbackHintView;
     private TextView advancedModeSummaryView;
     private TextView languageLabelView;
     private TextView languageButton;
@@ -288,6 +290,7 @@ public final class MainActivity extends Activity {
     private Switch enabledSwitch;
     private Switch autoSwitchOutputSwitch;
     private Switch extraBassSwitch;
+    private Switch shizukuReplayFallbackSwitch;
     private LinearLayout header;
     private Preset runningPreset;
     private Preset editingPreset;
