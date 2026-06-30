@@ -1659,6 +1659,29 @@ public final class MainActivity extends Activity {
         return title;
     }
 
+    private TextView addSettingsSectionTitle(LinearLayout panel, LanguageController.TextProvider textProvider, int textSizeSp) {
+        TextView title = gradientTitleView(String.valueOf(textProvider.getText()));
+        title.setTextSize(textSizeSp);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        bindStyledText(title, textProvider);
+        LinearLayout.LayoutParams titleParams = blockParams(0);
+        titleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(title, 12);
+        panel.addView(title, titleParams);
+        return title;
+    }
+
+    private void bindText(TextView view, LanguageController.TextProvider textProvider) {
+        languageController.bindText(view, textProvider);
+    }
+
+    private void bindStyledText(TextView view, LanguageController.TextProvider textProvider) {
+        languageController.bindRefresh(() -> {
+            view.setText(textProvider.getText());
+            styleGradientTitle(view);
+        });
+    }
+
     private void buildMonitorSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -1691,57 +1714,49 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
 
-        monitorSettingsTitleView = gradientTitleView(monitorSettingsTitleText());
-        monitorSettingsTitleView.setText(monitorSettingsTitleText());
-        monitorSettingsTitleView.setTextSize(18);
-        monitorSettingsTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        styleGradientTitle(monitorSettingsTitleView);
-        LinearLayout.LayoutParams titleParams = blockParams(0);
-        titleParams.leftMargin = -dp(22);
-        reserveStartGlowWithoutMoving(monitorSettingsTitleView, 12);
-        panel.addView(monitorSettingsTitleView, titleParams);
+        monitorSettingsTitleView = addSettingsSectionTitle(panel, this::monitorSettingsTitleText, 18);
 
         monitorSettingsDetailView = new TextView(this);
-        monitorSettingsDetailView.setText(monitorSettingsDetailText());
+        bindText(monitorSettingsDetailView, this::monitorSettingsDetailText);
         monitorSettingsDetailView.setTextSize(12);
         monitorSettingsDetailView.setTextColor(Color.rgb(160, 170, 190));
         panel.addView(monitorSettingsDetailView, blockParams(2));
 
         monitorCaptureStatusView = new TextView(this);
-        monitorCaptureStatusView.setText(monitorCaptureStatusText());
+        bindText(monitorCaptureStatusView, this::monitorCaptureStatusText);
         monitorCaptureStatusView.setTextSize(12);
         monitorCaptureStatusView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(monitorCaptureStatusView, blockParams(4));
 
         shizukuAccessButton = createExtraChoiceButton();
-        shizukuAccessButton.setText(shizukuAccessButtonText());
+        bindText(shizukuAccessButton, this::shizukuAccessButtonText);
         styleMonitorActionButton(shizukuAccessButton, 168);
         shizukuAccessButton.setOnClickListener(v -> handleShizukuAccessAction());
-        panel.addView(labeledSettingsRow(shizukuAccessLabelText(), shizukuAccessButton), blockParams(12));
+        panel.addView(labeledSettingsRow(this::shizukuAccessLabelText, shizukuAccessButton, view -> shizukuAccessLabelView = view), blockParams(12));
 
         shizukuAccessStatusView = new TextView(this);
-        shizukuAccessStatusView.setText(shizukuAccessStatusText());
+        bindText(shizukuAccessStatusView, this::shizukuAccessStatusText);
         shizukuAccessStatusView.setTextSize(12);
         shizukuAccessStatusView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(shizukuAccessStatusView, blockParams(4));
 
         advancedMonitorAppButton = createExtraChoiceButton();
-        advancedMonitorAppButton.setText(advancedModeConfig.monitoredAppLabel.isEmpty()
+        bindText(advancedMonitorAppButton, () -> advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? chooseAppText()
                 : advancedModeConfig.monitoredAppLabel);
         styleMonitorActionButton(advancedMonitorAppButton, 188);
         advancedMonitorAppButton.setOnClickListener(v -> showMonitoredAppChoiceDialog());
-        panel.addView(labeledSettingsRow(monitoredAppLabelText(), advancedMonitorAppButton), blockParams(12));
+        panel.addView(labeledSettingsRow(this::monitoredAppLabelText, advancedMonitorAppButton, view -> monitoredAppLabelView = view), blockParams(12));
 
-        panel.addView(createAdvancedNumberRow(latencyLabelText(), String.valueOf(advancedModeConfig.latencyMs), "20-400", value ->
+        panel.addView(createAdvancedNumberRow(this::latencyLabelText, String.valueOf(advancedModeConfig.latencyMs), "20-400", view -> latencyLabelView = view, value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLatencyMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(bufferLabelText(), String.valueOf(advancedModeConfig.bufferSizeFrames), "128-16384", value ->
+        panel.addView(createAdvancedNumberRow(this::bufferLabelText, String.valueOf(advancedModeConfig.bufferSizeFrames), "128-16384", view -> bufferLabelView = view, value ->
                 updateAdvancedModeConfig(advancedModeConfig.withBufferSizeFrames(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(lookaheadLabelText(), String.valueOf(advancedModeConfig.lookaheadMs), "0-120", value ->
+        panel.addView(createAdvancedNumberRow(this::lookaheadLabelText, String.valueOf(advancedModeConfig.lookaheadMs), "0-120", view -> lookaheadLabelView = view, value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLookaheadMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(limiterCeilingLabelText(), String.valueOf(advancedModeConfig.limiterCeilingPermille), "930-999", value ->
+        panel.addView(createAdvancedNumberRow(this::limiterCeilingLabelText, String.valueOf(advancedModeConfig.limiterCeilingPermille), "930-999", view -> limiterCeilingLabelView = view, value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLimiterCeilingPermille(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(limiterReleaseLabelText(), String.valueOf(advancedModeConfig.limiterReleaseMs), "20-400", value ->
+        panel.addView(createAdvancedNumberRow(this::limiterReleaseLabelText, String.valueOf(advancedModeConfig.limiterReleaseMs), "20-400", view -> limiterReleaseLabelView = view, value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
 
     }
@@ -1762,6 +1777,22 @@ public final class MainActivity extends Activity {
             shizukuReplayFallbackLabelView = label;
         } else if (monitoredAppLabelView == null && labelText.equals(monitoredAppLabelText())) {
             monitoredAppLabelView = label;
+        }
+        row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(trailingView);
+        return row;
+    }
+
+    private View labeledSettingsRow(LanguageController.TextProvider labelProvider, View trailingView, TextViewBinder binder) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView label = new TextView(this);
+        bindText(label, labelProvider);
+        label.setTextSize(14);
+        label.setTextColor(Color.rgb(200, 210, 230));
+        if (binder != null) {
+            binder.onBound(label);
         }
         row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         row.addView(trailingView);
@@ -1789,6 +1820,51 @@ public final class MainActivity extends Activity {
             limiterCeilingLabelView = label;
         } else if (limiterReleaseLabelView == null && labelText.equals(limiterReleaseLabelText())) {
             limiterReleaseLabelView = label;
+        }
+        row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(valueText);
+        input.setHint(hint);
+        input.setTextSize(13);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        input.setGravity(android.view.Gravity.CENTER);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        input.setBackground(createFieldBackground(12, 35, 8));
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setOnEditorActionListener((view, actionId, event) -> {
+            boolean enterUp = event != null
+                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == KeyEvent.ACTION_UP;
+            if (actionId == EditorInfo.IME_ACTION_DONE || enterUp) {
+                applyAdvancedNumberInput(input, listener);
+                closeKeyboard(view);
+                return true;
+            }
+            return false;
+        });
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus) {
+                applyAdvancedNumberInput(input, listener);
+            }
+        });
+        row.addView(input, new LinearLayout.LayoutParams(dp(132), dp(36)));
+        return row;
+    }
+
+    private View createAdvancedNumberRow(LanguageController.TextProvider labelProvider, String valueText, String hint, TextViewBinder binder, IntChanged listener) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView label = new TextView(this);
+        bindText(label, labelProvider);
+        label.setTextSize(14);
+        label.setTextColor(Color.rgb(200, 210, 230));
+        if (binder != null) {
+            binder.onBound(label);
         }
         row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
