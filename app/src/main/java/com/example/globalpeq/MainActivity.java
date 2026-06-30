@@ -1779,8 +1779,6 @@ public final class MainActivity extends Activity {
             languageLabelView = label;
         } else if (shizukuAccessLabelView == null && labelText.equals(shizukuAccessLabelText())) {
             shizukuAccessLabelView = label;
-        } else if (shizukuReplayFallbackLabelView == null && labelText.equals(shizukuReplayFallbackLabelText())) {
-            shizukuReplayFallbackLabelView = label;
         } else if (monitoredAppLabelView == null && labelText.equals(monitoredAppLabelText())) {
             monitoredAppLabelView = label;
         }
@@ -1926,8 +1924,6 @@ public final class MainActivity extends Activity {
         if (text.equals(shizukuRuntimePlaybackText())) return this::shizukuRuntimePlaybackText;
         if (text.equals(shizukuRuntimeMuteText())) return this::shizukuRuntimeMuteText;
         if (text.equals(shizukuRuntimeReplayText())) return this::shizukuRuntimeReplayText;
-        if (text.equals(shizukuReplayFallbackLabelText())) return this::shizukuReplayFallbackLabelText;
-        if (text.equals(shizukuReplayFallbackHintText())) return this::shizukuReplayFallbackHintText;
         if (text.equals(settingsImportPanelTitleText())) return this::settingsImportPanelTitleText;
         if (text.equals(settingsImportPanelDetailText())) return this::settingsImportPanelDetailText;
         if (text.equals(settingsLanguageLabelText())) return this::settingsLanguageLabelText;
