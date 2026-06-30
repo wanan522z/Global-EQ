@@ -1013,8 +1013,7 @@ final class PlaybackCaptureEngine {
                     continue;
                 }
                 String[] packages = packageManager.getPackagesForUid(clientUid);
-                if (packages != null && packages.length > 0 && packages[0] != null
-                        && candidatePackage.isEmpty()) {
+                if (packages != null && packages.length > 0 && packages[0] != null) {
                     candidatePackage = packages[0].trim();
                     Log.d(TAG, "TRACE_SWITCH replayPackageChosen"
                             + " pkg=" + candidatePackage

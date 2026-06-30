@@ -459,10 +459,10 @@ final class ShizukuSessionMuteEngine {
                 if (!resolvedPackageName.isEmpty()) {
                     activePackages.add(resolvedPackageName);
                 }
-                // Follow the first currently-active playback config instead of the
-                // largest session id. Newer session ids can remain in the list after
-                // being interrupted, which makes the state stick to the old app.
-                if (!resolvedPackageName.isEmpty() && primaryPackageName.isEmpty()) {
+                // Prefer the most recently listed active config. During app handoff
+                // the interrupted app can remain in the active list briefly; using
+                // the last active entry tracks the new foreground source better.
+                if (!resolvedPackageName.isEmpty()) {
                     primaryPackageName = resolvedPackageName;
                 }
             }
@@ -766,6 +766,14 @@ final class ShizukuSessionMuteEngine {
                 && !pendingCandidate.equals(lockedSourcePackage)
                 && desiredPackages.contains(pendingCandidate)) {
             packageScope.add(pendingCandidate);
+        }
+        if (activePlayback != null && activePlayback.activePackages.size() > 1) {
+            for (String activePackage : activePlayback.activePackages) {
+                String normalizedActivePackage = normalizePackageName(activePackage);
+                if (!normalizedActivePackage.isEmpty() && desiredPackages.contains(normalizedActivePackage)) {
+                    packageScope.add(normalizedActivePackage);
+                }
+            }
         }
         if (!packageScope.isEmpty()) {
             Set<Integer> packageScopedMuteSessionIds = new LinkedHashSet<>();
