@@ -8416,7 +8416,7 @@ public final class MainActivity extends Activity {
         content.setPadding(dp(20), dp(14), dp(20), dp(8));
 
         TextView hint = new TextView(this);
-        hint.setText("Range: " + knob.getMin() + " - " + knob.getMax() + knob.getSuffix());
+        hint.setText(rangeText() + ": " + knob.getMin() + " - " + knob.getMax() + knob.getSuffix());
         hint.setTextSize(13);
         hint.setTextColor(Color.rgb(150, 165, 185));
         hint.setGravity(android.view.Gravity.CENTER);
@@ -8446,16 +8446,16 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Value Input"))
+                .setCustomTitle(dialogTitleView(valueInputTitleText()))
                 .setView(content)
-                .setPositiveButton("Apply", (d, w) -> {
+                .setPositiveButton(applyButtonText(), (d, w) -> {
                     try {
                         int v = Math.round(Float.parseFloat(input.getText().toString()));
                         knob.setValue(clamp(v, knob.getMin(), knob.getMax()), true);
                     } catch (NumberFormatException ignored) {
                     }
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(cancelButtonText(), null)
                 .create();
         dlg.show();
         styleDialog(dlg);
@@ -8505,15 +8505,15 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setCustomTitle(dialogTitleView("Value Input"))
+                .setCustomTitle(dialogTitleView(valueInputTitleText()))
                 .setView(content)
-                .setPositiveButton("Apply", (d, w) -> {
+                .setPositiveButton(applyButtonText(), (d, w) -> {
                     try {
                         slider.setValue(slider.rawValueFromText(input.getText().toString()), true);
                     } catch (NumberFormatException ignored) {
                     }
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(cancelButtonText(), null)
                 .create();
         dlg.show();
         styleDialog(dlg);
