@@ -310,6 +310,8 @@ final class ShizukuSessionMuteEngine {
         MuteScanResult scanResult = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
         updateActivePackageName(scanResult.activePackageName);
         updateMutedPackageName(scanResult.mutedPackageName);
+        repository.saveActivePlaybackSessionIds(scanResult.activeSessionIds);
+        repository.saveActiveMutedSessionIds(scanResult.mutedSessionIds);
         if (wantsMuteEffects && !applyMuteEffects) {
             publishStatus(repository.loadMonitorCaptureActive()
                     ? "Waiting for native capture playback session."
@@ -329,8 +331,9 @@ final class ShizukuSessionMuteEngine {
 
     private ActivePlaybackSnapshot captureActivePlaybackSnapshot() {
         if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return new ActivePlaybackSnapshot(false, new LinkedHashSet<>(), new LinkedHashSet<>(), "");
+            return new ActivePlaybackSnapshot(false, new LinkedHashSet<>(), new LinkedHashSet<>(), new LinkedHashSet<>(), "");
         }
+        LinkedHashSet<Integer> activeSessionIds = new LinkedHashSet<>();
         LinkedHashSet<Integer> activeUids = new LinkedHashSet<>();
         LinkedHashSet<String> activePackages = new LinkedHashSet<>();
         String primaryPackageName = "";
@@ -338,7 +341,7 @@ final class ShizukuSessionMuteEngine {
         try {
             List<AudioPlaybackConfiguration> configs = audioManager.getActivePlaybackConfigurations();
             if (configs == null) {
-                return new ActivePlaybackSnapshot(false, activeUids, activePackages, primaryPackageName);
+                return new ActivePlaybackSnapshot(false, activeSessionIds, activeUids, activePackages, primaryPackageName);
             }
             Log.d(TAG, "Active playback config count=" + configs.size());
             for (AudioPlaybackConfiguration configuration : configs) {
@@ -356,6 +359,10 @@ final class ShizukuSessionMuteEngine {
                 Log.d(TAG, "Playback config raw=" + summarizeConfig(configuration));
                 if (!relevant) {
                     continue;
+                }
+                int sessionId = readPlaybackSessionId(configuration);
+                if (sessionId > 0) {
+                    activeSessionIds.add(sessionId);
                 }
                 if (uid <= 0) {
                     continue;
@@ -377,10 +384,11 @@ final class ShizukuSessionMuteEngine {
         }
         Log.d(TAG, "TRACE_SWITCH activePlaybackSnapshot"
                 + " activeDetected=" + activePlaybackDetected
+                + " sessions=" + activeSessionIds
                 + " uids=" + activeUids
                 + " packages=" + activePackages
                 + " primaryPkg=" + primaryPackageName);
-        return new ActivePlaybackSnapshot(activePlaybackDetected, activeUids, activePackages, primaryPackageName);
+        return new ActivePlaybackSnapshot(activePlaybackDetected, activeSessionIds, activeUids, activePackages, primaryPackageName);
     }
 
     private int readPlaybackUsage(AudioPlaybackConfiguration configuration) {
