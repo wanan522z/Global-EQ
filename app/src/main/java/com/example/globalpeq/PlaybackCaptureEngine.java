@@ -136,7 +136,7 @@ final class PlaybackCaptureEngine {
         };
         mediaProjection.registerCallback(projectionCallback, mainHandler);
         repository.saveMonitorCaptureAuthorized(true);
-        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (currentMode.capturesSystemAudio()) {
             publishStatus("Capture authorized for system audio.", false);
         } else {
             publishStatus(currentTargetLabel.isEmpty()
@@ -158,7 +158,7 @@ final class PlaybackCaptureEngine {
         currentTargetLabel = currentConfig.monitoredAppLabel.isEmpty()
                 ? currentConfig.monitoredAppPackage
                 : currentConfig.monitoredAppLabel;
-        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (currentMode.capturesSystemAudio()) {
             currentTargetLabel = "system audio";
         }
 
@@ -174,10 +174,12 @@ final class PlaybackCaptureEngine {
         }
         if (preset == null || !preset.enabled) {
             stopPipelineLocked();
-            publishStatus("Shizuku Mode ready. Enable EQ to start capture.", false);
+            publishStatus(currentMode.requiresShizukuMute()
+                    ? "Shizuku Mode ready. Enable EQ to start capture."
+                    : "Global DSP ready. Enable EQ to start capture.", false);
             return;
         }
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE
+        if (!currentMode.capturesSystemAudio()
                 && currentConfig.monitoredAppPackage.isEmpty()) {
             stopPipelineLocked();
             publishStatus("Choose an app to monitor.", false);
@@ -185,16 +187,16 @@ final class PlaybackCaptureEngine {
         }
         if (mediaProjection == null) {
             stopPipelineLocked();
-            publishStatus(currentMode == ProcessingMode.SHIZUKU_MUTE
+            publishStatus(currentMode.capturesSystemAudio()
                     ? "Authorize native capture for system audio."
                     : "Authorize native capture for " + currentTargetLabel + ".", false);
             return;
         }
 
-        currentTargetUid = currentMode == ProcessingMode.SHIZUKU_MUTE
+        currentTargetUid = currentMode.capturesSystemAudio()
                 ? -1
                 : resolveTargetUid(currentConfig.monitoredAppPackage);
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0) {
+        if (!currentMode.capturesSystemAudio() && currentTargetUid <= 0) {
             stopPipelineLocked();
             publishStatus("Unable to resolve the selected app.", false);
             return;
@@ -263,7 +265,7 @@ final class PlaybackCaptureEngine {
                 new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
                         .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
                         .addMatchingUsage(AudioAttributes.USAGE_GAME);
-        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (currentMode.capturesSystemAudio()) {
             builder.excludeUid(android.os.Process.myUid());
         } else {
             builder.addMatchingUid(currentTargetUid);
@@ -271,27 +273,27 @@ final class PlaybackCaptureEngine {
         AudioPlaybackCaptureConfiguration configuration = builder.build();
         Log.i(TAG, "Built capture configuration mode=" + currentMode
                 + ", targetUid=" + currentTargetUid
-                + ", excludeOwnUid=" + (currentMode == ProcessingMode.SHIZUKU_MUTE)
+                + ", excludeOwnUid=" + currentMode.capturesSystemAudio()
                 + ", usages=[MEDIA,GAME]");
         return configuration;
     }
 
     private String monitoringStatusText() {
-        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (currentMode.capturesSystemAudio()) {
             return "Monitoring system audio via native capture.";
         }
         return "Monitoring " + currentTargetLabel + " via native capture.";
     }
 
     private String replayBlockedStatusText() {
-        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (currentMode.requiresShizukuMute()) {
             return "Source app could not be muted. Processed replay is off.";
         }
         return "Processed replay is off.";
     }
 
     private String waitingStatusText() {
-        if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (currentMode.capturesSystemAudio()) {
             return "Armed for system audio - waiting for playback.";
         }
         return "Armed for " + currentTargetLabel + " - waiting for playback.";
@@ -311,7 +313,7 @@ final class PlaybackCaptureEngine {
 
     private void startPipelineLocked() {
         stopPipelineLocked();
-        if (mediaProjection == null || (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0)) {
+        if (mediaProjection == null || (!currentMode.capturesSystemAudio() && currentTargetUid <= 0)) {
             publishStatus("Native capture is not authorized.", false);
             return;
         }
@@ -898,7 +900,7 @@ final class PlaybackCaptureEngine {
                 if (clientUid == android.os.Process.myUid()) {
                     continue;
                 }
-                if (currentMode == ProcessingMode.SHIZUKU_MUTE) {
+                if (currentMode.capturesSystemAudio()) {
                     return true;
                 }
                 if (clientUid == currentTargetUid) {
@@ -918,7 +920,7 @@ final class PlaybackCaptureEngine {
         if (currentPreset == null || !currentPreset.enabled) {
             return false;
         }
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE && currentTargetUid <= 0) {
+        if (!currentMode.capturesSystemAudio() && currentTargetUid <= 0) {
             return false;
         }
         long now = SystemClock.elapsedRealtime();
@@ -933,7 +935,7 @@ final class PlaybackCaptureEngine {
     }
 
     private boolean shouldOutputProcessedReplay() {
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE) {
+        if (!currentMode.requiresShizukuMute()) {
             return true;
         }
         String replayPackage = currentReplayPackageName == null ? "" : currentReplayPackageName.trim();
@@ -956,7 +958,7 @@ final class PlaybackCaptureEngine {
     }
 
     private String resolveCurrentReplayPackageName() {
-        if (currentMode != ProcessingMode.SHIZUKU_MUTE) {
+        if (!currentMode.capturesSystemAudio()) {
             return currentConfig.monitoredAppPackage == null ? "" : currentConfig.monitoredAppPackage.trim();
         }
         if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {

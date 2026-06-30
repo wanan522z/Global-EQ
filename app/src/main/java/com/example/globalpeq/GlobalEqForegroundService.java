@@ -116,7 +116,7 @@ public final class GlobalEqForegroundService extends Service {
                     .withEnabled(repository.loadMasterEnabled());
             int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, currentProcessingMode, virtualBassModeIndex);
-            if (currentProcessingMode == ProcessingMode.SHIZUKU_MUTE) {
+            if (currentProcessingMode.usesNativeCapture()) {
                 engine.apply(effectivePreset);
             } else if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset);
@@ -156,7 +156,7 @@ public final class GlobalEqForegroundService extends Service {
             return START_NOT_STICKY;
         }
         if (action == null
-                && currentProcessingMode == ProcessingMode.SHIZUKU_MUTE
+                && currentProcessingMode.usesNativeCapture()
                 && (captureEngine == null || !captureEngine.hasProjection())) {
             requestStopAllAndStopService();
             return START_NOT_STICKY;
@@ -279,8 +279,10 @@ public final class GlobalEqForegroundService extends Service {
         String state = currentPreset.enabled ? "Global PEQ on" : "Global PEQ off";
         ProcessingMode mode = currentProcessingMode;
         String content;
-        if (mode == ProcessingMode.SHIZUKU_MUTE) {
+        if (mode.requiresShizukuMute()) {
             content = repository.loadShizukuMuteStatus();
+        } else if (mode.usesNativeCapture()) {
+            content = repository.loadMonitorCaptureStatus();
         } else {
             content = currentDevice.label;
         }
