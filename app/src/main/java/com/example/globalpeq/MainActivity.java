@@ -2027,6 +2027,9 @@ public final class MainActivity extends Activity {
     }
 
     private String shizukuRuntimeModeText() {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+            return currentShizukuStatusSummary().detailText(isChineseUi());
+        }
         if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
             return tr(
                     "Switch to Shizuku Mode to inspect live mute and replay state.",
