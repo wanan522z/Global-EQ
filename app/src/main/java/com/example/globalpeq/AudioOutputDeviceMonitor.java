@@ -78,7 +78,7 @@ final class AudioOutputDeviceMonitor {
     List<AudioOutputDevice> availableOutputDevices() {
         AudioDeviceInfo[] devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
         Map<String, AudioOutputDevice> ordered = new LinkedHashMap<>();
-        Set<String> seenLabels = new HashSet<>();
+        Set<String> seenKeys = new HashSet<>();
         for (AudioDeviceInfo device : devices) {
             if (device == null || !device.isSink() || !isSelectableOutput(device)) {
                 continue;
@@ -87,8 +87,7 @@ final class AudioOutputDeviceMonitor {
             if (!described.isDisplayable()) {
                 continue;
             }
-            String labelKey = normalizeLabelKey(described.label);
-            if (!seenLabels.add(labelKey)) {
+            if (!seenKeys.add(described.key)) {
                 continue;
             }
             ordered.put(described.key, described);
@@ -190,10 +189,4 @@ final class AudioOutputDeviceMonitor {
         }
     }
 
-    private String normalizeLabelKey(String label) {
-        if (label == null) {
-            return "";
-        }
-        return label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
-    }
 }
