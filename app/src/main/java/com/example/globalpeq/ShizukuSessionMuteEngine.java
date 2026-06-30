@@ -134,7 +134,7 @@ final class ShizukuSessionMuteEngine {
         return packageName == null ? "" : packageName.trim();
     }
 
-    private String resolvePreferredMutePackage(ActivePlaybackSnapshot activePlayback,
+    private String resolveCandidateMutePackage(ActivePlaybackSnapshot activePlayback,
                                                Set<Integer> desiredMuteSessionIds,
                                                List<SessionInfo> sessions,
                                                SessionInfo preferredDesiredSession) {
@@ -155,17 +155,66 @@ final class ShizukuSessionMuteEngine {
             }
         }
 
-        String activePackage = normalizePackageName(repository.loadActivePlaybackPackage());
-        if (isPackagePresentInDesiredSessions(activePackage, desiredMuteSessionIds, sessions)) {
-            return activePackage;
-        }
-
-        String replayPackage = normalizePackageName(repository.loadActiveReplayPackage());
-        if (isPackagePresentInDesiredSessions(replayPackage, desiredMuteSessionIds, sessions)) {
-            return replayPackage;
-        }
-
         return preferredDesiredSession == null ? "" : normalizePackageName(preferredDesiredSession.packageName);
+    }
+
+    private String resolveLockedSourcePackage(String candidatePackage,
+                                             Set<Integer> desiredMuteSessionIds,
+                                             List<SessionInfo> sessions) {
+        String normalizedCandidate = normalizePackageName(candidatePackage);
+        String trackedPackage = normalizePackageName(trackedSourcePackageName);
+        boolean trackedPresent = isPackagePresentInDesiredSessions(trackedPackage, desiredMuteSessionIds, sessions);
+        if (normalizedCandidate.isEmpty()) {
+            clearPendingSourcePackage();
+            if (trackedPresent) {
+                return trackedPackage;
+            }
+            trackedSourcePackageName = "";
+            return "";
+        }
+        if (trackedPackage.isEmpty()) {
+            adoptTrackedSourcePackage(normalizedCandidate, "initialCandidate");
+            return normalizedCandidate;
+        }
+        if (normalizedCandidate.equals(trackedPackage)) {
+            clearPendingSourcePackage();
+            return trackedPackage;
+        }
+        if (!trackedPresent) {
+            adoptTrackedSourcePackage(normalizedCandidate, "trackedPackageMissing");
+            return normalizedCandidate;
+        }
+
+        long now = SystemClock.elapsedRealtime();
+        if (!normalizedCandidate.equals(normalizePackageName(pendingSourcePackageName))) {
+            pendingSourcePackageName = normalizedCandidate;
+            pendingSourcePackageSinceMs = now;
+            Log.d(TAG, "TRACE_SWITCH pendingSourceCandidate start tracked=" + trackedPackage
+                    + " candidate=" + normalizedCandidate);
+            return trackedPackage;
+        }
+        if (now - pendingSourcePackageSinceMs >= SOURCE_SWITCH_CONFIRMATION_MS) {
+            adoptTrackedSourcePackage(normalizedCandidate, "confirmedSwitch");
+            return normalizedCandidate;
+        }
+        return trackedPackage;
+    }
+
+    private void adoptTrackedSourcePackage(String packageName, String reason) {
+        String normalized = normalizePackageName(packageName);
+        if (normalized.equals(normalizePackageName(trackedSourcePackageName))) {
+            clearPendingSourcePackage();
+            return;
+        }
+        Log.d(TAG, "TRACE_SWITCH trackedSourceUpdate from=" + trackedSourcePackageName
+                + " to=" + normalized + " reason=" + reason);
+        trackedSourcePackageName = normalized;
+        clearPendingSourcePackage();
+    }
+
+    private void clearPendingSourcePackage() {
+        pendingSourcePackageName = "";
+        pendingSourcePackageSinceMs = 0L;
     }
 
     private boolean isPackagePresentInDesiredSessions(String packageName,
