@@ -973,7 +973,7 @@ final class PlaybackCaptureEngine {
             return monitoredPackage.isEmpty() ? fallbackPackage : monitoredPackage;
         }
         if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return fallbackPackage == null ? "" : fallbackPackage.trim();
+            return "";
         }
         try {
             LinkedHashSet<String> candidatePackages = new LinkedHashSet<>();
@@ -1027,8 +1027,9 @@ final class PlaybackCaptureEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to resolve replay package name", ex);
         }
-        Log.d(TAG, "TRACE_SWITCH replayPackageFallback fallback=" + fallbackPackage);
-        return fallbackPackage == null ? "" : fallbackPackage.trim();
+        Log.d(TAG, "TRACE_SWITCH replayPackageFallback fallbackSuppressed="
+                + (fallbackPackage == null ? "" : fallbackPackage));
+        return "";
     }
 
     private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
