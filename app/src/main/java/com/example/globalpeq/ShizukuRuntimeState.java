@@ -11,6 +11,7 @@ final class ShizukuRuntimeState {
             false,
             "",
             "",
+            "",
             ""
     );
 
@@ -18,6 +19,7 @@ final class ShizukuRuntimeState {
     final boolean captureActive;
     final String muteStatus;
     final boolean muteActive;
+    final String activeOutputRoute;
     final String activePlaybackPackage;
     final String activeMutedPackage;
     final String activeReplayPackage;
@@ -26,6 +28,7 @@ final class ShizukuRuntimeState {
                         boolean captureActive,
                         String muteStatus,
                         boolean muteActive,
+                        String activeOutputRoute,
                         String activePlaybackPackage,
                         String activeMutedPackage,
                         String activeReplayPackage) {
@@ -33,6 +36,7 @@ final class ShizukuRuntimeState {
         this.captureActive = captureActive;
         this.muteStatus = normalize(muteStatus, "Shizuku mute is idle.");
         this.muteActive = muteActive;
+        this.activeOutputRoute = normalize(activeOutputRoute, "");
         this.activePlaybackPackage = normalize(activePlaybackPackage, "");
         this.activeMutedPackage = normalize(activeMutedPackage, "");
         this.activeReplayPackage = normalize(activeReplayPackage, "");
@@ -44,6 +48,7 @@ final class ShizukuRuntimeState {
                 active,
                 muteStatus,
                 muteActive,
+                activeOutputRoute,
                 activePlaybackPackage,
                 activeMutedPackage,
                 activeReplayPackage
@@ -56,6 +61,20 @@ final class ShizukuRuntimeState {
                 captureActive,
                 status,
                 active,
+                activeOutputRoute,
+                activePlaybackPackage,
+                activeMutedPackage,
+                activeReplayPackage
+        );
+    }
+
+    ShizukuRuntimeState withActiveOutputRoute(String route) {
+        return new ShizukuRuntimeState(
+                captureStatus,
+                captureActive,
+                muteStatus,
+                muteActive,
+                route,
                 activePlaybackPackage,
                 activeMutedPackage,
                 activeReplayPackage
@@ -68,6 +87,7 @@ final class ShizukuRuntimeState {
                 captureActive,
                 muteStatus,
                 muteActive,
+                activeOutputRoute,
                 packageName,
                 activeMutedPackage,
                 activeReplayPackage
@@ -80,6 +100,7 @@ final class ShizukuRuntimeState {
                 captureActive,
                 muteStatus,
                 muteActive,
+                activeOutputRoute,
                 activePlaybackPackage,
                 packageName,
                 activeReplayPackage
@@ -92,6 +113,7 @@ final class ShizukuRuntimeState {
                 captureActive,
                 muteStatus,
                 muteActive,
+                activeOutputRoute,
                 activePlaybackPackage,
                 activeMutedPackage,
                 packageName
@@ -105,6 +127,7 @@ final class ShizukuRuntimeState {
             object.put("captureActive", captureActive);
             object.put("muteStatus", muteStatus);
             object.put("muteActive", muteActive);
+            object.put("activeOutputRoute", activeOutputRoute);
             object.put("activePlaybackPackage", activePlaybackPackage);
             object.put("activeMutedPackage", activeMutedPackage);
             object.put("activeReplayPackage", activeReplayPackage);
