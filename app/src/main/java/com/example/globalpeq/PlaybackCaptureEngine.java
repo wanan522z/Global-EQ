@@ -45,6 +45,8 @@ final class PlaybackCaptureEngine {
     private static final long ACTIVE_PLAYBACK_RECOVERY_MIN_MS = 1800L;
     private static final long AUTO_RESTART_COOLDOWN_MS = 1500L;
     private static final long PACKAGE_STATE_FRESHNESS_MS = 1500L;
+    private static final long REPLAY_DECISION_PCM_HOLD_MS = 2000L;
+    private static final long REPLAY_PACKAGE_REFRESH_INTERVAL_MS = 250L;
     private static final int PLAYER_STATE_STARTED = 2;
     private static final Pattern PLAYER_TYPE_NAME_REGEX = Pattern.compile(
             "\\b(?:playerType|type)\\b\\s*[:=]\\s*([A-Z_]+|[A-Za-z]+AudioTrack|AAudio|OpenSL(?:ES)?|SLES)",
@@ -91,6 +93,29 @@ final class PlaybackCaptureEngine {
     private volatile String currentOutputRouteLabel = "";
     private long lastReplayPackageRefreshAtMs;
     private String lastReplayDecisionTrace = "";
+
+    private static final class ReplayDecision {
+        final boolean allowed;
+        final boolean pcmActive;
+        final String playbackPackages;
+        final String mutedPackages;
+        final String replayPackages;
+        final String reason;
+
+        ReplayDecision(boolean allowed,
+                       boolean pcmActive,
+                       String playbackPackages,
+                       String mutedPackages,
+                       String replayPackages,
+                       String reason) {
+            this.allowed = allowed;
+            this.pcmActive = pcmActive;
+            this.playbackPackages = playbackPackages == null ? "" : playbackPackages.trim();
+            this.mutedPackages = mutedPackages == null ? "" : mutedPackages.trim();
+            this.replayPackages = replayPackages == null ? "" : replayPackages.trim();
+            this.reason = reason == null ? "" : reason.trim();
+        }
+    }
     PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
         this.appContext = context.getApplicationContext();
         this.audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
