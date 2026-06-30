@@ -931,6 +931,10 @@ final class PlaybackCaptureEngine {
     }
 
     private String resolveCurrentOutputRouteLabel(AudioDeviceInfo preferredDevice) {
+        String ownCaptureChannel = describeOwnCapturePlaybackChannelLabel();
+        if (!ownCaptureChannel.isEmpty()) {
+            return ownCaptureChannel;
+        }
         String playerTypeLabel = currentMode.capturesSystemAudio()
                 ? resolveActiveSystemPlaybackChannelLabel()
                 : resolveActiveTargetPlaybackChannelLabel();
@@ -938,6 +942,19 @@ final class PlaybackCaptureEngine {
             return playerTypeLabel;
         }
         return "";
+    }
+
+    private String describeOwnCapturePlaybackChannelLabel() {
+        AudioTrack track = audioTrack;
+        if (track == null) {
+            return "";
+        }
+        try {
+            return track.getState() == AudioTrack.STATE_INITIALIZED ? "AudioTrack" : "";
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to inspect capture playback track state", ex);
+            return "";
+        }
     }
 
     private String resolveActiveSystemPlaybackChannelLabel() {
