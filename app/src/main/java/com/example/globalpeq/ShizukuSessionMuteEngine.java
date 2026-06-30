@@ -319,6 +319,10 @@ final class ShizukuSessionMuteEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to inspect active playback configurations", ex);
         }
+        Log.d(TAG, "TRACE_SWITCH activePlaybackSnapshot"
+                + " activeDetected=" + activePlaybackDetected
+                + " uids=" + activeUids
+                + " primaryPkg=" + primaryPackageName);
         return new ActivePlaybackSnapshot(activePlaybackDetected, activeUids, primaryPackageName);
     }
 
@@ -363,6 +367,7 @@ final class ShizukuSessionMuteEngine {
         }
         Set<Integer> sessionIds = provider.getOwnedAudioSessionIds();
         currentAppSessionIds = sessionIds == null ? new LinkedHashSet<>() : new LinkedHashSet<>(sessionIds);
+        Log.d(TAG, "TRACE_SWITCH ownedCaptureSessions=" + currentAppSessionIds);
     }
 
     private List<SessionInfo> dumpPolicySessions() {
@@ -534,6 +539,12 @@ final class ShizukuSessionMuteEngine {
         Set<Integer> desiredMuteSessionIds = new LinkedHashSet<>();
         String firstActivePackageName = activePlayback == null ? "" : activePlayback.primaryPackageName;
         String firstMutedPackageName = "";
+        Log.d(TAG, "TRACE_SWITCH muteScanStart"
+                + " applyMuteEffects=" + applyMuteEffects
+                + " activeUids=" + (activePlayback == null ? "null" : activePlayback.activeUids)
+                + " activePrimaryPkg=" + (activePlayback == null ? "" : activePlayback.primaryPackageName)
+                + " ownedSessions=" + currentAppSessionIds
+                + " knownMuteEffects=" + muteEffects.keySet());
         for (SessionInfo session : sessions) {
             currentSessionIds.add(session.sessionId);
         }
@@ -567,7 +578,7 @@ final class ShizukuSessionMuteEngine {
             if (activePlayback != null
                     && activePlayback.hasResolvedActiveUids()
                     && !activePlayback.containsUid(session.uid)) {
-                Log.d(TAG, "Skip session sid=" + session.sessionId
+                Log.d(TAG, "TRACE_SWITCH skipSessionByActiveUid sid=" + session.sessionId
                         + " because activePlaybackUids=" + activePlayback.activeUids
                         + " does not include uid=" + session.uid
                         + " pkg=" + session.packageName);
@@ -577,7 +588,7 @@ final class ShizukuSessionMuteEngine {
                 firstActivePackageName = session.packageName;
             }
             desiredMuteSessionIds.add(session.sessionId);
-            Log.d(TAG, "Session selected for mute sid=" + session.sessionId
+            Log.d(TAG, "TRACE_SWITCH selectMuteSession sid=" + session.sessionId
                     + ", uid=" + session.uid
                     + ", pkg=" + session.packageName
                     + ", usage=" + session.usage);
@@ -632,6 +643,11 @@ final class ShizukuSessionMuteEngine {
                 }
             }
         }
+        Log.d(TAG, "TRACE_SWITCH muteScanResult"
+                + " desiredMuteSessionIds=" + desiredMuteSessionIds
+                + " activePkg=" + firstActivePackageName
+                + " mutedPkg=" + firstMutedPackageName
+                + " muteEffects=" + muteEffects.keySet());
         return new MuteScanResult(firstActivePackageName, firstMutedPackageName);
     }
 
@@ -861,6 +877,7 @@ final class ShizukuSessionMuteEngine {
         if (normalized.equals(currentActivePackageName)) {
             return;
         }
+        Log.d(TAG, "TRACE_SWITCH activePackageUpdate from=" + currentActivePackageName + " to=" + normalized);
         currentActivePackageName = normalized;
         Log.d(TAG, "Active playback package -> " + normalized);
         repository.saveActivePlaybackPackage(normalized);
@@ -874,6 +891,7 @@ final class ShizukuSessionMuteEngine {
         if (normalized.equals(currentMutedPackageName)) {
             return;
         }
+        Log.d(TAG, "TRACE_SWITCH mutedPackageUpdate from=" + currentMutedPackageName + " to=" + normalized);
         currentMutedPackageName = normalized;
         Log.d(TAG, "Muted playback package -> " + normalized);
         repository.saveActiveMutedPackage(normalized);
