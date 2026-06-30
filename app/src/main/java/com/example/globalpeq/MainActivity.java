@@ -480,6 +480,8 @@ public final class MainActivity extends Activity {
     private int curveGraphMaxDb = 18;
     private String selectedDeviceCurveName = "Default";
     private String selectedTargetCurveName = "Default";
+    private FrequencyCurve selectedDeviceCurveSource = FrequencyCurve.DEFAULT;
+    private FrequencyCurve selectedTargetCurveSource = FrequencyCurve.DEFAULT;
     private FrequencyCurve selectedDeviceCurveBase = FrequencyCurve.DEFAULT;
     private FrequencyCurve selectedTargetCurveBase = FrequencyCurve.DEFAULT;
     private FrequencyCurve selectedDeviceCurve = FrequencyCurve.DEFAULT;
