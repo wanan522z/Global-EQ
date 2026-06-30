@@ -307,9 +307,9 @@ final class PcmDspProcessor {
             transientDuckDepth = 0.34f + amount * 0.16f;
             dryBassDuckAttackCoeff = envelopeCoeff(0.0045f);
             dryBassDuckReleaseCoeff = envelopeCoeff(0.045f);
-            dryBassDuckThreshold = 0.075f + amount * 0.020f;
-            dryBassDuckRange = 0.18f + amount * 0.06f;
-            dryBassDuckDepth = 0.12f + amount * 0.10f;
+            dryBassDuckThreshold = (0.080f + amount * 0.018f) - cutoffProgress * 0.028f;
+            dryBassDuckRange = (0.19f + amount * 0.05f) - cutoffProgress * 0.05f;
+            dryBassDuckDepth = (0.10f + amount * 0.08f) + cutoffProgress * 0.18f;
 
             if (lowCpuMode) {
                 wetMix *= 0.96f;
