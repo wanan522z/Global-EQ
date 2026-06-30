@@ -638,7 +638,6 @@ final class ShizukuSessionMuteEngine {
                 ? ""
                 : joinPackageNames(activePlayback.activePackages);
         String firstMutedPackageName = "";
-        SessionInfo preferredDesiredSession = null;
         LinkedHashSet<String> mutedPackages = new LinkedHashSet<>();
         boolean fastModeIncompatible = false;
         Log.d(TAG, "TRACE_SWITCH muteScanStart"
@@ -678,47 +677,24 @@ final class ShizukuSessionMuteEngine {
                 Log.d(TAG, "Skip session sid=" + session.sessionId + " due to usage=" + session.usage);
                 continue;
             }
-            if (activePlayback != null
-                    && activePlayback.hasResolvedActiveUids()
-                    && !activePlayback.containsUid(session.uid)) {
-                Log.d(TAG, "TRACE_SWITCH skipSessionByActiveUid sid=" + session.sessionId
-                        + " because activePlaybackUids=" + activePlayback.activeUids
-                        + " does not include uid=" + session.uid
-                        + " pkg=" + session.packageName);
-                continue;
-            }
             desiredMuteSessionIds.add(session.sessionId);
             String normalizedPackage = normalizePackageName(session.packageName);
             if (!normalizedPackage.isEmpty()) {
                 desiredPackages.add(normalizedPackage);
             }
-            preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, session);
             Log.d(TAG, "TRACE_SWITCH selectMuteSession sid=" + session.sessionId
                     + ", uid=" + session.uid
                     + ", pkg=" + session.packageName
                     + ", usage=" + session.usage);
         }
-        boolean ambiguousDesiredPackages = firstActivePackageName.isEmpty() && desiredPackages.size() > 1;
-        if (firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
-            firstActivePackageName = preferredDesiredSession.packageName;
-        }
-        if (ambiguousDesiredPackages) {
-            Log.w(TAG, "TRACE_SWITCH ambiguousMuteCandidates desiredPackages=" + desiredPackages
-                    + ", selectedPackage=" + firstActivePackageName
-                    + " via newest session to avoid cross-app pollution");
-            desiredMuteSessionIds = filterSessionIdsByPackage(sessions, desiredMuteSessionIds, firstActivePackageName);
+        if (firstActivePackageName.isEmpty()) {
+            firstActivePackageName = joinPackageNames(desiredPackages);
         }
         for (Integer sid : muteEffects.keySet()) {
             if (!currentSessionIds.contains(sid)) {
                 continue;
             }
-            SessionInfo existingSession = knownSessions.get(sid);
-            if (existingSession != null
-                    && normalizePackageName(firstActivePackageName)
-                    .equals(normalizePackageName(existingSession.packageName))) {
-                desiredMuteSessionIds.add(sid);
-                preferredDesiredSession = preferNewerPackagedSession(preferredDesiredSession, existingSession);
-            }
+            desiredMuteSessionIds.add(sid);
         }
         List<Integer> staleMutedSessions = new ArrayList<>();
         for (Integer sid : muteEffects.keySet()) {
@@ -804,13 +780,11 @@ final class ShizukuSessionMuteEngine {
             verifiedMutedSessionIds = safeVerifiedMutedSessionIds;
             firstMutedPackageName = joinPackageNames(mutedPackages);
         }
-        String desiredMuteSessionIdsForVerification = joinSessionIds(
-                filterSessionIdsByPackage(sessions, desiredMuteSessionIds, firstActivePackageName));
+        String desiredMuteSessionIdsForVerification = joinSessionIds(desiredMuteSessionIds);
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
                 + " desiredMuteSessionIds=" + desiredMuteSessionIds
                 + " verificationDesiredMuteSessionIds=" + desiredMuteSessionIdsForVerification
                 + " desiredPackages=" + desiredPackages
-                + " ambiguousDesiredPackages=" + ambiguousDesiredPackages
                 + " activeSessionIds=" + (activePlayback == null ? "" : activePlayback.activeSessionIds)
                 + " mutedSessionIds=" + verifiedMutedSessionIds
                 + " failedMuteSessionIds=" + failedMuteSessionIds
@@ -829,29 +803,6 @@ final class ShizukuSessionMuteEngine {
                 verifiedMutedSessionIds.size(),
                 failedMuteSessionIds.size(),
                 fastModeIncompatible);
-    }
-
-    private LinkedHashSet<Integer> filterSessionIdsByPackage(List<SessionInfo> sessions,
-                                                             Set<Integer> sessionIds,
-                                                             String packageName) {
-        LinkedHashSet<Integer> filtered = new LinkedHashSet<>();
-        if (sessions == null || sessionIds == null || sessionIds.isEmpty()) {
-            return filtered;
-        }
-        String normalizedPackage = normalizePackageName(packageName);
-        if (normalizedPackage.isEmpty()) {
-            filtered.addAll(sessionIds);
-            return filtered;
-        }
-        for (SessionInfo session : sessions) {
-            if (!sessionIds.contains(session.sessionId)) {
-                continue;
-            }
-            if (normalizedPackage.equals(normalizePackageName(session.packageName))) {
-                filtered.add(session.sessionId);
-            }
-        }
-        return filtered;
     }
 
     private boolean isFastModeAttachFailure(RuntimeException ex) {
