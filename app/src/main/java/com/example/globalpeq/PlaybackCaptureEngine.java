@@ -82,6 +82,7 @@ final class PlaybackCaptureEngine {
     private long lastAutoRestartAtMs;
     private volatile long lastCaptureSignalAtMs;
     private volatile String currentReplayPackageName = "";
+    private volatile String currentOutputRouteLabel = "";
     private long lastReplayPackageRefreshAtMs;
     private String lastReplayDecisionTrace = "";
     PlaybackCaptureEngine(Context context, PresetRepository repository, Runnable notificationCallback) {
