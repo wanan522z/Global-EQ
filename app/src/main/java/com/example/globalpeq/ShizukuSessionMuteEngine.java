@@ -27,6 +27,7 @@ final class ShizukuSessionMuteEngine {
     private static final float MUTE_GAIN_DB = -144f;
     private static final long ACTIVE_RESCAN_INTERVAL_MS = 750L;
     private static final long PASSIVE_RESCAN_INTERVAL_MS = 5000L;
+    private static final long CAPTURE_ACTIVITY_HOLD_MS = 2000L;
     private static final Pattern SESSION_REGEX = Pattern.compile(
             "Session Id:\\s*(\\d+)\\s+UID:\\s*(\\d+)[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
@@ -61,6 +62,8 @@ final class ShizukuSessionMuteEngine {
 
     interface SessionIdProvider {
         Set<Integer> getOwnedAudioSessionIds();
+
+        boolean hasRecentCaptureActivity(long withinMs);
     }
 
     private static final class SessionInfo {
@@ -267,7 +270,9 @@ final class ShizukuSessionMuteEngine {
     private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback) {
         return wantsToMuteSessions()
                 && hasOwnedCaptureSessions()
-                && repository.loadMonitorCaptureActive();
+                && (repository.loadMonitorCaptureActive()
+                || (sessionIdProvider != null
+                && sessionIdProvider.hasRecentCaptureActivity(CAPTURE_ACTIVITY_HOLD_MS)));
     }
 
     private void scanSessionsAndRefreshState() {
