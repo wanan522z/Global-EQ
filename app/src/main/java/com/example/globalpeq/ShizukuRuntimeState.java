@@ -97,6 +97,7 @@ final class ShizukuRuntimeState {
                 activeMutedPackage,
                 activeReplayPackage,
                 activePlaybackSessionIds,
+                desiredMutedSessionIds,
                 activeMutedSessionIds
         );
     }
