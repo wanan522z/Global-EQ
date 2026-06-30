@@ -2006,7 +2006,7 @@ public final class MainActivity extends Activity {
     }
 
     private String languageButtonText() {
-        return isChineseUi() ? "??" : "English";
+        return isChineseUi() ? "\u4e2d\u6587" : "English";
     }
 
     private String virtualBassModeDisplayLabel(String value) {
