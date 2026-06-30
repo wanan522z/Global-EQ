@@ -1370,6 +1370,121 @@ final class PlaybackCaptureEngine {
         return null;
     }
 
+    private String describePlaybackChannelLabel(AudioPlaybackConfiguration configuration) {
+        int playerType = readPlaybackPlayerType(configuration);
+        String mapped = playbackPlayerTypeName(playerType);
+        if (!mapped.isEmpty()) {
+            return mapped;
+        }
+        return parsePlaybackChannelFromSummary(summarizeConfig(configuration));
+    }
+
+    private int readPlaybackPlayerType(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return -1;
+        }
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerType");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                return (Integer) value;
+            }
+        } catch (NoSuchMethodException ignored) {
+        } catch (ReflectiveOperationException ex) {
+            Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#getPlayerType", ex);
+        } catch (RuntimeException ex) {
+            Log.w(TAG, "Unable to read playback player type", ex);
+        }
+        return -1;
+    }
+
+    private String playbackPlayerTypeName(int playerType) {
+        if (playerType < 0) {
+            return "";
+        }
+        Integer aaudio = readPlayerTypeConstant("PLAYER_TYPE_AAUDIO");
+        if (aaudio != null && playerType == aaudio) {
+            return "AAudio";
+        }
+        Integer audioTrack = readPlayerTypeConstant("PLAYER_TYPE_JAM_AUDIOTRACK");
+        if (audioTrack != null && playerType == audioTrack) {
+            return "AudioTrack";
+        }
+        Integer openSl = readPlayerTypeConstant("PLAYER_TYPE_SLES_AUDIOPLAYER");
+        if (openSl != null && playerType == openSl) {
+            return "OpenSL ES";
+        }
+        Integer soundPool = readPlayerTypeConstant("PLAYER_TYPE_JAM_SOUNDPOOL");
+        if (soundPool != null && playerType == soundPool) {
+            return "SoundPool";
+        }
+        Integer hwSource = readPlayerTypeConstant("PLAYER_TYPE_HW_SOURCE");
+        if (hwSource != null && playerType == hwSource) {
+            return "HW source";
+        }
+        return "PlayerType " + playerType;
+    }
+
+    private Integer readPlayerTypeConstant(String fieldName) {
+        try {
+            java.lang.reflect.Field field = AudioPlaybackConfiguration.class.getField(fieldName);
+            Object value = field.get(null);
+            return value instanceof Integer ? (Integer) value : null;
+        } catch (NoSuchFieldException ignored) {
+        } catch (IllegalAccessException ignored) {
+        } catch (RuntimeException ignored) {
+        }
+        return null;
+    }
+
+    private String parsePlaybackChannelFromSummary(String summary) {
+        if (summary == null || summary.trim().isEmpty()) {
+            return "";
+        }
+        Matcher matcher = PLAYER_TYPE_NAME_REGEX.matcher(summary);
+        if (matcher.find()) {
+            return normalizePlaybackChannelName(matcher.group(1));
+        }
+        String lower = summary.toLowerCase(Locale.US);
+        if (lower.contains("aaudio")) {
+            return "AAudio";
+        }
+        if (lower.contains("opensl") || lower.contains("sles")) {
+            return "OpenSL ES";
+        }
+        if (lower.contains("audiotrack")) {
+            return "AudioTrack";
+        }
+        if (lower.contains("soundpool")) {
+            return "SoundPool";
+        }
+        return "";
+    }
+
+    private String normalizePlaybackChannelName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String value = raw.trim();
+        if (value.isEmpty()) {
+            return "";
+        }
+        String lower = value.toLowerCase(Locale.US);
+        if (lower.contains("aaudio")) {
+            return "AAudio";
+        }
+        if (lower.contains("opensl") || lower.contains("sles")) {
+            return "OpenSL ES";
+        }
+        if (lower.contains("audiotrack")) {
+            return "AudioTrack";
+        }
+        if (lower.contains("soundpool")) {
+            return "SoundPool";
+        }
+        return value;
+    }
+
     private String describeOutputRouteLabel(AudioDeviceInfo device) {
         if (device == null) {
             return "";
