@@ -1651,10 +1651,15 @@ public final class MainActivity extends Activity {
 
     private TextView addSettingsSectionTitle(LinearLayout panel, String text, int textSizeSp) {
         TextView title = gradientTitleView(text);
-        title.setText(text);
         title.setTextSize(textSizeSp);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        styleGradientTitle(title);
+        LanguageController.TextProvider provider = settingsTextProvider(text);
+        if (provider != null) {
+            bindStyledText(title, provider);
+        } else {
+            title.setText(text);
+            styleGradientTitle(title);
+        }
         LinearLayout.LayoutParams titleParams = blockParams(0);
         titleParams.leftMargin = -dp(22);
         reserveStartGlowWithoutMoving(title, 12);
@@ -1769,7 +1774,12 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         TextView label = new TextView(this);
-        label.setText(labelText);
+        LanguageController.TextProvider provider = settingsTextProvider(labelText);
+        if (provider != null) {
+            bindText(label, provider);
+        } else {
+            label.setText(labelText);
+        }
         label.setTextSize(14);
         label.setTextColor(Color.rgb(200, 210, 230));
         if (languageLabelView == null && labelText.equals(settingsLanguageLabelText())) {
@@ -1808,7 +1818,12 @@ public final class MainActivity extends Activity {
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
         TextView label = new TextView(this);
-        label.setText(labelText);
+        LanguageController.TextProvider provider = settingsTextProvider(labelText);
+        if (provider != null) {
+            bindText(label, provider);
+        } else {
+            label.setText(labelText);
+        }
         label.setTextSize(14);
         label.setTextColor(Color.rgb(200, 210, 230));
         if (latencyLabelView == null && labelText.equals(latencyLabelText())) {
