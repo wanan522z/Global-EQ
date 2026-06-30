@@ -621,6 +621,7 @@ final class PresetRepository {
         String lastDeviceKey = prefs.getString(LAST_DEVICE_KEY, null);
         if (lastDeviceKey != null && !lastDeviceKey.trim().isEmpty()) {
             updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey + "__" + ProcessingMode.SYSTEM_EQ.key, oldName, newName, targetCurve);
+            updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey + "__" + ProcessingMode.GLOBAL_DSP.key, oldName, newName, targetCurve);
             updateCurveReferenceForPresetKey(editor, "preset_" + lastDeviceKey + "__" + ProcessingMode.SHIZUKU_MUTE.key, oldName, newName, targetCurve);
         }
 
@@ -632,6 +633,7 @@ final class PresetRepository {
             }
             String deviceKey = device.substring(0, separator);
             updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey + "__" + ProcessingMode.SYSTEM_EQ.key, oldName, newName, targetCurve);
+            updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey + "__" + ProcessingMode.GLOBAL_DSP.key, oldName, newName, targetCurve);
             updateCurveReferenceForPresetKey(editor, "preset_" + deviceKey + "__" + ProcessingMode.SHIZUKU_MUTE.key, oldName, newName, targetCurve);
         }
 
