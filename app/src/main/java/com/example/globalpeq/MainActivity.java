@@ -1729,6 +1729,25 @@ public final class MainActivity extends Activity {
                 updateAdvancedModeConfig(advancedModeConfig.withLimiterCeilingPermille(value))), blockParams(6));
         panel.addView(createAdvancedNumberRow(limiterReleaseLabelText(), String.valueOf(advancedModeConfig.limiterReleaseMs), "20-400", value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
+
+        shizukuReplayFallbackSwitch = new Switch(this);
+        shizukuReplayFallbackSwitch.setText("");
+        shizukuReplayFallbackSwitch.setShowText(false);
+        shizukuReplayFallbackSwitch.setChecked(advancedModeConfig.allowReplayWithoutMute);
+        shizukuReplayFallbackSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (updatingUi) {
+                return;
+            }
+            updateAdvancedModeConfig(advancedModeConfig.withAllowReplayWithoutMute(isChecked));
+        });
+        styleTopSwitch(shizukuReplayFallbackSwitch, false);
+        panel.addView(labeledSettingsRow(shizukuReplayFallbackLabelText(), shizukuReplayFallbackSwitch), blockParams(12));
+
+        shizukuReplayFallbackHintView = new TextView(this);
+        shizukuReplayFallbackHintView.setText(shizukuReplayFallbackHintText());
+        shizukuReplayFallbackHintView.setTextSize(12);
+        shizukuReplayFallbackHintView.setTextColor(Color.rgb(180, 190, 210));
+        panel.addView(shizukuReplayFallbackHintView, blockParams(4));
     }
 
     private View labeledSettingsRow(String labelText, View trailingView) {
@@ -1743,6 +1762,8 @@ public final class MainActivity extends Activity {
             languageLabelView = label;
         } else if (shizukuAccessLabelView == null && labelText.equals(shizukuAccessLabelText())) {
             shizukuAccessLabelView = label;
+        } else if (shizukuReplayFallbackLabelView == null && labelText.equals(shizukuReplayFallbackLabelText())) {
+            shizukuReplayFallbackLabelView = label;
         } else if (monitoredAppLabelView == null && labelText.equals(monitoredAppLabelText())) {
             monitoredAppLabelView = label;
         }
