@@ -77,13 +77,17 @@ final class PresetRepository {
     }
 
     Preset loadPreset(AudioOutputDevice device, ProcessingMode mode) {
-        String json = prefs.getString(deviceKey(device, mode), null);
+        String key = deviceKey(device, mode);
+        String json = prefs.getString(key, null);
+        if (json == null && device != null && !deviceStorageKey(device).equals(device.key)) {
+            json = prefs.getString(legacyDeviceKey(device, mode), null);
+        }
         if (json != null) {
             return stripRuntimeEnabled(Preset.fromJson(json));
         }
         Preset preset = loadDefaultDevicePreset();
         if (device != null && device.key != null && !device.key.trim().isEmpty()) {
-            prefs.edit().putString(deviceKey(device, mode), stripRuntimeEnabled(preset).toJson()).apply();
+            prefs.edit().putString(key, stripRuntimeEnabled(preset).toJson()).apply();
         }
         return stripRuntimeEnabled(preset);
     }
@@ -622,7 +626,44 @@ final class PresetRepository {
 
     private String deviceKey(AudioOutputDevice device, ProcessingMode mode) {
         String safeModeKey = mode == null ? ProcessingMode.SYSTEM_EQ.key : mode.key;
+        return "preset_" + deviceStorageKey(device) + "__" + safeModeKey;
+    }
+
+    private String legacyDeviceKey(AudioOutputDevice device, ProcessingMode mode) {
+        String safeModeKey = mode == null ? ProcessingMode.SYSTEM_EQ.key : mode.key;
         return "preset_" + device.key + "__" + safeModeKey;
+    }
+
+    private String deviceStorageKey(AudioOutputDevice device) {
+        if (device == null || device.key == null) {
+            return "none";
+        }
+        if (isBluetoothDevice(device)
+                && device.routeSignature != null
+                && !device.routeSignature.trim().isEmpty()) {
+            return device.routeSignature.trim();
+        }
+        return device.key;
+    }
+
+    private boolean isBluetoothDevice(AudioOutputDevice device) {
+        if (device == null || device.key == null) {
+            return false;
+        }
+        int separator = device.key.indexOf(':');
+        if (separator <= 0) {
+            return false;
+        }
+        try {
+            int type = Integer.parseInt(device.key.substring(0, separator));
+            return type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                    || type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                    || type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
+                    || type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
+                    || type == android.media.AudioDeviceInfo.TYPE_BLE_BROADCAST;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private String namedPresetKey(String name) {
