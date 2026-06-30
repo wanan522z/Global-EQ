@@ -41,6 +41,7 @@ final class PlaybackCaptureEngine {
     private static final int STALLED_READ_LIMIT = 6;
     private static final long ACTIVE_PLAYBACK_RECOVERY_MIN_MS = 1800L;
     private static final long AUTO_RESTART_COOLDOWN_MS = 1500L;
+    private static final long PACKAGE_STATE_FRESHNESS_MS = 1500L;
     private static final int PLAYER_STATE_STARTED = 2;
     private final Context appContext;
     private final AudioManager audioManager;
