@@ -119,7 +119,9 @@ final class PcmDspProcessor {
         int sampleCount = Math.min(samples.length, frameCount * channelCount);
         for (int i = 0; i < sampleCount; i++) {
             float input = finiteOrZero(samples[i]);
-            samples[i] = clampSample(input * pregain * effectHeadroom);
+            // Keep full internal headroom here so boosted peaks reach the limiter intact
+            // instead of being hard-clipped before the DSP chain can control them.
+            samples[i] = finiteOrZero(input * pregain * effectHeadroom);
         }
         for (Biquad filter : filters) {
             filter.process(samples, sampleCount, channelCount);

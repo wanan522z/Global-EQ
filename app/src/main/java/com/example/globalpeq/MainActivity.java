@@ -1995,7 +1995,7 @@ public final class MainActivity extends Activity {
     private String shizukuRuntimePlaybackText() {
         return runtimePackageLine(
                 tr("Detected playback", "检测到的播放源"),
-                currentShizukuRuntimeState().activePlaybackPackage,
+                bestPlaybackRuntimePackage(currentShizukuRuntimeState()),
                 tr("No active package yet", "暂时还没有检测到活跃包名"));
     }
 
@@ -2009,7 +2009,7 @@ public final class MainActivity extends Activity {
     private String shizukuRuntimeReplayText() {
         return runtimePackageLine(
                 tr("Replay package", "当前回放包名"),
-                currentShizukuRuntimeState().activeReplayPackage,
+                bestReplayRuntimePackage(currentShizukuRuntimeState()),
                 tr("Replay has not locked onto a package yet", "回放链路暂时还没有锁定到包名"));
     }
 
