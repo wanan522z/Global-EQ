@@ -8121,7 +8121,7 @@ public final class MainActivity extends Activity {
         bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         bassPanel.addView(bassHeader, blockParams(4));
         virtualBassSlider = new HorizontalBassSlider(this);
-        virtualBassSlider.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", "Boost",
+        virtualBassSlider.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", virtualBassBoostLabelText(),
                 value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
         LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -8159,7 +8159,7 @@ public final class MainActivity extends Activity {
         extraBassPanel.addView(extraBassHeader, blockParams(4));
         LinearLayout extraBassKnobs = createExtraKnobRow(extraBassPanel);
         extraBassKnobs.addView(createExtraBassControl("Cutoff", true), knobColumnParams());
-        extraBassKnobs.addView(createExtraBassControl("Boost", false), knobColumnParams());
+        extraBassKnobs.addView(createExtraBassControl(virtualBassBoostLabelText(), false), knobColumnParams());
     }
 
     private int displayVirtualBassCutoffHz(int internalCutoffHz) {
