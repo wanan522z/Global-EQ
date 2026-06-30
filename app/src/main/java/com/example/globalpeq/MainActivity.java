@@ -2170,7 +2170,7 @@ public final class MainActivity extends Activity {
         }
         adoptDevicePresetForCurrentMode(currentDevice, true);
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
-            if (previousMode == ProcessingMode.SHIZUKU_MUTE) {
+            if (previousMode.usesNativeCapture()) {
                 stopShizukuCaptureNow();
             }
             if (monitorSettingsOpen) {
@@ -2180,7 +2180,7 @@ public final class MainActivity extends Activity {
         } else {
             applyRunningPreset(false, false);
             if (runningPreset != null && runningPreset.enabled) {
-                ensureShizukuModeReady(true);
+                ensureNativeCaptureModeReady(true);
             }
         }
         renderAll();
