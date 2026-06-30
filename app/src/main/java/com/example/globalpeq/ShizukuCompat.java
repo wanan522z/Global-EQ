@@ -36,6 +36,12 @@ final class ShizukuCompat {
         void onRequestPermissionResult(int requestCode, int grantResult);
     }
 
+    enum PermissionRequestOutcome {
+        GRANTED,
+        REQUESTED,
+        UNAVAILABLE
+    }
+
     static boolean isApiAvailable() {
         return true;
     }
@@ -68,27 +74,27 @@ final class ShizukuCompat {
         }
     }
 
-    static boolean requestPermissionOrOpenManager(Activity activity, int requestCode) {
+    static PermissionRequestOutcome requestPermissionOrOpenManager(Activity activity, int requestCode) {
         if (activity == null) {
-            return false;
+            return PermissionRequestOutcome.UNAVAILABLE;
         }
         if (!isManagerInstalled(activity)) {
             openManagerOrSettings(activity);
-            return false;
+            return PermissionRequestOutcome.UNAVAILABLE;
         }
         if (!isServiceAvailable()) {
             openManagerOrSettings(activity);
-            return false;
+            return PermissionRequestOutcome.UNAVAILABLE;
         }
         if (hasPermission()) {
-            return true;
+            return PermissionRequestOutcome.GRANTED;
         }
         try {
             Shizuku.requestPermission(requestCode);
-            return false;
+            return PermissionRequestOutcome.REQUESTED;
         } catch (Throwable ignored) {
             openManagerOrSettings(activity);
-            return false;
+            return PermissionRequestOutcome.UNAVAILABLE;
         }
     }
 
