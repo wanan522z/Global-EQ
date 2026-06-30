@@ -299,7 +299,7 @@ final class PcmDspProcessor {
             bassCompressorMakeup = 0.99f + amount * 0.02f;
             bassCompressorKnee = 0.06f + amount * 0.018f;
             bassCompressorAttackCoeff = envelopeCoeff(0.0035f);
-            bassCompressorReleaseCoeff = envelopeCoeff(0.016f);
+            bassCompressorReleaseCoeff = envelopeCoeff(0.010f);
             transientFastCoeff = envelopeCoeff(0.0055f);
             transientSlowCoeff = envelopeCoeff(0.030f);
             transientDuckThreshold = 0.010f + amount * 0.004f;
