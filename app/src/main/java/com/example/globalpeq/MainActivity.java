@@ -1920,7 +1920,7 @@ public final class MainActivity extends Activity {
     private String monitorCaptureStatusText() {
         if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
             return tr(
-                    "Native capture is only used by Shizuku Mode.",
+                    "Native capture is only used by Global DSP and Shizuku Mode.",
                     "原生捕获仅在第二套后端模式下使用。");
         }
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
