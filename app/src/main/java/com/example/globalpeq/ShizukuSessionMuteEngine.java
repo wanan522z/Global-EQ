@@ -221,6 +221,9 @@ final class ShizukuSessionMuteEngine {
     private volatile Set<Integer> currentAppSessionIds = new LinkedHashSet<>();
     private volatile String currentActivePackageName = "";
     private volatile String currentMutedPackageName = "";
+    private volatile String trackedSourcePackageName = "";
+    private volatile String pendingSourcePackageName = "";
+    private volatile long pendingSourcePackageSinceMs;
     private volatile long currentRescanIntervalMs = PASSIVE_RESCAN_INTERVAL_MS;
     private String publishedStatus = "";
     private boolean publishedActive;
