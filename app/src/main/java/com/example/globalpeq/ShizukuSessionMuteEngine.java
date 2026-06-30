@@ -731,7 +731,28 @@ final class ShizukuSessionMuteEngine {
                 + " activePkg=" + firstActivePackageName
                 + " mutedPkg=" + firstMutedPackageName
                 + " muteEffects=" + muteEffects.keySet());
-        return new MuteScanResult(firstActivePackageName, firstMutedPackageName);
+        return new MuteScanResult(
+                firstActivePackageName,
+                firstMutedPackageName,
+                joinSessionIds(activePlayback == null ? null : activePlayback.activeSessionIds),
+                joinSessionIds(muteEffects.keySet()));
+    }
+
+    private String joinSessionIds(Set<Integer> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (Integer sessionId : sessionIds) {
+            if (sessionId == null || sessionId <= 0) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(sessionId);
+        }
+        return builder.toString();
     }
 
     private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration, int playerState) {
