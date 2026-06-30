@@ -88,6 +88,8 @@ final class PlaybackCaptureEngine {
     private String publishedStatus = "";
     private boolean publishedActive;
     private long lastAutoRestartAtMs;
+    private boolean captureActiveRestartArmed = true;
+    private boolean suppressNextCaptureActiveRestart;
     private volatile long lastCaptureSignalAtMs;
     private volatile String currentReplayPackageName = "";
     private volatile String currentOutputRouteLabel = "";
@@ -236,7 +238,7 @@ final class PlaybackCaptureEngine {
         }
 
         boolean outputRouteRestartRequired =
-                !safeDeviceRouteSignature(currentOutputDevice).equals(configuredOutputDeviceKey);
+                !safeDeviceKey(currentOutputDevice).equals(configuredOutputDeviceKey);
         String desiredPreferredDeviceSignature =
                 describeResolvedDeviceSignature(resolvePreferredOutputDeviceInfo());
         boolean preferredRouteRestartRequired =
@@ -443,7 +445,7 @@ final class PlaybackCaptureEngine {
             configuredBufferFrames = currentConfig.bufferSizeFrames;
             configuredChunkFrames = processingChunkFrames;
             configuredLatencyMs = currentConfig.latencyMs;
-            configuredOutputDeviceKey = safeDeviceRouteSignature(currentOutputDevice);
+            configuredOutputDeviceKey = safeDeviceKey(currentOutputDevice);
             configuredPreferredDeviceSignature =
                     describeResolvedDeviceSignature(preferredOutputDevice);
             running = true;
@@ -1702,28 +1704,18 @@ final class PlaybackCaptureEngine {
         String keyProduct = product.isEmpty()
                 ? "default"
                 : product.toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]+", "_");
-        return device.getType() + ":" + keyProduct + "#" + device.getId();
+        return device.getType() + ":" + keyProduct;
     }
 
     private String describeResolvedDeviceSignature(AudioDeviceInfo device) {
         if (device == null) {
             return "none";
         }
-        return describeOutputDeviceKey(device);
+        return describeOutputDeviceKey(device) + "#" + device.getId();
     }
 
     private String safeDeviceKey(AudioOutputDevice outputDevice) {
         return outputDevice == null || outputDevice.key == null ? "" : outputDevice.key;
-    }
-
-    private String safeDeviceRouteSignature(AudioOutputDevice outputDevice) {
-        if (outputDevice == null) {
-            return "";
-        }
-        if (outputDevice.routeSignature != null && !outputDevice.routeSignature.trim().isEmpty()) {
-            return outputDevice.routeSignature.trim();
-        }
-        return safeDeviceKey(outputDevice);
     }
 
     private void releaseProjectionLocked() {
