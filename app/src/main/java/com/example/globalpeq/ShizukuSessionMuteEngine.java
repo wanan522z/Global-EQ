@@ -703,6 +703,10 @@ final class ShizukuSessionMuteEngine {
             firstActivePackageName = preferredDesiredSession.packageName;
         }
         if (ambiguousDesiredPackages) {
+            firstActivePackageName = orderPackageNamesByPriority(
+                    desiredPackages,
+                    repository.loadActiveReplayPackage(),
+                    repository.loadActivePlaybackPackage());
             Log.w(TAG, "TRACE_SWITCH ambiguousMuteCandidates desiredPackages=" + desiredPackages
                     + ", clearing mute targets to avoid cross-app pollution");
             desiredMuteSessionIds.clear();
@@ -852,6 +856,49 @@ final class ShizukuSessionMuteEngine {
             }
         }
         return filtered;
+    }
+
+    private String orderPackageNamesByPriority(Set<String> packageNames, String... references) {
+        LinkedHashSet<String> remaining = new LinkedHashSet<>();
+        if (packageNames != null) {
+            for (String packageName : packageNames) {
+                String normalized = normalizePackageName(packageName);
+                if (!normalized.isEmpty()) {
+                    remaining.add(normalized);
+                }
+            }
+        }
+        if (remaining.isEmpty()) {
+            return "";
+        }
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        if (references != null) {
+            for (String reference : references) {
+                for (String packageName : splitPackageList(reference)) {
+                    if (remaining.remove(packageName)) {
+                        ordered.add(packageName);
+                    }
+                }
+            }
+        }
+        ordered.addAll(remaining);
+        return joinPackageNames(ordered);
+    }
+
+    private Set<String> splitPackageList(String packages) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        String normalized = normalizePackageName(packages);
+        if (normalized.isEmpty()) {
+            return result;
+        }
+        String[] parts = normalized.split(",");
+        for (String part : parts) {
+            String packageName = normalizePackageName(part);
+            if (!packageName.isEmpty()) {
+                result.add(packageName);
+            }
+        }
+        return result;
     }
 
     private boolean isFastModeAttachFailure(RuntimeException ex) {
