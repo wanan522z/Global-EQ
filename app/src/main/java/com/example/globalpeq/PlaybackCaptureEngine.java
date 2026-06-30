@@ -946,7 +946,12 @@ final class PlaybackCaptureEngine {
             expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
         }
         if (expectedReplayPackage.isEmpty() && currentMode.capturesSystemAudio()) {
-            expectedReplayPackage = mutedPackage;
+            String activePlaybackPackage = normalizePackageName(repository.loadActivePlaybackPackage());
+            if (isFreshRuntimePackage(activePlaybackPackage, repository.loadActivePlaybackPackageUpdatedAt())
+                    && isFreshRuntimePackage(mutedPackage, repository.loadActiveMutedPackageUpdatedAt())
+                    && packageListFullyCoveredBy(activePlaybackPackage, mutedPackage)) {
+                expectedReplayPackage = activePlaybackPackage;
+            }
         }
         if (expectedReplayPackage.isEmpty()) {
             allowed = currentConfig.allowReplayWithoutMute;
