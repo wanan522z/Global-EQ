@@ -149,13 +149,13 @@ final class ShizukuStatusSummary {
         if (state == null) {
             return "";
         }
-        if (!normalize(state.activePlaybackPackage).isEmpty()) {
-            return normalize(state.activePlaybackPackage);
+        if (!normalize(state.activeReplayPackage).isEmpty()) {
+            return normalize(state.activeReplayPackage);
         }
         if (!normalize(state.activeMutedPackage).isEmpty()) {
             return normalize(state.activeMutedPackage);
         }
-        return normalize(state.activeReplayPackage);
+        return normalize(state.activePlaybackPackage);
     }
 
     private static String bestReplayPackage(ShizukuRuntimeState state) {
