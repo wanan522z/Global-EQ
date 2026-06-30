@@ -138,6 +138,18 @@ final class ShizukuSessionMuteEngine {
             return snapshotPackage;
         }
 
+        if (activePlayback == null || !activePlayback.hasResolvedActiveUids()) {
+            String preferredDesiredPackage = preferredDesiredSession == null
+                    ? ""
+                    : normalizePackageName(preferredDesiredSession.packageName);
+            if (!preferredDesiredPackage.isEmpty()) {
+                Log.d(TAG, "TRACE_SWITCH preferredMutePackageUsingNewestSession package="
+                        + preferredDesiredPackage
+                        + " because active playback uid/session was unavailable");
+                return preferredDesiredPackage;
+            }
+        }
+
         String activePackage = normalizePackageName(repository.loadActivePlaybackPackage());
         if (isPackagePresentInDesiredSessions(activePackage, desiredMuteSessionIds, sessions)) {
             return activePackage;
