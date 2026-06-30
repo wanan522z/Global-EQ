@@ -1463,6 +1463,59 @@ public final class MainActivity extends Activity {
         advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(advancedModeSummaryView, blockParams(4));
 
+        LinearLayout shizukuRuntimePanel = new LinearLayout(this);
+        shizukuRuntimePanel.setOrientation(LinearLayout.VERTICAL);
+        shizukuRuntimePanel.setClipChildren(false);
+        shizukuRuntimePanel.setClipToPadding(false);
+        shizukuRuntimePanel.setPadding(dp(16), dp(16), dp(16), dp(16));
+        shizukuRuntimePanel.setBackground(createGlassCard(30));
+        LinearLayout.LayoutParams shizukuRuntimeParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        shizukuRuntimeParams.topMargin = dp(16);
+        panel.addView(shizukuRuntimePanel, shizukuRuntimeParams);
+
+        shizukuRuntimeTitleView = gradientTitleView(shizukuRuntimeTitleText());
+        shizukuRuntimeTitleView.setText(shizukuRuntimeTitleText());
+        shizukuRuntimeTitleView.setTextSize(17);
+        shizukuRuntimeTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        styleGradientTitle(shizukuRuntimeTitleView);
+        LinearLayout.LayoutParams runtimeTitleParams = blockParams(0);
+        runtimeTitleParams.leftMargin = -dp(22);
+        reserveStartGlowWithoutMoving(shizukuRuntimeTitleView, 12);
+        shizukuRuntimePanel.addView(shizukuRuntimeTitleView, runtimeTitleParams);
+
+        shizukuRuntimeDetailView = new TextView(this);
+        shizukuRuntimeDetailView.setText(shizukuRuntimeDetailText());
+        shizukuRuntimeDetailView.setTextSize(12);
+        shizukuRuntimeDetailView.setTextColor(Color.rgb(160, 170, 190));
+        shizukuRuntimePanel.addView(shizukuRuntimeDetailView, blockParams(4));
+
+        shizukuRuntimeModeView = new TextView(this);
+        shizukuRuntimeModeView.setText(shizukuRuntimeModeText());
+        shizukuRuntimeModeView.setTextSize(13);
+        shizukuRuntimeModeView.setTextColor(Color.rgb(225, 235, 255));
+        shizukuRuntimePanel.addView(shizukuRuntimeModeView, blockParams(4));
+
+        shizukuRuntimePlaybackView = new TextView(this);
+        shizukuRuntimePlaybackView.setText(shizukuRuntimePlaybackText());
+        shizukuRuntimePlaybackView.setTextSize(12);
+        shizukuRuntimePlaybackView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimePanel.addView(shizukuRuntimePlaybackView, blockParams(2));
+
+        shizukuRuntimeMuteView = new TextView(this);
+        shizukuRuntimeMuteView.setText(shizukuRuntimeMuteText());
+        shizukuRuntimeMuteView.setTextSize(12);
+        shizukuRuntimeMuteView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimePanel.addView(shizukuRuntimeMuteView, blockParams(2));
+
+        shizukuRuntimeReplayView = new TextView(this);
+        shizukuRuntimeReplayView.setText(shizukuRuntimeReplayText());
+        shizukuRuntimeReplayView.setTextSize(12);
+        shizukuRuntimeReplayView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimePanel.addView(shizukuRuntimeReplayView, blockParams(2));
+
         languageButton = createExtraChoiceButton();
         languageButton.setText(languageButtonText());
         styleMonitorActionButton(languageButton, 132);
