@@ -2259,6 +2259,13 @@ public final class MainActivity extends Activity {
         if (languageLabelView != null) {
             languageLabelView.setText(settingsLanguageLabelText());
         }
+        if (settingsImportPanelTitleView != null) {
+            settingsImportPanelTitleView.setText(settingsImportPanelTitleText());
+            styleGradientTitle(settingsImportPanelTitleView);
+        }
+        if (settingsImportPanelDetailView != null) {
+            settingsImportPanelDetailView.setText(settingsImportPanelDetailText());
+        }
         if (languageButton != null) {
             languageButton.setText(languageButtonText());
         }
