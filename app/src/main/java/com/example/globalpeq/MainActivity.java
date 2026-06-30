@@ -1455,28 +1455,10 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
         
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setClipChildren(false);
-        panel.setClipToPadding(false);
-        panel.setPadding(dp(16), dp(16), dp(16), dp(16));
-        panel.setBackground(createGlassCard(35));
-        settingsRootContent.addView(panel, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        LinearLayout panel = createSettingsSectionPanel(35, 0);
+        settingsRootContent.addView(panel);
 
-        TextView title = gradientTitleView(processingModeTitleText());
-        title.setText(processingModeTitleText());
-        title.setTextSize(18);
-        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        styleGradientTitle(title);
-        LinearLayout.LayoutParams engineTitleParams = blockParams(0);
-        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 detail 正文（都从 panel 内容区左边开始）。
-        // title view 左移进入 panel padding 区的 22dp 正好是空白 leftPadding，shadow 半径 5.5dp 仍落在 panel 16dp padding 内，不裁剪。
-        engineTitleParams.leftMargin = -dp(22);
-        reserveStartGlowWithoutMoving(title, 12);
-        panel.addView(title, engineTitleParams);
+        TextView title = addSettingsSectionTitle(panel, processingModeTitleText(), 18);
         engineStatusTitleView = title;
 
         settingsPanelDetailView = new TextView(this);
@@ -1518,29 +1500,11 @@ public final class MainActivity extends Activity {
         advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(advancedModeSummaryView, blockParams(4));
 
-        shizukuRuntimePanel = new LinearLayout(this);
-        shizukuRuntimePanel.setOrientation(LinearLayout.VERTICAL);
-        shizukuRuntimePanel.setClipChildren(false);
-        shizukuRuntimePanel.setClipToPadding(false);
-        shizukuRuntimePanel.setPadding(dp(16), dp(16), dp(16), dp(16));
-        shizukuRuntimePanel.setBackground(createGlassCard(30));
-        LinearLayout.LayoutParams shizukuRuntimeParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        shizukuRuntimeParams.topMargin = dp(16);
-        panel.addView(shizukuRuntimePanel, shizukuRuntimeParams);
+        shizukuRuntimePanel = createSettingsSectionPanel(30, 16);
+        settingsRootContent.addView(shizukuRuntimePanel);
         shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
 
-        shizukuRuntimeTitleView = gradientTitleView(shizukuRuntimeTitleText());
-        shizukuRuntimeTitleView.setText(shizukuRuntimeTitleText());
-        shizukuRuntimeTitleView.setTextSize(17);
-        shizukuRuntimeTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        styleGradientTitle(shizukuRuntimeTitleView);
-        LinearLayout.LayoutParams runtimeTitleParams = blockParams(0);
-        runtimeTitleParams.leftMargin = -dp(22);
-        reserveStartGlowWithoutMoving(shizukuRuntimeTitleView, 12);
-        shizukuRuntimePanel.addView(shizukuRuntimeTitleView, runtimeTitleParams);
+        shizukuRuntimeTitleView = addSettingsSectionTitle(shizukuRuntimePanel, shizukuRuntimeTitleText(), 17);
 
         shizukuRuntimeDetailView = new TextView(this);
         shizukuRuntimeDetailView.setText(shizukuRuntimeDetailText());
@@ -1592,60 +1556,51 @@ public final class MainActivity extends Activity {
         shizukuReplayFallbackHintView.setTextColor(Color.rgb(180, 190, 210));
         shizukuRuntimePanel.addView(shizukuReplayFallbackHintView, blockParams(4));
 
+        LinearLayout importExportPanel = createSettingsSectionPanel(30, 16);
+        settingsRootContent.addView(importExportPanel);
+
+        settingsImportPanelTitleView = addSettingsSectionTitle(importExportPanel, settingsImportPanelTitleText(), 18);
+
+        settingsImportPanelDetailView = new TextView(this);
+        settingsImportPanelDetailView.setText(settingsImportPanelDetailText());
+        settingsImportPanelDetailView.setTextSize(12);
+        settingsImportPanelDetailView.setTextColor(Color.rgb(160, 170, 190));
+        importExportPanel.addView(settingsImportPanelDetailView, blockParams(2));
+
         languageButton = createExtraChoiceButton();
         languageButton.setText(languageButtonText());
         styleMonitorActionButton(languageButton, 132);
         languageButton.setOnClickListener(this::showLanguageChoiceMenu);
-        panel.addView(labeledSettingsRow(settingsLanguageLabelText(), languageButton), blockParams(12));
+        importExportPanel.addView(labeledSettingsRow(settingsLanguageLabelText(), languageButton), blockParams(12));
 
         TextView importPresetButton = createExtraChoiceButton();
         importPresetButton.setText(tr("Import", "导入"));
         styleMonitorActionButton(importPresetButton, 132);
         importPresetButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_PRESET_JSON));
-        panel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(12));
+        importExportPanel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(12));
 
         TextView exportPresetButton = createExtraChoiceButton();
         exportPresetButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportPresetButton, 132);
         exportPresetButton.setOnClickListener(v -> showExportPresetChoiceDialog());
-        panel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
+        importExportPanel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
 
         TextView importDeviceConfigButton = createExtraChoiceButton();
         importDeviceConfigButton.setText(tr("Import", "导入"));
         styleMonitorActionButton(importDeviceConfigButton, 132);
         importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
-        panel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(12));
+        importExportPanel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(12));
 
         TextView exportDeviceConfigButton = createExtraChoiceButton();
         exportDeviceConfigButton.setText(tr("Export", "导出"));
         styleMonitorActionButton(exportDeviceConfigButton, 132);
         exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
-        panel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
+        importExportPanel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
 
-        LinearLayout aboutPanel = new LinearLayout(this);
-        aboutPanel.setOrientation(LinearLayout.VERTICAL);
-        aboutPanel.setClipChildren(false);
-        aboutPanel.setClipToPadding(false);
-        aboutPanel.setPadding(dp(16), dp(16), dp(16), dp(16));
-        aboutPanel.setBackground(createGlassCard(30));
-        
-        LinearLayout.LayoutParams aboutParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        aboutParams.topMargin = dp(16);
-        settingsRootContent.addView(aboutPanel, aboutParams);
+        LinearLayout aboutPanel = createSettingsSectionPanel(30, 16);
+        settingsRootContent.addView(aboutPanel);
 
-        aboutTitleView = gradientTitleView(aboutTitleText());
-        aboutTitleView.setText(aboutTitleText());
-        aboutTitleView.setTextSize(18);
-        aboutTitleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        styleGradientTitle(aboutTitleView);
-        LinearLayout.LayoutParams aboutTitleParams = blockParams(0);
-        // 抵消 gradientTitleView 的左 padding(22dp)，让标题文字左缘对齐下方 aboutText 正文（都从 panel 内容区左边开始）。
-        aboutTitleParams.leftMargin = -dp(22);
-        reserveStartGlowWithoutMoving(aboutTitleView, 12);
-        aboutPanel.addView(aboutTitleView, aboutTitleParams);
+        aboutTitleView = addSettingsSectionTitle(aboutPanel, aboutTitleText(), 18);
 
         aboutTextView = new TextView(this);
         aboutTextView.setText(aboutBodyText());
