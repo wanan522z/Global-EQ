@@ -628,6 +628,7 @@ final class ShizukuSessionMuteEngine {
         Set<Integer> desiredMuteSessionIds = new LinkedHashSet<>();
         Set<Integer> verifiedMutedSessionIds = new LinkedHashSet<>();
         Set<Integer> failedMuteSessionIds = new LinkedHashSet<>();
+        LinkedHashSet<String> failedMutePackages = new LinkedHashSet<>();
         String firstActivePackageName = activePlayback == null
                 ? ""
                 : joinPackageNames(activePlayback.activePackages);
@@ -740,11 +741,19 @@ final class ShizukuSessionMuteEngine {
                     }
                 } else {
                     failedMuteSessionIds.add(session.sessionId);
+                    String normalizedPackage = normalizePackageName(session.packageName);
+                    if (!normalizedPackage.isEmpty()) {
+                        failedMutePackages.add(normalizedPackage);
+                    }
                     Log.w(TAG, "Failed to create mute effect for session: " + session.sessionId
                             + ", package: " + session.packageName);
                 }
             } catch (RuntimeException ex) {
                 failedMuteSessionIds.add(session.sessionId);
+                String normalizedPackage = normalizePackageName(session.packageName);
+                if (!normalizedPackage.isEmpty()) {
+                    failedMutePackages.add(normalizedPackage);
+                }
                 boolean incompatible = isFastModeAttachFailure(ex);
                 fastModeIncompatible = fastModeIncompatible || incompatible;
                 Log.w(TAG, "TRACE_MUTE effectCreateFailed sessionId=" + session.sessionId
@@ -759,11 +768,21 @@ final class ShizukuSessionMuteEngine {
         if (verifiedMutedSessionIds.isEmpty()) {
             firstMutedPackageName = "";
         } else {
+            LinkedHashSet<Integer> safeVerifiedMutedSessionIds = new LinkedHashSet<>();
             for (SessionInfo session : sessions) {
-                if (verifiedMutedSessionIds.contains(session.sessionId) && !session.packageName.isEmpty()) {
-                    mutedPackages.add(normalizePackageName(session.packageName));
+                if (!verifiedMutedSessionIds.contains(session.sessionId)) {
+                    continue;
+                }
+                String normalizedPackage = normalizePackageName(session.packageName);
+                if (failedMutePackages.contains(normalizedPackage)) {
+                    continue;
+                }
+                safeVerifiedMutedSessionIds.add(session.sessionId);
+                if (!normalizedPackage.isEmpty()) {
+                    mutedPackages.add(normalizedPackage);
                 }
             }
+            verifiedMutedSessionIds = safeVerifiedMutedSessionIds;
             firstMutedPackageName = joinPackageNames(mutedPackages);
         }
         Log.d(TAG, "TRACE_SWITCH muteScanResult"
@@ -771,6 +790,7 @@ final class ShizukuSessionMuteEngine {
                 + " activeSessionIds=" + (activePlayback == null ? "" : activePlayback.activeSessionIds)
                 + " mutedSessionIds=" + verifiedMutedSessionIds
                 + " failedMuteSessionIds=" + failedMuteSessionIds
+                + " failedMutePackages=" + failedMutePackages
                 + " activePkg=" + firstActivePackageName
                 + " mutedPkg=" + firstMutedPackageName
                 + " fastModeIncompatible=" + fastModeIncompatible
