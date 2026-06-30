@@ -1109,6 +1109,7 @@ final class PlaybackCaptureEngine {
     private void updateReplayPackageName(String packageName) {
         String normalized = normalizePackageName(packageName);
         if (normalized.equals(currentReplayPackageName)) {
+            repository.touchActiveReplayPackage(normalized);
             return;
         }
         Log.d(TAG, "TRACE_SWITCH replayPackageUpdate from=" + currentReplayPackageName + " to=" + normalized);
