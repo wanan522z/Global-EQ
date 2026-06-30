@@ -1091,6 +1091,16 @@ final class PlaybackCaptureEngine {
             return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
         }
 
+        if (isMuteVerificationUntrustedForCurrentRoute()) {
+            boolean allowed = currentConfig.allowReplayWithoutMute;
+            String reason = allowed
+                    ? "allowReplayWithoutMuteUnverifiedLowLatencyPath"
+                    : "muteUnverifiedLowLatencyPath";
+            String replayPackages = allowed ? playbackPackages : "";
+            traceReplayDecision(reason, mutedPackages, playbackPackages, replayPackages, pcmActive);
+            return new ReplayDecision(allowed, pcmActive, playbackPackages, mutedPackages, replayPackages, reason);
+        }
+
         boolean fullyMutedBySessions = sessionListFullyCoveredBy(activePlaybackSessionIds, activeMutedSessionIds);
         boolean fullyMuted = fullyMutedBySessions || packageListFullyCoveredBy(playbackPackages, mutedPackages);
         boolean allowed = fullyMuted || currentConfig.allowReplayWithoutMute;
@@ -1356,6 +1366,20 @@ final class PlaybackCaptureEngine {
         }
         long ageMs = now - signalAtMs;
         return ageMs >= 0L && ageMs <= withinMs;
+    }
+
+    private boolean isMuteVerificationUntrustedForCurrentRoute() {
+        String route = normalizePackageName(repository.loadActiveOutputRoute());
+        if (route.isEmpty()) {
+            return false;
+        }
+        String lower = route.toLowerCase(Locale.US);
+        return lower.contains("aaudio")
+                || lower.contains("opensl")
+                || lower.contains("sles")
+                || lower.contains("hw source")
+                || lower.contains("soundpool")
+                || lower.contains("playertype");
     }
 
     private LinkedHashSet<String> splitPackageList(String packages) {
