@@ -5399,9 +5399,11 @@ public final class MainActivity extends Activity {
 
         if (targetCurve) {
             selectedTargetCurveName = nextName;
+            selectedTargetCurveSource = currentSource.withName(nextName);
             refreshTargetCurveCache();
         } else {
             selectedDeviceCurveName = nextName;
+            selectedDeviceCurveSource = currentSource.withName(nextName);
             refreshDeviceCurveCache();
         }
         syncCurrentCurveSettingsToEditingPreset(true);
