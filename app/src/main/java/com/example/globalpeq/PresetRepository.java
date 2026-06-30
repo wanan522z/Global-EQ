@@ -40,6 +40,9 @@ final class PresetRepository {
     private static final String SHIZUKU_MUTE_STATUS = "shizuku_mute_status";
     private static final String SHIZUKU_MUTE_ACTIVE = "shizuku_mute_active";
     private static final String ACTIVE_PLAYBACK_PACKAGE = "active_playback_package";
+    private static final String ACTIVE_MUTED_PACKAGE = "active_muted_package";
+    private static final String ACTIVE_REPLAY_PACKAGE = "active_replay_package";
+    private static final String SHIZUKU_RUNTIME_STATE = "shizuku_runtime_state";
     private static final String SERVICE_ACTIVE = "service_active";
     private static final String DEVICE_SEPARATOR = "\t";
 
@@ -147,11 +150,11 @@ final class PresetRepository {
     }
 
     String loadMonitorCaptureStatus() {
-        return prefs.getString(MONITOR_CAPTURE_STATUS, "Native capture is idle.");
+        return loadShizukuRuntimeState().captureStatus;
     }
 
     boolean loadMonitorCaptureActive() {
-        return prefs.getBoolean(MONITOR_CAPTURE_ACTIVE, false);
+        return loadShizukuRuntimeState().captureActive;
     }
 
     boolean loadMonitorCaptureAuthorized() {
@@ -159,10 +162,7 @@ final class PresetRepository {
     }
 
     void saveMonitorCaptureStatus(String status, boolean active) {
-        prefs.edit()
-                .putString(MONITOR_CAPTURE_STATUS, status == null ? "Native capture is idle." : status)
-                .putBoolean(MONITOR_CAPTURE_ACTIVE, active)
-                .apply();
+        saveShizukuRuntimeState(loadShizukuRuntimeState().withCaptureStatus(status, active));
     }
 
     void saveMonitorCaptureAuthorized(boolean authorized) {
@@ -172,18 +172,15 @@ final class PresetRepository {
     }
 
     String loadShizukuMuteStatus() {
-        return prefs.getString(SHIZUKU_MUTE_STATUS, "Shizuku mute is idle.");
+        return loadShizukuRuntimeState().muteStatus;
     }
 
     boolean loadShizukuMuteActive() {
-        return prefs.getBoolean(SHIZUKU_MUTE_ACTIVE, false);
+        return loadShizukuRuntimeState().muteActive;
     }
 
     void saveShizukuMuteStatus(String status, boolean active) {
-        prefs.edit()
-                .putString(SHIZUKU_MUTE_STATUS, status == null ? "Shizuku mute is idle." : status)
-                .putBoolean(SHIZUKU_MUTE_ACTIVE, active)
-                .apply();
+        saveShizukuRuntimeState(loadShizukuRuntimeState().withMuteStatus(status, active));
     }
 
     boolean loadMasterEnabled() {
@@ -195,14 +192,27 @@ final class PresetRepository {
     }
 
     String loadActivePlaybackPackage() {
-        String value = prefs.getString(ACTIVE_PLAYBACK_PACKAGE, "");
-        return value == null ? "" : value;
+        return loadShizukuRuntimeState().activePlaybackPackage;
     }
 
     void saveActivePlaybackPackage(String packageName) {
-        prefs.edit()
-                .putString(ACTIVE_PLAYBACK_PACKAGE, packageName == null ? "" : packageName.trim())
-                .apply();
+        saveShizukuRuntimeState(loadShizukuRuntimeState().withActivePlaybackPackage(packageName));
+    }
+
+    String loadActiveMutedPackage() {
+        return loadShizukuRuntimeState().activeMutedPackage;
+    }
+
+    void saveActiveMutedPackage(String packageName) {
+        saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveMutedPackage(packageName));
+    }
+
+    String loadActiveReplayPackage() {
+        return loadShizukuRuntimeState().activeReplayPackage;
+    }
+
+    void saveActiveReplayPackage(String packageName) {
+        saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveReplayPackage(packageName));
     }
 
     boolean loadServiceActive() {
@@ -214,6 +224,11 @@ final class PresetRepository {
     }
 
     void clearRuntimeAudioState(String shizukuStatus) {
+        ShizukuRuntimeState cleared = ShizukuRuntimeState.DEFAULT
+                .withMuteStatus(shizukuStatus == null ? "Shizuku mute is idle." : shizukuStatus, false)
+                .withActivePlaybackPackage("")
+                .withActiveMutedPackage("")
+                .withActiveReplayPackage("");
         prefs.edit()
                 .putString(MONITOR_CAPTURE_STATUS, "Native capture is idle.")
                 .putBoolean(MONITOR_CAPTURE_ACTIVE, false)
@@ -221,7 +236,40 @@ final class PresetRepository {
                 .putString(SHIZUKU_MUTE_STATUS, shizukuStatus == null ? "Shizuku mute is idle." : shizukuStatus)
                 .putBoolean(SHIZUKU_MUTE_ACTIVE, false)
                 .putString(ACTIVE_PLAYBACK_PACKAGE, "")
+                .putString(ACTIVE_MUTED_PACKAGE, "")
+                .putString(ACTIVE_REPLAY_PACKAGE, "")
+                .putString(SHIZUKU_RUNTIME_STATE, cleared.toJson())
                 .putBoolean(SERVICE_ACTIVE, false)
+                .apply();
+    }
+
+    ShizukuRuntimeState loadShizukuRuntimeState() {
+        String json = prefs.getString(SHIZUKU_RUNTIME_STATE, null);
+        if (json != null && !json.trim().isEmpty()) {
+            return ShizukuRuntimeState.fromJson(json);
+        }
+        return new ShizukuRuntimeState(
+                prefs.getString(MONITOR_CAPTURE_STATUS, "Native capture is idle."),
+                prefs.getBoolean(MONITOR_CAPTURE_ACTIVE, false),
+                prefs.getString(SHIZUKU_MUTE_STATUS, "Shizuku mute is idle."),
+                prefs.getBoolean(SHIZUKU_MUTE_ACTIVE, false),
+                prefs.getString(ACTIVE_PLAYBACK_PACKAGE, ""),
+                prefs.getString(ACTIVE_MUTED_PACKAGE, ""),
+                prefs.getString(ACTIVE_REPLAY_PACKAGE, "")
+        );
+    }
+
+    void saveShizukuRuntimeState(ShizukuRuntimeState state) {
+        ShizukuRuntimeState safe = state == null ? ShizukuRuntimeState.DEFAULT : state;
+        prefs.edit()
+                .putString(SHIZUKU_RUNTIME_STATE, safe.toJson())
+                .putString(MONITOR_CAPTURE_STATUS, safe.captureStatus)
+                .putBoolean(MONITOR_CAPTURE_ACTIVE, safe.captureActive)
+                .putString(SHIZUKU_MUTE_STATUS, safe.muteStatus)
+                .putBoolean(SHIZUKU_MUTE_ACTIVE, safe.muteActive)
+                .putString(ACTIVE_PLAYBACK_PACKAGE, safe.activePlaybackPackage)
+                .putString(ACTIVE_MUTED_PACKAGE, safe.activeMutedPackage)
+                .putString(ACTIVE_REPLAY_PACKAGE, safe.activeReplayPackage)
                 .apply();
     }
 
