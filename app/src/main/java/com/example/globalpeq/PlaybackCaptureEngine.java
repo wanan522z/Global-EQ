@@ -927,20 +927,14 @@ final class PlaybackCaptureEngine {
             traceReplayDecision("modeDoesNotRequireMute", "", "", "");
             return allowed;
         }
-        if (repository.loadShizukuMuteActive()) {
-            allowed = true;
-            traceReplayDecision("muteActive", "", "", "");
-            return allowed;
-        }
-        if (currentConfig.allowReplayWithoutMute) {
-            allowed = true;
-            traceReplayDecision("allowReplayWithoutMute", "", "", "");
-            return allowed;
-        }
         String mutedPackage = normalizePackageName(repository.loadActiveMutedPackage());
         if (mutedPackage.isEmpty()) {
-            allowed = false;
-            traceReplayDecision("mutedPackageEmpty", mutedPackage, "", "");
+            allowed = currentConfig.allowReplayWithoutMute;
+            traceReplayDecision(
+                    allowed ? "allowReplayWithoutMuteNoMutedPackage" : "mutedPackageEmpty",
+                    mutedPackage,
+                    "",
+                    "");
             return allowed;
         }
         String expectedReplayPackage = normalizePackageName(currentReplayPackageName);
@@ -950,8 +944,13 @@ final class PlaybackCaptureEngine {
         if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
             expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
         }
-        allowed = packageListsIntersect(expectedReplayPackage, mutedPackage);
-        traceReplayDecision("comparePackages", mutedPackage, expectedReplayPackage,
+        boolean replayCoveredByMute = packageListsIntersect(expectedReplayPackage, mutedPackage);
+        allowed = replayCoveredByMute || currentConfig.allowReplayWithoutMute;
+        traceReplayDecision(replayCoveredByMute
+                        ? "replayCoveredByMute"
+                        : (allowed ? "allowReplayWithoutMute" : "replayNotMuted"),
+                mutedPackage,
+                expectedReplayPackage,
                 normalizePackageName(currentConfig.monitoredAppPackage));
         return allowed;
     }
@@ -1127,9 +1126,6 @@ final class PlaybackCaptureEngine {
 
     private boolean computeReplayAllowedPreview(String mutedPackage, String expectedReplayPackage) {
         if (!currentMode.requiresShizukuMute()) {
-            return true;
-        }
-        if (repository.loadShizukuMuteActive()) {
             return true;
         }
         if (currentConfig.allowReplayWithoutMute) {
