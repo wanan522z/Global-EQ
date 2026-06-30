@@ -90,8 +90,8 @@ final class PlaybackCaptureEngine {
     private boolean publishedActive;
     private long lastAutoRestartAtMs;
     private boolean captureActiveRestartArmed = true;
-    private boolean suppressNextCaptureActiveRestart;
     private long captureBecameInactiveAtMs;
+    private int captureInactiveRestartGeneration;
     private volatile long lastCaptureSignalAtMs;
     private volatile String currentReplayPackageName = "";
     private volatile String currentOutputRouteLabel = "";
@@ -1761,7 +1761,6 @@ final class PlaybackCaptureEngine {
                 synchronized (PlaybackCaptureEngine.this) {
                     boolean restarted = restartPipelineLocked("capture active state changed");
                     if (!restarted) {
-                        suppressNextCaptureActiveRestart = false;
                         captureActiveRestartArmed = true;
                     }
                 }
@@ -1776,24 +1775,39 @@ final class PlaybackCaptureEngine {
         if (!active) {
             captureActiveRestartArmed = true;
             captureBecameInactiveAtMs = SystemClock.elapsedRealtime();
+            scheduleRestartAfterSustainedInactiveLocked();
             return false;
         }
-        if (suppressNextCaptureActiveRestart) {
-            suppressNextCaptureActiveRestart = false;
-            captureActiveRestartArmed = false;
-            return false;
-        }
+        captureInactiveRestartGeneration++;
         if (!running || !captureActiveRestartArmed) {
             return false;
         }
-        long now = SystemClock.elapsedRealtime();
-        long inactiveForMs = captureBecameInactiveAtMs <= 0L ? 0L : now - captureBecameInactiveAtMs;
-        if (inactiveForMs < CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS) {
-            return false;
-        }
-        captureActiveRestartArmed = false;
-        suppressNextCaptureActiveRestart = true;
-        return true;
+        return false;
+    }
+
+    private void scheduleRestartAfterSustainedInactiveLocked() {
+        int generation = ++captureInactiveRestartGeneration;
+        mainHandler.postDelayed(() -> {
+            synchronized (PlaybackCaptureEngine.this) {
+                if (generation != captureInactiveRestartGeneration
+                        || publishedActive
+                        || !running
+                        || !captureActiveRestartArmed) {
+                    return;
+                }
+                long inactiveForMs = captureBecameInactiveAtMs <= 0L
+                        ? 0L
+                        : SystemClock.elapsedRealtime() - captureBecameInactiveAtMs;
+                if (inactiveForMs < CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS) {
+                    return;
+                }
+                captureActiveRestartArmed = false;
+                boolean restarted = restartPipelineLocked("capture stayed inactive");
+                if (!restarted) {
+                    captureActiveRestartArmed = true;
+                }
+            }
+        }, CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS);
     }
 
     private String summarizeConfig(AudioPlaybackConfiguration configuration) {
