@@ -926,8 +926,18 @@ final class PlaybackCaptureEngine {
         if (repository.loadShizukuMuteActive()) {
             return true;
         }
-        String mutedPackage = repository.loadActiveMutedPackage();
-        return mutedPackage != null && !mutedPackage.trim().isEmpty();
+        String mutedPackage = normalizePackageName(repository.loadActiveMutedPackage());
+        if (mutedPackage.isEmpty()) {
+            return false;
+        }
+        String expectedReplayPackage = normalizePackageName(currentReplayPackageName);
+        if (expectedReplayPackage.isEmpty()) {
+            expectedReplayPackage = normalizePackageName(repository.loadActivePlaybackPackage());
+        }
+        if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
+            expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
+        }
+        return !expectedReplayPackage.isEmpty() && expectedReplayPackage.equals(mutedPackage);
     }
 
     private void refreshReplayPackageNameIfNeeded(long now, boolean forceRefresh) {
@@ -1067,7 +1077,7 @@ final class PlaybackCaptureEngine {
     }
 
     private void updateReplayPackageName(String packageName) {
-        String normalized = packageName == null ? "" : packageName.trim();
+        String normalized = normalizePackageName(packageName);
         if (normalized.equals(currentReplayPackageName)) {
             return;
         }
@@ -1077,6 +1087,10 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
+    }
+
+    private String normalizePackageName(String packageName) {
+        return packageName == null ? "" : packageName.trim();
     }
 
     private int readPlaybackClientUid(AudioPlaybackConfiguration configuration) {
