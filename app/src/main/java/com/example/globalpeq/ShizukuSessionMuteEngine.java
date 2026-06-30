@@ -702,6 +702,11 @@ final class ShizukuSessionMuteEngine {
         if (!ambiguousDesiredPackages && firstActivePackageName.isEmpty() && preferredDesiredSession != null) {
             firstActivePackageName = preferredDesiredSession.packageName;
         }
+        if (ambiguousDesiredPackages) {
+            Log.w(TAG, "TRACE_SWITCH ambiguousMuteCandidates desiredPackages=" + desiredPackages
+                    + ", clearing mute targets to avoid cross-app pollution");
+            desiredMuteSessionIds.clear();
+        }
         for (Integer sid : muteEffects.keySet()) {
             if (!currentSessionIds.contains(sid)) {
                 continue;
