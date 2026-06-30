@@ -1844,7 +1844,7 @@ public final class MainActivity extends Activity {
     }
 
     private String footerText() {
-        return tr("Version 1.2.1 - Powered by WanAn522z", "Version 1.2.1 - Powered by WanAn522z");
+        return tr("Version 1.3.o - Powered by WanAn522z", "Version 1.3.o - Powered by WanAn522z");
     }
 
     private String monitorSettingsTitleText() {
