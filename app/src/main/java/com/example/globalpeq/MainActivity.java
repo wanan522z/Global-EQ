@@ -2086,6 +2086,24 @@ public final class MainActivity extends Activity {
         return labels;
     }
 
+    private String reverbTypeDisplayLabel(String value) {
+        if ("Default".equalsIgnoreCase(value)) return tr("Default", "默认");
+        if ("Hall".equalsIgnoreCase(value)) return tr("Hall", "大厅");
+        if ("Plate".equalsIgnoreCase(value)) return tr("Plate", "板式");
+        if ("Chamber".equalsIgnoreCase(value)) return tr("Chamber", "室内");
+        if ("Room".equalsIgnoreCase(value)) return tr("Room", "房间");
+        if ("Studio".equalsIgnoreCase(value)) return tr("Studio", "录音棚");
+        return value;
+    }
+
+    private String[] reverbTypeDisplayLabels() {
+        String[] labels = new String[REVERB_TYPE_LABELS.length];
+        for (int i = 0; i < REVERB_TYPE_LABELS.length; i++) {
+            labels[i] = reverbTypeDisplayLabel(REVERB_TYPE_LABELS[i]);
+        }
+        return labels;
+    }
+
     private String aboutTitleText() {
         return tr("About Global PEQ", "关于 Global PEQ");
     }
