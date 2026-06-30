@@ -118,6 +118,8 @@ public final class MainActivity extends Activity {
     private static final String[] CURVE_SMOOTHING_LABELS = {"Default", "1/3", "1/6", "1/12", "1/24"};
     private static final String[] REVERB_TYPE_LABELS = {"Default", "Hall", "Plate", "Chamber", "Room", "Studio"};
     private static final String[] VIRTUAL_BASS_MODE_LABELS = {"Default", "System", "DSP"};
+    private static final String UI_LANGUAGE_EN = LanguageController.LANGUAGE_EN;
+    private static final String UI_LANGUAGE_ZH = LanguageController.LANGUAGE_ZH;
     private static final SliderValueMapper LINEAR_SLIDER_MAPPER = new SliderValueMapper() {
         @Override
         public float valueToFraction(int value, int min, int max) {
