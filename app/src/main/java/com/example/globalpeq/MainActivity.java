@@ -4269,9 +4269,8 @@ public final class MainActivity extends Activity {
         if (deviceChoices == null || deviceChoices.isEmpty()) {
             return;
         }
-        String[] labels = new String[deviceChoices.size()];
         int selected = 0;
-        labels = displayLabelsForDeviceChoices(deviceChoices);
+        String[] labels = displayLabelsForDeviceChoices(deviceChoices);
         for (int i = 0; i < deviceChoices.size(); i++) {
             AudioOutputDevice device = deviceChoices.get(i);
             if (currentDevice != null && device.key.equals(currentDevice.key)) {
@@ -4283,6 +4282,52 @@ public final class MainActivity extends Activity {
                 selectOutputDevice(deviceChoices.get(position));
             }
         });
+    }
+
+    private String[] displayLabelsForDeviceChoices(List<AudioOutputDevice> choices) {
+        String[] labels = new String[choices.size()];
+        java.util.Map<String, Integer> labelCounts = new java.util.HashMap<>();
+        for (AudioOutputDevice device : choices) {
+            String label = device.label == null ? "Output device" : device.label;
+            String labelKey = label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
+            Integer count = labelCounts.get(labelKey);
+            labelCounts.put(labelKey, count == null ? 1 : count + 1);
+        }
+        for (int i = 0; i < choices.size(); i++) {
+            AudioOutputDevice device = choices.get(i);
+            String label = device.label == null ? "Output device" : device.label;
+            String labelKey = label.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", " ").trim();
+            if (labelCounts.get(labelKey) != null && labelCounts.get(labelKey) > 1) {
+                label = label + " " + shortDeviceKeySuffix(device.key);
+            }
+            labels[i] = label;
+        }
+        return labels;
+    }
+
+    private String deviceChoiceSignature(List<AudioOutputDevice> choices, String[] labels) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < choices.size(); i++) {
+            if (i > 0) {
+                builder.append('|');
+            }
+            AudioOutputDevice device = choices.get(i);
+            builder.append(device.key == null ? "" : device.key)
+                    .append('=')
+                    .append(i < labels.length && labels[i] != null ? labels[i] : "");
+        }
+        return builder.toString();
+    }
+
+    private String shortDeviceKeySuffix(String key) {
+        if (key == null || key.trim().isEmpty()) {
+            return "";
+        }
+        int hash = key.lastIndexOf('#');
+        if (hash >= 0 && hash < key.length() - 1) {
+            return "#" + key.substring(hash + 1);
+        }
+        return "";
     }
 
     private void showSavedPresetChoiceMenu() {
