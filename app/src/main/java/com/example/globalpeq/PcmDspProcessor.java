@@ -282,7 +282,7 @@ final class PcmDspProcessor {
             wetMix = (0.70f + (float) Math.pow(amount, 1.00f) * 8.20f) * lowCutoffWetBoost;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
-            thirdHarmonicGain = 0.02f + amount * 0.06f;
+            thirdHarmonicGain = 0.04f + amount * 0.10f;
             harmonicOutputGain = 0.80f + amount * 1.00f;
             bassCompressorThreshold = 0.24f - amount * 0.03f;
             bassCompressorRatio = 1.22f + amount * 0.16f;
