@@ -1030,11 +1030,12 @@ final class PlaybackCaptureEngine {
         if (configuration == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return false;
         }
+        boolean activeByState = readPlaybackPlayerState(configuration) == PLAYER_STATE_STARTED;
         try {
             java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
             Object value = method.invoke(configuration);
             if (value instanceof Boolean) {
-                return (Boolean) value;
+                return (Boolean) value || activeByState;
             }
         } catch (NoSuchMethodException ignored) {
         } catch (ReflectiveOperationException ex) {
@@ -1042,7 +1043,7 @@ final class PlaybackCaptureEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to read playback active state", ex);
         }
-        return readPlaybackPlayerState(configuration) == PLAYER_STATE_STARTED;
+        return activeByState;
     }
 
     private int readPlaybackPlayerState(AudioPlaybackConfiguration configuration) {
