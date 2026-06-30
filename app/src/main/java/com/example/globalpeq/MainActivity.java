@@ -2079,9 +2079,9 @@ public final class MainActivity extends Activity {
 
     private String shizukuRuntimeRouteText() {
         return runtimePackageLine(
-                tr("Output route", "当前输出通道"),
+                tr("Playback channel", "当前播放通道"),
                 currentShizukuRuntimeState().activeOutputRoute,
-                tr("Capture could not resolve the output route yet", "当前还无法判断 capture 正在走哪条输出通道"));
+                tr("Capture could not resolve the playback channel yet", "当前还无法判断 capture 正在走哪条播放通道"));
     }
 
     private String shizukuRuntimeMuteText() {
