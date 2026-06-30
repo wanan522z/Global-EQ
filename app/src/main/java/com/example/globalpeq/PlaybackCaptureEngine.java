@@ -1746,7 +1746,7 @@ final class PlaybackCaptureEngine {
                 ? "Native capture is idle."
                 : status;
         boolean activeChanged = active != publishedActive;
-        boolean restartAfterLongInactiveResume = handleCaptureActiveChangeLocked(activeChanged, active);
+        handleCaptureActiveChangeLocked(activeChanged, active);
         if (nextStatus.equals(publishedStatus) && active == publishedActive) {
             return;
         }
@@ -1756,41 +1756,21 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
-        if (restartAfterLongInactiveResume) {
-            mainHandler.post(() -> {
-                synchronized (PlaybackCaptureEngine.this) {
-                    boolean restarted = restartPipelineLocked("capture resumed after sustained inactive");
-                    if (!restarted) {
-                        captureActiveRestartArmed = true;
-                    }
-                }
-            });
-        }
     }
 
-    private boolean handleCaptureActiveChangeLocked(boolean activeChanged, boolean active) {
+    private void handleCaptureActiveChangeLocked(boolean activeChanged, boolean active) {
         if (!active) {
             if (activeChanged || captureBecameInactiveAtMs <= 0L) {
                 captureActiveRestartArmed = true;
                 captureBecameInactiveAtMs = SystemClock.elapsedRealtime();
                 scheduleRestartAfterSustainedInactiveLocked();
             }
-            return false;
+            return;
         }
         if (!activeChanged) {
-            return false;
+            return;
         }
         captureInactiveRestartGeneration++;
-        long inactiveForMs = captureBecameInactiveAtMs <= 0L
-                ? 0L
-                : SystemClock.elapsedRealtime() - captureBecameInactiveAtMs;
-        if (running
-                && captureActiveRestartArmed
-                && inactiveForMs >= CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS) {
-            captureActiveRestartArmed = false;
-            return true;
-        }
-        return false;
     }
 
     private void scheduleRestartAfterSustainedInactiveLocked() {
@@ -1807,6 +1787,9 @@ final class PlaybackCaptureEngine {
                         ? 0L
                         : SystemClock.elapsedRealtime() - captureBecameInactiveAtMs;
                 if (inactiveForMs < CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS) {
+                    return;
+                }
+                if (!hasRecoverableActivePlayback()) {
                     return;
                 }
                 captureActiveRestartArmed = false;
