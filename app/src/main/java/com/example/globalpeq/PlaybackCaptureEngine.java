@@ -962,12 +962,14 @@ final class PlaybackCaptureEngine {
         }
         try {
             String candidatePackage = "";
+            int candidateSessionId = -1;
             for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
                 if (configuration == null) {
                     continue;
                 }
                 boolean relevant = isRelevantActivePlayback(configuration);
                 int clientUid = readPlaybackClientUid(configuration);
+                int sessionId = readPlaybackSessionId(configuration);
                 int playerState = readPlaybackPlayerState(configuration);
                 int usage = -1;
                 AudioAttributes attributes = null;
@@ -979,6 +981,7 @@ final class PlaybackCaptureEngine {
                 Log.d(TAG, "TRACE_SWITCH replayCandidate"
                         + " relevant=" + relevant
                         + " uid=" + clientUid
+                        + " sessionId=" + sessionId
                         + " playerState=" + playerState
                         + " usage=" + usage
                         + " raw=" + summarizeConfig(configuration));
@@ -997,10 +1000,13 @@ final class PlaybackCaptureEngine {
                     continue;
                 }
                 String[] packages = packageManager.getPackagesForUid(clientUid);
-                if (packages != null && packages.length > 0 && packages[0] != null) {
+                if (packages != null && packages.length > 0 && packages[0] != null
+                        && sessionId >= candidateSessionId) {
+                    candidateSessionId = sessionId;
                     candidatePackage = packages[0].trim();
                     Log.d(TAG, "TRACE_SWITCH replayPackageChosen"
                             + " pkg=" + candidatePackage
+                            + " sessionId=" + sessionId
                             + " uid=" + clientUid
                             + " fallback=" + fallbackPackage);
                 }
@@ -1087,6 +1093,36 @@ final class PlaybackCaptureEngine {
         if (notificationCallback != null) {
             mainHandler.post(notificationCallback);
         }
+    }
+
+    private int readPlaybackSessionId(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return -1;
+        }
+        String[] methodNames = new String[]{
+                "getSessionId",
+                "getAudioSessionId",
+                "getClientSessionId",
+                "getClientAudioSessionId"
+        };
+        for (String methodName : methodNames) {
+            try {
+                java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod(methodName);
+                Object value = method.invoke(configuration);
+                if (value instanceof Integer) {
+                    int sessionId = (Integer) value;
+                    if (sessionId > 0) {
+                        return sessionId;
+                    }
+                }
+            } catch (NoSuchMethodException ignored) {
+            } catch (ReflectiveOperationException ex) {
+                Log.w(TAG, "Unable to invoke AudioPlaybackConfiguration#" + methodName, ex);
+            } catch (RuntimeException ex) {
+                Log.w(TAG, "Unable to read playback session id via " + methodName, ex);
+            }
+        }
+        return -1;
     }
 
     private String normalizePackageName(String packageName) {
