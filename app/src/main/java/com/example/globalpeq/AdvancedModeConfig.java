@@ -18,6 +18,7 @@ final class AdvancedModeConfig {
             24,
             985,
             120,
+            false,
             Collections.emptyList()
     );
 
@@ -29,6 +30,7 @@ final class AdvancedModeConfig {
     final int lookaheadMs;
     final int limiterCeilingPermille;
     final int limiterReleaseMs;
+    final boolean allowReplayWithoutMute;
     final List<MonitoredAppItem> monitoredApps;
 
     AdvancedModeConfig(String monitoredAppPackage,
@@ -39,6 +41,7 @@ final class AdvancedModeConfig {
                        int lookaheadMs,
                        int limiterCeilingPermille,
                        int limiterReleaseMs,
+                       boolean allowReplayWithoutMute,
                        List<MonitoredAppItem> monitoredApps) {
         this.monitoredAppPackage = monitoredAppPackage == null ? "" : monitoredAppPackage.trim();
         this.monitoredAppLabel = monitoredAppLabel == null ? "" : monitoredAppLabel.trim();
@@ -48,11 +51,12 @@ final class AdvancedModeConfig {
         this.lookaheadMs = clamp(lookaheadMs, 0, 120);
         this.limiterCeilingPermille = clamp(limiterCeilingPermille, 930, 999);
         this.limiterReleaseMs = clamp(limiterReleaseMs, 20, 400);
+        this.allowReplayWithoutMute = allowReplayWithoutMute;
         this.monitoredApps = Collections.unmodifiableList(normalizeApps(monitoredApps));
     }
 
     AdvancedModeConfig withMonitoredApp(String packageName, String label) {
-        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
+        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
     }
 
     AdvancedModeConfig withAddedMonitoredApp(String packageName, String label) {
@@ -65,28 +69,33 @@ final class AdvancedModeConfig {
                 lookaheadMs,
                 limiterCeilingPermille,
                 limiterReleaseMs,
+                allowReplayWithoutMute,
                 appendMonitoredApp(monitoredApps, packageName, label)
         );
     }
 
     AdvancedModeConfig withLatencyMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
     }
 
     AdvancedModeConfig withBufferSizeFrames(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
     }
 
     AdvancedModeConfig withLookaheadMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, limiterCeilingPermille, limiterReleaseMs, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
     }
 
     AdvancedModeConfig withLimiterCeilingPermille(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, value, limiterReleaseMs, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, value, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
     }
 
     AdvancedModeConfig withLimiterReleaseMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, value, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, value, allowReplayWithoutMute, monitoredApps);
+    }
+
+    AdvancedModeConfig withAllowReplayWithoutMute(boolean value) {
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, value, monitoredApps);
     }
 
     String toJson() {
@@ -100,6 +109,7 @@ final class AdvancedModeConfig {
             object.put("lookaheadMs", lookaheadMs);
             object.put("limiterCeilingPermille", limiterCeilingPermille);
             object.put("limiterReleaseMs", limiterReleaseMs);
+            object.put("allowReplayWithoutMute", allowReplayWithoutMute);
             JSONArray apps = new JSONArray();
             for (MonitoredAppItem item : monitoredApps) {
                 JSONObject app = new JSONObject();
@@ -129,6 +139,7 @@ final class AdvancedModeConfig {
                     object.optInt("lookaheadMs", DEFAULT.lookaheadMs),
                     object.optInt("limiterCeilingPermille", DEFAULT.limiterCeilingPermille),
                     object.optInt("limiterReleaseMs", DEFAULT.limiterReleaseMs),
+                    object.optBoolean("allowReplayWithoutMute", DEFAULT.allowReplayWithoutMute),
                     parseApps(object.optJSONArray("monitoredApps"))
             );
         } catch (JSONException ignored) {
