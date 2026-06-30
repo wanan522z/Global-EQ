@@ -28,8 +28,8 @@ final class Preset {
     final int reverbDecayPercent;
     final int reverbPredelayMs;
     final int reverbSizePercent;
-    final int reverbMixPercent;
-    final int reverbMainMb;
+    final int reverbWetPercent;
+    final int reverbDryMb;
     final String deviceCurveName;
     final String targetCurveName;
     final FrequencyCurve deviceCurveData;
@@ -91,8 +91,8 @@ final class Preset {
            int reverbDecayPercent,
            int reverbPredelayMs,
            int reverbSizePercent,
-           int reverbMixPercent,
-           int reverbMainMb,
+           int reverbWetPercent,
+           int reverbDryMb,
            String deviceCurveName,
            String targetCurveName,
            float deviceCurveGainOffsetDb,
@@ -389,8 +389,8 @@ final class Preset {
                                int reverbDecayPercent,
                                int reverbPredelayMs,
                                int reverbSizePercent,
-                               int reverbMixPercent,
-                               int reverbMainMb,
+           int reverbWetPercent,
+           int reverbDryMb,
                                String deviceCurveName,
                                String targetCurveName,
                                float deviceCurveGainOffsetDb,
