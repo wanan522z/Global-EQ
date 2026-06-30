@@ -850,12 +850,14 @@ public final class MainActivity extends Activity {
                 return;
             }
             if (requestCode == REQUEST_IMPORT_DEVICE_CURVE) {
+                repository.saveDeviceCurve(curve);
                 selectedDeviceCurveName = curve.name;
                 selectedDeviceCurveSource = curve;
                 deviceCurveGainOffsetDb = 0f;
                 deviceCurveSmoothing = "Default";
                 refreshDeviceCurveCache();
             } else {
+                repository.saveTargetCurve(curve);
                 selectedTargetCurveName = curve.name;
                 selectedTargetCurveSource = curve;
                 targetCurveGainOffsetDb = 0f;
