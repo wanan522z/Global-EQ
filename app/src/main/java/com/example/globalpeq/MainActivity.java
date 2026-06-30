@@ -2314,12 +2314,33 @@ public final class MainActivity extends Activity {
         startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MONITOR_CAPTURE);
     }
 
-    private void ensureShizukuModeReady(boolean autoLaunchCapture) {
-        if (processingMode != ProcessingMode.SHIZUKU_MUTE) {
+    private void ensureNativeCaptureModeReady(boolean autoLaunchCapture) {
+        if (!processingMode.usesNativeCapture()) {
             return;
         }
         if (pendingMonitorCaptureAuthorization) {
             renderAll();
+            return;
+        }
+        if (!processingMode.requiresShizukuMute()) {
+            if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
+                applyRunningPreset(false, false);
+                refreshRuntimeStatusUi();
+                return;
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                Toast.makeText(this, "Native capture requires Android 10 or later", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                pendingMonitorCaptureAuthorization = true;
+                repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
+                refreshRuntimeStatusUi();
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
+                return;
+            }
+            launchMonitorCaptureAuthorization();
             return;
         }
         boolean granted = ShizukuCompat.requestPermissionOrOpenManager(this, REQUEST_SHIZUKU_PERMISSION);
@@ -2332,7 +2353,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
-            applyRunningPreset();
+            applyRunningPreset(false, false);
             refreshRuntimeStatusUi();
             return;
         }
