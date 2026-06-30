@@ -1464,7 +1464,7 @@ public final class MainActivity extends Activity {
         advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(advancedModeSummaryView, blockParams(4));
 
-        LinearLayout shizukuRuntimePanel = new LinearLayout(this);
+        shizukuRuntimePanel = new LinearLayout(this);
         shizukuRuntimePanel.setOrientation(LinearLayout.VERTICAL);
         shizukuRuntimePanel.setClipChildren(false);
         shizukuRuntimePanel.setClipToPadding(false);
@@ -1476,6 +1476,7 @@ public final class MainActivity extends Activity {
         );
         shizukuRuntimeParams.topMargin = dp(16);
         panel.addView(shizukuRuntimePanel, shizukuRuntimeParams);
+        shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
 
         shizukuRuntimeTitleView = gradientTitleView(shizukuRuntimeTitleText());
         shizukuRuntimeTitleView.setText(shizukuRuntimeTitleText());
