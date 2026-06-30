@@ -3,9 +3,12 @@ package com.example.globalpeq;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.media.AudioPlaybackConfiguration;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -26,6 +29,7 @@ final class AudioOutputDeviceMonitor {
     private final AudioManager audioManager;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final AudioDeviceCallback callback;
+    private final AudioManager.AudioPlaybackCallback playbackCallback;
     private Listener listener;
 
     AudioOutputDeviceMonitor(Context context) {
@@ -42,20 +46,36 @@ final class AudioOutputDeviceMonitor {
                 notifyCurrentOutput();
             }
         };
+        playbackCallback = new AudioManager.AudioPlaybackCallback() {
+            @Override
+            public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
+                notifyCurrentOutput();
+            }
+        };
     }
 
     void start(Listener listener) {
         this.listener = listener;
         audioManager.registerAudioDeviceCallback(callback, handler);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioManager.registerAudioPlaybackCallback(playbackCallback, handler);
+        }
         notifyCurrentOutput();
     }
 
     void stop() {
         audioManager.unregisterAudioDeviceCallback(callback);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioManager.unregisterAudioPlaybackCallback(playbackCallback);
+        }
         listener = null;
     }
 
     AudioOutputDevice currentOutputDevice() {
+        AudioDeviceInfo activePlaybackDevice = currentActivePlaybackOutputDevice();
+        if (activePlaybackDevice != null) {
+            return describe(activePlaybackDevice);
+        }
         AudioDeviceInfo[] devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
         AudioDeviceInfo best = null;
         for (AudioDeviceInfo device : devices) {
@@ -73,6 +93,78 @@ final class AudioOutputDeviceMonitor {
             }
         }
         return best == null ? new AudioOutputDevice("none", "No output device") : describe(best);
+    }
+
+    private AudioDeviceInfo currentActivePlaybackOutputDevice() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return null;
+        }
+        try {
+            for (AudioPlaybackConfiguration configuration : audioManager.getActivePlaybackConfigurations()) {
+                if (!isRelevantActivePlayback(configuration)) {
+                    continue;
+                }
+                AudioDeviceInfo device = readPlaybackDeviceInfo(configuration);
+                if (device != null && device.isSink() && isSelectableOutput(device)) {
+                    return device;
+                }
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return null;
+    }
+
+    private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration) {
+        if (configuration == null || !isPlaybackActive(configuration)) {
+            return false;
+        }
+        try {
+            AudioAttributes attributes = configuration.getAudioAttributes();
+            int usage = attributes == null ? -1 : attributes.getUsage();
+            return usage == AudioAttributes.USAGE_MEDIA
+                    || usage == AudioAttributes.USAGE_GAME;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private boolean isPlaybackActive(AudioPlaybackConfiguration configuration) {
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
+            Object value = method.invoke(configuration);
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ignored) {
+        }
+        return readPlaybackPlayerState(configuration) == 2;
+    }
+
+    private int readPlaybackPlayerState(AudioPlaybackConfiguration configuration) {
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerState");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                return (Integer) value;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ignored) {
+        }
+        return -1;
+    }
+
+    private AudioDeviceInfo readPlaybackDeviceInfo(AudioPlaybackConfiguration configuration) {
+        try {
+            java.lang.reflect.Method method = AudioPlaybackConfiguration.class.getMethod("getAudioDeviceInfo");
+            Object value = method.invoke(configuration);
+            if (value instanceof AudioDeviceInfo) {
+                return (AudioDeviceInfo) value;
+            }
+        } catch (ReflectiveOperationException ignored) {
+        } catch (RuntimeException ignored) {
+        }
+        return null;
     }
 
     List<AudioOutputDevice> availableOutputDevices() {
