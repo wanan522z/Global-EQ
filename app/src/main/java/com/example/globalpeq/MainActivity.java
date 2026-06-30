@@ -4267,7 +4267,7 @@ public final class MainActivity extends Activity {
         showLimitedChoiceMenu(reverbTypeButton, REVERB_TYPE_LABELS, reverbTypeIndex(editingPreset.reverbType), position -> {
             String nextType = REVERB_TYPE_LABELS[Math.max(0, Math.min(REVERB_TYPE_LABELS.length - 1, position))];
             if (!AudioProcessingPolicy.reverbAllowed(processingMode) && !"Default".equals(nextType)) {
-                showModeLockedDialog("Reverb requires Shizuku Mode.");
+                showModeLockedDialog(reverbRequiresShizukuMessage());
                 return;
             }
             if (!nextType.equals(editingPreset.reverbType)) {
@@ -4283,7 +4283,7 @@ public final class MainActivity extends Activity {
         showLimitedChoiceMenu(bassModeButton, virtualBassModeDisplayLabels(), selectedBassModeIndex, position -> {
             int nextIndex = clamp(position, 0, VIRTUAL_BASS_MODE_LABELS.length - 1);
             if (!AudioProcessingPolicy.virtualBassModeAllowed(processingMode, nextIndex)) {
-                showModeLockedDialog("DSP bass requires Shizuku Mode.");
+                showModeLockedDialog(dspBassRequiresShizukuMessage());
                 return;
             }
             if (selectedBassModeIndex == nextIndex) {
