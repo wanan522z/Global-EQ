@@ -91,7 +91,7 @@ final class PresetRepository {
     }
 
     void saveKnownDevice(AudioOutputDevice device) {
-        if (device == null || device.key == null || device.key.trim().isEmpty() || !device.isDisplayable()) {
+        if (device == null || device.key == null || device.key.trim().isEmpty()) {
             return;
         }
 
