@@ -118,6 +118,7 @@ final class ShizukuSessionMuteEngine {
         final String activePackageName;
         final String mutedPackageName;
         final String activeSessionIds;
+        final String desiredMuteSessionIds;
         final String mutedSessionIds;
         final int desiredMuteSessionCount;
         final int verifiedMutedSessionCount;
@@ -127,6 +128,7 @@ final class ShizukuSessionMuteEngine {
         MuteScanResult(String activePackageName,
                        String mutedPackageName,
                        String activeSessionIds,
+                       String desiredMuteSessionIds,
                        String mutedSessionIds,
                        int desiredMuteSessionCount,
                        int verifiedMutedSessionCount,
@@ -135,6 +137,7 @@ final class ShizukuSessionMuteEngine {
             this.activePackageName = activePackageName == null ? "" : activePackageName;
             this.mutedPackageName = mutedPackageName == null ? "" : mutedPackageName;
             this.activeSessionIds = activeSessionIds == null ? "" : activeSessionIds;
+            this.desiredMuteSessionIds = desiredMuteSessionIds == null ? "" : desiredMuteSessionIds;
             this.mutedSessionIds = mutedSessionIds == null ? "" : mutedSessionIds;
             this.desiredMuteSessionCount = Math.max(0, desiredMuteSessionCount);
             this.verifiedMutedSessionCount = Math.max(0, verifiedMutedSessionCount);
@@ -323,6 +326,7 @@ final class ShizukuSessionMuteEngine {
         updateActivePackageName(scanResult.activePackageName);
         updateMutedPackageName(scanResult.mutedPackageName);
         repository.saveActivePlaybackSessionIds(scanResult.activeSessionIds);
+        repository.saveDesiredMutedSessionIds(scanResult.desiredMuteSessionIds);
         repository.saveActiveMutedSessionIds(scanResult.mutedSessionIds);
         if (wantsMuteEffects && !applyMuteEffects) {
             publishStatus(repository.loadMonitorCaptureActive()
@@ -800,6 +804,7 @@ final class ShizukuSessionMuteEngine {
                 firstActivePackageName,
                 firstMutedPackageName,
                 joinSessionIds(activePlayback == null ? null : activePlayback.activeSessionIds),
+                joinSessionIds(desiredMuteSessionIds),
                 joinSessionIds(verifiedMutedSessionIds),
                 desiredMuteSessionIds.size(),
                 verifiedMutedSessionIds.size(),
