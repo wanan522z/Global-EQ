@@ -248,6 +248,12 @@ public final class MainActivity extends Activity {
     private TextView advancedModeDetailButton;
     private TextView advancedMonitorAppButton;
     private TextView monitorCaptureStatusView;
+    private TextView shizukuRuntimeTitleView;
+    private TextView shizukuRuntimeDetailView;
+    private TextView shizukuRuntimeModeView;
+    private TextView shizukuRuntimePlaybackView;
+    private TextView shizukuRuntimeMuteView;
+    private TextView shizukuRuntimeReplayView;
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
     private TextView advancedModeSummaryView;
