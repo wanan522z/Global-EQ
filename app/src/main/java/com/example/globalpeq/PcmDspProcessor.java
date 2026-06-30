@@ -275,15 +275,16 @@ final class PcmDspProcessor {
             int targetCutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
             float amount = amountPercent / 100f;
             float cutoffProgress = clamp((targetCutoffHz - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
-            float lowCutoffWetBoost = 1.35f - cutoffProgress * 0.45f;
+            float cutoffCompensation = 1.90f - 1.35f * (float) Math.sqrt(cutoffProgress);
+            float outputTrim = 1.08f - 0.42f * cutoffProgress;
 
             rebuildFilters(targetCutoffHz, amount);
 
-            wetMix = (0.70f + (float) Math.pow(amount, 1.00f) * 8.20f) * lowCutoffWetBoost;
+            wetMix = (0.72f + (float) Math.pow(amount, 0.98f) * 8.80f) * cutoffCompensation;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
             thirdHarmonicGain = 0.04f + amount * 0.10f;
-            harmonicOutputGain = 0.80f + amount * 1.00f;
+            harmonicOutputGain = (0.72f + amount * 0.88f) * outputTrim;
             bassCompressorThreshold = 0.24f - amount * 0.03f;
             bassCompressorRatio = 1.22f + amount * 0.16f;
             bassCompressorMakeup = 1.03f + amount * 0.07f;
