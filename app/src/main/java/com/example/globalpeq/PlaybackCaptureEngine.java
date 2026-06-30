@@ -956,18 +956,31 @@ final class PlaybackCaptureEngine {
                 if (configuration == null) {
                     continue;
                 }
-                if (!isRelevantActivePlayback(configuration)) {
+                boolean relevant = isRelevantActivePlayback(configuration);
+                int clientUid = readPlaybackClientUid(configuration);
+                int playerState = readPlaybackPlayerState(configuration);
+                int usage = -1;
+                AudioAttributes attributes = null;
+                try {
+                    attributes = configuration.getAudioAttributes();
+                    usage = attributes == null ? -1 : attributes.getUsage();
+                } catch (RuntimeException ignored) {
+                }
+                Log.d(TAG, "TRACE_SWITCH replayCandidate"
+                        + " relevant=" + relevant
+                        + " uid=" + clientUid
+                        + " playerState=" + playerState
+                        + " usage=" + usage
+                        + " raw=" + summarizeConfig(configuration));
+                if (!relevant) {
                     continue;
                 }
-                int clientUid = readPlaybackClientUid(configuration);
                 if (clientUid <= 0 || clientUid == android.os.Process.myUid()) {
                     continue;
                 }
-                android.media.AudioAttributes attributes = configuration.getAudioAttributes();
                 if (attributes == null) {
                     continue;
                 }
-                int usage = attributes.getUsage();
                 if (usage != AudioAttributes.USAGE_MEDIA
                         && usage != AudioAttributes.USAGE_GAME
                         && usage != AudioAttributes.USAGE_UNKNOWN) {
@@ -976,6 +989,10 @@ final class PlaybackCaptureEngine {
                 String[] packages = packageManager.getPackagesForUid(clientUid);
                 if (packages != null && packages.length > 0 && packages[0] != null) {
                     candidatePackage = packages[0].trim();
+                    Log.d(TAG, "TRACE_SWITCH replayPackageChosen"
+                            + " pkg=" + candidatePackage
+                            + " uid=" + clientUid
+                            + " fallback=" + fallbackPackage);
                 }
             }
             if (!candidatePackage.isEmpty()) {
@@ -984,6 +1001,7 @@ final class PlaybackCaptureEngine {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Unable to resolve replay package name", ex);
         }
+        Log.d(TAG, "TRACE_SWITCH replayPackageFallback fallback=" + fallbackPackage);
         return fallbackPackage == null ? "" : fallbackPackage.trim();
     }
 
@@ -1053,6 +1071,7 @@ final class PlaybackCaptureEngine {
         if (normalized.equals(currentReplayPackageName)) {
             return;
         }
+        Log.d(TAG, "TRACE_SWITCH replayPackageUpdate from=" + currentReplayPackageName + " to=" + normalized);
         currentReplayPackageName = normalized;
         repository.saveActiveReplayPackage(normalized);
         if (notificationCallback != null) {
