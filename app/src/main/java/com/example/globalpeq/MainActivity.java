@@ -1572,10 +1572,10 @@ public final class MainActivity extends Activity {
         importExportPanel.addView(settingsImportPanelDetailView, blockParams(2));
 
         languageButton = createExtraChoiceButton();
-        languageButton.setText(languageButtonText());
+        bindText(languageButton, this::languageButtonText);
         styleMonitorActionButton(languageButton, 132);
         languageButton.setOnClickListener(this::showLanguageChoiceMenu);
-        importExportPanel.addView(labeledSettingsRow(settingsLanguageLabelText(), languageButton), blockParams(12));
+        importExportPanel.addView(labeledSettingsRow(this::settingsLanguageLabelText, languageButton, view -> languageLabelView = view), blockParams(12));
 
         TextView importPresetButton = createExtraChoiceButton();
         importPresetButton.setText(tr("Import", "导入"));
