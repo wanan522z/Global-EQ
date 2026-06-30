@@ -1258,16 +1258,18 @@ final class PlaybackCaptureEngine {
 
     private void traceReplayDecision(String reason,
                                      String mutedPackage,
-                                     String expectedReplayPackage,
-                                     String monitoredPackage) {
+                                     String playbackPackages,
+                                     String replayPackages,
+                                     boolean pcmActive) {
         String trace = "reason=" + reason
-                + ", allowed=" + computeReplayAllowedPreview(mutedPackage, expectedReplayPackage)
+                + ", allowed=" + computeReplayAllowedPreview(mutedPackage, playbackPackages)
                 + ", mode=" + currentMode
-                + ", replayPkg=" + normalizePackageName(currentReplayPackageName)
+                + ", pcmActive=" + pcmActive
+                + ", replayPkg=" + normalizePackageName(replayPackages)
                 + ", mutedPkg=" + normalizePackageName(repository.loadActiveMutedPackage())
                 + ", activePlaybackPkg=" + normalizePackageName(repository.loadActivePlaybackPackage())
-                + ", expectedPkg=" + normalizePackageName(expectedReplayPackage)
-                + ", monitoredPkg=" + normalizePackageName(monitoredPackage);
+                + ", decisionPlaybackPkg=" + normalizePackageName(playbackPackages)
+                + ", currentReplayPkg=" + normalizePackageName(currentReplayPackageName);
         if (trace.equals(lastReplayDecisionTrace)) {
             return;
         }
@@ -1305,6 +1307,24 @@ final class PlaybackCaptureEngine {
         }
         long ageMs = System.currentTimeMillis() - updatedAtMs;
         return ageMs >= 0L && ageMs <= PACKAGE_STATE_FRESHNESS_MS;
+    }
+
+    private String resolveFreshRuntimePackages(String packageNames, long updatedAtMs) {
+        return isFreshRuntimePackage(packageNames, updatedAtMs)
+                ? normalizePackageName(packageNames)
+                : "";
+    }
+
+    private boolean hasRecentPcmActivity(long now, long withinMs) {
+        if (!running || withinMs <= 0L) {
+            return false;
+        }
+        long signalAtMs = lastCaptureSignalAtMs;
+        if (signalAtMs <= 0L) {
+            return false;
+        }
+        long ageMs = now - signalAtMs;
+        return ageMs >= 0L && ageMs <= withinMs;
     }
 
     private LinkedHashSet<String> splitPackageList(String packages) {
