@@ -526,12 +526,13 @@ final class ShizukuSessionMuteEngine {
         return "";
     }
 
-    private String muteOtherSessions(List<SessionInfo> sessions,
-                                     ActivePlaybackSnapshot activePlayback,
-                                     boolean applyMuteEffects) {
+    private MuteScanResult muteOtherSessions(List<SessionInfo> sessions,
+                                             ActivePlaybackSnapshot activePlayback,
+                                             boolean applyMuteEffects) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
         Set<Integer> desiredMuteSessionIds = new LinkedHashSet<>();
         String firstActivePackageName = activePlayback == null ? "" : activePlayback.primaryPackageName;
+        String firstMutedPackageName = "";
         for (SessionInfo session : sessions) {
             currentSessionIds.add(session.sessionId);
         }
@@ -611,6 +612,9 @@ final class ShizukuSessionMuteEngine {
                 DynamicsProcessing muteEffect = makeMuteEffect(session.sessionId, session.packageName);
                 if (muteEffect != null) {
                     muteEffects.put(session.sessionId, muteEffect);
+                    if (firstMutedPackageName.isEmpty() && !session.packageName.isEmpty()) {
+                        firstMutedPackageName = session.packageName;
+                    }
                 } else {
                     Log.w(TAG, "Failed to create mute effect for session: " + session.sessionId
                             + ", package: " + session.packageName);
@@ -619,7 +623,15 @@ final class ShizukuSessionMuteEngine {
                 Log.e(TAG, "Error creating mute effect for session: " + session.sessionId, ex);
             }
         }
-        return firstActivePackageName;
+        if (firstMutedPackageName.isEmpty() && !muteEffects.isEmpty()) {
+            for (SessionInfo session : sessions) {
+                if (muteEffects.containsKey(session.sessionId) && !session.packageName.isEmpty()) {
+                    firstMutedPackageName = session.packageName;
+                    break;
+                }
+            }
+        }
+        return new MuteScanResult(firstActivePackageName, firstMutedPackageName);
     }
 
     private boolean isRelevantActivePlayback(AudioPlaybackConfiguration configuration, int playerState) {
