@@ -245,7 +245,7 @@ public final class MainActivity extends Activity {
     private TextView processingModeButton;
     private TextView settingsPanelDetailView;
     private TextView settingsStatusLabelView;
-    private View shizukuRuntimePanel;
+    private LinearLayout shizukuRuntimePanel;
     private TextView advancedModeDetailButton;
     private TextView advancedMonitorAppButton;
     private TextView monitorCaptureStatusView;
