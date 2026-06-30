@@ -927,9 +927,6 @@ final class PlaybackCaptureEngine {
     }
 
     private void refreshOutputRouteIfNeeded() {
-        if (!currentMode.capturesSystemAudio()) {
-            return;
-        }
         updateOutputRouteLabel(resolveCurrentOutputRouteLabel(null));
     }
 
