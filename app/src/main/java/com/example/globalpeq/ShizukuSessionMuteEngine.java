@@ -235,6 +235,24 @@ final class ShizukuSessionMuteEngine {
         return false;
     }
 
+    private Set<String> collectDesiredPackages(Set<Integer> desiredMuteSessionIds,
+                                               List<SessionInfo> sessions) {
+        LinkedHashSet<String> packages = new LinkedHashSet<>();
+        if (desiredMuteSessionIds == null || sessions == null) {
+            return packages;
+        }
+        for (SessionInfo session : sessions) {
+            if (!desiredMuteSessionIds.contains(session.sessionId)) {
+                continue;
+            }
+            String packageName = normalizePackageName(session.packageName);
+            if (!packageName.isEmpty()) {
+                packages.add(packageName);
+            }
+        }
+        return packages;
+    }
+
     private final Context appContext;
     private final AudioManager audioManager;
     private final PackageManager packageManager;
