@@ -666,6 +666,7 @@ final class PlaybackCaptureEngine {
         lastCaptureSignalAtMs = 0L;
         lastReplayPackageRefreshAtMs = 0L;
         updateReplayPackageName("");
+        updateOutputRouteLabel("");
 
         AudioRecord record = audioRecord;
         audioRecord = null;
