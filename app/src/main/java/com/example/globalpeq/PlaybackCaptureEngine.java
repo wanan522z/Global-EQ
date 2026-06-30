@@ -944,6 +944,9 @@ final class PlaybackCaptureEngine {
         if (expectedReplayPackage.isEmpty() && !currentMode.capturesSystemAudio()) {
             expectedReplayPackage = normalizePackageName(currentConfig.monitoredAppPackage);
         }
+        if (expectedReplayPackage.isEmpty() && currentMode.capturesSystemAudio()) {
+            expectedReplayPackage = mutedPackage;
+        }
         if (expectedReplayPackage.isEmpty()) {
             allowed = currentConfig.allowReplayWithoutMute;
             traceReplayDecision(
