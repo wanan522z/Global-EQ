@@ -2441,6 +2441,18 @@ public final class MainActivity extends Activity {
         return processingMode == ProcessingMode.SHIZUKU_MUTE;
     }
 
+    private String shizukuReplayPromptLabelText() {
+        return tr(
+                "If you hear two overlapping sounds, this app cannot be muted. Lower its volume manually, but do not mute it completely.",
+                "若出现两个声音重叠说明该 app 无法静音，请手动将此 app 音量调低，但不要完全静音。");
+    }
+
+    private String shizukuReplayPromptHintText() {
+        return tr(
+                "Global mute replay is used now. The only remaining rule is: if no playback is captured, mute will not be applied.",
+                "现在改为全局静音回放。唯一保留的判定是：如果没有抓到回放，就不要静音。");
+    }
+
     private String runtimePackageLine(String label, String packageName, String emptyText) {
         String safeLabel = label == null ? "" : label;
         String normalized = packageName == null ? "" : packageName.trim();
