@@ -1549,11 +1549,11 @@ public final class MainActivity extends Activity {
         shizukuReplayFallbackSwitch.setFocusable(false);
         shizukuReplayFallbackSwitch.setVisibility(View.GONE);
         styleTopSwitch(shizukuReplayFallbackSwitch, false);
-        shizukuReplayFallbackRowView = labeledSettingsRow(this::shizukuReplayFallbackLabelText, shizukuReplayFallbackSwitch, view -> shizukuReplayFallbackLabelView = view);
+        shizukuReplayFallbackRowView = labeledSettingsRow(this::shizukuReplayPromptLabelText, shizukuReplayFallbackSwitch, view -> shizukuReplayFallbackLabelView = view);
         shizukuRuntimePanel.addView(shizukuReplayFallbackRowView, blockParams(12));
 
         shizukuReplayFallbackHintView = new TextView(this);
-        bindText(shizukuReplayFallbackHintView, this::shizukuReplayFallbackHintText);
+        bindText(shizukuReplayFallbackHintView, this::shizukuReplayPromptHintText);
         shizukuReplayFallbackHintView.setTextSize(12);
         shizukuReplayFallbackHintView.setTextColor(Color.rgb(180, 190, 210));
         shizukuRuntimePanel.addView(shizukuReplayFallbackHintView, blockParams(4));
