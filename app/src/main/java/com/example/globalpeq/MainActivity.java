@@ -8150,7 +8150,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout reverbPanel = createExtraPanelShell();
         page.addView(reverbPanel, extraPanelParams(0));
-        LinearLayout reverbHeader = createExtraHeaderRow(extraReverbTitleText());
+        LinearLayout reverbHeader = createExtraHeaderRow("Reverb");
         reverbTitleView = (TextView) reverbHeader.getChildAt(0);
         reverbTypeButton = createExtraChoiceButton();
         reverbTypeButton.setOnClickListener(v -> showReverbTypeChoiceMenu());
@@ -8170,7 +8170,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout bassPanel = createExtraPanelShell();
         page.addView(bassPanel, extraPanelParams(12));
-        LinearLayout bassHeader = createExtraHeaderRow(extraVirtualBassTitleText());
+        LinearLayout bassHeader = createExtraHeaderRow("Virtual Bass");
         virtualBassTitleView = (TextView) bassHeader.getChildAt(0);
         bassModeButton = createExtraChoiceButton();
         bassModeButton.setOnClickListener(v -> showBassModeChoiceMenu());
@@ -8178,7 +8178,7 @@ public final class MainActivity extends Activity {
         bassHeader.addView(bassModeButton, new LinearLayout.LayoutParams(dp(120), dp(30)));
         bassPanel.addView(bassHeader, blockParams(4));
         virtualBassSlider = new HorizontalBassSlider(this);
-        virtualBassSlider.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", virtualBassBoostLabelText(),
+        virtualBassSlider.configure(0, 100, editingPreset.virtualBassAmountPercent, "%", "Boost",
                 value -> setEditingPreset(editingPreset.withVirtualBassAmountPercent(value), true));
         LinearLayout.LayoutParams sliderParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -8205,7 +8205,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout extraBassPanel = createExtraPanelShell();
         page.addView(extraBassPanel, extraPanelParams(12));
-        LinearLayout extraBassHeader = createExtraHeaderRow(extraBassTitleText());
+        LinearLayout extraBassHeader = createExtraHeaderRow("Extra Bass");
         extraBassTitleView = (TextView) extraBassHeader.getChildAt(0);
         extraBassSwitch = new Switch(this);
         extraBassSwitch.setText("");
@@ -8215,8 +8215,8 @@ public final class MainActivity extends Activity {
         extraBassHeader.addView(extraBassSwitch, new LinearLayout.LayoutParams(dp(60), dp(30)));
         extraBassPanel.addView(extraBassHeader, blockParams(4));
         LinearLayout extraBassKnobs = createExtraKnobRow(extraBassPanel);
-        extraBassKnobs.addView(createExtraBassControl(cutoffLabelText(), true), knobColumnParams());
-        extraBassKnobs.addView(createExtraBassControl(virtualBassBoostLabelText(), false), knobColumnParams());
+        extraBassKnobs.addView(createExtraBassControl("Cutoff", true), knobColumnParams());
+        extraBassKnobs.addView(createExtraBassControl("Boost", false), knobColumnParams());
     }
 
     private int displayVirtualBassCutoffHz(int internalCutoffHz) {
