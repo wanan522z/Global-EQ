@@ -486,9 +486,8 @@ final class PlaybackCaptureEngine {
                     captureWaitingLogged = true;
                 }
                 boolean deadObject = read == AudioRecord.ERROR_DEAD_OBJECT;
-                boolean stalledWhilePlaybackActive = stalledReadCount >= STALLED_READ_LIMIT
-                        && (signaledLive || hasRecoverableActivePlayback());
-                if (deadObject || stalledWhilePlaybackActive) {
+                boolean sustainedReadFailure = stalledReadCount >= STALLED_READ_LIMIT && signaledLive;
+                if (deadObject || sustainedReadFailure) {
                     requestRestart = true;
                     restartReason = "capture read stalled with code=" + read
                             + ", stalledReadCount=" + stalledReadCount;
@@ -944,10 +943,7 @@ final class PlaybackCaptureEngine {
             return "preferred output changed from " + configuredPreferredDeviceSignature
                     + " to " + resolvedSignature;
         }
-        if (!hasRecoverableActivePlayback()) {
-            return null;
-        }
-        return "active playback is present but capture stayed silent for " + silentForMs + "ms";
+        return null;
     }
 
     private boolean hasRecoverableActivePlayback() {
