@@ -261,10 +261,12 @@ final class PcmDspProcessor {
             }
             int targetCutoffHz = clampInt(requestedCutoff, MIN_CUTOFF_HZ, MAX_CUTOFF_HZ);
             float amount = amountPercent / 100f;
+            float cutoffProgress = clamp((targetCutoffHz - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
+            float lowCutoffWetBoost = 1.35f - cutoffProgress * 0.45f;
 
             rebuildFilters(targetCutoffHz, amount);
 
-            wetMix = 0.70f + (float) Math.pow(amount, 1.00f) * 8.20f;
+            wetMix = (0.70f + (float) Math.pow(amount, 1.00f) * 8.20f) * lowCutoffWetBoost;
 
             secondHarmonicGain = 1.20f + amount * 1.80f;
             thirdHarmonicGain = 0.02f + amount * 0.06f;
@@ -334,8 +336,8 @@ final class PcmDspProcessor {
         private void rebuildFilters(int targetCutoffHz, float amount) {
             float safeTargetCutoff = clamp(targetCutoffHz, MIN_CUTOFF_HZ, Math.min(MAX_CUTOFF_HZ, sampleRate * 0.20f));
             float cutoffProgress = clamp((safeTargetCutoff - MIN_CUTOFF_HZ) / (float) (MAX_CUTOFF_HZ - MIN_CUTOFF_HZ), 0f, 1f);
-            float sourceHpRatio = 0.58f + cutoffProgress * 0.20f;
-            float sourceLpRatio = (1.42f + amount * 0.07f) - cutoffProgress * 0.18f;
+            float sourceHpRatio = 0.54f + cutoffProgress * 0.28f;
+            float sourceLpRatio = (1.38f + amount * 0.05f) - cutoffProgress * 0.26f;
 
             float sourceHpHz = clamp(
                     safeTargetCutoff * sourceHpRatio,
@@ -343,7 +345,7 @@ final class PcmDspProcessor {
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.12f));
             float sourceLpHz = clamp(
                     safeTargetCutoff * sourceLpRatio,
-                    sourceHpHz + (14f - cutoffProgress * 4f),
+                    sourceHpHz + (18f - cutoffProgress * 10f),
                     Math.min(MAX_CUTOFF_HZ, sampleRate * 0.18f));
             sourceHighPass = createMonoFilter(FilterType.HIGH_PASS, sourceHpHz, 85);
             sourceLowPass = createMonoFilter(FilterType.LOW_PASS, sourceLpHz, 85);
