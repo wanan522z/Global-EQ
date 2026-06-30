@@ -1997,7 +1997,7 @@ public final class MainActivity extends Activity {
                     "Native capture is only used by Global DSP and Shizuku Mode.",
                     "原生捕获仅在第二套后端模式下使用。");
         }
-        if (processingMode == ProcessingMode.SHIZUKU_MUTE) {
+        if (processingMode == ProcessingMode.SHIZUKU_MUTE && repository != null) {
             return currentShizukuStatusSummary().detailText(isChineseUi());
         }
         return translateMonitorCaptureStatus(repository.loadMonitorCaptureStatus());
