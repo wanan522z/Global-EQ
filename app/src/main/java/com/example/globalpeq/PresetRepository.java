@@ -215,6 +215,14 @@ final class PresetRepository {
         saveShizukuRuntimeState(loadShizukuRuntimeState().withCaptureStatus(status, active));
     }
 
+    String loadActiveOutputRoute() {
+        return loadShizukuRuntimeState().activeOutputRoute;
+    }
+
+    void saveActiveOutputRoute(String route) {
+        saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveOutputRoute(route));
+    }
+
     void saveMonitorCaptureAuthorized(boolean authorized) {
         prefs.edit()
                 .putBoolean(MONITOR_CAPTURE_AUTHORIZED, authorized)
@@ -303,6 +311,7 @@ final class PresetRepository {
     void clearRuntimeAudioState(String shizukuStatus) {
         ShizukuRuntimeState cleared = ShizukuRuntimeState.DEFAULT
                 .withMuteStatus(shizukuStatus == null ? "Shizuku mute is idle." : shizukuStatus, false)
+                .withActiveOutputRoute("")
                 .withActivePlaybackPackage("")
                 .withActiveMutedPackage("")
                 .withActiveReplayPackage("");
@@ -340,6 +349,7 @@ final class PresetRepository {
                 prefs.getBoolean(MONITOR_CAPTURE_ACTIVE, false),
                 prefs.getString(SHIZUKU_MUTE_STATUS, "Shizuku mute is idle."),
                 prefs.getBoolean(SHIZUKU_MUTE_ACTIVE, false),
+                "",
                 prefs.getString(ACTIVE_PLAYBACK_PACKAGE, ""),
                 prefs.getString(ACTIVE_MUTED_PACKAGE, ""),
                 prefs.getString(ACTIVE_REPLAY_PACKAGE, "")
