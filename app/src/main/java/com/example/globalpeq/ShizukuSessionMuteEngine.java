@@ -298,8 +298,7 @@ final class ShizukuSessionMuteEngine {
     private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback) {
         return wantsToMuteSessions()
                 && hasOwnedCaptureSessions()
-                && ((activePlayback != null && activePlayback.hasActivePlayback())
-                || repository.loadMonitorCaptureActive());
+                && repository.loadMonitorCaptureActive();
     }
 
     private void scanSessionsAndRefreshState() {
@@ -330,7 +329,7 @@ final class ShizukuSessionMuteEngine {
         if (wantsMuteEffects && !applyMuteEffects) {
             publishStatus(repository.loadMonitorCaptureActive()
                     ? "Waiting for native capture playback session."
-                    : "Waiting for active playback sessions.", false);
+                    : "Waiting for source capture before muting.", false);
             return;
         }
         if (!applyMuteEffects) {

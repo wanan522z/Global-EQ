@@ -932,6 +932,11 @@ final class PlaybackCaptureEngine {
             traceReplayDecision("muteActive", "", "", "");
             return allowed;
         }
+        if (currentConfig.allowReplayWithoutMute) {
+            allowed = true;
+            traceReplayDecision("allowReplayWithoutMute", "", "", "");
+            return allowed;
+        }
         String mutedPackage = normalizePackageName(repository.loadActiveMutedPackage());
         if (mutedPackage.isEmpty()) {
             allowed = false;
@@ -1130,6 +1135,9 @@ final class PlaybackCaptureEngine {
             return true;
         }
         if (repository.loadShizukuMuteActive()) {
+            return true;
+        }
+        if (currentConfig.allowReplayWithoutMute) {
             return true;
         }
         String muted = normalizePackageName(mutedPackage);
