@@ -148,6 +148,7 @@ final class ShizukuRuntimeState {
                     object.optBoolean("captureActive", DEFAULT.captureActive),
                     object.optString("muteStatus", DEFAULT.muteStatus),
                     object.optBoolean("muteActive", DEFAULT.muteActive),
+                    object.optString("activeOutputRoute", DEFAULT.activeOutputRoute),
                     object.optString("activePlaybackPackage", DEFAULT.activePlaybackPackage),
                     object.optString("activeMutedPackage", DEFAULT.activeMutedPackage),
                     object.optString("activeReplayPackage", DEFAULT.activeReplayPackage)
