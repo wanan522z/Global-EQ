@@ -153,15 +153,14 @@ final class AudioOutputDeviceMonitor {
             product = name == null ? "" : name.toString().trim();
         }
         String keyProduct = product.isEmpty() ? "default" : product.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", "_");
-        String key = device.getType() + ":" + keyProduct;
-        String routeSignature = key + "#" + device.getId();
+        String key = device.getType() + ":" + keyProduct + "#" + device.getId();
         if (product.isEmpty()) {
-            return new AudioOutputDevice(key, type, routeSignature);
+            return new AudioOutputDevice(key, type, key);
         }
         return new AudioOutputDevice(
                 key,
                 String.format(Locale.US, "%s - %s", type, product),
-                routeSignature);
+                key);
     }
 
     private String typeName(int type) {
