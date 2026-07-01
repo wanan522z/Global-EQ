@@ -47,7 +47,7 @@ final class PlaybackCaptureEngine {
     private static final long PACKAGE_STATE_FRESHNESS_MS = 1500L;
     private static final long REPLAY_DECISION_PCM_HOLD_MS = 2000L;
     private static final long REPLAY_PACKAGE_REFRESH_INTERVAL_MS = 250L;
-    private static final long CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS = 2500L;
+    private static final long CAPTURE_RESTART_CHANGE_WINDOW_MS = 5000L;
     private static final int PLAYER_STATE_STARTED = 2;
     private static final Pattern PLAYER_TYPE_NAME_REGEX = Pattern.compile(
             "\\b(?:playerType|type)\\b\\s*[:=]\\s*([A-Z_]+|[A-Za-z]+AudioTrack|AAudio|OpenSL(?:ES)?|SLES)",
@@ -1763,7 +1763,7 @@ final class PlaybackCaptureEngine {
             if (activeChanged || captureBecameInactiveAtMs <= 0L) {
                 captureActiveRestartArmed = true;
                 captureBecameInactiveAtMs = SystemClock.elapsedRealtime();
-                scheduleRestartAfterSustainedInactiveLocked();
+                scheduleRestartAfterCaptureChangeWindowLocked();
             }
             return;
         }
@@ -1771,9 +1771,27 @@ final class PlaybackCaptureEngine {
             return;
         }
         captureInactiveRestartGeneration++;
+        long inactiveForMs = captureBecameInactiveAtMs <= 0L
+                ? 0L
+                : SystemClock.elapsedRealtime() - captureBecameInactiveAtMs;
+        if (running
+                && captureActiveRestartArmed
+                && inactiveForMs >= CAPTURE_RESTART_CHANGE_WINDOW_MS) {
+            captureActiveRestartArmed = false;
+            mainHandler.post(() -> {
+                synchronized (PlaybackCaptureEngine.this) {
+                    boolean restarted = restartPipelineLocked("capture resumed after change window");
+                    if (!restarted) {
+                        captureActiveRestartArmed = true;
+                    }
+                }
+            });
+            return;
+        }
+        captureActiveRestartArmed = false;
     }
 
-    private void scheduleRestartAfterSustainedInactiveLocked() {
+    private void scheduleRestartAfterCaptureChangeWindowLocked() {
         int generation = ++captureInactiveRestartGeneration;
         mainHandler.postDelayed(() -> {
             synchronized (PlaybackCaptureEngine.this) {
@@ -1786,19 +1804,16 @@ final class PlaybackCaptureEngine {
                 long inactiveForMs = captureBecameInactiveAtMs <= 0L
                         ? 0L
                         : SystemClock.elapsedRealtime() - captureBecameInactiveAtMs;
-                if (inactiveForMs < CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS) {
-                    return;
-                }
-                if (hasRecoverableActivePlayback()) {
+                if (inactiveForMs < CAPTURE_RESTART_CHANGE_WINDOW_MS) {
                     return;
                 }
                 captureActiveRestartArmed = false;
-                boolean restarted = restartPipelineLocked("capture stayed inactive");
+                boolean restarted = restartPipelineLocked("capture stayed inactive through change window");
                 if (!restarted) {
                     captureActiveRestartArmed = true;
                 }
             }
-        }, CAPTURE_ACTIVE_RESTART_MIN_INACTIVE_MS);
+        }, CAPTURE_RESTART_CHANGE_WINDOW_MS);
     }
 
     private String summarizeConfig(AudioPlaybackConfiguration configuration) {
