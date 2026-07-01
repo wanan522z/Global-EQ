@@ -1654,60 +1654,11 @@ final class PlaybackCaptureEngine {
     }
 
     private String describeOutputRouteLabel(AudioDeviceInfo device) {
-        if (device == null) {
-            return "";
-        }
-        int type = device.getType();
-        String typeName = outputTypeName(type);
-        String product = "";
-        try {
-            CharSequence productName = device.getProductName();
-            product = productName == null ? "" : productName.toString().trim();
-        } catch (RuntimeException ignored) {
-        }
-        if (product.isEmpty() || product.equalsIgnoreCase(typeName)) {
-            return typeName;
-        }
-        return typeName + " - " + product;
-    }
-
-    private String outputTypeName(int type) {
-        switch (type) {
-            case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
-                return "Speaker";
-            case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
-                return "Bluetooth";
-            case AudioDeviceInfo.TYPE_BLUETOOTH_SCO:
-                return "Bluetooth SCO";
-            case AudioDeviceInfo.TYPE_BLE_HEADSET:
-                return "BLE headset";
-            case AudioDeviceInfo.TYPE_BLE_SPEAKER:
-                return "BLE speaker";
-            case AudioDeviceInfo.TYPE_BLE_BROADCAST:
-                return "BLE audio";
-            case AudioDeviceInfo.TYPE_USB_DEVICE:
-                return "USB DAC";
-            case AudioDeviceInfo.TYPE_USB_HEADSET:
-                return "USB headset";
-            case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
-                return "Wired headphones";
-            case AudioDeviceInfo.TYPE_WIRED_HEADSET:
-                return "Wired headset";
-            default:
-                return "Output " + type;
-        }
+        return AudioDeviceIdentity.describeOutputRouteLabel(appContext, device);
     }
 
     private String describeOutputDeviceKey(AudioDeviceInfo device) {
-        if (device == null) {
-            return "none";
-        }
-        CharSequence productName = device.getProductName();
-        String product = productName == null ? "" : productName.toString().trim();
-        String keyProduct = product.isEmpty()
-                ? "default"
-                : product.toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]+", "_");
-        return device.getType() + ":" + keyProduct;
+        return AudioDeviceIdentity.describeOutputDeviceKey(appContext, device);
     }
 
     private String describeResolvedDeviceSignature(AudioDeviceInfo device) {
