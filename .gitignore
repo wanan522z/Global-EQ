@@ -1,7 +1,13 @@
 .gradle/
+.gradle-user-home/
 .idea/
 build/
 app/build/
+app/release/
+tmp_javac_check/
+tmp_javac_check_sources.txt
+tmp_javac_check_sources_quoted.txt
+javac_sources_relative.txt
 local.properties
 *.apk
 *.ap_
