@@ -32,7 +32,7 @@ final class PlaybackCaptureEngine {
     private static final String TAG = "PlaybackCaptureEngine";
     private static final int CHANNEL_COUNT = 2;
     private static final int SAMPLE_RATE = 48000;
-    private static final float SIGNAL_THRESHOLD = 0.0018f;
+    private static final float SIGNAL_THRESHOLD = 0.0002f;
     private static final int SOURCE_APP_STREAM = AudioManager.STREAM_MUSIC;
     private static final int MIN_PIPELINE_BUFFER_FRAMES = 128;
     private static final int MIN_TRACK_LATENCY_MS = 40;
