@@ -92,6 +92,7 @@ final class PlaybackCaptureEngine {
     private boolean captureActiveRestartArmed = true;
     private long captureBecameInactiveAtMs;
     private int captureInactiveRestartGeneration;
+    private boolean captureInactiveWindowExpired;
     private volatile long lastCaptureSignalAtMs;
     private volatile String currentReplayPackageName = "";
     private volatile String currentOutputRouteLabel = "";
@@ -1762,8 +1763,9 @@ final class PlaybackCaptureEngine {
         if (!active) {
             if (activeChanged || captureBecameInactiveAtMs <= 0L) {
                 captureActiveRestartArmed = true;
+                captureInactiveWindowExpired = false;
                 captureBecameInactiveAtMs = SystemClock.elapsedRealtime();
-                scheduleRestartAfterCaptureChangeWindowLocked();
+                scheduleCaptureChangeWindowExpiryLocked();
             }
             return;
         }
@@ -1776,11 +1778,12 @@ final class PlaybackCaptureEngine {
                 : SystemClock.elapsedRealtime() - captureBecameInactiveAtMs;
         if (running
                 && captureActiveRestartArmed
-                && inactiveForMs >= CAPTURE_RESTART_CHANGE_WINDOW_MS) {
+                && (captureInactiveWindowExpired || inactiveForMs >= CAPTURE_RESTART_CHANGE_WINDOW_MS)) {
             captureActiveRestartArmed = false;
+            captureInactiveWindowExpired = false;
             mainHandler.post(() -> {
                 synchronized (PlaybackCaptureEngine.this) {
-                    boolean restarted = restartPipelineLocked("capture resumed after change window");
+                    boolean restarted = restartPipelineLocked("capture resumed after inactive window");
                     if (!restarted) {
                         captureActiveRestartArmed = true;
                     }
@@ -1789,9 +1792,10 @@ final class PlaybackCaptureEngine {
             return;
         }
         captureActiveRestartArmed = false;
+        captureInactiveWindowExpired = false;
     }
 
-    private void scheduleRestartAfterCaptureChangeWindowLocked() {
+    private void scheduleCaptureChangeWindowExpiryLocked() {
         int generation = ++captureInactiveRestartGeneration;
         mainHandler.postDelayed(() -> {
             synchronized (PlaybackCaptureEngine.this) {
@@ -1807,11 +1811,7 @@ final class PlaybackCaptureEngine {
                 if (inactiveForMs < CAPTURE_RESTART_CHANGE_WINDOW_MS) {
                     return;
                 }
-                captureActiveRestartArmed = false;
-                boolean restarted = restartPipelineLocked("capture stayed inactive through change window");
-                if (!restarted) {
-                    captureActiveRestartArmed = true;
-                }
+                captureInactiveWindowExpired = true;
             }
         }, CAPTURE_RESTART_CHANGE_WINDOW_MS);
     }
