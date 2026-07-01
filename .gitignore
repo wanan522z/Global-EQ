@@ -15,3 +15,5 @@ captures/
 out/
 *.iml
 tools/*.log
+tools/
+device-global_peq.xml
