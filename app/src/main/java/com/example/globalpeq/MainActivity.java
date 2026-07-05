@@ -1239,7 +1239,7 @@ public final class MainActivity extends Activity {
         controlCard.addView(presetRow, blockParams(12));
 
         presetSelectButton = new MarqueeButton(this);
-        presetSelectButton.setTextSize(13);
+        presetSelectButton.setTextSize(12);
         presetSelectButton.setAllCaps(false);
         presetSelectButton.setGravity(android.view.Gravity.CENTER);
         configureCenteredMarquee(presetSelectButton);
@@ -1252,14 +1252,14 @@ public final class MainActivity extends Activity {
         undoButton.setForegroundGravity(android.view.Gravity.CENTER);
         undoButton.setIncludeFontPadding(false);
         undoButton.setOnClickListener(v -> undoEdit());
-        presetRow.addView(undoButton, presetButtonParams(dp(48), 0f, 0, 8));
+        presetRow.addView(undoButton, presetButtonParams(dp(44), 0f, 0, 12));
 
         redoButton = new Button(this);
         redoButton.setForeground(makeCurvedArrowDrawable(true));
         redoButton.setForegroundGravity(android.view.Gravity.CENTER);
         redoButton.setIncludeFontPadding(false);
         redoButton.setOnClickListener(v -> redoEdit());
-        presetRow.addView(redoButton, presetButtonParams(dp(48), 0f, 0, 8));
+        presetRow.addView(redoButton, presetButtonParams(dp(44), 0f, 0, 12));
 
         savePresetButton = new Button(this);
         savePresetButton.setText("Save");
@@ -2117,7 +2117,7 @@ public final class MainActivity extends Activity {
     }
 
     private String footerText() {
-        return tr("Version 1.4.o - Powered by WanAn522z", "Version 1.4.o - Powered by WanAn522z");
+        return tr("Version 1.5.o - Powered by WanAn522z", "Version 1.5.o - Powered by WanAn522z");
     }
 
     private String monitorSettingsTitleText() {
@@ -2295,9 +2295,9 @@ public final class MainActivity extends Activity {
 
     private String shizukuRuntimePlaybackText() {
         return runtimePackageLine(
-                tr("Detected playback", "检测到的播放源"),
+                tr("Detected app", "检测到的播放应用"),
                 bestPlaybackRuntimePackage(currentShizukuRuntimeState()),
-                tr("No active package yet", "暂时还没有检测到活跃包名"));
+                tr("No active app yet", "暂时还没有检测到活动应用"));
     }
 
     private String shizukuRuntimeRouteText() {
@@ -2314,16 +2314,16 @@ public final class MainActivity extends Activity {
 
     private String shizukuRuntimeMuteText() {
         return runtimePackageLine(
-                tr("Muted package", "当前静音包名"),
+                tr("Muted app", "当前静音应用"),
                 currentShizukuRuntimeState().activeMutedPackage,
-                tr("No package is muted right now", "当前还没有成功静音任何包"));
+                tr("No app is muted right now", "当前还没有成功静音任何应用"));
     }
 
     private String shizukuRuntimeReplayText() {
         return runtimePackageLine(
-                tr("Replay package", "当前回放包名"),
+                tr("Replay app", "当前回放应用"),
                 bestReplayRuntimePackage(currentShizukuRuntimeState()),
-                tr("Replay has not locked onto a package yet", "回放链路暂时还没有锁定到包名"));
+                tr("Replay has not locked onto an app yet", "回放链路暂时还没有锁定到应用"));
     }
 
     private String bestPlaybackRuntimePackage(ShizukuRuntimeState state) {
@@ -2476,8 +2476,8 @@ public final class MainActivity extends Activity {
             CharSequence label = getPackageManager().getApplicationLabel(
                     getPackageManager().getApplicationInfo(normalized, 0));
             String safeLabel = label == null ? "" : label.toString().trim();
-            if (!safeLabel.isEmpty() && !safeLabel.equals(normalized)) {
-                return safeLabel + " · " + normalized;
+            if (!safeLabel.isEmpty()) {
+                return safeLabel;
             }
         } catch (PackageManager.NameNotFoundException ignored) {
         }

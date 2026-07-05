@@ -48,6 +48,7 @@ final class PlaybackCaptureEngine {
     private static final long REPLAY_DECISION_PCM_HOLD_MS = 2000L;
     private static final long REPLAY_PACKAGE_REFRESH_INTERVAL_MS = 250L;
     private static final long CAPTURE_RESTART_CHANGE_WINDOW_MS = 5000L;
+    private static final long CAPTURE_RESUME_SKIP_RESTART_MAX_MS = 8000L;
     private static final int PLAYER_STATE_STARTED = 2;
     private static final Pattern PLAYER_TYPE_NAME_REGEX = Pattern.compile(
             "\\b(?:playerType|type)\\b\\s*[:=]\\s*([A-Z_]+|[A-Za-z]+AudioTrack|AAudio|OpenSL(?:ES)?|SLES)",
@@ -93,6 +94,7 @@ final class PlaybackCaptureEngine {
     private long captureBecameInactiveAtMs;
     private int captureInactiveRestartGeneration;
     private boolean captureInactiveWindowExpired;
+    private boolean captureInactiveSawRecoverablePlayback;
     private volatile long lastCaptureSignalAtMs;
     private volatile String currentReplayPackageName = "";
     private volatile String currentOutputRouteLabel = "";
@@ -295,6 +297,29 @@ final class PlaybackCaptureEngine {
         }
         long ageMs = SystemClock.elapsedRealtime() - lastCaptureSignalAtMs;
         return ageMs >= 0L && ageMs <= withinMs;
+    }
+
+    synchronized void handleDeviceWake() {
+        if (!AudioProcessingPolicy.advancedModeEnabled(currentMode)
+                || currentPreset == null
+                || !currentPreset.enabled
+                || mediaProjection == null) {
+            return;
+        }
+        if (!currentMode.capturesSystemAudio()) {
+            currentTargetUid = resolveTargetUid(currentConfig.monitoredAppPackage);
+            if (currentTargetUid <= 0) {
+                return;
+            }
+        }
+        if (running && hasRecentCaptureActivity(2000L)) {
+            return;
+        }
+        String reason = running
+                ? "device wake recovery after inactive capture"
+                : "device wake recovery while pipeline stopped";
+        Log.i(TAG, "Running wake recovery, reason=" + reason);
+        startPipelineLocked();
     }
 
     synchronized void stopAll() {
@@ -1716,7 +1741,10 @@ final class PlaybackCaptureEngine {
                 captureActiveRestartArmed = true;
                 captureInactiveWindowExpired = false;
                 captureBecameInactiveAtMs = SystemClock.elapsedRealtime();
+                captureInactiveSawRecoverablePlayback = hasRecoverableActivePlayback();
                 scheduleCaptureChangeWindowExpiryLocked();
+            } else if (!captureInactiveSawRecoverablePlayback && hasRecoverableActivePlayback()) {
+                captureInactiveSawRecoverablePlayback = true;
             }
             return;
         }
@@ -1732,6 +1760,16 @@ final class PlaybackCaptureEngine {
                 && (captureInactiveWindowExpired || inactiveForMs >= CAPTURE_RESTART_CHANGE_WINDOW_MS)) {
             captureActiveRestartArmed = false;
             captureInactiveWindowExpired = false;
+            boolean shouldRestart = !captureInactiveSawRecoverablePlayback
+                    || inactiveForMs >= CAPTURE_RESUME_SKIP_RESTART_MAX_MS;
+            captureInactiveSawRecoverablePlayback = false;
+            if (!shouldRestart) {
+                Log.i(TAG, "Capture resumed after inactive window without pipeline restart"
+                        + ", inactiveForMs=" + inactiveForMs
+                        + ", mode=" + currentMode
+                        + ", recoverablePlaybackPersisted=true");
+                return;
+            }
             mainHandler.post(() -> {
                 synchronized (PlaybackCaptureEngine.this) {
                     boolean restarted = restartPipelineLocked("capture resumed after inactive window");
@@ -1744,6 +1782,7 @@ final class PlaybackCaptureEngine {
         }
         captureActiveRestartArmed = false;
         captureInactiveWindowExpired = false;
+        captureInactiveSawRecoverablePlayback = false;
     }
 
     private void scheduleCaptureChangeWindowExpiryLocked() {
@@ -1761,6 +1800,9 @@ final class PlaybackCaptureEngine {
                         : SystemClock.elapsedRealtime() - captureBecameInactiveAtMs;
                 if (inactiveForMs < CAPTURE_RESTART_CHANGE_WINDOW_MS) {
                     return;
+                }
+                if (!captureInactiveSawRecoverablePlayback && hasRecoverableActivePlayback()) {
+                    captureInactiveSawRecoverablePlayback = true;
                 }
                 captureInactiveWindowExpired = true;
             }

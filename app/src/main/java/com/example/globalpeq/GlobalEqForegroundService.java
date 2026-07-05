@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.Handler;
@@ -32,6 +33,8 @@ public final class GlobalEqForegroundService extends Service {
     private static final int NOTIFICATION_ID = 10;
     private static final long CAPTURE_UPDATE_DEBOUNCE_MS = 350L;
     private static final long CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS = 2500L;
+    private static final long CAPTURE_WAKE_RECOVERY_DELAY_MS =
+            CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS + CAPTURE_UPDATE_DEBOUNCE_MS;
     private static volatile boolean instanceRunning;
 
     private GlobalEqualizerEngine engine;
@@ -63,6 +66,7 @@ public final class GlobalEqForegroundService extends Service {
             if (Intent.ACTION_SCREEN_ON.equals(action) || Intent.ACTION_USER_PRESENT.equals(action)) {
                 suppressCaptureRouteUpdatesUntilMs = SystemClock.elapsedRealtime()
                         + CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS;
+                scheduleWakeRecovery();
             }
         }
     };
@@ -82,6 +86,16 @@ public final class GlobalEqForegroundService extends Service {
                     pendingCaptureMode,
                     pendingCapturePreset,
                     pendingCaptureConfig);
+        }
+    };
+    private final Runnable wakeRecoveryRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (captureEngine == null || shizukuMuteEngine == null) {
+                return;
+            }
+            captureEngine.handleDeviceWake();
+            shizukuMuteEngine.handleDeviceWake();
         }
     };
 
@@ -327,20 +341,27 @@ public final class GlobalEqForegroundService extends Service {
         String state = currentPreset.enabled ? "Global PEQ on" : "Global PEQ off";
         ProcessingMode mode = currentProcessingMode;
         String content;
+        String detail = null;
         if (mode.requiresShizukuMute()) {
-            content = currentShizukuSummary().compactText(isChineseUi());
+            ShizukuStatusSummary summary = currentShizukuSummary();
+            content = buildShizukuNotificationContent(summary);
+            detail = buildShizukuNotificationDetail(summary);
         } else if (mode.usesNativeCapture()) {
             content = repository.loadMonitorCaptureStatus();
         } else {
             content = currentDevice.label;
         }
-        return builder
+        builder
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(state)
                 .setContentText(content)
                 .setContentIntent(pendingIntent)
-                .setOngoing(currentPreset.enabled)
-                .build();
+                .setOnlyAlertOnce(true)
+                .setOngoing(currentPreset.enabled);
+        if (detail != null && !detail.trim().isEmpty()) {
+            builder.setStyle(new Notification.BigTextStyle().bigText(detail));
+        }
+        return builder.build();
     }
 
     private ShizukuStatusSummary currentShizukuSummary() {
@@ -354,6 +375,109 @@ public final class GlobalEqForegroundService extends Service {
 
     private boolean isChineseUi() {
         return repository != null && "zh".equalsIgnoreCase(repository.loadUiLanguage());
+    }
+
+    private String buildShizukuNotificationContent(ShizukuStatusSummary summary) {
+        ShizukuStatusSummary safe = summary == null
+                ? new ShizukuStatusSummary(ShizukuStatusSummary.Kind.STANDBY, "", "", "")
+                : summary;
+        String appLabel = firstNonEmpty(
+                describeRuntimePackages(safe.replayPackage),
+                describeRuntimePackages(safe.playbackPackage),
+                describeRuntimePackages(safe.mutedPackage));
+        String headline = safe.compactText(isChineseUi());
+        if (appLabel.isEmpty()) {
+            return headline;
+        }
+        return headline + " | " + firstPackage(appLabel);
+    }
+
+    private String buildShizukuNotificationDetail(ShizukuStatusSummary summary) {
+        ShizukuStatusSummary safe = summary == null
+                ? new ShizukuStatusSummary(ShizukuStatusSummary.Kind.STANDBY, "", "", "")
+                : summary;
+        String detail = safe.detailText(isChineseUi());
+        String appLine = "";
+        if (!safe.replayPackage.isEmpty()) {
+            appLine = isChineseUi()
+                    ? "当前回放应用: " + describeRuntimePackages(safe.replayPackage)
+                    : "Replay app: " + describeRuntimePackages(safe.replayPackage);
+        } else if (!safe.playbackPackage.isEmpty()) {
+            appLine = isChineseUi()
+                    ? "当前播放应用: " + describeRuntimePackages(safe.playbackPackage)
+                    : "Playback app: " + describeRuntimePackages(safe.playbackPackage);
+        } else if (!safe.mutedPackage.isEmpty()) {
+            appLine = isChineseUi()
+                    ? "当前静音应用: " + describeRuntimePackages(safe.mutedPackage)
+                    : "Muted app: " + describeRuntimePackages(safe.mutedPackage);
+        }
+        if (appLine.isEmpty()) {
+            return detail;
+        }
+        return detail + "\n" + appLine;
+    }
+
+    private String describeRuntimePackages(String packageNames) {
+        if (packageNames == null || packageNames.trim().isEmpty()) {
+            return "";
+        }
+        String normalized = packageNames.trim();
+        String[] parts = normalized.split(",");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            String appName = describeRuntimePackage(part == null ? "" : part.trim());
+            if (appName.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(appName);
+        }
+        return builder.length() == 0 ? normalized : builder.toString();
+    }
+
+    private String describeRuntimePackage(String packageName) {
+        if (packageName == null || packageName.trim().isEmpty()) {
+            return "";
+        }
+        String normalized = packageName.trim();
+        try {
+            CharSequence label = getPackageManager().getApplicationLabel(
+                    getPackageManager().getApplicationInfo(normalized, 0));
+            String safeLabel = label == null ? "" : label.toString().trim();
+            if (!safeLabel.isEmpty()) {
+                return safeLabel;
+            }
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        return normalized;
+    }
+
+    private String firstPackage(String packageList) {
+        if (packageList == null || packageList.trim().isEmpty()) {
+            return "";
+        }
+        String[] parts = packageList.split(",");
+        for (String part : parts) {
+            String value = part == null ? "" : part.trim();
+            if (!value.isEmpty()) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private String firstNonEmpty(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private void startForegroundInternal(boolean withProjection) {
@@ -427,6 +551,7 @@ public final class GlobalEqForegroundService extends Service {
             return;
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
+        handler.removeCallbacks(wakeRecoveryRunnable);
         handler.post(() -> captureEngine.stopAll());
     }
 
@@ -436,6 +561,7 @@ public final class GlobalEqForegroundService extends Service {
             return;
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
+        handler.removeCallbacks(wakeRecoveryRunnable);
         handler.post(() -> shizukuMuteEngine.stopAll());
     }
 
@@ -449,6 +575,7 @@ public final class GlobalEqForegroundService extends Service {
             return;
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
+        handler.removeCallbacks(wakeRecoveryRunnable);
         handler.post(() -> {
             stopAllProcessingNow();
             mainHandler.post(() -> {
@@ -497,6 +624,18 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             handler.postDelayed(applyPendingCaptureUpdateRunnable, delayMs);
         }
+    }
+
+    private void scheduleWakeRecovery() {
+        Handler handler = captureControlHandler;
+        if (handler == null || !currentPreset.enabled) {
+            return;
+        }
+        if (!currentProcessingMode.usesNativeCapture()) {
+            return;
+        }
+        handler.removeCallbacks(wakeRecoveryRunnable);
+        handler.postDelayed(wakeRecoveryRunnable, CAPTURE_WAKE_RECOVERY_DELAY_MS);
     }
 
     private long remainingCaptureRouteSuppressionMs() {

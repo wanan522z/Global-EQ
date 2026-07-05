@@ -276,6 +276,16 @@ final class ShizukuSessionMuteEngine {
         publishStatus("Shizuku mute is idle.", false);
     }
 
+    synchronized void handleDeviceWake() {
+        if (!shouldMonitorPlaybackSessions()) {
+            return;
+        }
+        if (wantsToMuteSessions()) {
+            updateCurrentAppSessionIds();
+        }
+        scanSessionsAndRefreshState();
+    }
+
     private boolean shouldMonitorPlaybackSessions() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
                 && ShizukuCompat.hasPermission();
@@ -297,7 +307,8 @@ final class ShizukuSessionMuteEngine {
                 && hasOwnedCaptureSessions()
                 && (repository.loadMonitorCaptureActive()
                 || (sessionIdProvider != null
-                && sessionIdProvider.hasRecentCaptureActivity(CAPTURE_ACTIVITY_HOLD_MS)));
+                && sessionIdProvider.hasRecentCaptureActivity(CAPTURE_ACTIVITY_HOLD_MS))
+                || (activePlayback != null && activePlayback.hasActivePlayback()));
     }
 
     private void scanSessionsAndRefreshState() {

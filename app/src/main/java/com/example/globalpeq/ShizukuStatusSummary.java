@@ -54,16 +54,26 @@ final class ShizukuStatusSummary {
         String mutedPackage = normalize(safeState.activeMutedPackage);
         String captureStatus = normalize(safeState.captureStatus);
         boolean muteVerified = safeState.muteActive;
-        if (safeState.captureActive && muteVerified) {
+        boolean hasReplayEvidence = !replayPackage.isEmpty();
+        boolean hasRouteEvidence = !normalize(safeState.activeOutputRoute).isEmpty();
+        boolean captureLikelyActive = safeState.captureActive || hasReplayEvidence || hasRouteEvidence;
+        if (captureLikelyActive && muteVerified) {
             return new ShizukuStatusSummary(
                     Kind.MUTED_REPLAY,
                     playbackPackage,
                     mutedPackage,
                     replayPackage);
         }
-        if (safeState.captureActive) {
+        if (captureLikelyActive && hasReplayEvidence) {
             return new ShizukuStatusSummary(
                     Kind.UNMUTED_REPLAY,
+                    playbackPackage,
+                    mutedPackage,
+                    replayPackage);
+        }
+        if (captureLikelyActive) {
+            return new ShizukuStatusSummary(
+                    Kind.CAPTURE_ONLY,
                     playbackPackage,
                     mutedPackage,
                     replayPackage);

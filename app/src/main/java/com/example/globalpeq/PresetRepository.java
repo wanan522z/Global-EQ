@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 final class PresetRepository {
     private static final String PREFS = "global_peq";
@@ -203,11 +204,11 @@ final class PresetRepository {
                 .commit();
     }
 
-    String loadMonitorCaptureStatus() {
+    synchronized String loadMonitorCaptureStatus() {
         return loadShizukuRuntimeState().captureStatus;
     }
 
-    boolean loadMonitorCaptureActive() {
+    synchronized boolean loadMonitorCaptureActive() {
         return loadShizukuRuntimeState().captureActive;
     }
 
@@ -215,16 +216,16 @@ final class PresetRepository {
         return prefs.getBoolean(MONITOR_CAPTURE_AUTHORIZED, false);
     }
 
-    void saveMonitorCaptureStatus(String status, boolean active) {
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withCaptureStatus(status, active));
+    synchronized void saveMonitorCaptureStatus(String status, boolean active) {
+        updateShizukuRuntimeState(state -> state.withCaptureStatus(status, active));
     }
 
-    String loadActiveOutputRoute() {
+    synchronized String loadActiveOutputRoute() {
         return loadShizukuRuntimeState().activeOutputRoute;
     }
 
-    void saveActiveOutputRoute(String route) {
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveOutputRoute(route));
+    synchronized void saveActiveOutputRoute(String route) {
+        updateShizukuRuntimeState(state -> state.withActiveOutputRoute(route));
     }
 
     void saveMonitorCaptureAuthorized(boolean authorized) {
@@ -233,16 +234,16 @@ final class PresetRepository {
                 .apply();
     }
 
-    String loadShizukuMuteStatus() {
+    synchronized String loadShizukuMuteStatus() {
         return loadShizukuRuntimeState().muteStatus;
     }
 
-    boolean loadShizukuMuteActive() {
+    synchronized boolean loadShizukuMuteActive() {
         return loadShizukuRuntimeState().muteActive;
     }
 
-    void saveShizukuMuteStatus(String status, boolean active) {
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withMuteStatus(status, active));
+    synchronized void saveShizukuMuteStatus(String status, boolean active) {
+        updateShizukuRuntimeState(state -> state.withMuteStatus(status, active));
     }
 
     boolean loadMasterEnabled() {
@@ -253,70 +254,82 @@ final class PresetRepository {
         prefs.edit().putBoolean(MASTER_ENABLED, enabled).apply();
     }
 
-    String loadActivePlaybackPackage() {
+    synchronized String loadActivePlaybackPackage() {
         return loadShizukuRuntimeState().activePlaybackPackage;
     }
 
-    void saveActivePlaybackPackage(String packageName) {
-        saveRuntimePackageUpdatedAt(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, packageName);
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withActivePlaybackPackage(packageName));
+    synchronized void saveActivePlaybackPackage(String packageName) {
+        updateShizukuRuntimeState(
+                state -> state.withActivePlaybackPackage(packageName),
+                ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT,
+                packageName);
     }
 
-    void touchActivePlaybackPackage(String packageName) {
-        saveRuntimePackageUpdatedAt(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, packageName);
+    synchronized void touchActivePlaybackPackage(String packageName) {
+        saveRuntimePackageUpdatedAtLocked(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, packageName);
     }
 
-    String loadActiveMutedPackage() {
+    synchronized String loadActiveMutedPackage() {
         return loadShizukuRuntimeState().activeMutedPackage;
     }
 
-    void saveActiveMutedPackage(String packageName) {
-        saveRuntimePackageUpdatedAt(ACTIVE_MUTED_PACKAGE_UPDATED_AT, packageName);
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveMutedPackage(packageName));
+    synchronized void saveActiveMutedPackage(String packageName) {
+        updateShizukuRuntimeState(
+                state -> state.withActiveMutedPackage(packageName),
+                ACTIVE_MUTED_PACKAGE_UPDATED_AT,
+                packageName);
     }
 
-    void touchActiveMutedPackage(String packageName) {
-        saveRuntimePackageUpdatedAt(ACTIVE_MUTED_PACKAGE_UPDATED_AT, packageName);
+    synchronized void touchActiveMutedPackage(String packageName) {
+        saveRuntimePackageUpdatedAtLocked(ACTIVE_MUTED_PACKAGE_UPDATED_AT, packageName);
     }
 
-    String loadActivePlaybackSessionIds() {
+    synchronized String loadActivePlaybackSessionIds() {
         return loadShizukuRuntimeState().activePlaybackSessionIds;
     }
 
-    void saveActivePlaybackSessionIds(String sessionIds) {
-        saveRuntimePackageUpdatedAt(ACTIVE_PLAYBACK_SESSION_IDS_UPDATED_AT, sessionIds);
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withActivePlaybackSessionIds(sessionIds));
+    synchronized void saveActivePlaybackSessionIds(String sessionIds) {
+        updateShizukuRuntimeState(
+                state -> state.withActivePlaybackSessionIds(sessionIds),
+                ACTIVE_PLAYBACK_SESSION_IDS_UPDATED_AT,
+                sessionIds);
     }
 
-    String loadDesiredMutedSessionIds() {
+    synchronized String loadDesiredMutedSessionIds() {
         return loadShizukuRuntimeState().desiredMutedSessionIds;
     }
 
-    void saveDesiredMutedSessionIds(String sessionIds) {
-        saveRuntimePackageUpdatedAt(DESIRED_MUTED_SESSION_IDS_UPDATED_AT, sessionIds);
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withDesiredMutedSessionIds(sessionIds));
+    synchronized void saveDesiredMutedSessionIds(String sessionIds) {
+        updateShizukuRuntimeState(
+                state -> state.withDesiredMutedSessionIds(sessionIds),
+                DESIRED_MUTED_SESSION_IDS_UPDATED_AT,
+                sessionIds);
     }
 
-    String loadActiveMutedSessionIds() {
+    synchronized String loadActiveMutedSessionIds() {
         return loadShizukuRuntimeState().activeMutedSessionIds;
     }
 
-    void saveActiveMutedSessionIds(String sessionIds) {
-        saveRuntimePackageUpdatedAt(ACTIVE_MUTED_SESSION_IDS_UPDATED_AT, sessionIds);
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveMutedSessionIds(sessionIds));
+    synchronized void saveActiveMutedSessionIds(String sessionIds) {
+        updateShizukuRuntimeState(
+                state -> state.withActiveMutedSessionIds(sessionIds),
+                ACTIVE_MUTED_SESSION_IDS_UPDATED_AT,
+                sessionIds);
     }
 
-    String loadActiveReplayPackage() {
+    synchronized String loadActiveReplayPackage() {
         return loadShizukuRuntimeState().activeReplayPackage;
     }
 
-    void saveActiveReplayPackage(String packageName) {
-        saveRuntimePackageUpdatedAt(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, packageName);
-        saveShizukuRuntimeState(loadShizukuRuntimeState().withActiveReplayPackage(packageName));
+    synchronized void saveActiveReplayPackage(String packageName) {
+        updateShizukuRuntimeState(
+                state -> state.withActiveReplayPackage(packageName),
+                ACTIVE_REPLAY_PACKAGE_UPDATED_AT,
+                packageName);
     }
 
-    void touchActiveReplayPackage(String packageName) {
-        saveRuntimePackageUpdatedAt(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, packageName);
+    synchronized void touchActiveReplayPackage(String packageName) {
+        saveRuntimePackageUpdatedAtLocked(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, packageName);
     }
 
     long loadActivePlaybackPackageUpdatedAt() {
@@ -381,14 +394,23 @@ final class PresetRepository {
                 .apply();
     }
 
-    private void saveRuntimePackageUpdatedAt(String key, String packageName) {
+    private void saveRuntimePackageUpdatedAtLocked(String key, String packageName) {
+        SharedPreferences.Editor editor = prefs.edit();
+        putRuntimePackageUpdatedAt(editor, key, packageName);
+        editor.apply();
+    }
+
+    private void putRuntimePackageUpdatedAt(SharedPreferences.Editor editor, String key, String packageName) {
+        if (editor == null || key == null || key.trim().isEmpty()) {
+            return;
+        }
         long updatedAt = packageName == null || packageName.trim().isEmpty()
                 ? 0L
                 : System.currentTimeMillis();
-        prefs.edit().putLong(key, updatedAt).apply();
+        editor.putLong(key, updatedAt);
     }
 
-    ShizukuRuntimeState loadShizukuRuntimeState() {
+    synchronized ShizukuRuntimeState loadShizukuRuntimeState() {
         String json = prefs.getString(SHIZUKU_RUNTIME_STATE, null);
         if (json != null && !json.trim().isEmpty()) {
             return ShizukuRuntimeState.fromJson(json);
@@ -408,9 +430,27 @@ final class PresetRepository {
         );
     }
 
-    void saveShizukuRuntimeState(ShizukuRuntimeState state) {
+    synchronized void saveShizukuRuntimeState(ShizukuRuntimeState state) {
+        writeShizukuRuntimeStateLocked(state, null, null);
+    }
+
+    private void updateShizukuRuntimeState(UnaryOperator<ShizukuRuntimeState> updater) {
+        updateShizukuRuntimeState(updater, null, null);
+    }
+
+    private void updateShizukuRuntimeState(UnaryOperator<ShizukuRuntimeState> updater,
+                                           String updatedAtKey,
+                                           String updatedAtValue) {
+        ShizukuRuntimeState current = loadShizukuRuntimeState();
+        ShizukuRuntimeState next = updater == null ? current : updater.apply(current);
+        writeShizukuRuntimeStateLocked(next, updatedAtKey, updatedAtValue);
+    }
+
+    private void writeShizukuRuntimeStateLocked(ShizukuRuntimeState state,
+                                                String updatedAtKey,
+                                                String updatedAtValue) {
         ShizukuRuntimeState safe = state == null ? ShizukuRuntimeState.DEFAULT : state;
-        prefs.edit()
+        SharedPreferences.Editor editor = prefs.edit()
                 .putString(SHIZUKU_RUNTIME_STATE, safe.toJson())
                 .putString(MONITOR_CAPTURE_STATUS, safe.captureStatus)
                 .putBoolean(MONITOR_CAPTURE_ACTIVE, safe.captureActive)
@@ -418,8 +458,11 @@ final class PresetRepository {
                 .putBoolean(SHIZUKU_MUTE_ACTIVE, safe.muteActive)
                 .putString(ACTIVE_PLAYBACK_PACKAGE, safe.activePlaybackPackage)
                 .putString(ACTIVE_MUTED_PACKAGE, safe.activeMutedPackage)
-                .putString(ACTIVE_REPLAY_PACKAGE, safe.activeReplayPackage)
-                .apply();
+                .putString(ACTIVE_REPLAY_PACKAGE, safe.activeReplayPackage);
+        if (updatedAtKey != null) {
+            putRuntimePackageUpdatedAt(editor, updatedAtKey, updatedAtValue);
+        }
+        editor.apply();
     }
 
     AudioOutputDevice loadSelectedDevice() {
