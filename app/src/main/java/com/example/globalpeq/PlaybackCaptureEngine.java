@@ -1801,10 +1801,21 @@ final class PlaybackCaptureEngine {
                 if (inactiveForMs < CAPTURE_RESTART_CHANGE_WINDOW_MS) {
                     return;
                 }
-                if (!captureInactiveSawRecoverablePlayback && hasRecoverableActivePlayback()) {
+                boolean recoverablePlayback = hasRecoverableActivePlayback();
+                if (!captureInactiveSawRecoverablePlayback && recoverablePlayback) {
                     captureInactiveSawRecoverablePlayback = true;
                 }
                 captureInactiveWindowExpired = true;
+                if (!recoverablePlayback) {
+                    return;
+                }
+                captureActiveRestartArmed = false;
+                captureInactiveWindowExpired = false;
+                boolean restarted = restartPipelineLocked("inactive capture window expired with active playback");
+                if (!restarted) {
+                    captureActiveRestartArmed = true;
+                    captureInactiveWindowExpired = true;
+                }
             }
         }, CAPTURE_RESTART_CHANGE_WINDOW_MS);
     }

@@ -303,12 +303,20 @@ final class ShizukuSessionMuteEngine {
     }
 
     private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback) {
-        return wantsToMuteSessions()
-                && hasOwnedCaptureSessions()
-                && (repository.loadMonitorCaptureActive()
-                || (sessionIdProvider != null
-                && sessionIdProvider.hasRecentCaptureActivity(CAPTURE_ACTIVITY_HOLD_MS))
-                || (activePlayback != null && activePlayback.hasActivePlayback()));
+        if (!wantsToMuteSessions() || !hasOwnedCaptureSessions()) {
+            return false;
+        }
+        if (repository.loadMonitorCaptureActive()) {
+            return true;
+        }
+        if (sessionIdProvider != null
+                && sessionIdProvider.hasRecentCaptureActivity(CAPTURE_ACTIVITY_HOLD_MS)) {
+            return true;
+        }
+        if (activePlayback != null && activePlayback.hasActivePlayback()) {
+            return true;
+        }
+        return !muteEffects.isEmpty();
     }
 
     private void scanSessionsAndRefreshState() {
