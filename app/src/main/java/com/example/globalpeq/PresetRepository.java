@@ -609,6 +609,9 @@ final class PresetRepository {
         if ("JM-1".equals(name)) {
             return loadRawCurve("JM-1", R.raw.jm1);
         }
+        if ("Pop avg-JM1".equals(name)) {
+            return loadRawCurve("Pop avg-JM1", R.raw.pop_avg_jm1);
+        }
         if ("WoodenEarsTarget".equals(name)) {
             return FrequencyCurve.builtInWoodenEars().normalizedAtHz(1000);
         }
@@ -796,7 +799,9 @@ final class PresetRepository {
 
     private boolean isBuiltInTargetCurveName(String name) {
         String normalized = normalizeCurveName(name);
-        return "JM-1".equals(normalized) || "WoodenEarsTarget".equals(normalized);
+        return "JM-1".equals(normalized)
+                || "Pop avg-JM1".equals(normalized)
+                || "WoodenEarsTarget".equals(normalized);
     }
 
     private void replaceCurveReferences(String oldName, String newName, boolean targetCurve) {

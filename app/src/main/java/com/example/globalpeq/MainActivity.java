@@ -5450,6 +5450,7 @@ public final class MainActivity extends Activity {
         items.add("+ Add");
         items.add("Default");
         items.add("JM-1");
+        items.add("Pop avg-JM1");
         items.add("WoodenEarsTarget");
         List<String> imported = repository.loadTargetCurveNames();
         items.addAll(imported);
