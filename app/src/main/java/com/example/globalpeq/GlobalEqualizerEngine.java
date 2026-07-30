@@ -524,6 +524,113 @@ final class GlobalEqualizerEngine {
         return false;
     }
 
+    private void applyDynamicsTargetLevels(Preset preset) {
+        float pregainDb = clamp(
+                preset.pregainMb / 100f,
+                DYNAMICS_MIN_LEVEL_MB / 100f,
+                DYNAMICS_MAX_LEVEL_MB / 100f);
+        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
+        for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
+            DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
+            eqBand.setEnabled(true);
+            eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
+            eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
+        }
+        dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
+        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig));
+        if (!dynamicsProcessing.getEnabled()) {
+            dynamicsProcessing.setEnabled(true);
+        }
+    }
+
+    private void resetDynamicsBands() {
+        if (dynamicsProcessing == null || dynamicsPostEq == null) {
+            return;
+        }
+        dynamicsProcessing.setInputGainAllChannelsTo(0f);
+        for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
+            DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
+            eqBand.setEnabled(true);
+            eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
+            eqBand.setGain(0f);
+        }
+        dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
+        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig));
+    }
+
+    private int targetDynamicsLevelMb(int frequencyHz, Preset preset) {
+        if (preset == null) {
+            return 0;
+        }
+        int levelMb = PeqMath.gainAtHzMb(frequencyHz, preset) - preset.pregainMb;
+        if (preset.extraBassEnabled && preset.extraBassAmountPercent > 0) {
+            int extraBassGainMb = Math.round(
+                    preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
+            ParametricBand extraBassBand = new ParametricBand(
+                    FilterType.LOW_SHELF,
+                    true,
+                    preset.extraBassCutoffHz,
+                    extraBassGainMb,
+                    70);
+            levelMb += PeqMath.bandGainAtHzMb(frequencyHz, extraBassBand);
+        }
+        return Math.max(DYNAMICS_MIN_LEVEL_MB, Math.min(DYNAMICS_MAX_LEVEL_MB, levelMb));
+    }
+
+    private int activeBandCount() {
+        try {
+            if (dynamicsProcessing != null) {
+                return dynamicsBandCenterHz.length;
+            }
+            return equalizer == null ? 0 : equalizer.getNumberOfBands();
+        } catch (RuntimeException ex) {
+            return 0;
+        }
+    }
+
+    private int activeBandCenterHz(int band) {
+        if (dynamicsProcessing != null) {
+            return band >= 0 && band < dynamicsBandCenterHz.length
+                    ? dynamicsBandCenterHz[band]
+                    : 0;
+        }
+        if (equalizer == null || band < 0 || band >= equalizer.getNumberOfBands()) {
+            return 0;
+        }
+        return equalizer.getCenterFreq((short) band) / 1000;
+    }
+
+    private int activeTargetLevelMb(int band, Preset preset) {
+        int centerHz = activeBandCenterHz(band);
+        if (dynamicsProcessing != null) {
+            return targetDynamicsLevelMb(centerHz, preset) + (preset == null ? 0 : preset.pregainMb);
+        }
+        return targetLevelMb((short) band, preset);
+    }
+
+    private boolean hasActiveEffect() {
+        return dynamicsProcessing != null || equalizer != null;
+    }
+
+    private boolean isActiveEffectEnabled() {
+        if (dynamicsProcessing != null) {
+            return dynamicsProcessing.getEnabled();
+        }
+        return equalizer != null && equalizer.getEnabled();
+    }
+
+    private void setActiveEffectEnabled(boolean enabled) {
+        if (dynamicsProcessing != null) {
+            dynamicsProcessing.setEnabled(enabled);
+        } else if (equalizer != null) {
+            equalizer.setEnabled(enabled);
+        }
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
     private boolean eqBandSwitchStateChanged(Preset before, Preset after) {
         if (before == null || after == null) {
             return before != after;
