@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ final class ShizukuSessionMuteEngine {
     private static final long ACTIVE_RESCAN_INTERVAL_MS = 750L;
     private static final long PASSIVE_RESCAN_INTERVAL_MS = 5000L;
     private static final long CAPTURE_ACTIVITY_HOLD_MS = 2000L;
+    private static final long MUTE_BRIDGE_HOLD_MS = 1200L;
     private static final Pattern SESSION_REGEX = Pattern.compile(
             "Session Id:\\s*(\\d+)\\s+UID:\\s*(\\d+)[\\s\\S]*?Attributes:[\\s\\S]*?Content type:\\s*(\\w+)\\s*Usage:\\s*(\\w+)",
             Pattern.CASE_INSENSITIVE);
@@ -216,6 +218,7 @@ final class ShizukuSessionMuteEngine {
     private volatile long currentRescanIntervalMs = PASSIVE_RESCAN_INTERVAL_MS;
     private String publishedStatus = "";
     private boolean publishedActive;
+    private long lastCaptureBackedMuteAtMs;
 
     ShizukuSessionMuteEngine(Context context,
                              PresetRepository repository,
@@ -271,6 +274,7 @@ final class ShizukuSessionMuteEngine {
         unregisterPlaybackCallback();
         releaseAllEffects();
         currentAppSessionIds = new LinkedHashSet<>();
+        lastCaptureBackedMuteAtMs = 0L;
         updateActivePackageName("");
         updateMutedPackageName("");
         publishStatus("Shizuku mute is idle.", false);
@@ -302,21 +306,30 @@ final class ShizukuSessionMuteEngine {
         return currentAppSessionIds != null && !currentAppSessionIds.isEmpty();
     }
 
-    private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback) {
+    private boolean hasCaptureBackedMuteSignal() {
+        boolean captureBacked = repository.loadMonitorCaptureActive()
+                || (sessionIdProvider != null
+                && sessionIdProvider.hasRecentCaptureActivity(CAPTURE_ACTIVITY_HOLD_MS));
+        if (captureBacked) {
+            lastCaptureBackedMuteAtMs = SystemClock.elapsedRealtime();
+        }
+        return captureBacked;
+    }
+
+    private boolean shouldActivelyMuteSessions(ActivePlaybackSnapshot activePlayback,
+                                               boolean captureBackedMuteSignal) {
         if (!wantsToMuteSessions() || !hasOwnedCaptureSessions()) {
             return false;
         }
-        if (repository.loadMonitorCaptureActive()) {
+        if (captureBackedMuteSignal) {
             return true;
         }
-        if (sessionIdProvider != null
-                && sessionIdProvider.hasRecentCaptureActivity(CAPTURE_ACTIVITY_HOLD_MS)) {
-            return true;
-        }
-        if (activePlayback != null && activePlayback.hasActivePlayback()) {
-            return true;
-        }
-        return !muteEffects.isEmpty();
+        long bridgeAgeMs = SystemClock.elapsedRealtime() - lastCaptureBackedMuteAtMs;
+        return !muteEffects.isEmpty()
+                && activePlayback != null
+                && activePlayback.hasActivePlayback()
+                && bridgeAgeMs >= 0L
+                && bridgeAgeMs <= MUTE_BRIDGE_HOLD_MS;
     }
 
     private void scanSessionsAndRefreshState() {
@@ -331,7 +344,9 @@ final class ShizukuSessionMuteEngine {
         }
         List<SessionInfo> sessions = dumpPolicySessions();
         ActivePlaybackSnapshot activePlayback = captureActivePlaybackSnapshot();
-        boolean applyMuteEffects = shouldActivelyMuteSessions(activePlayback);
+        boolean captureBackedMuteSignal = hasCaptureBackedMuteSignal();
+        boolean applyMuteEffects = shouldActivelyMuteSessions(activePlayback, captureBackedMuteSignal);
+        boolean allowNewMuteAttachments = captureBackedMuteSignal;
         if (!applyMuteEffects && (!muteEffects.isEmpty() || !knownSessions.isEmpty())) {
             releaseAllEffects();
         }
@@ -339,9 +354,17 @@ final class ShizukuSessionMuteEngine {
                 + ", ownedSessions=" + currentAppSessionIds.size()
                 + ", activeMuteEffects=" + muteEffects.size()
                 + ", muteMode=" + applyMuteEffects
+                + ", allowNewMuteAttachments=" + allowNewMuteAttachments
+                + ", bridgeAgeMs=" + (lastCaptureBackedMuteAtMs <= 0L
+                ? -1L
+                : (SystemClock.elapsedRealtime() - lastCaptureBackedMuteAtMs))
                 + ", activePlaybackUids=" + activePlayback.activeUids.size());
         logSessionSnapshot("scanSessionsAndRefreshState", sessions);
-        MuteScanResult scanResult = muteOtherSessions(sessions, activePlayback, applyMuteEffects);
+        MuteScanResult scanResult = muteOtherSessions(
+                sessions,
+                activePlayback,
+                applyMuteEffects,
+                allowNewMuteAttachments);
         updateActivePackageName(scanResult.activePackageName);
         updateMutedPackageName(scanResult.mutedPackageName);
         repository.saveActivePlaybackSessionIds(scanResult.activeSessionIds);
@@ -646,7 +669,8 @@ final class ShizukuSessionMuteEngine {
 
     private MuteScanResult muteOtherSessions(List<SessionInfo> sessions,
                                              ActivePlaybackSnapshot activePlayback,
-                                             boolean applyMuteEffects) {
+                                             boolean applyMuteEffects,
+                                             boolean allowNewMuteAttachments) {
         Set<Integer> currentSessionIds = new LinkedHashSet<>();
         Set<Integer> desiredMuteSessionIds = new LinkedHashSet<>();
         Set<Integer> verifiedMutedSessionIds = new LinkedHashSet<>();
@@ -661,6 +685,7 @@ final class ShizukuSessionMuteEngine {
         boolean fastModeIncompatible = false;
         Log.d(TAG, "TRACE_SWITCH muteScanStart"
                 + " applyMuteEffects=" + applyMuteEffects
+                + " allowNewMuteAttachments=" + allowNewMuteAttachments
                 + " activeSessionIds=" + (activePlayback == null ? "null" : activePlayback.activeSessionIds)
                 + " activeUids=" + (activePlayback == null ? "null" : activePlayback.activeUids)
                 + " activePackages=" + (activePlayback == null ? "" : activePlayback.activePackages)
@@ -692,12 +717,17 @@ final class ShizukuSessionMuteEngine {
                 Log.d(TAG, "Skip session sid=" + session.sessionId + " because it is an owned capture session");
                 continue;
             }
+            if (!allowNewMuteAttachments && !muteEffects.containsKey(session.sessionId)) {
+                Log.d(TAG, "Skip session sid=" + session.sessionId
+                        + " because capture is not confirmed for new mute attachment");
+                continue;
+            }
             if (!isEligibleSessionUsage(session.usage)) {
                 Log.d(TAG, "Skip session sid=" + session.sessionId + " due to usage=" + session.usage);
                 continue;
             }
-            desiredMuteSessionIds.add(session.sessionId);
             String normalizedPackage = normalizePackageName(session.packageName);
+            desiredMuteSessionIds.add(session.sessionId);
             if (!normalizedPackage.isEmpty()) {
                 desiredPackages.add(normalizedPackage);
             }

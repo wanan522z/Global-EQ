@@ -1090,27 +1090,53 @@ final class PlaybackCaptureEngine {
     private ReplayDecision resolveReplayDecision(long now, boolean refreshPlaybackPackages) {
         String playbackPackages = resolvePlaybackPackagesForReplayDecision(refreshPlaybackPackages);
         boolean pcmActive = hasRecentPcmActivity(now, REPLAY_DECISION_PCM_HOLD_MS);
+        String mutedPackages = resolveFreshRuntimePackages(
+                repository.loadActiveMutedPackage(),
+                repository.loadActiveMutedPackageUpdatedAt());
+        String activePlaybackSessionIds = resolveFreshRuntimeSessionIds(
+                repository.loadActivePlaybackSessionIds(),
+                repository.loadActivePlaybackSessionIdsUpdatedAt());
+        String mutedSessionIds = resolveFreshRuntimeSessionIds(
+                repository.loadActiveMutedSessionIds(),
+                repository.loadActiveMutedSessionIdsUpdatedAt());
+        boolean muteVerifiedByPackage = packageListFullyCoveredBy(playbackPackages, mutedPackages);
+        boolean muteVerifiedBySession = sessionListFullyCoveredBy(activePlaybackSessionIds, mutedSessionIds);
+        boolean muteVerified = muteVerifiedByPackage
+                || (!isMuteVerificationUntrustedForCurrentRoute() && muteVerifiedBySession);
 
         if (!currentMode.requiresShizukuMute()) {
             String replayPackages = playbackPackages;
             if (replayPackages.isEmpty() && !currentMode.capturesSystemAudio()) {
                 replayPackages = normalizePackageName(currentConfig.monitoredAppPackage);
             }
-            traceReplayDecision("modeDoesNotRequireMute", "", playbackPackages, replayPackages, pcmActive);
-            return new ReplayDecision(true, pcmActive, playbackPackages, "", replayPackages, "modeDoesNotRequireMute");
+            traceReplayDecision("modeDoesNotRequireMute", mutedPackages, playbackPackages, replayPackages, pcmActive);
+            return new ReplayDecision(true, pcmActive, playbackPackages, mutedPackages, replayPackages, "modeDoesNotRequireMute");
+        }
+
+        if (!pcmActive) {
+            String reason = playbackPackages.isEmpty() ? "pcmInactive" : "pcmInactiveReplayUnavailable";
+            traceReplayDecision(reason, mutedPackages, playbackPackages, "", false);
+            return new ReplayDecision(false, false, playbackPackages, mutedPackages, "", reason);
         }
 
         if (playbackPackages.isEmpty()) {
-            String replayPackages = pcmActive
-                    ? normalizePackageName(currentConfig.monitoredAppPackage)
-                    : "";
-            String reason = pcmActive ? "pcmActivePlaybackUnknown" : "pcmInactive";
-            traceReplayDecision(reason, "", playbackPackages, replayPackages, pcmActive);
-            return new ReplayDecision(pcmActive, pcmActive, playbackPackages, "", replayPackages, reason);
+            String replayPackages = normalizePackageName(currentConfig.monitoredAppPackage);
+            traceReplayDecision("pcmActivePlaybackUnknown", mutedPackages, playbackPackages, replayPackages, true);
+            return new ReplayDecision(true, true, playbackPackages, mutedPackages, replayPackages, "pcmActivePlaybackUnknown");
         }
 
-        traceReplayDecision("globalMuteReplay", "", playbackPackages, playbackPackages, pcmActive);
-        return new ReplayDecision(true, pcmActive, playbackPackages, "", playbackPackages, "globalMuteReplay");
+        if (muteVerified) {
+            traceReplayDecision("verifiedMutedReplay", mutedPackages, playbackPackages, playbackPackages, true);
+            return new ReplayDecision(true, true, playbackPackages, mutedPackages, playbackPackages, "verifiedMutedReplay");
+        }
+
+        if (currentConfig.allowReplayWithoutMute) {
+            traceReplayDecision("allowReplayWithoutMute", mutedPackages, playbackPackages, playbackPackages, true);
+            return new ReplayDecision(true, true, playbackPackages, mutedPackages, playbackPackages, "allowReplayWithoutMute");
+        }
+
+        traceReplayDecision("muteVerificationMissingKeepReplay", mutedPackages, playbackPackages, playbackPackages, true);
+        return new ReplayDecision(true, true, playbackPackages, mutedPackages, playbackPackages, "muteVerificationMissingKeepReplay");
     }
 
     private String resolvePlaybackPackagesForReplayDecision(boolean refreshFromAudioManager) {
@@ -1366,6 +1392,16 @@ final class PlaybackCaptureEngine {
     private String resolveFreshRuntimePackages(String packageNames, long updatedAtMs) {
         return isFreshRuntimePackage(packageNames, updatedAtMs)
                 ? normalizePackageName(packageNames)
+                : "";
+    }
+
+    private String resolveFreshRuntimeSessionIds(String sessionIds, long updatedAtMs) {
+        if (normalizePackageName(sessionIds).isEmpty() || updatedAtMs <= 0L) {
+            return "";
+        }
+        long ageMs = System.currentTimeMillis() - updatedAtMs;
+        return ageMs >= 0L && ageMs <= PACKAGE_STATE_FRESHNESS_MS
+                ? normalizePackageName(sessionIds)
                 : "";
     }
 
