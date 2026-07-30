@@ -132,7 +132,8 @@
 
 ### Default
 
-- 使用系统音效路径
+- 使用系统全局音频会话（session 0）的音效路径
+- 优先使用 `DynamicsProcessing`，不可用时自动回退到系统 `Equalizer`
 - 更适合基础均衡和日常稳定使用
 - 不依赖 Shizuku
 - 混响和部分 DSP 能力会受限
@@ -143,6 +144,25 @@
 - 支持更完整的 `Reverb / DSP Virtual Bass / Limiter` 等处理
 - 需要先准备好 Shizuku，并完成应用内授权
 - 更适合折腾高级玩法，但对系统环境要求也更高
+
+## GlobalEQ 算法映射
+
+`Default` 模式会把现有预设投影到系统 `DynamicsProcessing` 的全局
+session 0。不同设备提供的系统音效实现可能不同，因此保留旧
+`Equalizer` 作为运行时回退。
+
+- `PEQ / GEQ`：先计算现有算法的总频响，再采样到 10～32 个对数分布的
+  Post-EQ 频带，保留峰值、搁架和高低通等滤波器的组合结果。
+- `Pregain`：写入 `DynamicsProcessing` 的输入增益，不再与每个 EQ
+  频带重复叠加。
+- `Extra Bass`：按现有低架滤波器算法合并进 Post-EQ 频响。
+- `Limiter`：映射限制器上限和释放时间；系统限制器不支持现有 PCM
+  lookahead 缓冲，所以这里属于近似实现。
+- `System Virtual Bass`：继续使用系统 `BassBoost` 全局音效。
+- `DSP Virtual Bass / Reverb`：仍只在 PCM 捕获链路中生效。Android
+  公共 session 0 AudioEffect 接口不能直接插入这些自定义逐采样算法；
+  若要让它们也走真正的系统全局链路，需要额外实现并注册原生
+  AudioEffect 插件。
 
 ## 预设和配置逻辑
 

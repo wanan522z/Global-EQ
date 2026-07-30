@@ -11,7 +11,8 @@ import android.util.Log;
 final class GlobalEqualizerEngine {
     private static final String TAG = "GlobalEqualizerEngine";
     private static final int GLOBAL_AUDIO_SESSION = 0;
-    private static final int AUDIO_EFFECT_PRIORITY = 1000;
+    // Keep the same high-priority session-0 arbitration used by the reference path.
+    private static final int AUDIO_EFFECT_PRIORITY = 1337;
     private static final int DYNAMICS_CHANNEL_COUNT = 2;
     private static final int[] DYNAMICS_BAND_COUNT_CANDIDATES = {32, 24, 16, 10};
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
