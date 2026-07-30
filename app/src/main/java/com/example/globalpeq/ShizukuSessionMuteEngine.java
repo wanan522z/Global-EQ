@@ -281,6 +281,7 @@ final class ShizukuSessionMuteEngine {
         lastCaptureBackedMuteAtMs = 0L;
         updateActivePackageName("");
         updateMutedPackageName("");
+        repository.clearShizukuPlaybackState();
         publishStatus("Shizuku mute is idle.", false);
     }
 

@@ -317,6 +317,25 @@ final class PresetRepository {
                 sessionIds);
     }
 
+    synchronized void clearShizukuPlaybackState() {
+        ShizukuRuntimeState cleared = loadShizukuRuntimeState()
+                .withActivePlaybackPackage("")
+                .withActiveMutedPackage("")
+                .withActivePlaybackSessionIds("")
+                .withDesiredMutedSessionIds("")
+                .withActiveMutedSessionIds("");
+        prefs.edit()
+                .putString(ACTIVE_PLAYBACK_PACKAGE, "")
+                .putString(ACTIVE_MUTED_PACKAGE, "")
+                .putLong(ACTIVE_PLAYBACK_PACKAGE_UPDATED_AT, 0L)
+                .putLong(ACTIVE_MUTED_PACKAGE_UPDATED_AT, 0L)
+                .putLong(ACTIVE_PLAYBACK_SESSION_IDS_UPDATED_AT, 0L)
+                .putLong(DESIRED_MUTED_SESSION_IDS_UPDATED_AT, 0L)
+                .putLong(ACTIVE_MUTED_SESSION_IDS_UPDATED_AT, 0L)
+                .putString(SHIZUKU_RUNTIME_STATE, cleared.toJson())
+                .apply();
+    }
+
     synchronized String loadActiveReplayPackage() {
         return loadShizukuRuntimeState().activeReplayPackage;
     }
