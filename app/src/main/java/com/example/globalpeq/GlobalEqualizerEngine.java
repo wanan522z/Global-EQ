@@ -432,6 +432,15 @@ final class GlobalEqualizerEngine {
             lastAppliedPreset = preset;
             lastAppliedDynamicsConfig = dynamicsConfig;
         } catch (RuntimeException ex) {
+            if (dynamicsProcessing != null) {
+                Log.w(TAG, "DynamicsProcessing apply failed; switching to legacy Equalizer", ex);
+                releaseDynamicsProcessing();
+                dynamicsProcessingUnavailable = true;
+                if (startLegacyEqualizer()) {
+                    applyTargetLevels(preset);
+                }
+                return;
+            }
             Log.w(TAG, "Failed to write target EQ levels", ex);
         }
     }
@@ -690,8 +699,7 @@ final class GlobalEqualizerEngine {
         if (before == null || after == null) {
             return false;
         }
-        return before.lookaheadMs == after.lookaheadMs
-                && before.limiterCeilingPermille == after.limiterCeilingPermille
+        return before.limiterCeilingPermille == after.limiterCeilingPermille
                 && before.limiterReleaseMs == after.limiterReleaseMs;
     }
 
@@ -729,24 +737,30 @@ final class GlobalEqualizerEngine {
         }
     }
 
+    private void releaseDynamicsProcessing() {
+        if (dynamicsProcessing == null) {
+            dynamicsPostEq = null;
+            dynamicsBandCenterHz = new int[0];
+            return;
+        }
+        try {
+            dynamicsProcessing.setEnabled(false);
+            dynamicsProcessing.release();
+        } catch (RuntimeException ignored) {
+        } finally {
+            dynamicsProcessing = null;
+            dynamicsPostEq = null;
+            dynamicsBandCenterHz = new int[0];
+        }
+    }
+
     void release() {
         handler.removeCallbacksAndMessages(null);
         pendingPreset = null;
         lastAppliedPreset = null;
         lastAppliedDynamicsConfig = null;
         applyGeneration++;
-        if (dynamicsProcessing != null) {
-            try {
-                dynamicsProcessing.setEnabled(false);
-                resetDynamicsBands();
-                dynamicsProcessing.release();
-            } catch (RuntimeException ignored) {
-            } finally {
-                dynamicsProcessing = null;
-                dynamicsPostEq = null;
-                dynamicsBandCenterHz = new int[0];
-            }
-        }
+        releaseDynamicsProcessing();
         if (equalizer != null) {
             try {
                 equalizer.setEnabled(false);
