@@ -36,6 +36,7 @@ final class GlobalEqualizerEngine {
     private short maxLevelMb = 1800;
     private Preset pendingPreset;
     private Preset lastAppliedPreset;
+    private AdvancedModeConfig lastAppliedDynamicsConfig;
     private boolean armedWithZeroBands;
     private int applyGeneration;
     private long lastControlRearmElapsedMs;
@@ -281,12 +282,12 @@ final class GlobalEqualizerEngine {
     }
 
     private void restoreTargetAfterControlRegain(Preset preset) {
-        if (equalizer == null || preset == null || !preset.enabled) {
+        if (!hasActiveEffect() || preset == null || !preset.enabled) {
             return;
         }
         try {
-            if (!equalizer.getEnabled()) {
-                equalizer.setEnabled(true);
+            if (!isActiveEffectEnabled()) {
+                setActiveEffectEnabled(true);
             }
             // Control can move between global effects when a player changes tracks.
             // Restore the absolute target levels directly: staging through zero here
@@ -304,7 +305,7 @@ final class GlobalEqualizerEngine {
             return;
         }
         if (pendingPreset != null) {
-            apply(pendingPreset.withEnabled(true));
+            apply(pendingPreset.withEnabled(true), dynamicsConfig);
         }
     }
 
@@ -314,6 +315,9 @@ final class GlobalEqualizerEngine {
         }
 
         try {
+            if (dynamicsProcessing != null) {
+                return dynamicsBandCenterHz.length;
+            }
             return equalizer.getNumberOfBands();
         } catch (RuntimeException ex) {
             return Preset.DEFAULT_FILTER_COUNT;
@@ -326,6 +330,11 @@ final class GlobalEqualizerEngine {
         }
 
         try {
+            if (dynamicsProcessing != null) {
+                return band >= 0 && band < dynamicsBandCenterHz.length
+                        ? dynamicsBandCenterHz[band]
+                        : 0;
+            }
             return equalizer.getCenterFreq((short) band) / 1000;
         } catch (RuntimeException ex) {
             return 0;
@@ -343,6 +352,13 @@ final class GlobalEqualizerEngine {
     }
 
     private void armWithZeroBands() {
+        if (dynamicsProcessing != null) {
+            dynamicsProcessing.setEnabled(false);
+            resetDynamicsBands();
+            dynamicsProcessing.setEnabled(true);
+            armedWithZeroBands = true;
+            return;
+        }
         short bandCount = equalizer.getNumberOfBands();
         equalizer.setEnabled(false);
         resetBands(bandCount);
