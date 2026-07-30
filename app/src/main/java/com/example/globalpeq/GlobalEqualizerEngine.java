@@ -683,6 +683,18 @@ final class GlobalEqualizerEngine {
         return before != null && after != null && before.toJson().equals(after.toJson());
     }
 
+    private boolean sameLimiterConfig(AdvancedModeConfig before, AdvancedModeConfig after) {
+        if (before == after) {
+            return true;
+        }
+        if (before == null || after == null) {
+            return false;
+        }
+        return before.lookaheadMs == after.lookaheadMs
+                && before.limiterCeilingPermille == after.limiterCeilingPermille
+                && before.limiterReleaseMs == after.limiterReleaseMs;
+    }
+
     private void applySystemVirtualBass(Preset preset) {
         int systemBassAmountPercent = preset == null ? 0 : preset.systemVirtualBassAmountPercent;
         if (systemBassAmountPercent <= 0) {
@@ -721,7 +733,20 @@ final class GlobalEqualizerEngine {
         handler.removeCallbacksAndMessages(null);
         pendingPreset = null;
         lastAppliedPreset = null;
+        lastAppliedDynamicsConfig = null;
         applyGeneration++;
+        if (dynamicsProcessing != null) {
+            try {
+                dynamicsProcessing.setEnabled(false);
+                resetDynamicsBands();
+                dynamicsProcessing.release();
+            } catch (RuntimeException ignored) {
+            } finally {
+                dynamicsProcessing = null;
+                dynamicsPostEq = null;
+                dynamicsBandCenterHz = new int[0];
+            }
+        }
         if (equalizer != null) {
             try {
                 equalizer.setEnabled(false);
