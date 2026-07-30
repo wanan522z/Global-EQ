@@ -237,6 +237,10 @@ final class ShizukuSessionMuteEngine {
         currentMode = mode == null ? ProcessingMode.SYSTEM_EQ : mode;
         currentPreset = preset == null ? Preset.flat(false) : preset;
 
+        if (!currentMode.requiresShizukuMute()) {
+            stopAll();
+            return;
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             stopAll();
             publishStatus("Shizuku mute requires Android 9 or later.", false);
@@ -291,7 +295,8 @@ final class ShizukuSessionMuteEngine {
     }
 
     private boolean shouldMonitorPlaybackSessions() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        return currentMode.requiresShizukuMute()
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
                 && ShizukuCompat.hasPermission();
     }
 
@@ -1223,6 +1228,10 @@ final class ShizukuSessionMuteEngine {
         }
         mainHandler.post(() -> {
             try {
+                if (!wantsToMuteSessions()) {
+                    releaseEffect(sessionId);
+                    return;
+                }
                 releaseEffect(sessionId);
                 DynamicsProcessing newEffect = makeMuteEffect(sessionId, packageName);
                 if (newEffect != null) {

@@ -82,10 +82,14 @@ public final class GlobalEqForegroundService extends Service {
                     pendingCaptureConfig,
                     pendingCaptureVirtualBassModeIndex,
                     pendingCaptureDevice);
-            shizukuMuteEngine.updateProcessing(
-                    pendingCaptureMode,
-                    pendingCapturePreset,
-                    pendingCaptureConfig);
+            if (pendingCaptureMode.requiresShizukuMute()) {
+                shizukuMuteEngine.updateProcessing(
+                        pendingCaptureMode,
+                        pendingCapturePreset,
+                        pendingCaptureConfig);
+            } else {
+                shizukuMuteEngine.stopAll();
+            }
         }
     };
     private final Runnable wakeRecoveryRunnable = new Runnable() {
@@ -176,7 +180,7 @@ public final class GlobalEqForegroundService extends Service {
             int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, currentProcessingMode, virtualBassModeIndex);
             if (currentProcessingMode.usesNativeCapture()) {
-                engine.apply(effectivePreset);
+                engine.release();
             } else if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset);
             } else {
@@ -281,10 +285,14 @@ public final class GlobalEqForegroundService extends Service {
             currentDevice = deviceMonitor.currentOutputDevice();
         }
         int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
-        engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
-                currentPreset,
-                currentProcessingMode,
-                virtualBassModeIndex));
+        if (currentProcessingMode.usesNativeCapture()) {
+            engine.release();
+        } else {
+            engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
+                    currentPreset,
+                    currentProcessingMode,
+                    virtualBassModeIndex));
+        }
         scheduleCaptureUpdate(
                 currentProcessingMode,
                 currentPreset,
@@ -538,10 +546,14 @@ public final class GlobalEqForegroundService extends Service {
                     config,
                     currentPreset.virtualBassModeIndex,
                     currentDevice);
-            shizukuMuteEngine.updateProcessing(
-                    mode,
-                    currentPreset,
-                    config);
+            if (mode.requiresShizukuMute()) {
+                shizukuMuteEngine.updateProcessing(
+                        mode,
+                        currentPreset,
+                        config);
+            } else {
+                shizukuMuteEngine.stopAll();
+            }
         });
     }
 

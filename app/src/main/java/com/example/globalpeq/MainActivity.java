@@ -7221,6 +7221,10 @@ public final class MainActivity extends Activity {
     }
 
     private void applyRunningPresetToEngine(boolean forceFullReset) {
+        if (processingMode.usesNativeCapture()) {
+            engine.release();
+            return;
+        }
         Preset effectivePreset = effectiveRunningPreset();
         if (forceFullReset && effectivePreset.enabled && shouldForceFullResetForCurrentMode()) {
             engine.applyWithFullReset(effectivePreset);
