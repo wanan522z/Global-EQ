@@ -182,9 +182,9 @@ public final class GlobalEqForegroundService extends Service {
             if (currentProcessingMode.usesNativeCapture()) {
                 engine.release();
             } else if (sameRoute) {
-                engine.reapplyForRouteChange(effectivePreset);
+                engine.reapplyForRouteChange(effectivePreset, currentAdvancedModeConfig);
             } else {
-                engine.applyWithFullReset(effectivePreset);
+                engine.applyWithFullReset(effectivePreset, currentAdvancedModeConfig);
             }
             scheduleCaptureUpdate(
                     currentProcessingMode,
@@ -291,7 +291,7 @@ public final class GlobalEqForegroundService extends Service {
             engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
                     currentPreset,
                     currentProcessingMode,
-                    virtualBassModeIndex));
+                    virtualBassModeIndex), currentAdvancedModeConfig);
         }
         scheduleCaptureUpdate(
                 currentProcessingMode,
