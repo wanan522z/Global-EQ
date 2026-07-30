@@ -338,7 +338,7 @@ final class ShizukuSessionMuteEngine {
                 && bridgeAgeMs <= MUTE_BRIDGE_HOLD_MS;
     }
 
-    private void scanSessionsAndRefreshState() {
+    private synchronized void scanSessionsAndRefreshState() {
         if (!shouldMonitorPlaybackSessions()) {
             return;
         }
