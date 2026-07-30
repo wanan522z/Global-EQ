@@ -2,6 +2,7 @@ package com.example.globalpeq;
 
 import android.media.audiofx.BassBoost;
 import android.media.audiofx.AudioEffect;
+import android.media.audiofx.DynamicsProcessing;
 import android.media.audiofx.Equalizer;
 import android.os.Handler;
 import android.os.Looper;
@@ -11,6 +12,13 @@ final class GlobalEqualizerEngine {
     private static final String TAG = "GlobalEqualizerEngine";
     private static final int GLOBAL_AUDIO_SESSION = 0;
     private static final int AUDIO_EFFECT_PRIORITY = 1000;
+    private static final int DYNAMICS_CHANNEL_COUNT = 2;
+    private static final int[] DYNAMICS_BAND_COUNT_CANDIDATES = {32, 24, 16, 10};
+    private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
+    private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
+    private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
+    private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
+    private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
     private static final long CONTROL_REARM_DELAY_MS = 180;
     private static final long CONTROL_REARM_GUARD_MS = 1000;
@@ -18,6 +26,10 @@ final class GlobalEqualizerEngine {
     private static final long ROUTE_REAPPLY_GUARD_MS = 350;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private DynamicsProcessing dynamicsProcessing;
+    private DynamicsProcessing.Eq dynamicsPostEq;
+    private int[] dynamicsBandCenterHz = new int[0];
+    private boolean dynamicsProcessingUnavailable;
     private Equalizer equalizer;
     private BassBoost bassBoost;
     private short minLevelMb = -1800;
@@ -28,6 +40,7 @@ final class GlobalEqualizerEngine {
     private int applyGeneration;
     private long lastControlRearmElapsedMs;
     private long lastRouteReapplyElapsedMs;
+    private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
 
     private enum ApplyStrategy {
         AUTO,
@@ -35,10 +48,78 @@ final class GlobalEqualizerEngine {
     }
 
     boolean start() {
-        if (equalizer != null) {
+        if (dynamicsProcessing != null || equalizer != null) {
             return true;
         }
 
+        if (!dynamicsProcessingUnavailable && startDynamicsProcessing()) {
+            return true;
+        }
+        return startLegacyEqualizer();
+    }
+
+    private boolean startDynamicsProcessing() {
+        RuntimeException lastFailure = null;
+        for (int bandCount : DYNAMICS_BAND_COUNT_CANDIDATES) {
+            DynamicsProcessing candidate = null;
+            try {
+                DynamicsProcessing.Config config = new DynamicsProcessing.Config.Builder(
+                        0,
+                        DYNAMICS_CHANNEL_COUNT,
+                        false,
+                        0,
+                        false,
+                        0,
+                        true,
+                        bandCount,
+                        true
+                ).build();
+                candidate = new DynamicsProcessing(
+                        AUDIO_EFFECT_PRIORITY,
+                        GLOBAL_AUDIO_SESSION,
+                        config);
+                DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(true, true, bandCount);
+                int[] centerFrequencies = createLogBandCenters(bandCount);
+                for (int band = 0; band < bandCount; band++) {
+                    DynamicsProcessing.EqBand eqBand = postEq.getBand(band);
+                    eqBand.setEnabled(true);
+                    eqBand.setCutoffFrequency(centerFrequencies[band]);
+                    eqBand.setGain(0f);
+                }
+                candidate.setInputGainAllChannelsTo(0f);
+                candidate.setPostEqAllChannelsTo(postEq);
+                candidate.setLimiterAllChannelsTo(createLimiter(dynamicsConfig));
+                candidate.setEnabled(false);
+                candidate.setControlStatusListener(this::onControlStatusChanged);
+
+                dynamicsProcessing = candidate;
+                dynamicsPostEq = postEq;
+                dynamicsBandCenterHz = centerFrequencies;
+                minLevelMb = DYNAMICS_MIN_LEVEL_MB;
+                maxLevelMb = DYNAMICS_MAX_LEVEL_MB;
+                armedWithZeroBands = false;
+                Log.i(TAG, "Using DynamicsProcessing on global audio session with "
+                        + bandCount + " post-EQ bands");
+                return true;
+            } catch (RuntimeException ex) {
+                lastFailure = ex;
+                if (candidate != null) {
+                    try {
+                        candidate.release();
+                    } catch (RuntimeException ignored) {
+                    }
+                }
+            }
+        }
+
+        dynamicsProcessingUnavailable = true;
+        if (lastFailure != null) {
+            Log.w(TAG, "DynamicsProcessing unavailable; falling back to legacy Equalizer", lastFailure);
+        }
+        return false;
+    }
+
+    private boolean startLegacyEqualizer() {
         try {
             equalizer = new Equalizer(AUDIO_EFFECT_PRIORITY, GLOBAL_AUDIO_SESSION);
             short[] range = equalizer.getBandLevelRange();
@@ -59,11 +140,48 @@ final class GlobalEqualizerEngine {
         }
     }
 
+    private static int[] createLogBandCenters(int bandCount) {
+        int safeCount = Math.max(1, bandCount);
+        int[] frequencies = new int[safeCount];
+        double minHz = 20.0;
+        double maxHz = 20000.0;
+        for (int band = 0; band < safeCount; band++) {
+            double position = safeCount == 1 ? 0.0 : band / (double) (safeCount - 1);
+            frequencies[band] = (int) Math.round(minHz * Math.pow(maxHz / minHz, position));
+        }
+        return frequencies;
+    }
+
+    private static DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config) {
+        AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
+        float thresholdDb = (float) (20.0 * Math.log10(ceiling));
+        return new DynamicsProcessing.Limiter(
+                true,
+                true,
+                0,
+                DYNAMICS_LIMITER_ATTACK_MS,
+                safeConfig.limiterReleaseMs,
+                DYNAMICS_LIMITER_RATIO,
+                thresholdDb,
+                0f);
+    }
+
     void apply(Preset preset) {
+        apply(preset, AdvancedModeConfig.DEFAULT);
+    }
+
+    void apply(Preset preset, AdvancedModeConfig config) {
+        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyInternal(preset, ApplyStrategy.AUTO);
     }
 
     void applyWithFullReset(Preset preset) {
+        applyWithFullReset(preset, AdvancedModeConfig.DEFAULT);
+    }
+
+    void applyWithFullReset(Preset preset, AdvancedModeConfig config) {
+        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyInternal(preset, ApplyStrategy.FORCE_FULL_RESET);
     }
 
@@ -117,9 +235,14 @@ final class GlobalEqualizerEngine {
     }
 
     void reapplyForRouteChange(Preset preset) {
+        reapplyForRouteChange(preset, dynamicsConfig);
+    }
+
+    void reapplyForRouteChange(Preset preset, AdvancedModeConfig config) {
         if (preset == null || !preset.enabled) {
             return;
         }
+        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
 
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastRouteReapplyElapsedMs < ROUTE_REAPPLY_GUARD_MS) {
