@@ -376,7 +376,20 @@ final class GlobalEqualizerEngine {
     }
 
     private void armRaisedBands(Preset before, Preset after) {
-        if (equalizer == null || before == null || after == null) {
+        if (!hasActiveEffect() || before == null || after == null) {
+            return;
+        }
+        if (dynamicsProcessing != null) {
+            for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
+                int centerHz = dynamicsBandCenterHz[band];
+                int beforeLevel = targetDynamicsLevelMb(centerHz, before);
+                int afterLevel = targetDynamicsLevelMb(centerHz, after);
+                if (afterLevel > 0 && afterLevel > beforeLevel) {
+                    dynamicsPostEq.getBand(band).setGain(0f);
+                }
+            }
+            dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
+            armedWithZeroBands = true;
             return;
         }
         short bandCount = equalizer.getNumberOfBands();
@@ -391,11 +404,18 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyTargetLevels(Preset preset) {
-        if (equalizer == null || preset == null || !preset.enabled) {
+        if (!hasActiveEffect() || preset == null || !preset.enabled) {
             return;
         }
 
         try {
+            if (dynamicsProcessing != null) {
+                applyDynamicsTargetLevels(preset);
+                applySystemVirtualBass(preset);
+                lastAppliedPreset = preset;
+                lastAppliedDynamicsConfig = dynamicsConfig;
+                return;
+            }
             short bandCount = equalizer.getNumberOfBands();
             boolean hasActiveGain = false;
             for (short band = 0; band < bandCount; band++) {
@@ -410,17 +430,18 @@ final class GlobalEqualizerEngine {
             }
             applySystemVirtualBass(preset);
             lastAppliedPreset = preset;
+            lastAppliedDynamicsConfig = dynamicsConfig;
         } catch (RuntimeException ex) {
             Log.w(TAG, "Failed to write target EQ levels", ex);
         }
     }
 
     private boolean shouldStageThroughZero(Preset preset) {
-        if (equalizer == null || !armedWithZeroBands) {
+        if (!hasActiveEffect() || !armedWithZeroBands) {
             return true;
         }
         try {
-            if (!equalizer.getEnabled()) {
+            if (!isActiveEffectEnabled()) {
                 return true;
             }
         } catch (RuntimeException ex) {
@@ -436,11 +457,11 @@ final class GlobalEqualizerEngine {
     }
 
     private boolean shouldStageRaisedBands(Preset preset) {
-        if (equalizer == null || preset == null || lastAppliedPreset == null) {
+        if (!hasActiveEffect() || preset == null || lastAppliedPreset == null) {
             return false;
         }
         try {
-            if (!equalizer.getEnabled()) {
+            if (!isActiveEffectEnabled()) {
                 return false;
             }
         } catch (RuntimeException ex) {
@@ -453,33 +474,35 @@ final class GlobalEqualizerEngine {
     }
 
     private boolean canSkipApply(Preset preset, ApplyStrategy strategy) {
-        if (strategy != ApplyStrategy.AUTO || equalizer == null || preset == null || lastAppliedPreset == null) {
+        if (strategy != ApplyStrategy.AUTO
+                || !hasActiveEffect()
+                || preset == null
+                || lastAppliedPreset == null) {
             return false;
         }
         try {
-            if (!equalizer.getEnabled()) {
+            if (!isActiveEffectEnabled()) {
                 return false;
             }
         } catch (RuntimeException ex) {
             return false;
         }
-        return samePresetState(lastAppliedPreset, preset);
+        return samePresetState(lastAppliedPreset, preset)
+                && sameLimiterConfig(lastAppliedDynamicsConfig, dynamicsConfig);
     }
 
     private boolean hasAnyEqGain(Preset preset) {
         if (preset == null) {
             return false;
         }
-        short bandCount;
-        try {
-            bandCount = equalizer == null ? 0 : equalizer.getNumberOfBands();
-        } catch (RuntimeException ex) {
-            bandCount = 0;
-        }
-        for (short band = 0; band < bandCount; band++) {
+        int bandCount = activeBandCount();
+        for (int band = 0; band < bandCount; band++) {
             try {
-                int centerHz = equalizer.getCenterFreq(band) / 1000;
-                if (PeqMath.gainAtHzMb(centerHz, preset) != 0) {
+                int centerHz = activeBandCenterHz(band);
+                int levelMb = dynamicsProcessing != null
+                        ? targetDynamicsLevelMb(centerHz, preset) + preset.pregainMb
+                        : PeqMath.gainAtHzMb(centerHz, preset);
+                if (levelMb != 0) {
                     return true;
                 }
             } catch (RuntimeException ex) {
@@ -490,15 +513,10 @@ final class GlobalEqualizerEngine {
     }
 
     private boolean hasRaisedPositiveEqGain(Preset before, Preset after) {
-        short bandCount;
-        try {
-            bandCount = equalizer == null ? 0 : equalizer.getNumberOfBands();
-        } catch (RuntimeException ex) {
-            return true;
-        }
-        for (short band = 0; band < bandCount; band++) {
-            int beforeLevel = targetLevelMb(band, before);
-            int afterLevel = targetLevelMb(band, after);
+        int bandCount = activeBandCount();
+        for (int band = 0; band < bandCount; band++) {
+            int beforeLevel = activeTargetLevelMb(band, before);
+            int afterLevel = activeTargetLevelMb(band, after);
             if (afterLevel > 0 && afterLevel > beforeLevel) {
                 return true;
             }
