@@ -13,11 +13,14 @@ public final class BootReceiver extends BroadcastReceiver {
             return;
         }
         ProcessingMode processingMode = repository.loadProcessingMode();
-        if (processingMode.usesNativeCapture()) {
+        if (processingMode.requiresShizukuMute()) {
             repository.clearRuntimeAudioState(processingMode.requiresShizukuMute()
                     ? ShizukuCompat.describeState(context)
                     : "Shizuku mute is idle.");
             return;
+        }
+        if (processingMode == ProcessingMode.GLOBAL_DSP) {
+            repository.clearRuntimeAudioState("Shizuku mute is idle.");
         }
 
         Intent service = new Intent(context, GlobalEqForegroundService.class);
