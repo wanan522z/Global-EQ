@@ -24,9 +24,6 @@ final class GlobalEqualizerEngine {
     private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
     private static final float DVC_LIMITER_RELEASE_MS = 75f;
     private static final float DVC_LIMITER_RATIO = 50f;
-    private static final float NO_DVC_LIMITER_RELEASE_MS = 175f;
-    private static final float NO_DVC_LIMITER_THRESHOLD_DB = -3.5f;
-    private static final float NO_DVC_GAIN_DB = -6f;
     private static final long ARM_DELAY_MS = 120;
     private static final long CONTROL_REARM_DELAY_MS = 180;
     private static final long CONTROL_REARM_GUARD_MS = 1000;
@@ -183,10 +180,7 @@ final class GlobalEqualizerEngine {
     }
 
     private DynamicsProcessing.Limiter createActiveLimiter() {
-        if (processingMode != ProcessingMode.GLOBAL_DSP) {
-            return createLimiter(dynamicsConfig);
-        }
-        if (dynamicsConfig.globalDvcEnabled) {
+        if (processingMode == ProcessingMode.GLOBAL_DSP && dynamicsConfig.globalDvcEnabled) {
             return new DynamicsProcessing.Limiter(
                     true,
                     true,
@@ -197,15 +191,7 @@ final class GlobalEqualizerEngine {
                     0f,
                     0f);
         }
-        return new DynamicsProcessing.Limiter(
-                true,
-                true,
-                0,
-                DVC_LIMITER_ATTACK_MS,
-                NO_DVC_LIMITER_RELEASE_MS,
-                DVC_LIMITER_RATIO,
-                NO_DVC_LIMITER_THRESHOLD_DB,
-                0f);
+        return createLimiter(dynamicsConfig);
     }
 
     void apply(Preset preset) {
@@ -588,12 +574,6 @@ final class GlobalEqualizerEngine {
                 preset.pregainMb / 100f,
                 DYNAMICS_MIN_LEVEL_MB / 100f,
                 DYNAMICS_MAX_LEVEL_MB / 100f);
-        if (processingMode == ProcessingMode.GLOBAL_DSP && !dynamicsConfig.globalDvcEnabled) {
-            pregainDb = clamp(
-                    pregainDb + NO_DVC_GAIN_DB,
-                    DYNAMICS_MIN_LEVEL_MB / 100f,
-                    DYNAMICS_MAX_LEVEL_MB / 100f);
-        }
         dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
