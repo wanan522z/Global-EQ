@@ -32,6 +32,10 @@ final class AudioOutputDeviceMonitor {
         void onOutputDeviceChanged(AudioOutputDevice device);
     }
 
+    interface PlaybackActivityListener {
+        void onRelevantPlaybackActivityChanged(boolean active);
+    }
+
     private final Context context;
     private final AudioManager audioManager;
     private final BluetoothAdapter bluetoothAdapter;
@@ -50,6 +54,7 @@ final class AudioOutputDeviceMonitor {
         }
     };
     private Listener listener;
+    private PlaybackActivityListener playbackActivityListener;
     private BluetoothProfile a2dpProfile;
     private BluetoothProfile headsetProfile;
     private AudioOutputDevice lastPlaybackRoutedDevice;
@@ -75,6 +80,7 @@ final class AudioOutputDeviceMonitor {
             @Override
             public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
                 notifyCurrentOutput();
+                notifyRelevantPlaybackConfigurationChanged(configs);
             }
         };
         bluetoothProfileListener = new BluetoothProfile.ServiceListener() {
@@ -101,7 +107,12 @@ final class AudioOutputDeviceMonitor {
     }
 
     void start(Listener listener) {
+        start(listener, null);
+    }
+
+    void start(Listener listener, PlaybackActivityListener playbackActivityListener) {
         this.listener = listener;
+        this.playbackActivityListener = playbackActivityListener;
         lastDispatchedKey = "";
         requestBluetoothProfiles();
         audioManager.registerAudioDeviceCallback(deviceCallback, handler);
@@ -111,6 +122,13 @@ final class AudioOutputDeviceMonitor {
         handler.removeCallbacks(routePollRunnable);
         handler.post(routePollRunnable);
         notifyCurrentOutput();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                notifyRelevantPlaybackConfigurationChanged(
+                        audioManager.getActivePlaybackConfigurations());
+            } catch (RuntimeException ignored) {
+            }
+        }
     }
 
     void stop() {
@@ -121,6 +139,7 @@ final class AudioOutputDeviceMonitor {
         }
         closeBluetoothProfiles();
         listener = null;
+        playbackActivityListener = null;
     }
 
     AudioOutputDevice currentOutputDevice() {
@@ -137,6 +156,17 @@ final class AudioOutputDeviceMonitor {
             return recentPlaybackRoute;
         }
         return resolveFallbackOutputDevice();
+    }
+
+    boolean hasRelevantActivePlayback() {
+        if (audioManager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return false;
+        }
+        try {
+            return hasRelevantActivePlayback(audioManager.getActivePlaybackConfigurations());
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private AudioOutputDevice resolveFallbackOutputDevice() {
@@ -292,6 +322,31 @@ final class AudioOutputDeviceMonitor {
             lastDispatchedKey = nextKey;
             listener.onOutputDeviceChanged(device);
         }
+    }
+
+    private void notifyRelevantPlaybackConfigurationChanged(
+            List<AudioPlaybackConfiguration> configs) {
+        PlaybackActivityListener callback = playbackActivityListener;
+        if (callback == null || configs == null) {
+            return;
+        }
+        callback.onRelevantPlaybackActivityChanged(hasRelevantActivePlayback(configs));
+    }
+
+    private boolean hasRelevantActivePlayback(List<AudioPlaybackConfiguration> configs) {
+        if (configs == null) {
+            return false;
+        }
+        for (AudioPlaybackConfiguration configuration : configs) {
+            if (!isRelevantActivePlayback(configuration)) {
+                continue;
+            }
+            if (readPlaybackClientUid(configuration) == android.os.Process.myUid()) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     private AudioOutputDevice resolvePlaybackRoutedOutputDevice() {

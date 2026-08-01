@@ -277,27 +277,9 @@ final class GlobalEqualizerEngine {
         int generation = ++applyGeneration;
         handler.postDelayed(() -> {
             if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
-                restoreTargetAfterControlRegain(pendingPreset);
+                reapplyStaged(pendingPreset);
             }
         }, CONTROL_REARM_DELAY_MS);
-    }
-
-    private void restoreTargetAfterControlRegain(Preset preset) {
-        if (!hasActiveEffect() || preset == null || !preset.enabled) {
-            return;
-        }
-        try {
-            if (!isActiveEffectEnabled()) {
-                setActiveEffectEnabled(true);
-            }
-            // Control can move between global effects when a player changes tracks.
-            // Restore the absolute target levels directly: staging through zero here
-            // briefly removes pregain/headroom and causes an audible level squeeze.
-            applyTargetLevels(preset);
-            armedWithZeroBands = true;
-        } catch (RuntimeException ex) {
-            Log.w(TAG, "Failed to restore global preset after control regain", ex);
-        }
     }
 
     void setEnabled(boolean enabled) {

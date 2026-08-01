@@ -56,6 +56,8 @@ public final class GlobalEqForegroundService extends Service {
     private int pendingCaptureVirtualBassModeIndex;
     private AudioOutputDevice pendingCaptureDevice = new AudioOutputDevice("none", "Output device");
     private long suppressCaptureRouteUpdatesUntilMs;
+    private boolean systemEqPlaybackStateKnown;
+    private boolean systemEqPlaybackActive;
     private final BroadcastReceiver screenStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
@@ -180,6 +182,7 @@ public final class GlobalEqForegroundService extends Service {
             int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, currentProcessingMode, virtualBassModeIndex);
             if (currentProcessingMode.usesNativeCapture()) {
+                resetSystemEqPlaybackState();
                 engine.release();
             } else if (sameRoute) {
                 engine.reapplyForRouteChange(effectivePreset, currentAdvancedModeConfig);
@@ -196,7 +199,7 @@ public final class GlobalEqForegroundService extends Service {
                             ? routeSuppressionRemainingMs + CAPTURE_UPDATE_DEBOUNCE_MS
                             : CAPTURE_UPDATE_DEBOUNCE_MS);
             updateNotification();
-        });
+        }, this::handleSystemEqPlaybackActivityChanged);
     }
 
     @Override
@@ -286,12 +289,14 @@ public final class GlobalEqForegroundService extends Service {
         }
         int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
         if (currentProcessingMode.usesNativeCapture()) {
+            resetSystemEqPlaybackState();
             engine.release();
         } else {
             engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
                     currentPreset,
                     currentProcessingMode,
                     virtualBassModeIndex), currentAdvancedModeConfig);
+            syncSystemEqPlaybackState();
         }
         scheduleCaptureUpdate(
                 currentProcessingMode,
@@ -578,6 +583,7 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     private void requestStopAllAndStopService() {
+        resetSystemEqPlaybackState();
         Handler handler = captureControlHandler;
         if (handler == null) {
             stopAllProcessingNow();
@@ -599,6 +605,7 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     private void stopAllProcessingNow() {
+        resetSystemEqPlaybackState();
         if (captureEngine != null) {
             captureEngine.stopAll();
         }
@@ -653,6 +660,46 @@ public final class GlobalEqForegroundService extends Service {
     private long remainingCaptureRouteSuppressionMs() {
         long remaining = suppressCaptureRouteUpdatesUntilMs - SystemClock.elapsedRealtime();
         return Math.max(0L, remaining);
+    }
+
+    private void handleSystemEqPlaybackActivityChanged(boolean active) {
+        if (currentProcessingMode != ProcessingMode.SYSTEM_EQ
+                || currentPreset == null
+                || !currentPreset.enabled) {
+            resetSystemEqPlaybackState();
+            return;
+        }
+        if (!systemEqPlaybackStateKnown) {
+            systemEqPlaybackStateKnown = true;
+            systemEqPlaybackActive = active;
+            return;
+        }
+        boolean playbackJustStopped = systemEqPlaybackActive && !active;
+        systemEqPlaybackActive = active;
+        if (!playbackJustStopped) {
+            return;
+        }
+        engine.reapplyStaged(AudioProcessingPolicy.effectiveSystemPreset(
+                currentPreset,
+                currentProcessingMode,
+                currentPreset.virtualBassModeIndex));
+    }
+
+    private void resetSystemEqPlaybackState() {
+        systemEqPlaybackStateKnown = false;
+        systemEqPlaybackActive = false;
+    }
+
+    private void syncSystemEqPlaybackState() {
+        if (currentProcessingMode != ProcessingMode.SYSTEM_EQ
+                || currentPreset == null
+                || !currentPreset.enabled
+                || deviceMonitor == null) {
+            resetSystemEqPlaybackState();
+            return;
+        }
+        systemEqPlaybackStateKnown = true;
+        systemEqPlaybackActive = deviceMonitor.hasRelevantActivePlayback();
     }
 
     static boolean isRunningInProcess() {
