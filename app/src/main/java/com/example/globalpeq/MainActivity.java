@@ -2514,7 +2514,6 @@ public final class MainActivity extends Activity {
     }
 
     private void setProcessingMode(ProcessingMode nextMode) {
-        ProcessingMode previousMode = processingMode;
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
         syncShizukuListenerRegistration();
