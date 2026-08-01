@@ -19,7 +19,7 @@ final class AdvancedModeConfig {
             985,
             120,
             false,
-            false,
+            true,
             Collections.emptyList()
     );
 

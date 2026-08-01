@@ -14,12 +14,19 @@ final class GlobalEqualizerEngine {
     // Keep the same high-priority session-0 arbitration used by the reference path.
     private static final int AUDIO_EFFECT_PRIORITY = 1337;
     private static final int DYNAMICS_CHANNEL_COUNT = 2;
-    private static final int[] DYNAMICS_BAND_COUNT_CANDIDATES = {32, 24, 16, 10};
+    private static final int[] DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES = {32, 24, 16, 10};
+    private static final int[] GLOBAL_DSP_BAND_COUNT_CANDIDATES = {128, 96, 64, 48, 32, 24, 16, 10};
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
+    private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
+    private static final float DVC_LIMITER_RELEASE_MS = 75f;
+    private static final float DVC_LIMITER_RATIO = 50f;
+    private static final float NO_DVC_LIMITER_RELEASE_MS = 175f;
+    private static final float NO_DVC_LIMITER_THRESHOLD_DB = -3.5f;
+    private static final float NO_DVC_GAIN_DB = -6f;
     private static final long ARM_DELAY_MS = 120;
     private static final long CONTROL_REARM_DELAY_MS = 180;
     private static final long CONTROL_REARM_GUARD_MS = 1000;
@@ -44,6 +51,7 @@ final class GlobalEqualizerEngine {
     private long lastControlRearmElapsedMs;
     private long lastRouteReapplyElapsedMs;
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
+    private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
 
     private enum ApplyStrategy {
         AUTO,
@@ -63,7 +71,10 @@ final class GlobalEqualizerEngine {
 
     private boolean startDynamicsProcessing() {
         RuntimeException lastFailure = null;
-        for (int bandCount : DYNAMICS_BAND_COUNT_CANDIDATES) {
+        int[] bandCountCandidates = processingMode == ProcessingMode.GLOBAL_DSP
+                ? GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                : DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES;
+        for (int bandCount : bandCountCandidates) {
             DynamicsProcessing candidate = null;
             try {
                 DynamicsProcessing.Config config = new DynamicsProcessing.Config.Builder(
@@ -82,7 +93,9 @@ final class GlobalEqualizerEngine {
                         GLOBAL_AUDIO_SESSION,
                         config);
                 DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(true, true, bandCount);
-                int[] centerFrequencies = createLogBandCenters(bandCount);
+                int[] centerFrequencies = createLogBandCenters(
+                        bandCount,
+                        processingMode == ProcessingMode.GLOBAL_DSP ? 10.0 : 20.0);
                 for (int band = 0; band < bandCount; band++) {
                     DynamicsProcessing.EqBand eqBand = postEq.getBand(band);
                     eqBand.setEnabled(true);
@@ -143,10 +156,9 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    private static int[] createLogBandCenters(int bandCount) {
+    private static int[] createLogBandCenters(int bandCount, double minHz) {
         int safeCount = Math.max(1, bandCount);
         int[] frequencies = new int[safeCount];
-        double minHz = 20.0;
         double maxHz = 20000.0;
         for (int band = 0; band < safeCount; band++) {
             double position = safeCount == 1 ? 0.0 : band / (double) (safeCount - 1);
@@ -170,11 +182,42 @@ final class GlobalEqualizerEngine {
                 0f);
     }
 
+    private DynamicsProcessing.Limiter createActiveLimiter() {
+        if (processingMode != ProcessingMode.GLOBAL_DSP) {
+            return createLimiter(dynamicsConfig);
+        }
+        if (dynamicsConfig.globalDvcEnabled) {
+            return new DynamicsProcessing.Limiter(
+                    true,
+                    true,
+                    0,
+                    DVC_LIMITER_ATTACK_MS,
+                    DVC_LIMITER_RELEASE_MS,
+                    DVC_LIMITER_RATIO,
+                    0f,
+                    0f);
+        }
+        return new DynamicsProcessing.Limiter(
+                true,
+                true,
+                0,
+                DVC_LIMITER_ATTACK_MS,
+                NO_DVC_LIMITER_RELEASE_MS,
+                DVC_LIMITER_RATIO,
+                NO_DVC_LIMITER_THRESHOLD_DB,
+                0f);
+    }
+
     void apply(Preset preset) {
         apply(preset, AdvancedModeConfig.DEFAULT);
     }
 
     void apply(Preset preset, AdvancedModeConfig config) {
+        apply(preset, ProcessingMode.SYSTEM_EQ, config);
+    }
+
+    void apply(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
+        selectProcessingMode(mode);
         dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyInternal(preset, ApplyStrategy.AUTO);
     }
@@ -184,6 +227,11 @@ final class GlobalEqualizerEngine {
     }
 
     void applyWithFullReset(Preset preset, AdvancedModeConfig config) {
+        applyWithFullReset(preset, ProcessingMode.SYSTEM_EQ, config);
+    }
+
+    void applyWithFullReset(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
+        selectProcessingMode(mode);
         dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyInternal(preset, ApplyStrategy.FORCE_FULL_RESET);
     }
@@ -223,6 +271,12 @@ final class GlobalEqualizerEngine {
     }
 
     void reapplyStaged(Preset preset) {
+        reapplyStaged(preset, processingMode, dynamicsConfig);
+    }
+
+    void reapplyStaged(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
+        selectProcessingMode(mode);
+        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyGeneration++;
         if (preset == null || !preset.enabled || !start()) {
             return;
@@ -242,9 +296,14 @@ final class GlobalEqualizerEngine {
     }
 
     void reapplyForRouteChange(Preset preset, AdvancedModeConfig config) {
+        reapplyForRouteChange(preset, processingMode, config);
+    }
+
+    void reapplyForRouteChange(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
         if (preset == null || !preset.enabled) {
             return;
         }
+        selectProcessingMode(mode);
         dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
 
         long now = android.os.SystemClock.elapsedRealtime();
@@ -278,7 +337,7 @@ final class GlobalEqualizerEngine {
         int generation = ++applyGeneration;
         handler.postDelayed(() -> {
             if (generation == applyGeneration && pendingPreset != null && pendingPreset.enabled) {
-                reapplyStaged(pendingPreset);
+                reapplyStaged(pendingPreset, processingMode, dynamicsConfig);
             }
         }, CONTROL_REARM_DELAY_MS);
     }
@@ -529,6 +588,12 @@ final class GlobalEqualizerEngine {
                 preset.pregainMb / 100f,
                 DYNAMICS_MIN_LEVEL_MB / 100f,
                 DYNAMICS_MAX_LEVEL_MB / 100f);
+        if (processingMode == ProcessingMode.GLOBAL_DSP && !dynamicsConfig.globalDvcEnabled) {
+            pregainDb = clamp(
+                    pregainDb + NO_DVC_GAIN_DB,
+                    DYNAMICS_MIN_LEVEL_MB / 100f,
+                    DYNAMICS_MAX_LEVEL_MB / 100f);
+        }
         dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
@@ -537,7 +602,7 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig));
+        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter());
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
@@ -555,7 +620,7 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(0f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig));
+        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter());
     }
 
     private int targetDynamicsLevelMb(int frequencyHz, Preset preset) {
@@ -691,7 +756,18 @@ final class GlobalEqualizerEngine {
             return false;
         }
         return before.limiterCeilingPermille == after.limiterCeilingPermille
-                && before.limiterReleaseMs == after.limiterReleaseMs;
+                && before.limiterReleaseMs == after.limiterReleaseMs
+                && before.globalDvcEnabled == after.globalDvcEnabled;
+    }
+
+    private void selectProcessingMode(ProcessingMode mode) {
+        ProcessingMode nextMode = mode == null ? ProcessingMode.SYSTEM_EQ : mode;
+        if (processingMode == nextMode) {
+            return;
+        }
+        release();
+        processingMode = nextMode;
+        dynamicsProcessingUnavailable = false;
     }
 
     private void applySystemVirtualBass(Preset preset) {
