@@ -265,6 +265,8 @@ public final class MainActivity extends Activity {
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
     private TextView advancedModeSummaryView;
+    private View globalDvcRow;
+    private TextView globalDvcHintView;
     private TextView languageLabelView;
     private TextView languageButton;
     private TextView aboutTitleView;
@@ -293,6 +295,7 @@ public final class MainActivity extends Activity {
     private Switch enabledSwitch;
     private Switch autoSwitchOutputSwitch;
     private Switch extraBassSwitch;
+    private Switch globalDvcSwitch;
     private LinearLayout header;
     private Preset runningPreset;
     private Preset editingPreset;
@@ -1513,6 +1516,25 @@ public final class MainActivity extends Activity {
         advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
         panel.addView(advancedModeSummaryView, blockParams(4));
 
+        globalDvcSwitch = new Switch(this);
+        globalDvcSwitch.setText("");
+        globalDvcSwitch.setShowText(false);
+        globalDvcSwitch.setChecked(advancedModeConfig.globalDvcEnabled);
+        styleTopSwitch(globalDvcSwitch, false);
+        globalDvcSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingUi) {
+                updateAdvancedModeConfig(advancedModeConfig.withGlobalDvcEnabled(checked));
+            }
+        });
+        globalDvcRow = labeledSettingsRow(this::globalDvcLabelText, globalDvcSwitch, view -> { });
+        panel.addView(globalDvcRow, blockParams(12));
+
+        globalDvcHintView = new TextView(this);
+        bindText(globalDvcHintView, this::globalDvcHintText);
+        globalDvcHintView.setTextSize(12);
+        globalDvcHintView.setTextColor(Color.rgb(160, 170, 190));
+        panel.addView(globalDvcHintView, blockParams(2));
+
         shizukuRuntimePanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(shizukuRuntimePanel);
         shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
@@ -2168,6 +2190,16 @@ public final class MainActivity extends Activity {
 
     private String limiterReleaseLabelText() {
         return tr("Limiter release (ms)", "Limiter release (ms)");
+    }
+
+    private String globalDvcLabelText() {
+        return tr("Direct Volume Control (DVC)", "\u76f4\u63a5\u97f3\u91cf\u63a7\u5236 (DVC)");
+    }
+
+    private String globalDvcHintText() {
+        return tr(
+                "Poweramp-compatible direct gain and limiter profile. Global DSP only; system media volume is never changed.",
+                "Poweramp \u517c\u5bb9\u7684\u76f4\u901a\u589e\u76ca\u4e0e\u9650\u5e45\u7b56\u7565\uff0c\u4ec5\u5bf9 Global DSP \u751f\u6548\uff0c\u4e0d\u4f1a\u4fee\u6539\u7cfb\u7edf\u5a92\u4f53\u97f3\u91cf\u3002");
     }
 
     private String unusedAdvancedLabelText() {
