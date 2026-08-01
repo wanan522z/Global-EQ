@@ -37,21 +37,49 @@ final class AudioProcessingPolicy {
             return null;
         }
 
-        Preset effective = preset;
+        Preset effective = mode == ProcessingMode.GLOBAL_DSP
+                ? Preset.flat(preset.enabled)
+                .withName(preset.name)
+                .withPregainMb(ADVANCED_MODE_IMPLICIT_HEADROOM_MB)
+                .withVirtualBassModeIndex(preset.virtualBassModeIndex)
+                .withDspVirtualBassCutoffHz(preset.dspVirtualBassCutoffHz)
+                .withDspVirtualBassAmountPercent(preset.dspVirtualBassAmountPercent)
+                .withReverbType(preset.reverbType)
+                .withReverbSendSettings(
+                        preset.reverbDryMb,
+                        preset.reverbDecayPercent,
+                        preset.reverbPredelayMs,
+                        preset.reverbSizePercent,
+                        preset.reverbWetPercent)
+                : preset;
         if (!reverbAllowed(mode) || "Default".equals(effective.reverbType)) {
             effective = effective.withReverbType("Default");
         }
-        if (advancedModeEnabled(mode) && effective.enabled) {
+        if (mode == ProcessingMode.SHIZUKU_MUTE && effective.enabled) {
             effective = effective.withPregainMb(effective.pregainMb + ADVANCED_MODE_IMPLICIT_HEADROOM_MB);
         }
         return effective;
+    }
+
+    static boolean requiresPcmReplay(ProcessingMode mode, Preset preset, int virtualBassModeIndex) {
+        if (mode == ProcessingMode.SHIZUKU_MUTE) {
+            return preset != null && preset.enabled;
+        }
+        if (mode != ProcessingMode.GLOBAL_DSP || preset == null || !preset.enabled) {
+            return false;
+        }
+        boolean dspBassEnabled = dspVirtualBassAllowed(mode, virtualBassModeIndex)
+                && preset.dspVirtualBassAmountPercent > 0;
+        boolean reverbEnabled = !"Default".equals(preset.reverbType)
+                && preset.reverbWetPercent > 0;
+        return dspBassEnabled || reverbEnabled;
     }
 
     static Preset effectiveSystemPreset(Preset preset, ProcessingMode mode, int virtualBassModeIndex) {
         if (preset == null) {
             return null;
         }
-        if (advancedModeEnabled(mode)) {
+        if (mode == null || !mode.usesSystemEqBackend()) {
             return Preset.flat(preset.enabled).withName(preset.name);
         }
         Preset effective = preset.withReverbType("Default");

@@ -669,7 +669,7 @@ public final class MainActivity extends Activity {
         });
         renderAll();
         if (loadedWasLimited && runningPreset.enabled) {
-            if (processingMode.usesNativeCapture()) {
+            if (!processingMode.usesSystemEqBackend()) {
                 applyRunningPreset(false, false);
             } else {
                 applyRunningPreset();
@@ -2532,7 +2532,7 @@ public final class MainActivity extends Activity {
             // Global DSP is an independent backend: hand the new mode to the
             // service immediately so a previous Shizuku session is torn down.
             applyRunningPreset(false, !processingMode.requiresShizukuMute());
-            if (runningPreset != null && runningPreset.enabled) {
+            if (requiresPcmReplayForRunningPreset()) {
                 ensureNativeCaptureModeReady(true);
             }
         }
@@ -6594,7 +6594,7 @@ public final class MainActivity extends Activity {
         renderDeviceSpinner();
         renderAll();
         applyRunningPreset(shouldForceFullResetForCurrentMode());
-        if (processingMode.usesNativeCapture() && runningPreset.enabled) {
+        if (requiresPcmReplayForRunningPreset()) {
             ensureNativeCaptureModeReady(true);
         }
     }
@@ -7186,7 +7186,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean shouldForceFullResetForCurrentMode() {
-        return !processingMode.usesNativeCapture();
+        return processingMode.usesSystemEqBackend();
     }
 
     private void applyRunningPreset() {
@@ -7220,7 +7220,7 @@ public final class MainActivity extends Activity {
     }
 
     private void applyRunningPresetToEngine(boolean forceFullReset) {
-        if (processingMode.usesNativeCapture()) {
+        if (!processingMode.usesSystemEqBackend()) {
             engine.release();
             return;
         }
@@ -7294,7 +7294,7 @@ public final class MainActivity extends Activity {
         }
         if (applyPreset != null && runningPreset != null && applyPreset.name.equals(runningPreset.name)
                 && applyPreset.enabled == runningPreset.enabled) {
-            if (processingMode.usesNativeCapture()) {
+            if (processingMode.requiresShizukuMute()) {
                 if (applyPreset.enabled) {
                     applyRunningPreset(false, false);
                     scheduleDelayedShizukuReady();
@@ -7304,6 +7304,9 @@ public final class MainActivity extends Activity {
                 }
             } else {
                 applyRunningPreset(applyPreset.enabled);
+                if (requiresPcmReplayForRunningPreset()) {
+                    scheduleDelayedShizukuReady();
+                }
             }
         }
     }
@@ -7318,7 +7321,7 @@ public final class MainActivity extends Activity {
             return;
         }
         startupProcessingRecoveryPending = false;
-        if (processingMode.usesNativeCapture()) {
+        if (requiresPcmReplayForRunningPreset()) {
             if (serviceActive && repository.loadMonitorCaptureAuthorized()) {
                 return;
             }
@@ -7349,17 +7352,24 @@ public final class MainActivity extends Activity {
     }
 
     private long computeEnabledToggleCommitDelayMs() {
-        if (processingMode.usesNativeCapture() && runningPreset != null && runningPreset.enabled) {
+        if (requiresPcmReplayForRunningPreset()) {
             return ENABLE_TOGGLE_SHIZUKU_COMMIT_DELAY_MS;
         }
         return ENABLE_TOGGLE_COMMIT_DELAY_MS;
     }
 
     private long computeEnabledToggleInteractionLockMs() {
-        if (processingMode.usesNativeCapture()) {
+        if (processingMode.requiresShizukuMute() || requiresPcmReplayForRunningPreset()) {
             return ENABLE_TOGGLE_SHIZUKU_INTERACTION_LOCK_MS;
         }
         return ENABLE_TOGGLE_INTERACTION_LOCK_MS;
+    }
+
+    private boolean requiresPcmReplayForRunningPreset() {
+        return runningPreset != null && AudioProcessingPolicy.requiresPcmReplay(
+                processingMode,
+                runningPreset,
+                runningPreset.virtualBassModeIndex);
     }
 
     private long computeShizukuEnableDelayMs() {

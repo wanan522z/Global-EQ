@@ -181,7 +181,7 @@ public final class GlobalEqForegroundService extends Service {
             }
             int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
             Preset effectivePreset = AudioProcessingPolicy.effectiveSystemPreset(currentPreset, currentProcessingMode, virtualBassModeIndex);
-            if (currentProcessingMode.usesNativeCapture()) {
+            if (!currentProcessingMode.usesSystemEqBackend()) {
                 resetSystemEqPlaybackState();
                 engine.release();
             } else if (sameRoute) {
@@ -224,7 +224,7 @@ public final class GlobalEqForegroundService extends Service {
             return START_NOT_STICKY;
         }
         if (action == null
-                && currentProcessingMode.usesNativeCapture()
+                && currentProcessingMode.requiresShizukuMute()
                 && (captureEngine == null || !captureEngine.hasProjection())) {
             requestStopAllAndStopService();
             return START_NOT_STICKY;
@@ -288,7 +288,7 @@ public final class GlobalEqForegroundService extends Service {
             currentDevice = deviceMonitor.currentOutputDevice();
         }
         int virtualBassModeIndex = currentPreset.virtualBassModeIndex;
-        if (currentProcessingMode.usesNativeCapture()) {
+        if (!currentProcessingMode.usesSystemEqBackend()) {
             resetSystemEqPlaybackState();
             engine.release();
         } else {

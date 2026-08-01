@@ -212,6 +212,14 @@ final class PlaybackCaptureEngine {
             publishStatus("Default mode active. Native capture disabled.", false);
             return;
         }
+        if (!AudioProcessingPolicy.requiresPcmReplay(
+                currentMode,
+                currentPreset,
+                currentVirtualBassModeIndex)) {
+            stopPipelineLocked();
+            publishStatus("Global EQ active via DynamicsProcessing.", true);
+            return;
+        }
         if (preset == null || !preset.enabled) {
             stopPipelineLocked();
             publishStatus(currentMode.requiresShizukuMute()
