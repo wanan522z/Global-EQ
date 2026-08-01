@@ -7,18 +7,18 @@ final class AudioProcessingPolicy {
     }
 
     static boolean advancedModeEnabled(ProcessingMode mode) {
-        return mode != null && mode.usesNativeCapture();
+        return mode == ProcessingMode.GLOBAL_DSP || mode == ProcessingMode.SHIZUKU_MUTE;
     }
 
     static boolean reverbAllowed(ProcessingMode mode) {
-        return advancedModeEnabled(mode);
+        return mode == ProcessingMode.SHIZUKU_MUTE;
     }
 
     static boolean virtualBassModeAllowed(ProcessingMode mode, int virtualBassModeIndex) {
         if (virtualBassModeIndex < 0 || virtualBassModeIndex > 2) {
             return false;
         }
-        if (advancedModeEnabled(mode)) {
+        if (mode == ProcessingMode.SHIZUKU_MUTE) {
             return true;
         }
         return virtualBassModeIndex <= 1;
@@ -29,7 +29,7 @@ final class AudioProcessingPolicy {
     }
 
     static boolean dspVirtualBassAllowed(ProcessingMode mode, int virtualBassModeIndex) {
-        return advancedModeEnabled(mode) && virtualBassModeIndex == 2;
+        return mode == ProcessingMode.SHIZUKU_MUTE && virtualBassModeIndex == 2;
     }
 
     static Preset effectiveDspPreset(Preset preset, ProcessingMode mode, int virtualBassModeIndex) {
@@ -37,21 +37,7 @@ final class AudioProcessingPolicy {
             return null;
         }
 
-        Preset effective = mode == ProcessingMode.GLOBAL_DSP
-                ? Preset.flat(preset.enabled)
-                .withName(preset.name)
-                .withPregainMb(ADVANCED_MODE_IMPLICIT_HEADROOM_MB)
-                .withVirtualBassModeIndex(preset.virtualBassModeIndex)
-                .withDspVirtualBassCutoffHz(preset.dspVirtualBassCutoffHz)
-                .withDspVirtualBassAmountPercent(preset.dspVirtualBassAmountPercent)
-                .withReverbType(preset.reverbType)
-                .withReverbSendSettings(
-                        preset.reverbDryMb,
-                        preset.reverbDecayPercent,
-                        preset.reverbPredelayMs,
-                        preset.reverbSizePercent,
-                        preset.reverbWetPercent)
-                : preset;
+        Preset effective = preset;
         if (!reverbAllowed(mode) || "Default".equals(effective.reverbType)) {
             effective = effective.withReverbType("Default");
         }
@@ -62,17 +48,7 @@ final class AudioProcessingPolicy {
     }
 
     static boolean requiresPcmReplay(ProcessingMode mode, Preset preset, int virtualBassModeIndex) {
-        if (mode == ProcessingMode.SHIZUKU_MUTE) {
-            return preset != null && preset.enabled;
-        }
-        if (mode != ProcessingMode.GLOBAL_DSP || preset == null || !preset.enabled) {
-            return false;
-        }
-        boolean dspBassEnabled = dspVirtualBassAllowed(mode, virtualBassModeIndex)
-                && preset.dspVirtualBassAmountPercent > 0;
-        boolean reverbEnabled = !"Default".equals(preset.reverbType)
-                && preset.reverbWetPercent > 0;
-        return dspBassEnabled || reverbEnabled;
+        return mode == ProcessingMode.SHIZUKU_MUTE && preset != null && preset.enabled;
     }
 
     static Preset effectiveSystemPreset(Preset preset, ProcessingMode mode, int virtualBassModeIndex) {

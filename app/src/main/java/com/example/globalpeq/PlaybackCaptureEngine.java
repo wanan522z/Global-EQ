@@ -207,17 +207,11 @@ final class PlaybackCaptureEngine {
             publishStatus("Native capture requires Android 10 or later.", false);
             return;
         }
-        if (!AudioProcessingPolicy.advancedModeEnabled(currentMode)) {
+        if (!currentMode.usesNativeCapture()) {
             stopPipelineLocked();
-            publishStatus("Default mode active. Native capture disabled.", false);
-            return;
-        }
-        if (!AudioProcessingPolicy.requiresPcmReplay(
-                currentMode,
-                currentPreset,
-                currentVirtualBassModeIndex)) {
-            stopPipelineLocked();
-            publishStatus("Global EQ active via DynamicsProcessing.", true);
+            publishStatus(currentMode == ProcessingMode.GLOBAL_DSP
+                    ? "Global EQ active via DynamicsProcessing."
+                    : "Default mode active. Native capture disabled.", false);
             return;
         }
         if (preset == null || !preset.enabled) {

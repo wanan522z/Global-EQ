@@ -28,7 +28,7 @@ enum ProcessingMode {
     }
 
     boolean usesNativeCapture() {
-        return this != SYSTEM_EQ;
+        return this == SHIZUKU_MUTE;
     }
 
     boolean usesSystemEqBackend() {
@@ -36,7 +36,7 @@ enum ProcessingMode {
     }
 
     boolean capturesSystemAudio() {
-        return this == GLOBAL_DSP || this == SHIZUKU_MUTE;
+        return this == SHIZUKU_MUTE;
     }
 
     boolean requiresShizukuMute() {
