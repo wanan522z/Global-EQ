@@ -823,7 +823,11 @@ public final class MainActivity extends Activity {
             pendingMonitorCaptureAuthorization = false;
             if (!processingMode.usesNativeCapture()) {
                 repository.saveMonitorCaptureAuthorized(false);
-                repository.saveMonitorCaptureStatus("Global EQ active via DynamicsProcessing.", false);
+                repository.saveMonitorCaptureStatus(
+                        processingMode == ProcessingMode.GLOBAL_DSP
+                                ? "Global EQ active via DynamicsProcessing."
+                                : "Default mode active. Native capture disabled.",
+                        false);
                 refreshRuntimeStatusUi();
                 return;
             }
