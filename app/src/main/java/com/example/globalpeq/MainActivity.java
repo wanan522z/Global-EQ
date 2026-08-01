@@ -821,6 +821,12 @@ public final class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_MONITOR_CAPTURE) {
             pendingMonitorCaptureAuthorization = false;
+            if (!processingMode.usesNativeCapture()) {
+                repository.saveMonitorCaptureAuthorized(false);
+                repository.saveMonitorCaptureStatus("Global EQ active via DynamicsProcessing.", false);
+                refreshRuntimeStatusUi();
+                return;
+            }
             if (resultCode != RESULT_OK || data == null) {
                 repository.saveMonitorCaptureAuthorized(false);
                 repository.saveMonitorCaptureStatus("Capture authorization was cancelled.", false);
@@ -2620,6 +2626,10 @@ public final class MainActivity extends Activity {
         if (requestCode != REQUEST_MONITOR_AUDIO_PERMISSION) {
             return;
         }
+        if (!processingMode.usesNativeCapture()) {
+            pendingMonitorCaptureAuthorization = false;
+            return;
+        }
         boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         if (!granted) {
             pendingMonitorCaptureAuthorization = false;
@@ -2679,27 +2689,6 @@ public final class MainActivity extends Activity {
         }
         if (pendingMonitorCaptureAuthorization) {
             renderAll();
-            return;
-        }
-        if (!processingMode.requiresShizukuMute()) {
-            if (!autoLaunchCapture || !shouldLaunchCaptureAuthorization()) {
-                applyRunningPreset(false, false);
-                refreshRuntimeStatusUi();
-                return;
-            }
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                Toast.makeText(this, "Native capture requires Android 10 or later", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                pendingMonitorCaptureAuthorization = true;
-                repository.saveMonitorCaptureStatus("Grant record-audio permission to continue.", false);
-                refreshRuntimeStatusUi();
-                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MONITOR_AUDIO_PERMISSION);
-                return;
-            }
-            launchMonitorCaptureAuthorization();
             return;
         }
         ShizukuCompat.PermissionRequestOutcome permissionOutcome =
