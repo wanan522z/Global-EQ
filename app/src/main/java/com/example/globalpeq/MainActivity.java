@@ -2508,6 +2508,11 @@ public final class MainActivity extends Activity {
                     "Default mode keeps the existing system EQ, virtual bass, and extra bass paths unchanged.",
                     "Default 模式会保持现有的系统 EQ、virtual bass 和 extra bass 路径不变。");
         }
+        if (processingMode == ProcessingMode.GLOBAL_DSP) {
+            return tr(
+                    "Global DSP maps PEQ / GEQ, pregain, extra bass, limiter, and system virtual bass to session-0 DynamicsProcessing. PCM capture, DSP virtual bass, and reverb are disabled.",
+                    "Global DSP 将 PEQ / GEQ、Pregain、Extra Bass、Limiter 和 System Virtual Bass 映射到 session 0 DynamicsProcessing；PCM 捕获、DSP Virtual Bass 与 Reverb 已禁用。");
+        }
         String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
                 ? tr("No app selected", "未选择应用")
                 : advancedModeConfig.monitoredAppLabel;
@@ -2530,16 +2535,16 @@ public final class MainActivity extends Activity {
     }
 
     private void setProcessingMode(ProcessingMode nextMode) {
+        flushPendingPresetPersistence();
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
         syncShizukuListenerRegistration();
-        flushPendingPresetPersistence();
         if (currentDevice == null) {
             currentDevice = deviceMonitor.currentOutputDevice();
             repository.saveSelectedDevice(currentDevice);
         }
         adoptDevicePresetForCurrentMode(currentDevice, true);
-        if (processingMode == ProcessingMode.SYSTEM_EQ) {
+        if (processingMode.usesSystemEqBackend()) {
             if (monitorSettingsOpen) {
                 hideAdvancedSettingsSubpage();
             }
@@ -3913,7 +3918,7 @@ public final class MainActivity extends Activity {
             styleGradientTitle(processingModeButton);
         }
         if (advancedModeDetailButton != null) {
-            advancedModeDetailButton.setVisibility(AudioProcessingPolicy.advancedModeEnabled(processingMode) ? View.VISIBLE : View.GONE);
+            advancedModeDetailButton.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
@@ -4000,7 +4005,7 @@ public final class MainActivity extends Activity {
             styleGradientTitle(processingModeButton);
         }
         if (advancedModeDetailButton != null) {
-            advancedModeDetailButton.setVisibility(AudioProcessingPolicy.advancedModeEnabled(processingMode) ? View.VISIBLE : View.GONE);
+            advancedModeDetailButton.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());

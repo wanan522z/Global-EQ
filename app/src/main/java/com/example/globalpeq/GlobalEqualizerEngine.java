@@ -39,6 +39,7 @@ final class GlobalEqualizerEngine {
     private Preset lastAppliedPreset;
     private AdvancedModeConfig lastAppliedDynamicsConfig;
     private boolean armedWithZeroBands;
+    private boolean targetApplyPending;
     private int applyGeneration;
     private long lastControlRearmElapsedMs;
     private long lastRouteReapplyElapsedMs;
@@ -340,6 +341,7 @@ final class GlobalEqualizerEngine {
             resetDynamicsBands();
             dynamicsProcessing.setEnabled(true);
             armedWithZeroBands = true;
+            targetApplyPending = true;
             return;
         }
         short bandCount = equalizer.getNumberOfBands();
@@ -347,6 +349,7 @@ final class GlobalEqualizerEngine {
         resetBands(bandCount);
         equalizer.setEnabled(true);
         armedWithZeroBands = true;
+        targetApplyPending = true;
     }
 
     private void scheduleTargetApply() {
@@ -373,6 +376,7 @@ final class GlobalEqualizerEngine {
             }
             dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
             armedWithZeroBands = true;
+            targetApplyPending = true;
             return;
         }
         short bandCount = equalizer.getNumberOfBands();
@@ -384,6 +388,7 @@ final class GlobalEqualizerEngine {
             }
         }
         armedWithZeroBands = true;
+        targetApplyPending = true;
     }
 
     private void applyTargetLevels(Preset preset) {
@@ -397,6 +402,7 @@ final class GlobalEqualizerEngine {
                 applySystemVirtualBass(preset);
                 lastAppliedPreset = preset;
                 lastAppliedDynamicsConfig = dynamicsConfig;
+                targetApplyPending = false;
                 return;
             }
             short bandCount = equalizer.getNumberOfBands();
@@ -414,6 +420,7 @@ final class GlobalEqualizerEngine {
             applySystemVirtualBass(preset);
             lastAppliedPreset = preset;
             lastAppliedDynamicsConfig = dynamicsConfig;
+            targetApplyPending = false;
         } catch (RuntimeException ex) {
             if (dynamicsProcessing != null) {
                 Log.w(TAG, "DynamicsProcessing apply failed; switching to legacy Equalizer", ex);
@@ -467,6 +474,7 @@ final class GlobalEqualizerEngine {
 
     private boolean canSkipApply(Preset preset, ApplyStrategy strategy) {
         if (strategy != ApplyStrategy.AUTO
+                || targetApplyPending
                 || !hasActiveEffect()
                 || preset == null
                 || lastAppliedPreset == null) {
@@ -756,6 +764,7 @@ final class GlobalEqualizerEngine {
         }
         releaseSystemVirtualBass();
         armedWithZeroBands = false;
+        targetApplyPending = false;
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
     }

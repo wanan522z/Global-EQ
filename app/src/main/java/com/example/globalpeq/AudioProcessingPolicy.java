@@ -7,7 +7,7 @@ final class AudioProcessingPolicy {
     }
 
     static boolean advancedModeEnabled(ProcessingMode mode) {
-        return mode == ProcessingMode.GLOBAL_DSP || mode == ProcessingMode.SHIZUKU_MUTE;
+        return mode == ProcessingMode.SHIZUKU_MUTE;
     }
 
     static boolean reverbAllowed(ProcessingMode mode) {
