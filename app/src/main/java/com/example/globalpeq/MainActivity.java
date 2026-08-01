@@ -2203,6 +2203,7 @@ public final class MainActivity extends Activity {
         if ("Capture authorization could not be initialized.".equals(safe)) return "无法初始化捕获授权。";
         if ("Capture permission ended. Authorize again to resume.".equals(safe)) return "捕获权限已失效，请重新授权后恢复。";
         if ("Default mode active. Native capture disabled.".equals(safe)) return "当前为 Default 模式，原生捕获已禁用。";
+        if ("Global EQ active via DynamicsProcessing.".equals(safe)) return "Global DSP 正通过 DynamicsProcessing 运行。";
         if ("Choose an app to monitor.".equals(safe)) return "请选择要监听的应用。";
         if ("Native capture is not authorized.".equals(safe)) return "原生捕获尚未授权。";
         if ("Native capture stopped. Re-authorize if the session was interrupted.".equals(safe)) return "原生捕获已停止，如会话中断请重新授权。";
@@ -2223,10 +2224,15 @@ public final class MainActivity extends Activity {
     }
 
     private String monitorCaptureStatusText() {
+        if (processingMode == ProcessingMode.GLOBAL_DSP) {
+            return tr(
+                    "Global EQ runs through session-0 DynamicsProcessing. Native capture is disabled.",
+                    "Global DSP 通过 session 0 DynamicsProcessing 运行，原生捕获已禁用。");
+        }
         if (!AudioProcessingPolicy.advancedModeEnabled(processingMode)) {
             return tr(
-                    "Native capture is only used by Global DSP and Shizuku Mode.",
-                    "原生捕获仅在第二套后端模式下使用。");
+                    "Native capture is only used by Shizuku Mode.",
+                    "原生捕获仅在 Shizuku Mode 下使用。");
         }
         if (processingMode == ProcessingMode.SHIZUKU_MUTE && repository != null) {
             return currentShizukuStatusSummary().detailText(isChineseUi());
