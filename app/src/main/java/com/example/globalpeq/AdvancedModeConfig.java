@@ -19,6 +19,7 @@ final class AdvancedModeConfig {
             985,
             120,
             false,
+            false,
             Collections.emptyList()
     );
 
@@ -31,6 +32,7 @@ final class AdvancedModeConfig {
     final int limiterCeilingPermille;
     final int limiterReleaseMs;
     final boolean allowReplayWithoutMute;
+    final boolean globalDvcEnabled;
     final List<MonitoredAppItem> monitoredApps;
 
     AdvancedModeConfig(String monitoredAppPackage,
@@ -42,6 +44,7 @@ final class AdvancedModeConfig {
                        int limiterCeilingPermille,
                        int limiterReleaseMs,
                        boolean allowReplayWithoutMute,
+                       boolean globalDvcEnabled,
                        List<MonitoredAppItem> monitoredApps) {
         this.monitoredAppPackage = monitoredAppPackage == null ? "" : monitoredAppPackage.trim();
         this.monitoredAppLabel = monitoredAppLabel == null ? "" : monitoredAppLabel.trim();
@@ -52,11 +55,12 @@ final class AdvancedModeConfig {
         this.limiterCeilingPermille = clamp(limiterCeilingPermille, 930, 999);
         this.limiterReleaseMs = clamp(limiterReleaseMs, 20, 400);
         this.allowReplayWithoutMute = allowReplayWithoutMute;
+        this.globalDvcEnabled = globalDvcEnabled;
         this.monitoredApps = Collections.unmodifiableList(normalizeApps(monitoredApps));
     }
 
     AdvancedModeConfig withMonitoredApp(String packageName, String label) {
-        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
+        return new AdvancedModeConfig(packageName, label, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, globalDvcEnabled, monitoredApps);
     }
 
     AdvancedModeConfig withAddedMonitoredApp(String packageName, String label) {
@@ -70,32 +74,37 @@ final class AdvancedModeConfig {
                 limiterCeilingPermille,
                 limiterReleaseMs,
                 allowReplayWithoutMute,
+                globalDvcEnabled,
                 appendMonitoredApp(monitoredApps, packageName, label)
         );
     }
 
     AdvancedModeConfig withLatencyMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, value, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, globalDvcEnabled, monitoredApps);
     }
 
     AdvancedModeConfig withBufferSizeFrames(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, value, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, globalDvcEnabled, monitoredApps);
     }
 
     AdvancedModeConfig withLookaheadMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, value, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, globalDvcEnabled, monitoredApps);
     }
 
     AdvancedModeConfig withLimiterCeilingPermille(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, value, limiterReleaseMs, allowReplayWithoutMute, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, value, limiterReleaseMs, allowReplayWithoutMute, globalDvcEnabled, monitoredApps);
     }
 
     AdvancedModeConfig withLimiterReleaseMs(int value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, value, allowReplayWithoutMute, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, value, allowReplayWithoutMute, globalDvcEnabled, monitoredApps);
     }
 
     AdvancedModeConfig withAllowReplayWithoutMute(boolean value) {
-        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, value, monitoredApps);
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, value, globalDvcEnabled, monitoredApps);
+    }
+
+    AdvancedModeConfig withGlobalDvcEnabled(boolean value) {
+        return new AdvancedModeConfig(monitoredAppPackage, monitoredAppLabel, latencyMs, bufferSizeFrames, monitorIntervalMs, lookaheadMs, limiterCeilingPermille, limiterReleaseMs, allowReplayWithoutMute, value, monitoredApps);
     }
 
     String toJson() {
@@ -110,6 +119,7 @@ final class AdvancedModeConfig {
             object.put("limiterCeilingPermille", limiterCeilingPermille);
             object.put("limiterReleaseMs", limiterReleaseMs);
             object.put("allowReplayWithoutMute", allowReplayWithoutMute);
+            object.put("globalDvcEnabled", globalDvcEnabled);
             JSONArray apps = new JSONArray();
             for (MonitoredAppItem item : monitoredApps) {
                 JSONObject app = new JSONObject();
@@ -140,6 +150,7 @@ final class AdvancedModeConfig {
                     object.optInt("limiterCeilingPermille", DEFAULT.limiterCeilingPermille),
                     object.optInt("limiterReleaseMs", DEFAULT.limiterReleaseMs),
                     object.optBoolean("allowReplayWithoutMute", DEFAULT.allowReplayWithoutMute),
+                    object.optBoolean("globalDvcEnabled", DEFAULT.globalDvcEnabled),
                     parseApps(object.optJSONArray("monitoredApps"))
             );
         } catch (JSONException ignored) {
