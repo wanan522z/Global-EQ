@@ -95,7 +95,7 @@ final class GlobalEqualizerEngine {
                 DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(true, true, bandCount);
                 int[] centerFrequencies = createLogBandCenters(
                         bandCount,
-                        processingMode == ProcessingMode.GLOBAL_DSP ? 10.0 : 20.0);
+                        processingMode == ProcessingMode.GLOBAL_DSP && bandCount >= 48 ? 10.0 : 20.0);
                 for (int band = 0; band < bandCount; band++) {
                     DynamicsProcessing.EqBand eqBand = postEq.getBand(band);
                     eqBand.setEnabled(true);
