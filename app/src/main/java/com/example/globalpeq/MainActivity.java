@@ -3933,6 +3933,20 @@ public final class MainActivity extends Activity {
         return params;
     }
 
+    private void refreshGlobalDvcUi() {
+        boolean visible = processingMode == ProcessingMode.GLOBAL_DSP;
+        if (globalDvcRow != null) {
+            globalDvcRow.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
+        if (globalDvcHintView != null) {
+            globalDvcHintView.setVisibility(visible ? View.VISIBLE : View.GONE);
+            setTextIfChanged(globalDvcHintView, globalDvcHintText());
+        }
+        if (globalDvcSwitch != null) {
+            globalDvcSwitch.setChecked(advancedModeConfig.globalDvcEnabled);
+        }
+    }
+
     private void renderAll() {
         updatingUi = true;
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
@@ -3955,6 +3969,7 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
+        refreshGlobalDvcUi();
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
         }
@@ -4042,6 +4057,7 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
+        refreshGlobalDvcUi();
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
         }
