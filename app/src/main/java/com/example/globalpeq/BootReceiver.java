@@ -12,8 +12,11 @@ public final class BootReceiver extends BroadcastReceiver {
         if (!repository.loadMasterEnabled()) {
             return;
         }
-        if (repository.loadProcessingMode().usesNativeCapture()) {
-            repository.clearRuntimeAudioState(ShizukuCompat.describeState(context));
+        ProcessingMode processingMode = repository.loadProcessingMode();
+        if (processingMode.usesNativeCapture()) {
+            repository.clearRuntimeAudioState(processingMode.requiresShizukuMute()
+                    ? ShizukuCompat.describeState(context)
+                    : "Shizuku mute is idle.");
             return;
         }
 

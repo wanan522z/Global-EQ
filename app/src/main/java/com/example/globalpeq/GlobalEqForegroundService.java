@@ -616,7 +616,9 @@ public final class GlobalEqForegroundService extends Service {
             engine.apply(Preset.flat(false));
         }
         if (repository != null) {
-            repository.clearRuntimeAudioState(ShizukuCompat.describeState(this));
+            repository.clearRuntimeAudioState(currentProcessingMode.requiresShizukuMute()
+                    ? ShizukuCompat.describeState(this)
+                    : "Shizuku mute is idle.");
         }
     }
 

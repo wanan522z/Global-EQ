@@ -543,6 +543,8 @@ public final class MainActivity extends Activity {
     private boolean pendingRunningPresetPersistence;
     private String pendingExportJson;
     private String pendingExportSuccessMessage;
+    private boolean activityStarted;
+    private boolean shizukuListenersRegistered;
     private final ShizukuCompat.StateListener shizukuStateListener = this::handleShizukuStateChanged;
     private final ShizukuCompat.PermissionResultListener shizukuPermissionResultListener = this::handleShizukuPermissionResult;
     private final Runnable activePlaybackPackageRefreshRunnable = new Runnable() {
@@ -678,8 +680,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
-        ShizukuCompat.addStateListener(shizukuStateListener);
-        ShizukuCompat.addPermissionResultListener(shizukuPermissionResultListener);
+        activityStarted = true;
+        syncShizukuListenerRegistration();
         refreshActivePlaybackPackageFromRepository();
         uiHandler.removeCallbacks(activePlaybackPackageRefreshRunnable);
         uiHandler.post(activePlaybackPackageRefreshRunnable);
@@ -709,8 +711,8 @@ public final class MainActivity extends Activity {
         flushPendingPresetPersistence();
         activePlaybackPackageName = "";
         deviceMonitor.stop();
-        ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
-        ShizukuCompat.removeStateListener(shizukuStateListener);
+        activityStarted = false;
+        unregisterShizukuListeners();
         super.onStop();
     }
 
@@ -2242,7 +2244,7 @@ public final class MainActivity extends Activity {
                 runningPreset != null && runningPreset.enabled,
                 advancedModeConfig,
                 currentShizukuRuntimeState(),
-                ShizukuCompat.hasPermission());
+                processingMode.requiresShizukuMute() && ShizukuCompat.hasPermission());
     }
 
     private String shizukuRuntimeTitleText() {
@@ -2515,6 +2517,7 @@ public final class MainActivity extends Activity {
         ProcessingMode previousMode = processingMode;
         processingMode = nextMode == null ? ProcessingMode.SYSTEM_EQ : nextMode;
         repository.saveProcessingMode(processingMode);
+        syncShizukuListenerRegistration();
         flushPendingPresetPersistence();
         if (currentDevice == null) {
             currentDevice = deviceMonitor.currentOutputDevice();
@@ -2522,15 +2525,14 @@ public final class MainActivity extends Activity {
         }
         adoptDevicePresetForCurrentMode(currentDevice, true);
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
-            if (previousMode.usesNativeCapture()) {
-                stopShizukuCaptureNow();
-            }
             if (monitorSettingsOpen) {
                 hideAdvancedSettingsSubpage();
             }
             applyRunningPreset(true);
         } else {
-            applyRunningPreset(false, false);
+            // Global DSP is an independent backend: hand the new mode to the
+            // service immediately so a previous Shizuku session is torn down.
+            applyRunningPreset(false, !processingMode.requiresShizukuMute());
             if (runningPreset != null && runningPreset.enabled) {
                 ensureNativeCaptureModeReady(true);
             }
@@ -6573,6 +6575,7 @@ public final class MainActivity extends Activity {
         repository.saveKnownDevice(currentDevice);
         repository.saveSelectedDevice(currentDevice);
         repository.saveProcessingMode(processingMode);
+        syncShizukuListenerRegistration();
         repository.saveAutoSwitchOutput(autoSwitchOutput);
         for (Preset preset : config.presets) {
             if (preset == null || preset.name == null || preset.name.trim().isEmpty()) {
@@ -6585,9 +6588,6 @@ public final class MainActivity extends Activity {
         repository.savePreset(currentDevice, ProcessingMode.SHIZUKU_MUTE, config.shizukuState.devicePreset);
         advancedModeConfig = config.stateFor(processingMode).advancedModeConfig;
         repository.saveAdvancedModeConfig(advancedModeConfig);
-        if (!processingMode.requiresShizukuMute()) {
-            stopShizukuCaptureNow();
-        }
         Preset activeDevicePreset = loadScopedPreset(currentDevice, processingMode);
         runningPreset = activeDevicePreset.withEnabled(masterEnabled);
         activateEditingPreset(resolveImportedEditingPreset(config.stateFor(processingMode), runningPreset), true);
@@ -7335,7 +7335,9 @@ public final class MainActivity extends Activity {
     private boolean syncRuntimeStateWithServiceProcess() {
         boolean active = GlobalEqForegroundService.isRunningInProcess();
         if (!active) {
-            repository.clearRuntimeAudioState(ShizukuCompat.describeState(this));
+            repository.clearRuntimeAudioState(processingMode.requiresShizukuMute()
+                    ? ShizukuCompat.describeState(this)
+                    : "Shizuku mute is idle.");
         } else {
             repository.saveServiceActive(true);
         }
@@ -12415,7 +12417,7 @@ public final class MainActivity extends Activity {
     }
 
     private String shizukuAccessButtonText() {
-        return ShizukuCompat.hasPermission()
+        return processingMode.requiresShizukuMute() && ShizukuCompat.hasPermission()
                 ? tr("Refresh Shizuku", "\u5237\u65b0 Shizuku")
                 : tr("Authorize Shizuku", "\u6388\u6743 Shizuku");
     }
@@ -12476,7 +12478,9 @@ public final class MainActivity extends Activity {
     }
 
     private void handleShizukuPermissionResult(int requestCode, int grantResult) {
-        if (requestCode != REQUEST_SHIZUKU_PERMISSION || repository == null) {
+        if (requestCode != REQUEST_SHIZUKU_PERMISSION
+                || repository == null
+                || !processingMode.requiresShizukuMute()) {
             return;
         }
         boolean granted = grantResult == PackageManager.PERMISSION_GRANTED;
@@ -12497,13 +12501,39 @@ public final class MainActivity extends Activity {
     }
 
     private void handleShizukuStateChanged() {
-        if (repository == null) {
+        if (repository == null || !processingMode.requiresShizukuMute()) {
             return;
         }
         repository.saveShizukuMuteStatus(
                 ShizukuCompat.describeState(this),
                 ShizukuCompat.hasPermission());
         uiHandler.post(this::refreshRuntimeStatusUi);
+    }
+
+    private void syncShizukuListenerRegistration() {
+        if (activityStarted && processingMode.requiresShizukuMute()) {
+            registerShizukuListeners();
+        } else {
+            unregisterShizukuListeners();
+        }
+    }
+
+    private void registerShizukuListeners() {
+        if (shizukuListenersRegistered) {
+            return;
+        }
+        ShizukuCompat.addStateListener(shizukuStateListener);
+        ShizukuCompat.addPermissionResultListener(shizukuPermissionResultListener);
+        shizukuListenersRegistered = true;
+    }
+
+    private void unregisterShizukuListeners() {
+        if (!shizukuListenersRegistered) {
+            return;
+        }
+        ShizukuCompat.removePermissionResultListener(shizukuPermissionResultListener);
+        ShizukuCompat.removeStateListener(shizukuStateListener);
+        shizukuListenersRegistered = false;
     }
 
     private static int clamp(int value, int min, int max) {
