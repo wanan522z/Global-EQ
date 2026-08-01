@@ -1022,11 +1022,22 @@ final class PcmDspProcessor {
 
         private static float softLimit(float value, float ceiling) {
             float safe = Math.max(0.5f, ceiling);
-            float normalized = value / safe;
-            if (Math.abs(normalized) < 0.9f) {
+            float magnitude = Math.abs(value);
+            float kneeStart = safe * 0.9f;
+            if (magnitude <= kneeStart) {
                 return value;
             }
-            return fastTanh(normalized) * safe;
+
+            // Join the linear region to the saturation region continuously.
+            // The old implementation switched directly from x to tanh(x) at
+            // 90% of the ceiling, which introduced a large amplitude step each
+            // time a boosted waveform crossed the boundary and sounded like
+            // crackling rather than ordinary clipping.
+            float kneeWidth = Math.max(0.0001f, safe - kneeStart);
+            float kneeInput = (magnitude - kneeStart) / kneeWidth;
+            float limitedMagnitude = kneeStart + kneeWidth * fastTanh(kneeInput);
+            limitedMagnitude = Math.min(safe, limitedMagnitude);
+            return Math.copySign(limitedMagnitude, value);
         }
     }
 
