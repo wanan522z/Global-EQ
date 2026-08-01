@@ -7230,10 +7230,10 @@ public final class MainActivity extends Activity {
         }
         Preset effectivePreset = effectiveRunningPreset();
         if (forceFullReset && effectivePreset.enabled && shouldForceFullResetForCurrentMode()) {
-            engine.applyWithFullReset(effectivePreset, advancedModeConfig);
+            engine.applyWithFullReset(effectivePreset, processingMode, advancedModeConfig);
             return;
         }
-        engine.apply(effectivePreset, advancedModeConfig);
+        engine.apply(effectivePreset, processingMode, advancedModeConfig);
     }
 
     private Preset effectiveRunningPreset() {

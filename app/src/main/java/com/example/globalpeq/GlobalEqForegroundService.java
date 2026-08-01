@@ -185,9 +185,9 @@ public final class GlobalEqForegroundService extends Service {
                 resetSystemEqPlaybackState();
                 engine.release();
             } else if (sameRoute) {
-                engine.reapplyForRouteChange(effectivePreset, currentAdvancedModeConfig);
+                engine.reapplyForRouteChange(effectivePreset, currentProcessingMode, currentAdvancedModeConfig);
             } else {
-                engine.applyWithFullReset(effectivePreset, currentAdvancedModeConfig);
+                engine.applyWithFullReset(effectivePreset, currentProcessingMode, currentAdvancedModeConfig);
             }
             scheduleCaptureUpdate(
                     currentProcessingMode,
@@ -295,7 +295,7 @@ public final class GlobalEqForegroundService extends Service {
             engine.apply(AudioProcessingPolicy.effectiveSystemPreset(
                     currentPreset,
                     currentProcessingMode,
-                    virtualBassModeIndex), currentAdvancedModeConfig);
+                    virtualBassModeIndex), currentProcessingMode, currentAdvancedModeConfig);
             syncSystemEqPlaybackState();
         }
         scheduleCaptureUpdate(
@@ -613,7 +613,7 @@ public final class GlobalEqForegroundService extends Service {
             shizukuMuteEngine.stopAll();
         }
         if (engine != null) {
-            engine.apply(Preset.flat(false));
+            engine.apply(Preset.flat(false), currentProcessingMode, currentAdvancedModeConfig);
         }
         if (repository != null) {
             repository.clearRuntimeAudioState(currentProcessingMode.requiresShizukuMute()
@@ -684,7 +684,7 @@ public final class GlobalEqForegroundService extends Service {
         engine.reapplyStaged(AudioProcessingPolicy.effectiveSystemPreset(
                 currentPreset,
                 currentProcessingMode,
-                currentPreset.virtualBassModeIndex));
+                currentPreset.virtualBassModeIndex), currentProcessingMode, currentAdvancedModeConfig);
     }
 
     private void resetSystemEqPlaybackState() {

@@ -104,7 +104,7 @@ final class GlobalEqualizerEngine {
                 }
                 candidate.setInputGainAllChannelsTo(0f);
                 candidate.setPostEqAllChannelsTo(postEq);
-                candidate.setLimiterAllChannelsTo(createLimiter(dynamicsConfig));
+                candidate.setLimiterAllChannelsTo(createActiveLimiter());
                 candidate.setEnabled(false);
                 candidate.setControlStatusListener(this::onControlStatusChanged);
 
