@@ -51,6 +51,7 @@ final class PresetRepository {
     private static final String ACTIVE_MUTED_PACKAGE_UPDATED_AT = "active_muted_package_updated_at";
     private static final String ACTIVE_REPLAY_PACKAGE_UPDATED_AT = "active_replay_package_updated_at";
     private static final String SHIZUKU_RUNTIME_STATE = "shizuku_runtime_state";
+    private static final String DVC_RUNTIME_STATE = "dvc_runtime_state";
     private static final String SERVICE_ACTIVE = "service_active";
     private static final String DEVICE_SEPARATOR = "\t";
 
@@ -202,6 +203,15 @@ final class PresetRepository {
         prefs.edit()
                 .putString(ADVANCED_MODE_CONFIG, safe.toJson())
                 .commit();
+    }
+
+    synchronized DvcRuntimeState loadDvcRuntimeState() {
+        return DvcRuntimeState.fromJson(prefs.getString(DVC_RUNTIME_STATE, null));
+    }
+
+    synchronized void saveDvcRuntimeState(DvcRuntimeState state) {
+        DvcRuntimeState safe = state == null ? DvcRuntimeState.DEFAULT : state;
+        prefs.edit().putString(DVC_RUNTIME_STATE, safe.toJson()).apply();
     }
 
     synchronized String loadMonitorCaptureStatus() {

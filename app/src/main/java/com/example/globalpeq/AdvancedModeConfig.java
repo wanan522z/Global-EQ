@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 
 final class AdvancedModeConfig {
+    private static final int TRUE_DVC_CONFIG_VERSION = 1;
     static final AdvancedModeConfig DEFAULT = new AdvancedModeConfig(
             "",
             "",
@@ -19,7 +20,7 @@ final class AdvancedModeConfig {
             985,
             120,
             false,
-            true,
+            false,
             Collections.emptyList()
     );
 
@@ -120,6 +121,7 @@ final class AdvancedModeConfig {
             object.put("limiterReleaseMs", limiterReleaseMs);
             object.put("allowReplayWithoutMute", allowReplayWithoutMute);
             object.put("globalDvcEnabled", globalDvcEnabled);
+            object.put("trueDvcConfigVersion", TRUE_DVC_CONFIG_VERSION);
             JSONArray apps = new JSONArray();
             for (MonitoredAppItem item : monitoredApps) {
                 JSONObject app = new JSONObject();
@@ -150,7 +152,8 @@ final class AdvancedModeConfig {
                     object.optInt("limiterCeilingPermille", DEFAULT.limiterCeilingPermille),
                     object.optInt("limiterReleaseMs", DEFAULT.limiterReleaseMs),
                     object.optBoolean("allowReplayWithoutMute", DEFAULT.allowReplayWithoutMute),
-                    object.optBoolean("globalDvcEnabled", DEFAULT.globalDvcEnabled),
+                    object.optInt("trueDvcConfigVersion", 0) >= TRUE_DVC_CONFIG_VERSION
+                            && object.optBoolean("globalDvcEnabled", false),
                     parseApps(object.optJSONArray("monitoredApps"))
             );
         } catch (JSONException ignored) {
