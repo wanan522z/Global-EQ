@@ -520,10 +520,14 @@ final class AudioOutputDeviceMonitor {
             case AudioDeviceInfo.TYPE_BLE_HEADSET:
             case AudioDeviceInfo.TYPE_BLE_SPEAKER:
             case AudioDeviceInfo.TYPE_BLE_BROADCAST:
+            case AudioDeviceInfo.TYPE_HEARING_AID:
             case AudioDeviceInfo.TYPE_USB_DEVICE:
             case AudioDeviceInfo.TYPE_USB_HEADSET:
+            case AudioDeviceInfo.TYPE_USB_ACCESSORY:
             case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
             case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+            case AudioDeviceInfo.TYPE_LINE_ANALOG:
+            case AudioDeviceInfo.TYPE_LINE_DIGITAL:
                 return true;
             default:
                 return false;
@@ -535,7 +539,8 @@ final class AudioOutputDeviceMonitor {
                 || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
                 || type == AudioDeviceInfo.TYPE_BLE_HEADSET
                 || type == AudioDeviceInfo.TYPE_BLE_SPEAKER
-                || type == AudioDeviceInfo.TYPE_BLE_BROADCAST;
+                || type == AudioDeviceInfo.TYPE_BLE_BROADCAST
+                || type == AudioDeviceInfo.TYPE_HEARING_AID;
     }
 
     private boolean isSelectableOutput(AudioDeviceInfo device) {
@@ -548,10 +553,14 @@ final class AudioOutputDeviceMonitor {
             case AudioDeviceInfo.TYPE_BLE_HEADSET:
             case AudioDeviceInfo.TYPE_BLE_SPEAKER:
             case AudioDeviceInfo.TYPE_BLE_BROADCAST:
+            case AudioDeviceInfo.TYPE_HEARING_AID:
             case AudioDeviceInfo.TYPE_USB_DEVICE:
             case AudioDeviceInfo.TYPE_USB_HEADSET:
+            case AudioDeviceInfo.TYPE_USB_ACCESSORY:
             case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
             case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+            case AudioDeviceInfo.TYPE_LINE_ANALOG:
+            case AudioDeviceInfo.TYPE_LINE_DIGITAL:
             case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
                 return true;
             default:

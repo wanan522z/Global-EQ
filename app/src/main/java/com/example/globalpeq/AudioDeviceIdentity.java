@@ -30,14 +30,21 @@ final class AudioDeviceIdentity {
                 return "BLE speaker";
             case AudioDeviceInfo.TYPE_BLE_BROADCAST:
                 return "BLE audio";
+            case AudioDeviceInfo.TYPE_HEARING_AID:
+                return "Hearing aid";
             case AudioDeviceInfo.TYPE_USB_DEVICE:
                 return "USB DAC";
             case AudioDeviceInfo.TYPE_USB_HEADSET:
                 return "USB headset";
+            case AudioDeviceInfo.TYPE_USB_ACCESSORY:
+                return "USB accessory";
             case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
                 return "Wired headphones";
             case AudioDeviceInfo.TYPE_WIRED_HEADSET:
                 return "Wired headset";
+            case AudioDeviceInfo.TYPE_LINE_ANALOG:
+            case AudioDeviceInfo.TYPE_LINE_DIGITAL:
+                return "Line out";
             default:
                 return "Output " + type;
         }
@@ -140,7 +147,8 @@ final class AudioDeviceIdentity {
                 || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
                 || type == AudioDeviceInfo.TYPE_BLE_HEADSET
                 || type == AudioDeviceInfo.TYPE_BLE_SPEAKER
-                || type == AudioDeviceInfo.TYPE_BLE_BROADCAST;
+                || type == AudioDeviceInfo.TYPE_BLE_BROADCAST
+                || type == AudioDeviceInfo.TYPE_HEARING_AID;
     }
 
     private static String normalizeAddress(String address) {
