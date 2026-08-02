@@ -20,9 +20,7 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
     private static final float DVC_MIN_VOLUME_DB = -96f;
-    private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
-    private static final float DVC_LIMITER_RELEASE_MS = 75f;
-    private static final float DVC_LIMITER_RATIO = 50f;
+    private static final float DVC_MAX_COMPENSATION_DB = 96f;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
@@ -52,7 +50,7 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
-    private boolean dvcRawLimiterActive;
+    private boolean dvcRawVolumeGainActive;
     private float dvcVolumeDb;
 
     private enum ApplyStrategy {
@@ -194,14 +192,14 @@ final class GlobalEqualizerEngine {
     }
 
     boolean usesPowerampRawDvcPath() {
-        return dvcActive && dvcRawLimiterActive;
+        return dvcActive && dvcRawVolumeGainActive;
     }
 
     /**
-     * Poweramp Equalizer-style global DVC. The session-0 effect runs before Android's media
-     * volume attenuation, so that downstream attenuation can be used as digital headroom. DVC
-     * maps the current stream-volume dB value into the limiter threshold; it never changes the
-     * system volume and never adds a compensating input/post gain pair.
+     * Poweramp Equalizer-style global DVC. DpVolumeCompensation maps Android's negative media
+     * volume dB to positive DynamicsProcessing input gain. The unchanged downstream stream
+     * attenuation cancels that gain acoustically while preserving internal EQ boost headroom.
+     * This never changes system volume and never uses limiter state as the DVC switch.
      */
     boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
         float nextVolumeDb = Float.isFinite(requestedVolumeDb)
@@ -210,7 +208,7 @@ final class GlobalEqualizerEngine {
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
             if (!active) {
                 dvcActive = false;
-                dvcRawLimiterActive = false;
+                dvcRawVolumeGainActive = false;
                 dvcVolumeDb = 0f;
                 return true;
             }
@@ -220,7 +218,7 @@ final class GlobalEqualizerEngine {
         if (targetPreset == null || !targetPreset.enabled) {
             if (!active) {
                 dvcActive = false;
-                dvcRawLimiterActive = false;
+                dvcRawVolumeGainActive = false;
                 dvcVolumeDb = 0f;
                 return true;
             }
@@ -235,14 +233,14 @@ final class GlobalEqualizerEngine {
         try {
             dvcActive = active;
             dvcVolumeDb = active ? nextVolumeDb : 0f;
-            applyAndVerifyDvcLimiter(createGlobalLimiter(targetPreset));
+            applyAndVerifyDvcInputGain(targetPreset);
             Log.d(TAG, "Global DVC " + (active ? "mapped media volume " + nextVolumeDb + " dB" : "off"));
             return true;
         } catch (RuntimeException error) {
             dvcActive = previousActive;
             dvcVolumeDb = previousVolumeDb;
             try {
-                dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(targetPreset));
+                applyAndVerifyDvcInputGain(targetPreset);
             } catch (RuntimeException ignored) {
             }
             Log.w(TAG, "Failed to map global DVC volume", error);
@@ -250,84 +248,37 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    private void applyAndVerifyDvcLimiter(DynamicsProcessing.Limiter limiter) {
-        dvcRawLimiterActive = false;
-        boolean rawApplied = dvcActive && dvcRawBridge.setLimiterAllChannels(
+    private void applyAndVerifyDvcInputGain(Preset preset) {
+        float compensationDb = dvcActive
+                ? clamp(-dvcVolumeDb, 0f, DVC_MAX_COMPENSATION_DB)
+                : 0f;
+        float targetGainDb = clamp(
+                presetPregainDb(preset) + compensationDb,
+                DYNAMICS_MIN_LEVEL_MB / 100f,
+                DVC_MAX_COMPENSATION_DB);
+        dvcRawVolumeGainActive = false;
+        boolean rawApplied = dvcActive && dvcRawBridge.setInputGainAllChannels(
                 dynamicsProcessing,
                 DYNAMICS_CHANNEL_COUNT,
-                limiter);
+                targetGainDb);
         if (!rawApplied) {
-            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+            dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         }
-        boolean expectedEnabled = limiter.isEnabled();
-        float expectedThreshold = limiter.getThreshold();
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
-            DynamicsProcessing.Limiter applied =
-                    dynamicsProcessing.getLimiterByChannelIndex(channel);
-            if (applied.isEnabled() != expectedEnabled
-                    || Math.abs(applied.getThreshold() - expectedThreshold) >= 0.1f) {
-                // Some implementations ignore the all-channel command but accept the same
-                // parameter block when addressed per channel.
-                dynamicsProcessing.setLimiterByChannelIndex(channel, limiter);
-                applied = dynamicsProcessing.getLimiterByChannelIndex(channel);
+            float appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
+            if (Math.abs(appliedGainDb - targetGainDb) >= 0.1f) {
+                dynamicsProcessing.setInputGainbyChannel(channel, targetGainDb);
+                appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
             }
-            if (applied.isEnabled() != expectedEnabled
-                    || Math.abs(applied.getThreshold() - expectedThreshold) >= 0.1f) {
+            if (Math.abs(appliedGainDb - targetGainDb) >= 0.1f) {
                 throw new IllegalStateException(
-                        "Limiter write rejected for channel " + channel);
+                        "DVC input-gain write rejected for channel " + channel);
             }
         }
-        Log.d(TAG, "DVC limiter path=" + (rawApplied ? "Poweramp raw" : "public API")
-                + " enabled=" + expectedEnabled
-                + " threshold=" + expectedThreshold + " dB");
-        dvcRawLimiterActive = rawApplied;
-    }
-
-    private DynamicsProcessing.Limiter createGlobalLimiter(Preset preset) {
-        if (processingMode != ProcessingMode.GLOBAL_DSP || preset == null) {
-            return createLimiter(dynamicsConfig, 0f);
-        }
-        if (!dvcActive) {
-            return createLimiter(dynamicsConfig, 0f);
-        }
-        float pregainDb = presetPregainDb(preset);
-        float safetyMarginDb = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
-                ? 7f
-                : 5f;
-        float thresholdDb = clamp(
-                -(pregainDb + dvcVolumeDb) - safetyMarginDb,
-                DVC_MIN_VOLUME_DB,
-                96f);
-        // Poweramp writes positive thresholds through raw effect commands. Some ROMs silently
-        // clamp positive values written through the public DynamicsProcessing wrapper to 0 dB.
-        // When the available downstream headroom is larger than the complete mapped EQ boost,
-        // the signal cannot reach the desired threshold, so bypassing the limiter is exactly
-        // equivalent and avoids that OEM clamp. Otherwise keep the limiter and its calculated
-        // threshold active; this also covers high media-volume levels.
-        boolean limiterRequired = thresholdDb < maximumMappedBoostDb(preset);
-        return new DynamicsProcessing.Limiter(
-                true,
-                limiterRequired,
-                0,
-                DVC_LIMITER_ATTACK_MS,
-                DVC_LIMITER_RELEASE_MS,
-                DVC_LIMITER_RATIO,
-                limiterRequired ? thresholdDb : 0f,
-                0f);
-    }
-
-    private float maximumMappedBoostDb(Preset preset) {
-        if (preset == null || dynamicsBandCenterHz.length == 0) {
-            return 0f;
-        }
-        float pregainDb = presetPregainDb(preset);
-        float maximumDb = 0f;
-        for (int centerHz : dynamicsBandCenterHz) {
-            maximumDb = Math.max(
-                    maximumDb,
-                    pregainDb + targetDynamicsLevelMb(centerHz, preset) / 100f);
-        }
-        return maximumDb;
+        Log.d(TAG, "DVC input-gain path=" + (rawApplied ? "Poweramp raw" : "public API")
+                + " compensation=" + compensationDb
+                + " dB target=" + targetGainDb + " dB");
+        dvcRawVolumeGainActive = rawApplied;
     }
 
     private static float presetPregainDb(Preset preset) {

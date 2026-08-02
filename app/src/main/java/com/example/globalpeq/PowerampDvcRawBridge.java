@@ -10,17 +10,17 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * Writes the DynamicsProcessing limiter with the same raw effect command and native-order
- * effect_param_t layout used by Poweramp Equalizer. This is intentionally limited to the DVC
- * limiter; EQ configuration remains owned by GlobalEqualizerEngine.
+ * Writes DynamicsProcessing input gain with the same raw effect command and native-order
+ * effect_param_t layout used by Poweramp Equalizer's DpVolumeCompensation path. EQ and limiter
+ * configuration remain owned by GlobalEqualizerEngine.
  */
 final class PowerampDvcRawBridge {
     private static final String TAG = "PowerampDvcRawBridge";
     private static final int EFFECT_CMD_SET_PARAM = 5;
-    private static final int DP_PARAM_LIMITER = 112;
+    private static final int DP_PARAM_INPUT_GAIN = 32;
     private static final int EFFECT_PARAM_HEADER_BYTES = 12;
-    private static final int LIMITER_PARAM_BYTES = 8;
-    private static final int LIMITER_VALUE_BYTES = 32;
+    private static final int INPUT_GAIN_PARAM_BYTES = 8;
+    private static final int INPUT_GAIN_VALUE_BYTES = 4;
     private static final boolean NATIVE_BRIDGE_LOADED;
 
     static {
@@ -39,22 +39,22 @@ final class PowerampDvcRawBridge {
     private boolean failureLogged;
     private boolean nativePathLogged;
 
-    boolean setLimiterAllChannels(DynamicsProcessing effect,
-                                  int channelCount,
-                                  DynamicsProcessing.Limiter limiter) {
-        if (effect == null || limiter == null || channelCount <= 0) {
+    boolean setInputGainAllChannels(DynamicsProcessing effect,
+                                    int channelCount,
+                                    float gainDb) {
+        if (effect == null || channelCount <= 0 || !Float.isFinite(gainDb)) {
             return false;
         }
         try {
             for (int channel = 0; channel < channelCount; channel++) {
-                byte[] command = limiterCommand(channel, limiter);
+                byte[] command = inputGainCommand(channel, gainDb);
                 byte[] reply = new byte[Integer.BYTES];
                 int result = invokeCommand(effect, command, reply);
                 int effectStatus = ByteBuffer.wrap(reply)
                         .order(ByteOrder.nativeOrder())
                         .getInt(0);
                 if (result < AudioEffect.SUCCESS || effectStatus < AudioEffect.SUCCESS) {
-                    logFailure("raw limiter command rejected: result=" + result
+                    logFailure("raw input-gain command rejected: result=" + result
                             + " status=" + effectStatus);
                     return false;
                 }
@@ -65,7 +65,7 @@ final class PowerampDvcRawBridge {
             }
             return true;
         } catch (IllegalAccessException | InvocationTargetException | RuntimeException error) {
-            logFailure("raw limiter command unavailable", error);
+            logFailure("raw input-gain command unavailable", error);
             return false;
         }
     }
@@ -101,24 +101,18 @@ final class PowerampDvcRawBridge {
         return commandMethod;
     }
 
-    private static byte[] limiterCommand(int channel,
-                                         DynamicsProcessing.Limiter limiter) {
+    private static byte[] inputGainCommand(int channel, float gainDb) {
         ByteBuffer buffer = ByteBuffer.allocate(
-                        EFFECT_PARAM_HEADER_BYTES + LIMITER_PARAM_BYTES + LIMITER_VALUE_BYTES)
+                        EFFECT_PARAM_HEADER_BYTES
+                                + INPUT_GAIN_PARAM_BYTES
+                                + INPUT_GAIN_VALUE_BYTES)
                 .order(ByteOrder.nativeOrder());
         buffer.putInt(0); // effect_param_t status
-        buffer.putInt(LIMITER_PARAM_BYTES);
-        buffer.putInt(LIMITER_VALUE_BYTES);
-        buffer.putInt(DP_PARAM_LIMITER);
+        buffer.putInt(INPUT_GAIN_PARAM_BYTES);
+        buffer.putInt(INPUT_GAIN_VALUE_BYTES);
+        buffer.putInt(DP_PARAM_INPUT_GAIN);
         buffer.putInt(channel);
-        buffer.putInt(limiter.isInUse() ? 1 : 0);
-        buffer.putInt(limiter.isEnabled() ? 1 : 0);
-        buffer.putInt(limiter.getLinkGroup());
-        buffer.putFloat(limiter.getAttackTime());
-        buffer.putFloat(limiter.getReleaseTime());
-        buffer.putFloat(limiter.getRatio());
-        buffer.putFloat(limiter.getThreshold());
-        buffer.putFloat(limiter.getPostGain());
+        buffer.putFloat(gainDb);
         return buffer.array();
     }
 
