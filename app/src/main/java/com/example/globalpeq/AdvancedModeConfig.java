@@ -9,8 +9,8 @@ import java.util.Collections;
 import java.util.List;
 
 final class AdvancedModeConfig {
-    // Version 1 could persist the incomplete DP-only compensation path. Do not carry that
-    // enabled bit into the Volume AudioEffect implementation: the user must opt in again.
+    // Older versions could persist unsafe experimental DVC implementations. Never migrate their
+    // enabled bit into the volume-to-limiter mapping: the user must explicitly opt in again.
     private static final int TRUE_DVC_CONFIG_VERSION = 4;
     static final AdvancedModeConfig DEFAULT = new AdvancedModeConfig(
             "",
