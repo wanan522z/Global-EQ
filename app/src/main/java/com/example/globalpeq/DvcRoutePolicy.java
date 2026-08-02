@@ -38,11 +38,13 @@ final class DvcRoutePolicy {
         int type = deviceType(device);
         switch (type) {
             case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
+            case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE:
                 return new Decision(Kind.SPEAKER, type, true);
             case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
             case AudioDeviceInfo.TYPE_WIRED_HEADSET:
             case AudioDeviceInfo.TYPE_LINE_ANALOG:
             case AudioDeviceInfo.TYPE_LINE_DIGITAL:
+            case AudioDeviceInfo.TYPE_AUX_LINE:
                 return new Decision(Kind.WIRED, type, true);
             case AudioDeviceInfo.TYPE_USB_DEVICE:
             case AudioDeviceInfo.TYPE_USB_HEADSET:

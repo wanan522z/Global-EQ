@@ -19,6 +19,7 @@ final class AudioDeviceIdentity {
     static String typeName(int type) {
         switch (type) {
             case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
+            case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE:
                 return "Speaker";
             case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
                 return "Bluetooth";
@@ -44,6 +45,7 @@ final class AudioDeviceIdentity {
                 return "Wired headset";
             case AudioDeviceInfo.TYPE_LINE_ANALOG:
             case AudioDeviceInfo.TYPE_LINE_DIGITAL:
+            case AudioDeviceInfo.TYPE_AUX_LINE:
                 return "Line out";
             default:
                 return "Output " + type;

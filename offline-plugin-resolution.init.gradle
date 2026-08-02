@@ -1,7 +1,0 @@
-settingsEvaluated { settings ->
-    settings.pluginManagement.resolutionStrategy.eachPlugin {
-        if (requested.id.id == "com.android.application" && requested.version == "9.2.0") {
-            useModule("com.android.tools.build:gradle:9.2.0")
-        }
-    }
-}
