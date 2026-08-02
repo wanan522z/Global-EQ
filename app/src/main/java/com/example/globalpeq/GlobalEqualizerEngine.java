@@ -289,8 +289,8 @@ final class GlobalEqualizerEngine {
         // approaches maximum, thresholdDb becomes negative and the limiter is enabled again.
         boolean limiterRequired = thresholdDb < 0f;
         return new DynamicsProcessing.Limiter(
-                limiterRequired,
                 true,
+                limiterRequired,
                 0,
                 DVC_LIMITER_ATTACK_MS,
                 DVC_LIMITER_RELEASE_MS,
