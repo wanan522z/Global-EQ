@@ -227,7 +227,7 @@ final class GlobalEqualizerEngine {
         try {
             dvcActive = active;
             dvcVolumeDb = active ? nextVolumeDb : 0f;
-            dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(targetPreset));
+            applyAndVerifyDvcLimiter(createGlobalLimiter(targetPreset));
             Log.d(TAG, "Global DVC " + (active ? "mapped media volume " + nextVolumeDb + " dB" : "off"));
             return true;
         } catch (RuntimeException error) {
@@ -240,6 +240,30 @@ final class GlobalEqualizerEngine {
             Log.w(TAG, "Failed to map global DVC volume", error);
             return false;
         }
+    }
+
+    private void applyAndVerifyDvcLimiter(DynamicsProcessing.Limiter limiter) {
+        dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+        boolean expectedEnabled = limiter.isEnabled();
+        float expectedThreshold = limiter.getThreshold();
+        for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
+            DynamicsProcessing.Limiter applied =
+                    dynamicsProcessing.getLimiterByChannelIndex(channel);
+            if (applied.isEnabled() != expectedEnabled
+                    || Math.abs(applied.getThreshold() - expectedThreshold) >= 0.1f) {
+                // Some implementations ignore the all-channel command but accept the same
+                // parameter block when addressed per channel.
+                dynamicsProcessing.setLimiterByChannelIndex(channel, limiter);
+                applied = dynamicsProcessing.getLimiterByChannelIndex(channel);
+            }
+            if (applied.isEnabled() != expectedEnabled
+                    || Math.abs(applied.getThreshold() - expectedThreshold) >= 0.1f) {
+                throw new IllegalStateException(
+                        "Limiter write rejected for channel " + channel);
+            }
+        }
+        Log.d(TAG, "DVC limiter enabled=" + expectedEnabled
+                + " threshold=" + expectedThreshold + " dB");
     }
 
     private DynamicsProcessing.Limiter createGlobalLimiter(Preset preset) {
