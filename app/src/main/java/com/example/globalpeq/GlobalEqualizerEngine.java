@@ -21,9 +21,6 @@ final class GlobalEqualizerEngine {
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
-    private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
-    private static final float DVC_LIMITER_RELEASE_MS = 75f;
-    private static final float DVC_LIMITER_RATIO = 50f;
     private static final long ARM_DELAY_MS = 120;
     private static final long CONTROL_REARM_DELAY_MS = 180;
     private static final long CONTROL_REARM_GUARD_MS = 1000;
@@ -49,6 +46,8 @@ final class GlobalEqualizerEngine {
     private long lastRouteReapplyElapsedMs;
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
+    private float dvcPreCompensationDb;
+    private float dvcPostGainDb;
 
     private enum ApplyStrategy {
         AUTO,
@@ -101,7 +100,7 @@ final class GlobalEqualizerEngine {
                 }
                 candidate.setInputGainAllChannelsTo(0f);
                 candidate.setPostEqAllChannelsTo(postEq);
-                candidate.setLimiterAllChannelsTo(createActiveLimiter());
+                candidate.setLimiterAllChannelsTo(createConfiguredLimiter());
                 candidate.setEnabled(false);
                 candidate.setControlStatusListener(this::onControlStatusChanged);
 
@@ -164,7 +163,8 @@ final class GlobalEqualizerEngine {
         return frequencies;
     }
 
-    private static DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config) {
+    private static DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config,
+                                                             float postGainDb) {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
         float thresholdDb = (float) (20.0 * Math.log10(ceiling));
@@ -176,22 +176,48 @@ final class GlobalEqualizerEngine {
                 safeConfig.limiterReleaseMs,
                 DYNAMICS_LIMITER_RATIO,
                 thresholdDb,
-                0f);
+                postGainDb);
     }
 
-    private DynamicsProcessing.Limiter createActiveLimiter() {
-        if (processingMode == ProcessingMode.GLOBAL_DSP && dynamicsConfig.globalDvcEnabled) {
-            return new DynamicsProcessing.Limiter(
-                    true,
-                    true,
-                    0,
-                    DVC_LIMITER_ATTACK_MS,
-                    DVC_LIMITER_RELEASE_MS,
-                    DVC_LIMITER_RATIO,
-                    0f,
-                    0f);
+    private DynamicsProcessing.Limiter createConfiguredLimiter() {
+        float postGainDb = processingMode == ProcessingMode.GLOBAL_DSP ? dvcPostGainDb : 0f;
+        return createLimiter(dynamicsConfig, postGainDb);
+    }
+
+    void setDvcPreCompensationDb(float compensationDb) {
+        dvcPreCompensationDb = sanitizeDvcGain(compensationDb, 0f, 96f);
+        applyDvcGainStagesIfReady();
+    }
+
+    void setDvcPostGainDb(float postGainDb) {
+        dvcPostGainDb = sanitizeDvcGain(postGainDb, -96f, 0f);
+        applyDvcGainStagesIfReady();
+    }
+
+    private void applyDvcGainStagesIfReady() {
+        if (processingMode != ProcessingMode.GLOBAL_DSP
+                || dynamicsProcessing == null
+                || lastAppliedPreset == null
+                || !lastAppliedPreset.enabled) {
+            return;
         }
-        return createLimiter(dynamicsConfig);
+        try {
+            float presetPregainDb = clamp(
+                    lastAppliedPreset.pregainMb / 100f,
+                    DYNAMICS_MIN_LEVEL_MB / 100f,
+                    DYNAMICS_MAX_LEVEL_MB / 100f);
+            dynamicsProcessing.setInputGainAllChannelsTo(presetPregainDb + dvcPreCompensationDb);
+            dynamicsProcessing.setLimiterAllChannelsTo(createConfiguredLimiter());
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Failed to update DVC gain stages", error);
+        }
+    }
+
+    private static float sanitizeDvcGain(float value, float min, float max) {
+        if (!Float.isFinite(value)) {
+            return 0f;
+        }
+        return Math.max(min, Math.min(max, value));
     }
 
     void apply(Preset preset) {
@@ -574,7 +600,10 @@ final class GlobalEqualizerEngine {
                 preset.pregainMb / 100f,
                 DYNAMICS_MIN_LEVEL_MB / 100f,
                 DYNAMICS_MAX_LEVEL_MB / 100f);
-        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
+        float dvcInputCompensationDb = processingMode == ProcessingMode.GLOBAL_DSP
+                ? dvcPreCompensationDb
+                : 0f;
+        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb + dvcInputCompensationDb);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
             eqBand.setEnabled(true);
@@ -582,7 +611,7 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter());
+        dynamicsProcessing.setLimiterAllChannelsTo(createConfiguredLimiter());
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
@@ -600,7 +629,7 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(0f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter());
+        dynamicsProcessing.setLimiterAllChannelsTo(createConfiguredLimiter());
     }
 
     private int targetDynamicsLevelMb(int frequencyHz, Preset preset) {
@@ -736,8 +765,7 @@ final class GlobalEqualizerEngine {
             return false;
         }
         return before.limiterCeilingPermille == after.limiterCeilingPermille
-                && before.limiterReleaseMs == after.limiterReleaseMs
-                && before.globalDvcEnabled == after.globalDvcEnabled;
+                && before.limiterReleaseMs == after.limiterReleaseMs;
     }
 
     private void selectProcessingMode(ProcessingMode mode) {
@@ -823,5 +851,7 @@ final class GlobalEqualizerEngine {
         targetApplyPending = false;
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
+        dvcPreCompensationDb = 0f;
+        dvcPostGainDb = 0f;
     }
 }
