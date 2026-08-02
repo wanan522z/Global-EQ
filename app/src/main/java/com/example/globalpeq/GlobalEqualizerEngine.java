@@ -708,7 +708,12 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(preset));
+        DynamicsProcessing.Limiter limiter = createGlobalLimiter(preset);
+        if (dvcActive) {
+            applyAndVerifyDvcLimiter(limiter);
+        } else {
+            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+        }
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
@@ -727,7 +732,12 @@ final class GlobalEqualizerEngine {
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
-        dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(targetPreset));
+        DynamicsProcessing.Limiter limiter = createGlobalLimiter(targetPreset);
+        if (dvcActive) {
+            applyAndVerifyDvcLimiter(limiter);
+        } else {
+            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+        }
     }
 
     private int targetDynamicsLevelMb(int frequencyHz, Preset preset) {
