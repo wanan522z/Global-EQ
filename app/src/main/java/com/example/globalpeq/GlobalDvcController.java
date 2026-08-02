@@ -35,8 +35,6 @@ final class GlobalDvcController {
     private AudioOutputDevice route = new AudioOutputDevice("none", "Output device");
     private DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(route);
     private DvcVolumeMapper.Curve curve;
-    private final PowerampVolumeEffect volumeEffect =
-            new PowerampVolumeEffect(this::handleVolumeEffectControlLost);
     private boolean mappingActive;
     private int initialVolumeIndex;
 
@@ -121,13 +119,8 @@ final class GlobalDvcController {
             return;
         }
         if (!engine.supportsDvcVolumeMapping()) {
-            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "DynamicsProcessing volume mapping is unavailable");
-            return;
-        }
-        if (!volumeEffect.openMuted()) {
-            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "Volume AudioEffect probe failed; positive compensation was not applied");
+            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, false,
+                    "Safe global volume-control path is unavailable; DVC was not applied");
             return;
         }
         applyMappedCurve(routeDecision.isUsb()
@@ -170,38 +163,17 @@ final class GlobalDvcController {
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {
         float headroomDb = curve == null ? 0f : curve.headroomDb();
         float displayedHeadroomDb = Math.round(headroomDb * 10f) / 10f;
-        float volumeDb = curve == null ? 0f : curve.currentDb;
-        float previousCompensationDb = mappingActive
-                ? Math.max(0f, -volumeEffect.appliedLevelDb())
-                : 0f;
-        float nextCompensationDb = Math.max(0f, -volumeDb);
-        boolean applied;
-        if (nextCompensationDb >= previousCompensationDb) {
-            // Make the post-DP digital stage quieter before adding positive input gain.
-            applied = volumeEffect.setLevelDb(volumeDb)
-                    && volumeEffect.isActive()
-                    && engine.setDvcVolumeMapping(true, volumeDb);
-        } else {
-            // Reduce positive input gain before relaxing the post-DP attenuation.
-            applied = engine.setDvcVolumeMapping(true, volumeDb)
-                    && volumeEffect.setLevelDb(volumeDb)
-                    && volumeEffect.isActive();
-        }
+        boolean applied = engine.setDvcVolumeMapping(true, curve == null ? 0f : curve.currentDb);
         if (!applied) {
             deactivateEngineMapping();
-            volumeEffect.releaseToUnity();
             publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                    "DVC mapping failed safely; positive compensation was removed");
+                    "DVC mapping failed safely; no gain compensation was applied");
             return;
         }
         mappingActive = true;
         publish(kind, true, true,
                 "Downstream media-volume headroom: " + displayedHeadroomDb + " dB\n"
-                        + "Volume AudioEffect: -" + displayedHeadroomDb + " dB\n"
-                        + "DP input compensation: +" + displayedHeadroomDb + " dB\n"
-                        + "Control path: " + (engine.usesPowerampRawDvcPath()
-                        ? "Poweramp-compatible raw command"
-                        : "Android public API fallback"));
+                        + "Verified global volume-control path active");
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
@@ -210,23 +182,8 @@ final class GlobalDvcController {
     }
 
     private void deactivateEngineMapping() {
-        // Positive compensation must disappear before the negative Volume stage is removed.
         engine.setDvcVolumeMapping(false, 0f);
         mappingActive = false;
-        volumeEffect.releaseToUnity();
-    }
-
-    private void handleVolumeEffectControlLost() {
-        if (!mappingActive) {
-            return;
-        }
-        // Do not leave the DP compensation running after its matching attenuation stage has
-        // stopped being ours. Removing positive gain first is always the safe direction.
-        engine.setDvcVolumeMapping(false, 0f);
-        mappingActive = false;
-        volumeEffect.releaseToUnity();
-        publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                "Volume AudioEffect control was lost; DVC was disabled safely");
     }
 
     private void publish(DvcRuntimeState.Kind kind,

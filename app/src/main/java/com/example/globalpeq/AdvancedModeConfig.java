@@ -11,7 +11,7 @@ import java.util.List;
 final class AdvancedModeConfig {
     // Version 1 could persist the incomplete DP-only compensation path. Do not carry that
     // enabled bit into the Volume AudioEffect implementation: the user must opt in again.
-    private static final int TRUE_DVC_CONFIG_VERSION = 3;
+    private static final int TRUE_DVC_CONFIG_VERSION = 4;
     static final AdvancedModeConfig DEFAULT = new AdvancedModeConfig(
             "",
             "",

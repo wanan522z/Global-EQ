@@ -19,8 +19,6 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
-    private static final float DVC_MIN_VOLUME_DB = -96f;
-    private static final float DVC_MAX_COMPENSATION_DB = 96f;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
@@ -30,7 +28,6 @@ final class GlobalEqualizerEngine {
     private static final long ROUTE_REAPPLY_GUARD_MS = 350;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final PowerampDvcRawBridge dvcRawBridge = new PowerampDvcRawBridge();
     private DynamicsProcessing dynamicsProcessing;
     private DynamicsProcessing.Eq dynamicsPostEq;
     private int[] dynamicsBandCenterHz = new int[0];
@@ -49,9 +46,6 @@ final class GlobalEqualizerEngine {
     private long lastRouteReapplyElapsedMs;
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
-    private boolean dvcActive;
-    private boolean dvcRawVolumeGainActive;
-    private float dvcVolumeDb;
 
     private enum ApplyStrategy {
         AUTO,
@@ -191,78 +185,39 @@ final class GlobalEqualizerEngine {
         return false;
     }
 
-    boolean usesPowerampRawDvcPath() {
-        return dvcActive && dvcRawVolumeGainActive;
-    }
-
     /**
      * Restores the normal GlobalDSP input gain. The former DP-only compensation path is rejected:
      * it could produce a short full-volume burst and drove the main limiter instead of creating
      * usable downstream headroom.
      */
     boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
-        float nextVolumeDb = 0f;
-        if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
-            if (!active) {
-                dvcActive = false;
-                dvcRawVolumeGainActive = false;
-                dvcVolumeDb = 0f;
-                return true;
-            }
+        if (active) {
+            Log.w(TAG, "Rejected unsafe main-DP DVC compensation");
             return false;
+        }
+        if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
+            return true;
         }
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         if (targetPreset == null || !targetPreset.enabled) {
-            if (!active) {
-                dvcActive = false;
-                dvcRawVolumeGainActive = false;
-                dvcVolumeDb = 0f;
-                return true;
-            }
-            return false;
-        }
-        if (!dvcActive && Math.abs(dvcVolumeDb) < 0.01f && !active) {
             return true;
         }
-
-        boolean previousActive = dvcActive;
-        float previousVolumeDb = dvcVolumeDb;
         try {
-            dvcActive = false;
-            dvcVolumeDb = nextVolumeDb;
-            applyAndVerifyDvcInputGain(targetPreset);
-            if (active) {
-                Log.w(TAG, "Rejected unsafe main-DP DVC compensation");
-                return false;
-            }
+            applyAndVerifyInputGain(targetPreset);
             Log.d(TAG, "Global DVC off");
             return true;
         } catch (RuntimeException error) {
-            dvcActive = previousActive;
-            dvcVolumeDb = previousVolumeDb;
-            try {
-                applyAndVerifyDvcInputGain(targetPreset);
-            } catch (RuntimeException ignored) {
-            }
-            Log.w(TAG, "Failed to map global DVC volume", error);
+            Log.w(TAG, "Failed to restore normal GlobalDSP input gain", error);
             return false;
         }
     }
 
-    private void applyAndVerifyDvcInputGain(Preset preset) {
-        float compensationDb = 0f;
+    private void applyAndVerifyInputGain(Preset preset) {
         float targetGainDb = clamp(
-                presetPregainDb(preset) + compensationDb,
+                presetPregainDb(preset),
                 DYNAMICS_MIN_LEVEL_MB / 100f,
-                DVC_MAX_COMPENSATION_DB);
-        dvcRawVolumeGainActive = false;
-        boolean rawApplied = dvcActive && dvcRawBridge.setInputGainAllChannels(
-                dynamicsProcessing,
-                DYNAMICS_CHANNEL_COUNT,
-                targetGainDb);
-        if (!rawApplied) {
-            dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
-        }
+                DYNAMICS_MAX_LEVEL_MB / 100f);
+        dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
             float appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
             if (Math.abs(appliedGainDb - targetGainDb) >= 0.1f) {
@@ -274,10 +229,7 @@ final class GlobalEqualizerEngine {
                         "DVC input-gain write rejected for channel " + channel);
             }
         }
-        Log.d(TAG, "DVC input-gain path=" + (rawApplied ? "Poweramp raw" : "public API")
-                + " compensation=" + compensationDb
-                + " dB target=" + targetGainDb + " dB");
-        dvcRawVolumeGainActive = rawApplied;
+        Log.d(TAG, "GlobalDSP input gain=" + targetGainDb + " dB");
     }
 
     private static float presetPregainDb(Preset preset) {
@@ -676,7 +628,7 @@ final class GlobalEqualizerEngine {
         // DVC does not own or reinterpret limiter state. Preserve the configured GlobalDSP
         // limiter, then apply volume compensation through DP input gain as a separate step.
         dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
-        applyAndVerifyDvcInputGain(preset);
+        applyAndVerifyInputGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
