@@ -19,7 +19,10 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
-    private static final float DVC_MAX_HEADROOM_DB = 96f;
+    private static final float DVC_MIN_VOLUME_DB = -96f;
+    private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
+    private static final float DVC_LIMITER_RELEASE_MS = 75f;
+    private static final float DVC_LIMITER_RATIO = 50f;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
@@ -47,7 +50,8 @@ final class GlobalEqualizerEngine {
     private long lastRouteReapplyElapsedMs;
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
-    private float dvcHeadroomDb;
+    private boolean dvcActive;
+    private float dvcVolumeDb;
 
     private enum ApplyStrategy {
         AUTO,
@@ -100,8 +104,6 @@ final class GlobalEqualizerEngine {
                 }
                 candidate.setInputGainAllChannelsTo(0f);
                 candidate.setPostEqAllChannelsTo(postEq);
-                // A newly constructed effect always starts neutral. Active DVC mapping is
-                // restored by the staged apply path, where attenuation is installed first.
                 candidate.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
                 candidate.setEnabled(false);
                 candidate.setControlStatusListener(this::onControlStatusChanged);
@@ -181,7 +183,7 @@ final class GlobalEqualizerEngine {
                 postGainDb);
     }
 
-    boolean supportsDvcGainMapping() {
+    boolean supportsDvcVolumeMapping() {
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         return processingMode == ProcessingMode.GLOBAL_DSP
                 && dynamicsProcessing != null
@@ -190,63 +192,73 @@ final class GlobalEqualizerEngine {
     }
 
     /**
-     * Maps system-volume attenuation around PEQ and the limiter without changing the system
-     * volume itself. Input is attenuated before PEQ; the same amount is restored after the
-     * limiter. The existing AudioFlinger port volume then produces the requested final level.
+     * Poweramp Equalizer-style global DVC. The session-0 effect runs before Android's media
+     * volume attenuation, so that downstream attenuation can be used as digital headroom. DVC
+     * maps the current stream-volume dB value into the limiter threshold; it never changes the
+     * system volume and never adds a compensating input/post gain pair.
      */
-    boolean setDvcHeadroomDb(float requestedHeadroomDb) {
-        float next = Float.isFinite(requestedHeadroomDb)
-                ? clamp(requestedHeadroomDb, 0f, DVC_MAX_HEADROOM_DB)
+    boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
+        float nextVolumeDb = Float.isFinite(requestedVolumeDb)
+                ? clamp(requestedVolumeDb, DVC_MIN_VOLUME_DB, 0f)
                 : 0f;
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
-            if (next == 0f) {
-                dvcHeadroomDb = 0f;
+            if (!active) {
+                dvcActive = false;
+                dvcVolumeDb = 0f;
                 return true;
             }
             return false;
         }
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         if (targetPreset == null || !targetPreset.enabled) {
-            return next == 0f;
+            return !active;
         }
-        if (Math.abs(next - dvcHeadroomDb) < 0.01f) {
+        if (active == dvcActive && Math.abs(nextVolumeDb - dvcVolumeDb) < 0.01f) {
             return true;
         }
 
-        float previous = dvcHeadroomDb;
-        float presetPregainDb = clamp(
-                targetPreset.pregainMb / 100f,
-                DYNAMICS_MIN_LEVEL_MB / 100f,
-                DYNAMICS_MAX_LEVEL_MB / 100f);
         try {
-            if (next > previous) {
-                // Make the signal quieter before adding the matching post-limiter recovery.
-                dynamicsProcessing.setInputGainAllChannelsTo(presetPregainDb - next);
-                try {
-                    dynamicsProcessing.setLimiterAllChannelsTo(
-                            createLimiter(dynamicsConfig, next));
-                } catch (RuntimeException postGainError) {
-                    dynamicsProcessing.setInputGainAllChannelsTo(presetPregainDb - previous);
-                    throw postGainError;
-                }
-            } else {
-                // Remove recovery gain before relaxing the input attenuation.
-                dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, next));
-                try {
-                    dynamicsProcessing.setInputGainAllChannelsTo(presetPregainDb - next);
-                } catch (RuntimeException inputGainError) {
-                    dynamicsProcessing.setLimiterAllChannelsTo(
-                            createLimiter(dynamicsConfig, previous));
-                    throw inputGainError;
-                }
-            }
-            dvcHeadroomDb = next;
-            Log.d(TAG, "DVC mapped " + next + " dB around PEQ/limiter");
+            dvcActive = active;
+            dvcVolumeDb = active ? nextVolumeDb : 0f;
+            dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter(targetPreset));
+            Log.d(TAG, "Global DVC " + (active ? "mapped media volume " + nextVolumeDb + " dB" : "off"));
             return true;
         } catch (RuntimeException error) {
-            Log.w(TAG, "Failed to map DVC headroom", error);
+            dvcActive = false;
+            dvcVolumeDb = 0f;
+            try {
+                dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+            } catch (RuntimeException ignored) {
+            }
+            Log.w(TAG, "Failed to map global DVC volume", error);
             return false;
         }
+    }
+
+    private DynamicsProcessing.Limiter createActiveLimiter(Preset preset) {
+        if (!dvcActive || processingMode != ProcessingMode.GLOBAL_DSP || preset == null) {
+            return createLimiter(dynamicsConfig, 0f);
+        }
+        float pregainDb = clamp(
+                preset.pregainMb / 100f,
+                DYNAMICS_MIN_LEVEL_MB / 100f,
+                DYNAMICS_MAX_LEVEL_MB / 100f);
+        float safetyMarginDb = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
+                ? 7f
+                : 5f;
+        float thresholdDb = clamp(
+                -(pregainDb + dvcVolumeDb) - safetyMarginDb,
+                DVC_MIN_VOLUME_DB,
+                96f);
+        return new DynamicsProcessing.Limiter(
+                true,
+                true,
+                0,
+                DVC_LIMITER_ATTACK_MS,
+                DVC_LIMITER_RELEASE_MS,
+                DVC_LIMITER_RATIO,
+                thresholdDb,
+                0f);
     }
 
     void apply(Preset preset) {
@@ -362,51 +374,6 @@ final class GlobalEqualizerEngine {
                 reapplyStaged(pendingPreset);
             }
         }, ROUTE_REAPPLY_DELAY_MS);
-    }
-
-    /**
-     * Recreates the GlobalDSP effect after the session-0 Volume effect has been enabled. Both
-     * effects request insert-last ordering, so creation order is the only public, stable way to
-     * place media-volume attenuation before PEQ and the limiter. No gain compensation is used.
-     */
-    boolean recreateAfterDvcVolumeEffect() {
-        if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
-            return false;
-        }
-        Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
-        if (targetPreset == null || !targetPreset.enabled) {
-            return false;
-        }
-
-        handler.removeCallbacksAndMessages(null);
-        applyGeneration++;
-        pendingPreset = targetPreset;
-        lastAppliedPreset = null;
-        lastAppliedDynamicsConfig = null;
-        armedWithZeroBands = false;
-        targetApplyPending = false;
-        releaseDynamicsProcessing();
-        dynamicsProcessingUnavailable = false;
-
-        if (!startDynamicsProcessing()) {
-            // Keep the original GlobalDSP fallback behavior if the re-creation fails. DVC will be
-            // reported unavailable, but the underlying global EQ must remain usable.
-            dynamicsProcessingUnavailable = true;
-            if (startLegacyEqualizer()) {
-                applyTargetLevels(targetPreset);
-            }
-            return false;
-        }
-
-        try {
-            armWithZeroBands();
-            scheduleTargetApply();
-            Log.i(TAG, "Recreated DynamicsProcessing after the session-0 Volume effect");
-            return true;
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Failed to restore GlobalDSP after DVC effect ordering", error);
-            return false;
-        }
     }
 
     private void onControlStatusChanged(AudioEffect effect, boolean controlGranted) {
@@ -674,10 +641,7 @@ final class GlobalEqualizerEngine {
                 preset.pregainMb / 100f,
                 DYNAMICS_MIN_LEVEL_MB / 100f,
                 DYNAMICS_MAX_LEVEL_MB / 100f);
-        float activeDvcHeadroomDb = processingMode == ProcessingMode.GLOBAL_DSP
-                ? dvcHeadroomDb
-                : 0f;
-        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb - activeDvcHeadroomDb);
+        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
             eqBand.setEnabled(true);
@@ -685,8 +649,7 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(
-                createLimiter(dynamicsConfig, activeDvcHeadroomDb));
+        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter(preset));
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
@@ -696,10 +659,7 @@ final class GlobalEqualizerEngine {
         if (dynamicsProcessing == null || dynamicsPostEq == null) {
             return;
         }
-        float activeDvcHeadroomDb = processingMode == ProcessingMode.GLOBAL_DSP
-                ? dvcHeadroomDb
-                : 0f;
-        dynamicsProcessing.setInputGainAllChannelsTo(-activeDvcHeadroomDb);
+        dynamicsProcessing.setInputGainAllChannelsTo(0f);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
             eqBand.setEnabled(true);
@@ -707,8 +667,8 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(0f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(
-                createLimiter(dynamicsConfig, activeDvcHeadroomDb));
+        Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
+        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter(targetPreset));
     }
 
     private int targetDynamicsLevelMb(int frequencyHz, Preset preset) {
@@ -930,6 +890,7 @@ final class GlobalEqualizerEngine {
         targetApplyPending = false;
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
-        dvcHeadroomDb = 0f;
+        dvcActive = false;
+        dvcVolumeDb = 0f;
     }
 }
