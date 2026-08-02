@@ -72,12 +72,17 @@ final class GlobalEqualizerEngine {
     }
 
     private boolean startDynamicsProcessing() {
-        RuntimeException lastFailure = null;
         int[] bandCountCandidates = processingMode == ProcessingMode.GLOBAL_DSP
                 ? (dvcActive
                 ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
                 : GLOBAL_DSP_BAND_COUNT_CANDIDATES)
                 : DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES;
+        return startDynamicsProcessing(bandCountCandidates, true);
+    }
+
+    private boolean startDynamicsProcessing(int[] bandCountCandidates,
+                                            boolean markUnavailableOnFailure) {
+        RuntimeException lastFailure = null;
         for (int bandCount : bandCountCandidates) {
             DynamicsProcessing candidate = null;
             try {
@@ -132,9 +137,15 @@ final class GlobalEqualizerEngine {
             }
         }
 
-        dynamicsProcessingUnavailable = true;
+        if (markUnavailableOnFailure) {
+            dynamicsProcessingUnavailable = true;
+        }
         if (lastFailure != null) {
-            Log.w(TAG, "DynamicsProcessing unavailable; falling back to legacy Equalizer", lastFailure);
+            if (markUnavailableOnFailure) {
+                Log.w(TAG, "DynamicsProcessing unavailable; falling back to legacy Equalizer", lastFailure);
+            } else {
+                Log.d(TAG, "DynamicsProcessing candidate was rejected", lastFailure);
+            }
         }
         return false;
     }
@@ -290,12 +301,12 @@ final class GlobalEqualizerEngine {
         dynamicsProcessingUnavailable = false;
 
         try {
-            if (!startDynamicsProcessing()) {
+            int[] nextCandidates = active
+                    ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                    : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
+            if (!startAndApplyDynamicsCandidates(nextCandidates, targetPreset)) {
                 throw new IllegalStateException("No DynamicsProcessing configuration accepted");
             }
-            pendingPreset = targetPreset;
-            applyDynamicsTargetLevels(targetPreset);
-            applySystemVirtualBass(targetPreset);
             lastAppliedPreset = targetPreset;
             lastAppliedDynamicsConfig = dynamicsConfig;
             armedWithZeroBands = true;
@@ -313,17 +324,19 @@ final class GlobalEqualizerEngine {
             lastAppliedPreset = savedLastAppliedPreset;
             lastAppliedDynamicsConfig = savedLastAppliedConfig;
             try {
-                if (startDynamicsProcessing()) {
-                    Preset restorePreset = savedPendingPreset != null
-                            ? savedPendingPreset
-                            : savedLastAppliedPreset;
-                    if (restorePreset != null && restorePreset.enabled) {
-                        applyDynamicsTargetLevels(restorePreset);
-                        applySystemVirtualBass(restorePreset);
-                        armedWithZeroBands = true;
-                        targetApplyPending = false;
-                    }
+                Preset restorePreset = savedPendingPreset != null
+                        ? savedPendingPreset
+                        : savedLastAppliedPreset;
+                int[] restoreCandidates = previousActive
+                        ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                        : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
+                if (restorePreset == null
+                        || !restorePreset.enabled
+                        || !startAndApplyDynamicsCandidates(restoreCandidates, restorePreset)) {
+                    throw new IllegalStateException("No previous DynamicsProcessing configuration accepted");
                 }
+                armedWithZeroBands = true;
+                targetApplyPending = false;
             } catch (RuntimeException restoreError) {
                 Log.e(TAG, "Could not restore the previous GlobalDSP pipeline", restoreError);
                 releaseDynamicsProcessing();
@@ -331,6 +344,28 @@ final class GlobalEqualizerEngine {
             }
             return false;
         }
+    }
+
+    private boolean startAndApplyDynamicsCandidates(int[] candidates, Preset preset) {
+        for (int bandCount : candidates) {
+            releaseDynamicsProcessing();
+            dynamicsProcessingUnavailable = false;
+            if (!startDynamicsProcessing(new int[]{bandCount}, false)) {
+                continue;
+            }
+            try {
+                pendingPreset = preset;
+                applyDynamicsTargetLevels(preset);
+                applySystemVirtualBass(preset);
+                return true;
+            } catch (RuntimeException candidateError) {
+                Log.w(TAG, "DynamicsProcessing " + bandCount
+                        + "-band configuration failed during apply", candidateError);
+            }
+        }
+        releaseDynamicsProcessing();
+        dynamicsProcessingUnavailable = true;
+        return false;
     }
 
     int getActiveDynamicsBandCount() {
