@@ -52,6 +52,7 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
+    private boolean dvcRawLimiterActive;
     private float dvcVolumeDb;
 
     private enum ApplyStrategy {
@@ -192,6 +193,10 @@ final class GlobalEqualizerEngine {
                 && targetPreset.enabled;
     }
 
+    boolean usesPowerampRawDvcPath() {
+        return dvcActive && dvcRawLimiterActive;
+    }
+
     /**
      * Poweramp Equalizer-style global DVC. The session-0 effect runs before Android's media
      * volume attenuation, so that downstream attenuation can be used as digital headroom. DVC
@@ -205,6 +210,7 @@ final class GlobalEqualizerEngine {
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
             if (!active) {
                 dvcActive = false;
+                dvcRawLimiterActive = false;
                 dvcVolumeDb = 0f;
                 return true;
             }
@@ -214,6 +220,7 @@ final class GlobalEqualizerEngine {
         if (targetPreset == null || !targetPreset.enabled) {
             if (!active) {
                 dvcActive = false;
+                dvcRawLimiterActive = false;
                 dvcVolumeDb = 0f;
                 return true;
             }
@@ -244,6 +251,7 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyDvcLimiter(DynamicsProcessing.Limiter limiter) {
+        dvcRawLimiterActive = false;
         boolean rawApplied = dvcActive && dvcRawBridge.setLimiterAllChannels(
                 dynamicsProcessing,
                 DYNAMICS_CHANNEL_COUNT,
@@ -272,6 +280,7 @@ final class GlobalEqualizerEngine {
         Log.d(TAG, "DVC limiter path=" + (rawApplied ? "Poweramp raw" : "public API")
                 + " enabled=" + expectedEnabled
                 + " threshold=" + expectedThreshold + " dB");
+        dvcRawLimiterActive = rawApplied;
     }
 
     private DynamicsProcessing.Limiter createGlobalLimiter(Preset preset) {
@@ -968,6 +977,7 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
+        dvcRawLimiterActive = false;
         dvcVolumeDb = 0f;
     }
 }

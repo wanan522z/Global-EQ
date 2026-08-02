@@ -172,7 +172,10 @@ final class GlobalDvcController {
         }
         mappingActive = true;
         publish(kind, true, true,
-                "Downstream media-volume headroom: " + displayedHeadroomDb + " dB");
+                "Downstream media-volume headroom: " + displayedHeadroomDb + " dB\n"
+                        + "Control path: " + (engine.usesPowerampRawDvcPath()
+                        ? "Poweramp-compatible raw command"
+                        : "Android public API fallback"));
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
