@@ -282,12 +282,12 @@ final class GlobalEqualizerEngine {
                 DVC_MIN_VOLUME_DB,
                 96f);
         // Poweramp writes positive thresholds through raw effect commands. Some ROMs silently
-        // clamp positive values written through the public DynamicsProcessing wrapper to 0 dB,
-        // which makes its global DVC sound identical to OFF. A positive threshold means the
-        // downstream media-volume attenuation already supplies enough headroom, so explicitly
-        // bypassing the limiter is equivalent and avoids that framework/OEM clamp. As volume
-        // approaches maximum, thresholdDb becomes negative and the limiter is enabled again.
-        boolean limiterRequired = thresholdDb < 0f;
+        // clamp positive values written through the public DynamicsProcessing wrapper to 0 dB.
+        // When the available downstream headroom is larger than the complete mapped EQ boost,
+        // the signal cannot reach the desired threshold, so bypassing the limiter is exactly
+        // equivalent and avoids that OEM clamp. Otherwise keep the limiter and its calculated
+        // threshold active; this also covers high media-volume levels.
+        boolean limiterRequired = thresholdDb < maximumMappedBoostDb(preset);
         return new DynamicsProcessing.Limiter(
                 true,
                 limiterRequired,
@@ -297,6 +297,20 @@ final class GlobalEqualizerEngine {
                 DVC_LIMITER_RATIO,
                 limiterRequired ? thresholdDb : 0f,
                 0f);
+    }
+
+    private float maximumMappedBoostDb(Preset preset) {
+        if (preset == null || dynamicsBandCenterHz.length == 0) {
+            return 0f;
+        }
+        float pregainDb = presetPregainDb(preset);
+        float maximumDb = 0f;
+        for (int centerHz : dynamicsBandCenterHz) {
+            maximumDb = Math.max(
+                    maximumDb,
+                    pregainDb + targetDynamicsLevelMb(centerHz, preset) / 100f);
+        }
+        return maximumDb;
     }
 
     private static float presetPregainDb(Preset preset) {
