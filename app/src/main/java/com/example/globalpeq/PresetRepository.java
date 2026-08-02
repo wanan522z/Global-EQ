@@ -419,6 +419,7 @@ final class PresetRepository {
                 .putLong(ACTIVE_MUTED_PACKAGE_UPDATED_AT, 0L)
                 .putLong(ACTIVE_REPLAY_PACKAGE_UPDATED_AT, 0L)
                 .putString(SHIZUKU_RUNTIME_STATE, cleared.toJson())
+                .putString(DVC_RUNTIME_STATE, DvcRuntimeState.DEFAULT.toJson())
                 .putBoolean(SERVICE_ACTIVE, false)
                 .apply();
     }
