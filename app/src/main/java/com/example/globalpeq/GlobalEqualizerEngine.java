@@ -184,11 +184,11 @@ final class GlobalEqualizerEngine {
     }
 
     boolean supportsDvcVolumeMapping() {
-        Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
-        return processingMode == ProcessingMode.GLOBAL_DSP
-                && dynamicsProcessing != null
-                && targetPreset != null
-                && targetPreset.enabled;
+        // A positive input-gain mapping on the same DP instance that owns the EQ/limiter is not
+        // a safe DVC path. AudioFlinger can expose that gain before a separate attenuation stage
+        // is processing, and the main limiter sees the boosted signal. Keep it disabled until an
+        // isolated, verified volume-controller path is available.
+        return false;
     }
 
     boolean usesPowerampRawDvcPath() {
@@ -196,14 +196,12 @@ final class GlobalEqualizerEngine {
     }
 
     /**
-     * The DP half of Poweramp Equalizer-style global DVC. The controller must install and verify
-     * the matching negative Volume AudioEffect stage before calling this with active=true.
-     * This method never changes system volume and never uses limiter state as the DVC switch.
+     * Restores the normal GlobalDSP input gain. The former DP-only compensation path is rejected:
+     * it could produce a short full-volume burst and drove the main limiter instead of creating
+     * usable downstream headroom.
      */
     boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
-        float nextVolumeDb = Float.isFinite(requestedVolumeDb)
-                ? clamp(requestedVolumeDb, DVC_MIN_VOLUME_DB, 0f)
-                : 0f;
+        float nextVolumeDb = 0f;
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
             if (!active) {
                 dvcActive = false;
@@ -223,17 +221,21 @@ final class GlobalEqualizerEngine {
             }
             return false;
         }
-        if (active == dvcActive && Math.abs(nextVolumeDb - dvcVolumeDb) < 0.01f) {
+        if (!dvcActive && Math.abs(dvcVolumeDb) < 0.01f && !active) {
             return true;
         }
 
         boolean previousActive = dvcActive;
         float previousVolumeDb = dvcVolumeDb;
         try {
-            dvcActive = active;
-            dvcVolumeDb = active ? nextVolumeDb : 0f;
+            dvcActive = false;
+            dvcVolumeDb = nextVolumeDb;
             applyAndVerifyDvcInputGain(targetPreset);
-            Log.d(TAG, "Global DVC " + (active ? "mapped media volume " + nextVolumeDb + " dB" : "off"));
+            if (active) {
+                Log.w(TAG, "Rejected unsafe main-DP DVC compensation");
+                return false;
+            }
+            Log.d(TAG, "Global DVC off");
             return true;
         } catch (RuntimeException error) {
             dvcActive = previousActive;
@@ -248,9 +250,7 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyDvcInputGain(Preset preset) {
-        float compensationDb = dvcActive
-                ? clamp(-dvcVolumeDb, 0f, DVC_MAX_COMPENSATION_DB)
-                : 0f;
+        float compensationDb = 0f;
         float targetGainDb = clamp(
                 presetPregainDb(preset) + compensationDb,
                 DYNAMICS_MIN_LEVEL_MB / 100f,
