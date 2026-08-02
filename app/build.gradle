@@ -9,7 +9,9 @@ android {
     defaultConfig {
         applicationId "com.example.globalpeq"
         minSdk 28
-        targetSdk 36
+        // Match the compatibility boundary used by Poweramp Equalizer's raw
+        // AudioEffect command bridge. target 36 blocks this framework method.
+        targetSdk 35
         versionCode 1
         versionName "1.5.0"
         manifestPlaceholders = [appLabel: "Global PEQ"]
