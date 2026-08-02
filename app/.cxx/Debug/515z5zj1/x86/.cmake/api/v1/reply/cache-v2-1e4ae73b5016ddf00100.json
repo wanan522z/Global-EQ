@@ -11,7 +11,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "x86_64"
+			"value" : "x86"
 		},
 		{
 			"name" : "ANDROID_NDK",
@@ -75,7 +75,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "x86_64"
+			"value" : "x86"
 		},
 		{
 			"name" : "CMAKE_ANDROID_NDK",
@@ -163,7 +163,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "c:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/515z5zj1/x86_64"
+			"value" : "c:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/515z5zj1/x86"
 		},
 		{
 			"name" : "CMAKE_CACHE_MAJOR_VERSION",
@@ -603,7 +603,7 @@
 				}
 			],
 			"type" : "PATH",
-			"value" : "C:/Program Files (x86)/globalpeq_dvc"
+			"value" : "C:/Program Files (x86)/globalpeq_probe"
 		},
 		{
 			"name" : "CMAKE_INSTALL_SO_NO_EXE",
@@ -627,7 +627,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\build\\intermediates\\cxx\\Debug\\515z5zj1\\obj\\x86_64"
+			"value" : "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\build\\intermediates\\cxx\\Debug\\515z5zj1\\obj\\x86"
 		},
 		{
 			"name" : "CMAKE_LINKER",
@@ -843,7 +843,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "globalpeq_dvc"
+			"value" : "globalpeq_probe"
 		},
 		{
 			"name" : "CMAKE_RANLIB",
@@ -899,7 +899,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\build\\intermediates\\cxx\\Debug\\515z5zj1\\obj\\x86_64"
+			"value" : "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\build\\intermediates\\cxx\\Debug\\515z5zj1\\obj\\x86"
 		},
 		{
 			"name" : "CMAKE_SHARED_LINKER_FLAGS",
@@ -1162,7 +1162,7 @@
 			"value" : "FALSE"
 		},
 		{
-			"name" : "globalpeq_dvc_BINARY_DIR",
+			"name" : "globalpeq_probe_BINARY_DIR",
 			"properties" : 
 			[
 				{
@@ -1171,10 +1171,10 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/515z5zj1/x86_64"
+			"value" : "C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/515z5zj1/x86"
 		},
 		{
-			"name" : "globalpeq_dvc_IS_TOP_LEVEL",
+			"name" : "globalpeq_probe_IS_TOP_LEVEL",
 			"properties" : 
 			[
 				{
@@ -1186,7 +1186,7 @@
 			"value" : "ON"
 		},
 		{
-			"name" : "globalpeq_dvc_SOURCE_DIR",
+			"name" : "globalpeq_probe_SOURCE_DIR",
 			"properties" : 
 			[
 				{

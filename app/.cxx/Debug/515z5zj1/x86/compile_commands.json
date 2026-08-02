@@ -1,0 +1,7 @@
+[
+{
+  "directory": "C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/515z5zj1/x86",
+  "command": "C:\\Users\\31855\\AppData\\Local\\Android\\Sdk\\ndk\\28.2.13676358\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe --target=i686-none-linux-android28 --sysroot=C:/Users/31855/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Dglobalpeq_probe_EXPORTS -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -fno-limit-debug-info  -fPIC -Wall -Wextra -Werror -o CMakeFiles\\globalpeq_probe.dir\\dvc_probe_bridge.c.o -c \"C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\src\\main\\cpp\\dvc_probe_bridge.c\"",
+  "file": "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\src\\main\\cpp\\dvc_probe_bridge.c"
+}
+]

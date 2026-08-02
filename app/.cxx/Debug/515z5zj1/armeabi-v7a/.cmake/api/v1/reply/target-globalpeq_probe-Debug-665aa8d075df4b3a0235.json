@@ -2,7 +2,7 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/x86_64/libglobalpeq_dvc.so"
+			"path" : "C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/armeabi-v7a/libglobalpeq_probe.so"
 		}
 	],
 	"backtrace" : 1,
@@ -31,7 +31,7 @@
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 10,
+				"line" : 6,
 				"parent" : 0
 			}
 		]
@@ -42,7 +42,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -fno-limit-debug-info  -fPIC"
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -fno-limit-debug-info  -fPIC"
 				},
 				{
 					"backtrace" : 2,
@@ -60,7 +60,7 @@
 			"defines" : 
 			[
 				{
-					"define" : "globalpeq_dvc_EXPORTS"
+					"define" : "globalpeq_probe_EXPORTS"
 				}
 			],
 			"language" : "C",
@@ -74,7 +74,7 @@
 			}
 		}
 	],
-	"id" : "globalpeq_dvc::@6890427a1f51a3e7e1df",
+	"id" : "globalpeq_probe::@6890427a1f51a3e7e1df",
 	"link" : 
 	{
 		"commandFragments" : 
@@ -94,8 +94,8 @@
 			"path" : "C:/Users/31855/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/sysroot"
 		}
 	},
-	"name" : "globalpeq_dvc",
-	"nameOnDisk" : "libglobalpeq_dvc.so",
+	"name" : "globalpeq_probe",
+	"nameOnDisk" : "libglobalpeq_probe.so",
 	"paths" : 
 	{
 		"build" : ".",
@@ -116,7 +116,7 @@
 		{
 			"backtrace" : 1,
 			"compileGroupIndex" : 0,
-			"path" : "dvc_raw_bridge.c",
+			"path" : "dvc_probe_bridge.c",
 			"sourceGroupIndex" : 0
 		}
 	],

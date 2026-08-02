@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\src\\main\\cpp\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\31855\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\.cxx\\Debug\\515z5zj1\\x86",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\31855\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\.cxx\\Debug\\515z5zj1\\x86",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "globalpeq_probe::@6890427a1f51a3e7e1df": {
+      "artifactName": "globalpeq_probe",
+      "abi": "x86",
+      "output": "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\build\\intermediates\\cxx\\Debug\\515z5zj1\\obj\\x86\\libglobalpeq_probe.so",
+      "runtimeFiles": []
+    }
+  }
+}

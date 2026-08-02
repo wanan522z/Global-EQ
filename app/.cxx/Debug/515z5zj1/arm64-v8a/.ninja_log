@@ -1,13 +1,5 @@
 # ninja log v5
-1	144	8073982492491108	CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o	b44ddc0172774482
-147	342	8073982494432800	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
-2	128	8073984731951122	CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o	b44ddc0172774482
-129	368	8073984734230145	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
-1	94	8073988085655551	CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o	b44ddc0172774482
-96	285	8073988087501767	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
-2	113	8073991733502341	CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o	b44ddc0172774482
-114	311	8073991735412841	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
-1	119	8073995399280638	CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o	b44ddc0172774482
-120	311	8073995401124129	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
 2	159	8074000710590511	CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o	b44ddc0172774482
 161	418	8074000713077479	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
+1	283	8074075278643305	CMakeFiles/globalpeq_probe.dir/dvc_probe_bridge.c.o	397ae809adc90cfd
+284	786	8074075283540647	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_probe.so	10c2c2120b334b45
