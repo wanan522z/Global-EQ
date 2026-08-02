@@ -45,7 +45,6 @@ final class GlobalDvcController {
         audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
         this.engine = engine;
         this.repository = repository;
-        this.engine.setRuntimeControlListener(this::refreshForEngineControlChange);
     }
 
     void start() {
@@ -119,11 +118,6 @@ final class GlobalDvcController {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true, curve.failure);
             return;
         }
-        if (!engine.hasDynamicsProcessingControl()) {
-            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "Session-0 DynamicsProcessing is controlled by another app");
-            return;
-        }
         if (!engine.supportsDvcVolumeMapping()) {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
                     "DynamicsProcessing volume mapping is unavailable");
@@ -164,13 +158,6 @@ final class GlobalDvcController {
         applyMappedCurve(routeDecision.isUsb()
                 ? DvcRuntimeState.Kind.USB_HARDWARE
                 : DvcRuntimeState.Kind.ACTIVE);
-    }
-
-    private void refreshForEngineControlChange() {
-        if (!started) {
-            return;
-        }
-        update(mode, presetEnabled, userIntentEnabled, route);
     }
 
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {

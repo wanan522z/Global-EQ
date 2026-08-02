@@ -52,7 +52,6 @@ final class GlobalEqualizerEngine {
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
     private float dvcVolumeDb;
-    private Runnable runtimeControlListener;
 
     private enum ApplyStrategy {
         AUTO,
@@ -188,21 +187,8 @@ final class GlobalEqualizerEngine {
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         return processingMode == ProcessingMode.GLOBAL_DSP
                 && dynamicsProcessing != null
-                && hasDynamicsProcessingControl()
                 && targetPreset != null
                 && targetPreset.enabled;
-    }
-
-    boolean hasDynamicsProcessingControl() {
-        try {
-            return dynamicsProcessing != null && dynamicsProcessing.hasControl();
-        } catch (RuntimeException ignored) {
-            return false;
-        }
-    }
-
-    void setRuntimeControlListener(Runnable listener) {
-        runtimeControlListener = listener;
     }
 
     /**
@@ -216,14 +202,6 @@ final class GlobalEqualizerEngine {
                 ? clamp(requestedVolumeDb, DVC_MIN_VOLUME_DB, 0f)
                 : 0f;
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
-            if (!active) {
-                dvcActive = false;
-                dvcVolumeDb = 0f;
-                return true;
-            }
-            return false;
-        }
-        if (!hasDynamicsProcessingControl()) {
             if (!active) {
                 dvcActive = false;
                 dvcVolumeDb = 0f;
@@ -461,10 +439,6 @@ final class GlobalEqualizerEngine {
     }
 
     private void onControlStatusChanged(AudioEffect effect, boolean controlGranted) {
-        Runnable listener = runtimeControlListener;
-        if (listener != null) {
-            handler.post(listener);
-        }
         if (!controlGranted || pendingPreset == null || !pendingPreset.enabled) {
             return;
         }
