@@ -21,10 +21,23 @@ final class PowerampDvcRawBridge {
     private static final int EFFECT_PARAM_HEADER_BYTES = 12;
     private static final int LIMITER_PARAM_BYTES = 8;
     private static final int LIMITER_VALUE_BYTES = 32;
+    private static final boolean NATIVE_BRIDGE_LOADED;
+
+    static {
+        boolean loaded = false;
+        try {
+            System.loadLibrary("globalpeq_dvc");
+            loaded = true;
+        } catch (LinkageError error) {
+            Log.w(TAG, "JNI raw command bridge unavailable", error);
+        }
+        NATIVE_BRIDGE_LOADED = loaded;
+    }
 
     private Method commandMethod;
     private boolean lookupAttempted;
     private boolean failureLogged;
+    private boolean nativePathLogged;
 
     boolean setLimiterAllChannels(DynamicsProcessing effect,
                                   int channelCount,
@@ -32,18 +45,11 @@ final class PowerampDvcRawBridge {
         if (effect == null || limiter == null || channelCount <= 0) {
             return false;
         }
-        Method method = commandMethod();
-        if (method == null) {
-            return false;
-        }
         try {
             for (int channel = 0; channel < channelCount; channel++) {
                 byte[] command = limiterCommand(channel, limiter);
                 byte[] reply = new byte[Integer.BYTES];
-                Object resultObject = method.invoke(effect, EFFECT_CMD_SET_PARAM, command, reply);
-                int result = resultObject instanceof Number
-                        ? ((Number) resultObject).intValue()
-                        : AudioEffect.ERROR;
+                int result = invokeCommand(effect, command, reply);
                 int effectStatus = ByteBuffer.wrap(reply)
                         .order(ByteOrder.nativeOrder())
                         .getInt(0);
@@ -53,11 +59,30 @@ final class PowerampDvcRawBridge {
                     return false;
                 }
             }
+            if (NATIVE_BRIDGE_LOADED && !nativePathLogged) {
+                nativePathLogged = true;
+                Log.i(TAG, "Using JNI Poweramp-compatible raw command bridge");
+            }
             return true;
         } catch (IllegalAccessException | InvocationTargetException | RuntimeException error) {
             logFailure("raw limiter command unavailable", error);
             return false;
         }
+    }
+
+    private int invokeCommand(DynamicsProcessing effect, byte[] command, byte[] reply)
+            throws IllegalAccessException, InvocationTargetException {
+        if (NATIVE_BRIDGE_LOADED) {
+            return nativeCommand(effect, EFFECT_CMD_SET_PARAM, command, reply);
+        }
+        Method method = commandMethod();
+        if (method == null) {
+            return AudioEffect.ERROR_INVALID_OPERATION;
+        }
+        Object resultObject = method.invoke(effect, EFFECT_CMD_SET_PARAM, command, reply);
+        return resultObject instanceof Number
+                ? ((Number) resultObject).intValue()
+                : AudioEffect.ERROR;
     }
 
     private Method commandMethod() {
@@ -110,4 +135,9 @@ final class PowerampDvcRawBridge {
             Log.w(TAG, message, error);
         }
     }
+
+    private static native int nativeCommand(AudioEffect effect,
+                                            int commandCode,
+                                            byte[] command,
+                                            byte[] reply);
 }
