@@ -17,6 +17,7 @@ import java.nio.ByteOrder;
 final class PowerampDvcRawBridge {
     private static final String TAG = "PowerampDvcRawBridge";
     private static final int EFFECT_CMD_SET_PARAM = 5;
+    private static final int EFFECT_CMD_GET_PARAM = 8;
     private static final int DP_PARAM_INPUT_GAIN = 32;
     private static final int VOLUME_PARAM_LEVEL = 0;
     private static final int EFFECT_PARAM_HEADER_BYTES = 12;
@@ -94,16 +95,46 @@ final class PowerampDvcRawBridge {
         }
     }
 
+    Float readInputGain(AudioEffect effect, int channel) {
+        if (effect == null || channel < 0) {
+            return null;
+        }
+        try {
+            ByteBuffer request = ByteBuffer.allocate(20).order(ByteOrder.nativeOrder());
+            request.putInt(0);
+            request.putInt(INPUT_GAIN_PARAM_BYTES);
+            request.putInt(INPUT_GAIN_VALUE_BYTES);
+            request.putInt(DP_PARAM_INPUT_GAIN);
+            request.putInt(channel);
+            byte[] reply = new byte[24];
+            int result = invokeCommand(effect, request.array(), reply, EFFECT_CMD_GET_PARAM);
+            ByteBuffer response = ByteBuffer.wrap(reply).order(ByteOrder.nativeOrder());
+            if (result < AudioEffect.SUCCESS || response.getInt(0) < AudioEffect.SUCCESS
+                    || response.getInt(4) != INPUT_GAIN_PARAM_BYTES
+                    || response.getInt(8) < INPUT_GAIN_VALUE_BYTES) {
+                return null;
+            }
+            return response.getFloat(20);
+        } catch (IllegalAccessException | InvocationTargetException | RuntimeException error) {
+            return null;
+        }
+    }
+
     private int invokeCommand(AudioEffect effect, byte[] command, byte[] reply)
             throws IllegalAccessException, InvocationTargetException {
+        return invokeCommand(effect, command, reply, EFFECT_CMD_SET_PARAM);
+    }
+
+    private int invokeCommand(AudioEffect effect, byte[] command, byte[] reply, int commandCode)
+            throws IllegalAccessException, InvocationTargetException {
         if (NATIVE_BRIDGE_LOADED) {
-            return nativeCommand(effect, EFFECT_CMD_SET_PARAM, command, reply);
+            return nativeCommand(effect, commandCode, command, reply);
         }
         Method method = commandMethod();
         if (method == null) {
             return AudioEffect.ERROR_INVALID_OPERATION;
         }
-        Object resultObject = method.invoke(effect, EFFECT_CMD_SET_PARAM, command, reply);
+        Object resultObject = method.invoke(effect, commandCode, command, reply);
         return resultObject instanceof Number
                 ? ((Number) resultObject).intValue()
                 : AudioEffect.ERROR;

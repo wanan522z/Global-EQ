@@ -42,6 +42,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".DvcDiagnosticsReceiver"
+            android:exported="true" />
+
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
