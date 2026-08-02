@@ -625,8 +625,8 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        // DVC does not own or reinterpret limiter state. Preserve the configured GlobalDSP
-        // limiter, then apply volume compensation through DP input gain as a separate step.
+        // DVC does not own or reinterpret limiter state. Input gain is always the preset pregain;
+        // volume control must not inject compensation into this EQ/limiter instance.
         dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
         applyAndVerifyInputGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
@@ -648,9 +648,8 @@ final class GlobalEqualizerEngine {
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
         if (targetPreset != null) {
-            applyAndVerifyDvcInputGain(targetPreset);
+            applyAndVerifyInputGain(targetPreset);
         } else {
-            dvcRawVolumeGainActive = false;
             dynamicsProcessing.setInputGainAllChannelsTo(0f);
         }
     }
@@ -874,8 +873,5 @@ final class GlobalEqualizerEngine {
         targetApplyPending = false;
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
-        dvcActive = false;
-        dvcRawVolumeGainActive = false;
-        dvcVolumeDb = 0f;
     }
 }
