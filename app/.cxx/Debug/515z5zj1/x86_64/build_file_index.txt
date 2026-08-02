@@ -1,0 +1,1 @@
+C:\Users\31855\Documents\New project\GlobalPEQ\app\src\main\cpp\CMakeLists.txt
