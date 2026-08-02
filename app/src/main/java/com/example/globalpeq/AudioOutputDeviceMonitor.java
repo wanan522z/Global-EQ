@@ -528,6 +528,7 @@ final class AudioOutputDeviceMonitor {
             case AudioDeviceInfo.TYPE_WIRED_HEADSET:
             case AudioDeviceInfo.TYPE_LINE_ANALOG:
             case AudioDeviceInfo.TYPE_LINE_DIGITAL:
+            case AudioDeviceInfo.TYPE_AUX_LINE:
                 return true;
             default:
                 return false;
@@ -561,7 +562,9 @@ final class AudioOutputDeviceMonitor {
             case AudioDeviceInfo.TYPE_WIRED_HEADSET:
             case AudioDeviceInfo.TYPE_LINE_ANALOG:
             case AudioDeviceInfo.TYPE_LINE_DIGITAL:
+            case AudioDeviceInfo.TYPE_AUX_LINE:
             case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
+            case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE:
                 return true;
             default:
                 return false;
