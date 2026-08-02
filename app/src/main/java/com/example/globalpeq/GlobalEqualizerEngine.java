@@ -196,10 +196,9 @@ final class GlobalEqualizerEngine {
     }
 
     /**
-     * Poweramp Equalizer-style global DVC. DpVolumeCompensation maps Android's negative media
-     * volume dB to positive DynamicsProcessing input gain. The unchanged downstream stream
-     * attenuation cancels that gain acoustically while preserving internal EQ boost headroom.
-     * This never changes system volume and never uses limiter state as the DVC switch.
+     * The DP half of Poweramp Equalizer-style global DVC. The controller must install and verify
+     * the matching negative Volume AudioEffect stage before calling this with active=true.
+     * This method never changes system volume and never uses limiter state as the DVC switch.
      */
     boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
         float nextVolumeDb = Float.isFinite(requestedVolumeDb)
