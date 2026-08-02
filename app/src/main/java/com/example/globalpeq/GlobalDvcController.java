@@ -171,8 +171,8 @@ final class GlobalDvcController {
         }
         mappingActive = true;
         publish(kind, true, true,
-                "Limiter uses " + headroomDb
-                        + " dB of downstream media-volume headroom (Poweramp Equalizer path)");
+                "DVC active: " + headroomDb
+                        + " dB downstream media-volume headroom");
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
