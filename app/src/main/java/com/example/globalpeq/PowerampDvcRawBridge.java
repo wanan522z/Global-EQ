@@ -70,7 +70,7 @@ final class PowerampDvcRawBridge {
                     "command", int.class, byte[].class, byte[].class);
             method.setAccessible(true);
             commandMethod = method;
-        } catch (NoSuchMethodException | SecurityException | RuntimeException error) {
+        } catch (NoSuchMethodException | RuntimeException error) {
             logFailure("AudioEffect raw command API unavailable", error);
         }
         return commandMethod;
