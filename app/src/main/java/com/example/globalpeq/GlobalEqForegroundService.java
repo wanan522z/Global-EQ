@@ -38,6 +38,7 @@ public final class GlobalEqForegroundService extends Service {
     private static volatile boolean instanceRunning;
 
     private GlobalEqualizerEngine engine;
+    private GlobalDvcController dvcController;
     private PlaybackCaptureEngine captureEngine;
     private ShizukuSessionMuteEngine shizukuMuteEngine;
     private PresetRepository repository;
@@ -112,6 +113,8 @@ public final class GlobalEqForegroundService extends Service {
         repository = new PresetRepository(this);
         repository.saveServiceActive(true);
         engine = GlobalEqRuntime.engine();
+        dvcController = new GlobalDvcController(this, engine, repository);
+        dvcController.start();
         currentProcessingMode = repository.loadProcessingMode();
         currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
         captureEngine = new PlaybackCaptureEngine(this, repository, this::updateNotification);
@@ -145,18 +148,21 @@ public final class GlobalEqForegroundService extends Service {
         }
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(device -> {
+            dvcController.prepareForRouteChange(device);
             repository.saveKnownDevice(device);
             repository.reconcileManualDeviceSelectionOverride(device);
+            currentProcessingMode = repository.loadProcessingMode();
+            currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
             if (!repository.loadAutoSwitchOutput()) {
+                syncDvcState(device);
                 return;
             }
             if (repository.isManualDeviceSelectionOverrideActiveFor(device)) {
+                syncDvcState(device);
                 updateNotification();
                 return;
             }
             boolean sameRoute = currentDevice != null && currentDevice.key.equals(device.key);
-            currentProcessingMode = repository.loadProcessingMode();
-            currentAdvancedModeConfig = repository.loadAdvancedModeConfig();
             if (awaitingInitialDeviceMonitorEvent) {
                 awaitingInitialDeviceMonitorEvent = false;
                 currentDevice = device;
@@ -164,6 +170,7 @@ public final class GlobalEqForegroundService extends Service {
                 currentPreset = repository.loadPreset(device, currentProcessingMode)
                         .withEnabled(repository.loadMasterEnabled());
                 if (sameRoute) {
+                    syncDvcState(device);
                     updateNotification();
                     return;
                 }
@@ -176,6 +183,7 @@ public final class GlobalEqForegroundService extends Service {
                     ? remainingCaptureRouteSuppressionMs()
                     : 0L;
             if (routeSuppressionRemainingMs > 0L && sameRoute) {
+                syncDvcState(device);
                 updateNotification();
                 return;
             }
@@ -189,6 +197,7 @@ public final class GlobalEqForegroundService extends Service {
             } else {
                 engine.applyWithFullReset(effectivePreset, currentProcessingMode, currentAdvancedModeConfig);
             }
+            syncDvcState(device);
             scheduleCaptureUpdate(
                     currentProcessingMode,
                     currentPreset,
@@ -298,6 +307,7 @@ public final class GlobalEqForegroundService extends Service {
                     virtualBassModeIndex), currentProcessingMode, currentAdvancedModeConfig);
             syncSystemEqPlaybackState();
         }
+        syncDvcState(deviceMonitor.currentOutputDevice());
         scheduleCaptureUpdate(
                 currentProcessingMode,
                 currentPreset,
@@ -606,6 +616,9 @@ public final class GlobalEqForegroundService extends Service {
 
     private void stopAllProcessingNow() {
         resetSystemEqPlaybackState();
+        if (dvcController != null) {
+            dvcController.stop();
+        }
         if (captureEngine != null) {
             captureEngine.stopAll();
         }
@@ -645,6 +658,20 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             handler.postDelayed(applyPendingCaptureUpdateRunnable, delayMs);
         }
+    }
+
+    private void syncDvcState(AudioOutputDevice physicalRoute) {
+        if (dvcController == null) {
+            return;
+        }
+        boolean enabled = currentPreset != null && currentPreset.enabled;
+        boolean userIntent = currentAdvancedModeConfig != null
+                && currentAdvancedModeConfig.globalDvcEnabled;
+        dvcController.update(
+                currentProcessingMode,
+                enabled,
+                userIntent,
+                physicalRoute);
     }
 
     private void scheduleWakeRecovery() {
