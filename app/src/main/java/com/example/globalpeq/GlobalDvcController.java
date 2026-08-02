@@ -120,8 +120,11 @@ final class GlobalDvcController {
             return;
         }
 
+        boolean startingNewDvcSession = volumeEffect == null;
         curve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
-        initialVolumeIndex = curve.currentIndex;
+        if (startingNewDvcSession) {
+            initialVolumeIndex = curve.currentIndex;
+        }
         if (routeDecision.isUsb() && (curve.fixedVolume || !curve.meaningful)) {
             deactivate(DvcRuntimeState.Kind.USB_DIGITAL_ONLY, true,
                     curve.failure.isEmpty() ? "USB fixed hardware volume" : curve.failure);
@@ -210,11 +213,7 @@ final class GlobalDvcController {
         try {
             int probeSession = audioManager.generateAudioSessionId();
             probe = createVolumeEffect(probeSession);
-            Method getParameter = AudioEffect.class.getDeclaredMethod(
-                    "getParameter", int.class, short[].class);
-            getParameter.setAccessible(true);
-            Object result = getParameter.invoke(probe, 0, new short[1]);
-            if (!(result instanceof Integer) || (Integer) result < 0) {
+            if (!verifyVolumeEffect(probe)) {
                 return false;
             }
             probe.release();
@@ -231,6 +230,31 @@ final class GlobalDvcController {
                 } catch (RuntimeException ignored) {
                 }
             }
+        }
+    }
+
+    private boolean verifyVolumeEffect(AudioEffect effect) {
+        try {
+            Method getParameter = AudioEffect.class.getDeclaredMethod(
+                    "getParameter", int.class, short[].class);
+            getParameter.setAccessible(true);
+            Object result = getParameter.invoke(effect, 0, new short[1]);
+            if (result instanceof Integer && (Integer) result >= 0) {
+                return true;
+            }
+        } catch (ReflectiveOperationException | RuntimeException hiddenApiError) {
+            // Poweramp calls the same parameter getter through JNI. When Android blocks hidden
+            // Java reflection, descriptor and control ownership still give us a safe probe.
+            Log.d(TAG, "Hidden Volume AudioEffect parameter probe unavailable", hiddenApiError);
+        }
+        try {
+            AudioEffect.Descriptor descriptor = effect.getDescriptor();
+            boolean matchingType = descriptor != null
+                    && (VOLUME_EFFECT_TYPE.equals(descriptor.type)
+                    || VOLUME_EFFECT_IMPLEMENTATION.equals(descriptor.uuid));
+            return matchingType && effect.hasControl();
+        } catch (RuntimeException error) {
+            return false;
         }
     }
 
