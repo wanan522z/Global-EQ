@@ -5,23 +5,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
-import android.media.audiofx.AudioEffect;
 import android.os.Build;
-import android.util.Log;
-
-import java.lang.reflect.Constructor;
-import java.util.UUID;
 
 final class GlobalDvcController {
-    private static final String TAG = "GlobalDvcController";
     private static final String VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION";
     private static final String EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE";
-    private static final UUID VOLUME_EFFECT_TYPE =
-            UUID.fromString("09e8ede0-ddde-11db-b4f6-0002a5d5c51b");
-    private static final UUID VOLUME_EFFECT_IMPLEMENTATION =
-            UUID.fromString("119341a0-8469-11df-81f9-0002a5d5c51b");
-    private static final int EFFECT_PRIORITY = 1337;
-    private static final int GLOBAL_AUDIO_SESSION = 0;
 
     private final Context appContext;
     private final AudioManager audioManager;
@@ -47,7 +35,7 @@ final class GlobalDvcController {
     private AudioOutputDevice route = new AudioOutputDevice("none", "Output device");
     private DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(route);
     private DvcVolumeMapper.Curve curve;
-    private AudioEffect volumeEffect;
+    private boolean mappingActive;
     private int initialVolumeIndex;
 
     GlobalDvcController(Context context,
@@ -79,8 +67,7 @@ final class GlobalDvcController {
         if (currentKey.equals(nextKey)) {
             return;
         }
-        applyHeadroomSafely(0f);
-        releaseVolumeEffect();
+        deactivateEngineMapping();
         curve = null;
         route = safeRoute(nextRoute);
         routeDecision = DvcRoutePolicy.evaluate(route);
@@ -117,7 +104,7 @@ final class GlobalDvcController {
             return;
         }
 
-        boolean startingNewDvcSession = volumeEffect == null;
+        boolean startingNewDvcSession = !mappingActive;
         curve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
         if (startingNewDvcSession) {
             initialVolumeIndex = curve.currentIndex;
@@ -131,14 +118,9 @@ final class GlobalDvcController {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true, curve.failure);
             return;
         }
-        if (!engine.supportsDvcGainMapping()) {
+        if (!engine.supportsDvcVolumeMapping()) {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
                     "DynamicsProcessing volume mapping is unavailable");
-            return;
-        }
-        if (!ensureVolumeEffect()) {
-            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "Volume AudioEffect activation failed");
             return;
         }
         applyMappedCurve(routeDecision.isUsb()
@@ -159,7 +141,7 @@ final class GlobalDvcController {
 
     private void refreshVolumeMapping() {
         if (!started || mode != ProcessingMode.GLOBAL_DSP || !presetEnabled
-                || !userIntentEnabled || !routeDecision.allowsDvc || volumeEffect == null) {
+                || !userIntentEnabled || !routeDecision.allowsDvc || !mappingActive) {
             return;
         }
         DvcVolumeMapper.Curve nextCurve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
@@ -180,119 +162,27 @@ final class GlobalDvcController {
 
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {
         float headroomDb = curve == null ? 0f : curve.headroomDb();
-        if (!applyHeadroomSafely(headroomDb)) {
-            releaseVolumeEffect();
+        float volumeDb = curve == null ? 0f : curve.currentDb;
+        if (!engine.setDvcVolumeMapping(true, volumeDb)) {
+            mappingActive = false;
             publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
                     "DynamicsProcessing volume mapping failed");
             return;
         }
+        mappingActive = true;
         publish(kind, true, true,
-                "Media volume provides " + headroomDb + " dB before PEQ and the limiter");
+                "Limiter uses " + headroomDb
+                        + " dB of downstream media-volume headroom (Poweramp Equalizer path)");
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
-        applyHeadroomSafely(0f);
-        releaseVolumeEffect();
+        deactivateEngineMapping();
         publish(kind, false, switchAvailable, detail);
     }
 
-    private boolean applyHeadroomSafely(float nextHeadroomDb) {
-        float next = Float.isFinite(nextHeadroomDb)
-                ? Math.max(0f, Math.min(96f, nextHeadroomDb))
-                : 0f;
-        boolean success = engine.setDvcHeadroomDb(next);
-        if (success) {
-            return true;
-        }
-        if (next > 0f) {
-            engine.setDvcHeadroomDb(0f);
-        }
-        return false;
-    }
-
-    private boolean ensureVolumeEffect() {
-        if (volumeEffect != null) {
-            return true;
-        }
-        try {
-            volumeEffect = createVolumeEffect(GLOBAL_AUDIO_SESSION);
-            if (!verifyVolumeEffect(volumeEffect)
-                    || volumeEffect.setEnabled(true) != AudioEffect.SUCCESS
-                    || !volumeEffect.getEnabled()) {
-                releaseVolumeEffect();
-                return false;
-            }
-            // Re-submit the current stream volume without changing its index. This makes the
-            // framework immediately propagate its existing volume to the newly enabled volume
-            // controller and cannot create a volume jump in either direction.
-            try {
-                audioManager.adjustStreamVolume(
-                        AudioManager.STREAM_MUSIC,
-                        AudioManager.ADJUST_SAME,
-                        0);
-            } catch (RuntimeException syncError) {
-                // The effect is already active. Some OEMs reject ADJUST_SAME from third-party
-                // apps, but that does not invalidate AudioFlinger's volume-controller state.
-                Log.d(TAG, "Current media-volume sync was rejected", syncError);
-            }
-            if (!engine.recreateAfterDvcVolumeEffect()) {
-                Log.w(TAG, "Could not place DynamicsProcessing after the Volume effect");
-                releaseVolumeEffect();
-                return false;
-            }
-            Log.d(TAG, "Enabled session-0 Volume AudioEffect for media-volume mapping");
-            return true;
-        } catch (ReflectiveOperationException | RuntimeException error) {
-            Log.w(TAG, "Volume AudioEffect probe failed", error);
-            releaseVolumeEffect();
-            return false;
-        }
-    }
-
-    private boolean verifyVolumeEffect(AudioEffect effect) {
-        try {
-            AudioEffect.Descriptor descriptor = effect.getDescriptor();
-            boolean matchingType = descriptor != null
-                    && (VOLUME_EFFECT_TYPE.equals(descriptor.type)
-                    || VOLUME_EFFECT_IMPLEMENTATION.equals(descriptor.uuid));
-            return matchingType && effect.hasControl();
-        } catch (RuntimeException error) {
-            return false;
-        }
-    }
-
-    private AudioEffect createVolumeEffect(int sessionId) throws ReflectiveOperationException {
-        return createAudioEffect(
-                VOLUME_EFFECT_TYPE,
-                VOLUME_EFFECT_IMPLEMENTATION,
-                sessionId);
-    }
-
-    private AudioEffect createAudioEffect(UUID type,
-                                          UUID implementation,
-                                          int sessionId) throws ReflectiveOperationException {
-        Constructor<AudioEffect> constructor = AudioEffect.class.getConstructor(
-                UUID.class, UUID.class, int.class, int.class);
-        return constructor.newInstance(
-                type,
-                implementation,
-                EFFECT_PRIORITY,
-                sessionId);
-    }
-
-    private void releaseVolumeEffect() {
-        if (volumeEffect == null) {
-            return;
-        }
-        try {
-            if (volumeEffect.getEnabled()) {
-                volumeEffect.setEnabled(false);
-            }
-            volumeEffect.release();
-        } catch (RuntimeException ignored) {
-        } finally {
-            volumeEffect = null;
-        }
+    private void deactivateEngineMapping() {
+        engine.setDvcVolumeMapping(false, 0f);
+        mappingActive = false;
     }
 
     private void publish(DvcRuntimeState.Kind kind,
