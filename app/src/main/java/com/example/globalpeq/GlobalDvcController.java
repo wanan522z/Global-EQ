@@ -176,8 +176,9 @@ final class GlobalDvcController {
         int activeBandCount = engine.getActiveDynamicsBandCount();
         publish(kind, true, true,
                 "Downstream media-volume attenuation: " + displayedDownstreamDb + " dB\n"
-                        + "DVC limiter headroom: " + displayedUsableDb + " dB\n"
-                        + "DVC post-EQ bank: " + activeBandCount + " bands\n"
+                        + "Downstream headroom: " + displayedUsableDb + " dB\n"
+                        + "DVC post-EQ bank: " + activeBandCount + " full-range bands\n"
+                        + "DVC limiter: bypassed\n"
                         + "System media volume is unchanged");
     }
 

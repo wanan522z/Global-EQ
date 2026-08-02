@@ -16,12 +16,6 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_CHANNEL_COUNT = 2;
     private static final int[] DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES = {32, 24, 16, 10};
     private static final int[] GLOBAL_DSP_BAND_COUNT_CANDIDATES = {128, 96, 64, 48, 32, 24, 16, 10};
-    // Poweramp rebuilds a separate high-resolution post-EQ bank when DVC is active. Keep the
-    // established GlobalDSP candidates as fallbacks so devices with smaller DP parameter blocks
-    // continue to work exactly as before.
-    private static final int[] DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES = {
-            300, 256, 128, 96, 64, 48, 32, 24, 16, 10
-    };
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
@@ -73,9 +67,7 @@ final class GlobalEqualizerEngine {
 
     private boolean startDynamicsProcessing() {
         int[] bandCountCandidates = processingMode == ProcessingMode.GLOBAL_DSP
-                ? (dvcActive
-                ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
-                : GLOBAL_DSP_BAND_COUNT_CANDIDATES)
+                ? GLOBAL_DSP_BAND_COUNT_CANDIDATES
                 : DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES;
         return startDynamicsProcessing(bandCountCandidates, true);
     }
@@ -197,6 +189,21 @@ final class GlobalEqualizerEngine {
                 ? Math.max(0f, -dvcVolumeDb - DvcVolumeMapper.SAFETY_MARGIN_DB)
                 : 0f;
         float thresholdDb = normalThresholdDb + dvcHeadroomDb;
+        if (dvcActive) {
+            // Poweramp Equalizer's measured session-0 DVC path keeps the limiter stage in use but
+            // disabled (attack 0 ms, release 75 ms, ratio 50) and lets downstream media-volume
+            // attenuation provide the headroom for post-EQ output above 0 dBFS. Merely raising an
+            // enabled limiter threshold does not produce the same path on this device.
+            return new DynamicsProcessing.Limiter(
+                    true,
+                    false,
+                    0,
+                    0f,
+                    75f,
+                    50f,
+                    thresholdDb,
+                    postGainDb);
+        }
         return new DynamicsProcessing.Limiter(
                 true,
                 true,
@@ -265,6 +272,12 @@ final class GlobalEqualizerEngine {
                     throw new IllegalStateException(
                             "DVC limiter threshold rejected for channel " + channel);
                 }
+                if (active && dynamicsProcessing
+                        .getLimiterByChannelIndex(channel)
+                        .isEnabled()) {
+                    throw new IllegalStateException(
+                            "DVC limiter bypass rejected for channel " + channel);
+                }
             }
             Log.d(TAG, active
                     ? "Global DVC volumeDb=" + dvcVolumeDb
@@ -301,9 +314,7 @@ final class GlobalEqualizerEngine {
         dynamicsProcessingUnavailable = false;
 
         try {
-            int[] nextCandidates = active
-                    ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
-                    : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
+            int[] nextCandidates = GLOBAL_DSP_BAND_COUNT_CANDIDATES;
             if (!startAndApplyDynamicsCandidates(nextCandidates, targetPreset)) {
                 throw new IllegalStateException("No DynamicsProcessing configuration accepted");
             }
@@ -327,9 +338,7 @@ final class GlobalEqualizerEngine {
                 Preset restorePreset = savedPendingPreset != null
                         ? savedPendingPreset
                         : savedLastAppliedPreset;
-                int[] restoreCandidates = previousActive
-                        ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
-                        : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
+                int[] restoreCandidates = GLOBAL_DSP_BAND_COUNT_CANDIDATES;
                 if (restorePreset == null
                         || !restorePreset.enabled
                         || !startAndApplyDynamicsCandidates(restoreCandidates, restorePreset)) {
