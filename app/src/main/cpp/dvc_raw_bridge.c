@@ -18,9 +18,9 @@ Java_com_example_globalpeq_PowerampDvcRawBridge_nativeCommand(
         return AUDIO_EFFECT_ERROR_INVALID_OPERATION;
     }
 
-    // command() is declared on AudioEffect itself. Looking it up on the DynamicsProcessing
-    // subclass fails on Android releases where the hidden method is private and therefore not
-    // inherited in JNI method lookup. Poweramp resolves the declaring framework class directly.
+    // Poweramp's Java wrapper names this operation command(), but its JNI implementation calls
+    // AudioEffect.native_poke_fx() directly. Resolving the declaring framework class through JNI
+    // bypasses hidden-API reflection enforcement without depending on private object fields.
     jclass effect_class = (*env)->FindClass(env, "android/media/audiofx/AudioEffect");
     if (effect_class == NULL) {
         if ((*env)->ExceptionCheck(env)) {
@@ -32,7 +32,7 @@ Java_com_example_globalpeq_PowerampDvcRawBridge_nativeCommand(
     jmethodID command_method = (*env)->GetMethodID(
             env,
             effect_class,
-            "command",
+            "native_poke_fx",
             "(I[B[B)I");
     (*env)->DeleteLocalRef(env, effect_class);
     if (command_method == NULL) {
