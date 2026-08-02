@@ -18,6 +18,7 @@ final class PowerampDvcRawBridge {
     private static final String TAG = "PowerampDvcRawBridge";
     private static final int EFFECT_CMD_SET_PARAM = 5;
     private static final int DP_PARAM_INPUT_GAIN = 32;
+    private static final int VOLUME_PARAM_LEVEL = 0;
     private static final int EFFECT_PARAM_HEADER_BYTES = 12;
     private static final int INPUT_GAIN_PARAM_BYTES = 8;
     private static final int INPUT_GAIN_VALUE_BYTES = 4;
@@ -70,7 +71,30 @@ final class PowerampDvcRawBridge {
         }
     }
 
-    private int invokeCommand(DynamicsProcessing effect, byte[] command, byte[] reply)
+    boolean setVolumeLevelMb(AudioEffect effect, int levelMb) {
+        if (effect == null) {
+            return false;
+        }
+        try {
+            byte[] command = volumeLevelCommand(levelMb);
+            byte[] reply = new byte[Integer.BYTES];
+            int result = invokeCommand(effect, command, reply);
+            int effectStatus = ByteBuffer.wrap(reply)
+                    .order(ByteOrder.nativeOrder())
+                    .getInt(0);
+            if (result < AudioEffect.SUCCESS || effectStatus < AudioEffect.SUCCESS) {
+                logFailure("raw Volume level command rejected: result=" + result
+                        + " status=" + effectStatus);
+                return false;
+            }
+            return true;
+        } catch (IllegalAccessException | InvocationTargetException | RuntimeException error) {
+            logFailure("raw Volume level command unavailable", error);
+            return false;
+        }
+    }
+
+    private int invokeCommand(AudioEffect effect, byte[] command, byte[] reply)
             throws IllegalAccessException, InvocationTargetException {
         if (NATIVE_BRIDGE_LOADED) {
             return nativeCommand(effect, EFFECT_CMD_SET_PARAM, command, reply);
@@ -113,6 +137,17 @@ final class PowerampDvcRawBridge {
         buffer.putInt(DP_PARAM_INPUT_GAIN);
         buffer.putInt(channel);
         buffer.putFloat(gainDb);
+        return buffer.array();
+    }
+
+    /** Volume effect parameter 0 is a signed millibel value stored as a 16-bit sample. */
+    private static byte[] volumeLevelCommand(int levelMb) {
+        ByteBuffer buffer = ByteBuffer.allocate(18).order(ByteOrder.nativeOrder());
+        buffer.putInt(0); // effect_param_t status
+        buffer.putInt(Integer.BYTES); // parameter bytes
+        buffer.putInt(Short.BYTES); // value bytes
+        buffer.putInt(VOLUME_PARAM_LEVEL);
+        buffer.putShort((short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, levelMb)));
         return buffer.array();
     }
 

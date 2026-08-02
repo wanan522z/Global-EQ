@@ -35,6 +35,7 @@ final class GlobalDvcController {
     private AudioOutputDevice route = new AudioOutputDevice("none", "Output device");
     private DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(route);
     private DvcVolumeMapper.Curve curve;
+    private final PowerampVolumeEffect volumeEffect = new PowerampVolumeEffect();
     private boolean mappingActive;
     private int initialVolumeIndex;
 
@@ -123,6 +124,11 @@ final class GlobalDvcController {
                     "DynamicsProcessing volume mapping is unavailable");
             return;
         }
+        if (!volumeEffect.openMuted()) {
+            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
+                    "Volume AudioEffect probe failed; positive compensation was not applied");
+            return;
+        }
         applyMappedCurve(routeDecision.isUsb()
                 ? DvcRuntimeState.Kind.USB_HARDWARE
                 : DvcRuntimeState.Kind.ACTIVE);
@@ -164,16 +170,34 @@ final class GlobalDvcController {
         float headroomDb = curve == null ? 0f : curve.headroomDb();
         float displayedHeadroomDb = Math.round(headroomDb * 10f) / 10f;
         float volumeDb = curve == null ? 0f : curve.currentDb;
-        if (!engine.setDvcVolumeMapping(true, volumeDb)) {
-            mappingActive = false;
+        float previousCompensationDb = mappingActive
+                ? Math.max(0f, -volumeEffect.appliedLevelDb())
+                : 0f;
+        float nextCompensationDb = Math.max(0f, -volumeDb);
+        boolean applied;
+        if (nextCompensationDb >= previousCompensationDb) {
+            // Make the post-DP digital stage quieter before adding positive input gain.
+            applied = volumeEffect.setLevelDb(volumeDb)
+                    && volumeEffect.isActive()
+                    && engine.setDvcVolumeMapping(true, volumeDb);
+        } else {
+            // Reduce positive input gain before relaxing the post-DP attenuation.
+            applied = engine.setDvcVolumeMapping(true, volumeDb)
+                    && volumeEffect.setLevelDb(volumeDb)
+                    && volumeEffect.isActive();
+        }
+        if (!applied) {
+            deactivateEngineMapping();
+            volumeEffect.releaseToUnity();
             publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                    "DynamicsProcessing volume mapping failed");
+                    "DVC mapping failed safely; positive compensation was removed");
             return;
         }
         mappingActive = true;
         publish(kind, true, true,
                 "Downstream media-volume headroom: " + displayedHeadroomDb + " dB\n"
-                        + "Mapped DP input compensation: +" + displayedHeadroomDb + " dB\n"
+                        + "Volume AudioEffect: -" + displayedHeadroomDb + " dB\n"
+                        + "DP input compensation: +" + displayedHeadroomDb + " dB\n"
                         + "Control path: " + (engine.usesPowerampRawDvcPath()
                         ? "Poweramp-compatible raw command"
                         : "Android public API fallback"));
@@ -185,8 +209,10 @@ final class GlobalDvcController {
     }
 
     private void deactivateEngineMapping() {
+        // Positive compensation must disappear before the negative Volume stage is removed.
         engine.setDvcVolumeMapping(false, 0f);
         mappingActive = false;
+        volumeEffect.releaseToUnity();
     }
 
     private void publish(DvcRuntimeState.Kind kind,
