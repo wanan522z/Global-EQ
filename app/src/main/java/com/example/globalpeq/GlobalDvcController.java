@@ -173,6 +173,7 @@ final class GlobalDvcController {
         mappingActive = true;
         publish(kind, true, true,
                 "Downstream media-volume headroom: " + displayedHeadroomDb + " dB\n"
+                        + "Mapped DP input compensation: +" + displayedHeadroomDb + " dB\n"
                         + "Control path: " + (engine.usesPowerampRawDvcPath()
                         ? "Poweramp-compatible raw command"
                         : "Android public API fallback"));

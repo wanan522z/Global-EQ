@@ -667,8 +667,6 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyDynamicsTargetLevels(Preset preset) {
-        float pregainDb = presetPregainDb(preset);
-        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
             eqBand.setEnabled(true);
@@ -676,12 +674,10 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        DynamicsProcessing.Limiter limiter = createGlobalLimiter(preset);
-        if (dvcActive) {
-            applyAndVerifyDvcLimiter(limiter);
-        } else {
-            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
-        }
+        // DVC does not own or reinterpret limiter state. Preserve the configured GlobalDSP
+        // limiter, then apply volume compensation through DP input gain as a separate step.
+        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+        applyAndVerifyDvcInputGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
@@ -691,7 +687,6 @@ final class GlobalEqualizerEngine {
         if (dynamicsProcessing == null || dynamicsPostEq == null) {
             return;
         }
-        dynamicsProcessing.setInputGainAllChannelsTo(0f);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
             eqBand.setEnabled(true);
@@ -700,11 +695,12 @@ final class GlobalEqualizerEngine {
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
-        DynamicsProcessing.Limiter limiter = createGlobalLimiter(targetPreset);
-        if (dvcActive) {
-            applyAndVerifyDvcLimiter(limiter);
+        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+        if (targetPreset != null) {
+            applyAndVerifyDvcInputGain(targetPreset);
         } else {
-            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+            dvcRawVolumeGainActive = false;
+            dynamicsProcessing.setInputGainAllChannelsTo(0f);
         }
     }
 
@@ -928,7 +924,7 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
-        dvcRawLimiterActive = false;
+        dvcRawVolumeGainActive = false;
         dvcVolumeDb = 0f;
     }
 }
