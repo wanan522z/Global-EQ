@@ -1,0 +1,3 @@
+C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/6n5s5f1p/x86/CMakeFiles/globalpeq_dvc.dir
+C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/6n5s5f1p/x86/CMakeFiles/edit_cache.dir
+C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/6n5s5f1p/x86/CMakeFiles/rebuild_cache.dir

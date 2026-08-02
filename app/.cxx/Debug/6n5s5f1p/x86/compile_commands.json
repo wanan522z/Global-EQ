@@ -1,0 +1,7 @@
+[
+{
+  "directory": "C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/6n5s5f1p/x86",
+  "command": "C:\\Users\\31855\\AppData\\Local\\Android\\Sdk\\ndk\\28.2.13676358\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe --target=i686-none-linux-android28 --sysroot=C:/Users/31855/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Dglobalpeq_dvc_EXPORTS -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC -Wall -Wextra -Werror -o CMakeFiles\\globalpeq_dvc.dir\\dvc_audio_effect_jni.cpp.o -c \"C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\src\\main\\cpp\\dvc_audio_effect_jni.cpp\"",
+  "file": "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\src\\main\\cpp\\dvc_audio_effect_jni.cpp"
+}
+]

@@ -3963,13 +3963,11 @@ public final class MainActivity extends Activity {
         DvcRuntimeState runtimeState = repository == null
                 ? DvcRuntimeState.DEFAULT
                 : repository.loadDvcRuntimeState();
-        String physicalRouteKey = physicalRoute == null || physicalRoute.key == null
-                ? ""
-                : physicalRoute.key;
-        boolean runtimeMatchesRoute = physicalRouteKey.equals(runtimeState.routeKey);
+        boolean serviceOwnsDvcState = GlobalEqForegroundService.isRunningInProcess();
         boolean switchAvailable = visible
-                && routeDecision.allowsDvc
-                && (!runtimeMatchesRoute || runtimeState.switchAvailable);
+                && (serviceOwnsDvcState
+                ? runtimeState.switchAvailable
+                : routeDecision.allowsDvc);
         if (globalDvcRow != null) {
             globalDvcRow.setVisibility(visible ? View.VISIBLE : View.GONE);
             globalDvcRow.setAlpha(switchAvailable ? 1f : 0.55f);

@@ -28,12 +28,13 @@ final class DvcVolumeMapper {
             this.failure = failure == null ? "" : failure;
         }
 
-        float compensationDb() {
+        float headroomDb() {
             if (!meaningful || currentIndex <= minIndex || !Float.isFinite(currentDb)) {
                 return 0f;
             }
             return clamp(-currentDb, 0f, 96f);
         }
+
     }
 
     private DvcVolumeMapper() {

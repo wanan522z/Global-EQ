@@ -171,22 +171,72 @@ final class AudioOutputDeviceMonitor {
 
     private AudioOutputDevice resolveFallbackOutputDevice() {
         AudioDeviceInfo[] devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
-        AudioDeviceInfo best = null;
+        AudioDeviceInfo external = null;
+        AudioDeviceInfo speaker = null;
+        AudioDeviceInfo safeSpeaker = null;
+        AudioDeviceInfo earpiece = null;
+        AudioDeviceInfo otherSelectable = null;
         for (AudioDeviceInfo device : devices) {
-            if (device.isSink() && isExternal(device)) {
-                best = device;
-                break;
+            if (device == null || !device.isSink()) {
+                continue;
             }
+            if (isExternal(device) && external == null) {
+                external = device;
+                continue;
+            }
+            switch (device.getType()) {
+                case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
+                    if (speaker == null) {
+                        speaker = device;
+                    }
+                    break;
+                case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE:
+                    if (safeSpeaker == null) {
+                        safeSpeaker = device;
+                    }
+                    break;
+                case AudioDeviceInfo.TYPE_BUILTIN_EARPIECE:
+                    if (earpiece == null) {
+                        earpiece = device;
+                    }
+                    break;
+                default:
+                    if (otherSelectable == null && isSelectableOutput(device)) {
+                        otherSelectable = device;
+                    }
+                    break;
+            }
+        }
+        AudioDeviceInfo best = external;
+        if (best == null && isCommunicationMode() && !isSpeakerphoneEnabled()) {
+            best = earpiece;
         }
         if (best == null) {
-            for (AudioDeviceInfo device : devices) {
-                if (device.isSink()) {
-                    best = device;
-                    break;
-                }
-            }
+            best = speaker != null ? speaker : safeSpeaker;
+        }
+        if (best == null) {
+            best = otherSelectable != null ? otherSelectable : earpiece;
         }
         return best == null ? new AudioOutputDevice("none", "No output device") : describe(best);
+    }
+
+    private boolean isCommunicationMode() {
+        try {
+            int mode = audioManager.getMode();
+            return mode == AudioManager.MODE_IN_CALL
+                    || mode == AudioManager.MODE_IN_COMMUNICATION;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private boolean isSpeakerphoneEnabled() {
+        try {
+            return audioManager.isSpeakerphoneOn();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private AudioOutputDevice resolveActiveBluetoothOutputDevice() {

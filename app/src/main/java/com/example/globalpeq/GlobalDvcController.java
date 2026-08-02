@@ -10,7 +10,6 @@ import android.os.Build;
 import android.util.Log;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.util.UUID;
 
 final class GlobalDvcController {
@@ -49,7 +48,6 @@ final class GlobalDvcController {
     private DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(route);
     private DvcVolumeMapper.Curve curve;
     private AudioEffect volumeEffect;
-    private float appliedCompensationDb;
     private int initialVolumeIndex;
 
     GlobalDvcController(Context context,
@@ -72,7 +70,7 @@ final class GlobalDvcController {
             appContext.registerReceiver(volumeReceiver, filter);
         }
         started = true;
-        publish(DvcRuntimeState.Kind.OFF, false, true, 0f, "DVC is off");
+        publish(DvcRuntimeState.Kind.OFF, false, true, "DVC is off");
     }
 
     void prepareForRouteChange(AudioOutputDevice nextRoute) {
@@ -81,8 +79,7 @@ final class GlobalDvcController {
         if (currentKey.equals(nextKey)) {
             return;
         }
-        // Withdraw the positive stage first. The temporary state can only be quieter.
-        applyCompensationSafely(0f);
+        applyHeadroomSafely(0f);
         releaseVolumeEffect();
         curve = null;
         route = safeRoute(nextRoute);
@@ -134,14 +131,14 @@ final class GlobalDvcController {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true, curve.failure);
             return;
         }
-        if (!engine.supportsDvcGainStages()) {
+        if (!engine.supportsDvcGainMapping()) {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "DynamicsProcessing gain stages unavailable");
+                    "DynamicsProcessing volume mapping is unavailable");
             return;
         }
         if (!ensureVolumeEffect()) {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "Volume AudioEffect probe failed");
+                    "Volume AudioEffect activation failed");
             return;
         }
         applyMappedCurve(routeDecision.isUsb()
@@ -182,91 +179,77 @@ final class GlobalDvcController {
     }
 
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {
-        float compensationDb = curve == null ? 0f : curve.compensationDb();
-        if (!applyCompensationSafely(compensationDb)) {
+        float headroomDb = curve == null ? 0f : curve.headroomDb();
+        if (!applyHeadroomSafely(headroomDb)) {
             releaseVolumeEffect();
-            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true, 0f,
-                    "DynamicsProcessing gain mapping failed");
+            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
+                    "DynamicsProcessing volume mapping failed");
             return;
         }
-        publish(kind, true, true, compensationDb,
-                "Volume curve mapped through DynamicsProcessing");
+        publish(kind, true, true,
+                "Media volume provides " + headroomDb + " dB before PEQ and the limiter");
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
-        applyCompensationSafely(0f);
+        applyHeadroomSafely(0f);
         releaseVolumeEffect();
-        publish(kind, false, switchAvailable, 0f, detail);
+        publish(kind, false, switchAvailable, detail);
     }
 
-    private boolean applyCompensationSafely(float nextCompensationDb) {
-        float next = Float.isFinite(nextCompensationDb)
-                ? Math.max(0f, Math.min(96f, nextCompensationDb))
+    private boolean applyHeadroomSafely(float nextHeadroomDb) {
+        float next = Float.isFinite(nextHeadroomDb)
+                ? Math.max(0f, Math.min(96f, nextHeadroomDb))
                 : 0f;
-        boolean success;
-        if (next > appliedCompensationDb) {
-            // Add the negative digital-volume stage before raising the DP input stage.
-            success = engine.setDvcPostGainDb(-next);
-            success = engine.setDvcPreCompensationDb(next) && success;
-        } else {
-            // Remove/reduce the positive stage before relaxing the negative stage.
-            success = engine.setDvcPreCompensationDb(next);
-            success = engine.setDvcPostGainDb(-next) && success;
+        boolean success = engine.setDvcHeadroomDb(next);
+        if (success) {
+            return true;
         }
-        if (!success && next > 0f) {
-            // Roll back in the same safe order. A partial failure can only make the signal
-            // quieter while the negative stage is still present.
-            engine.setDvcPreCompensationDb(0f);
-            engine.setDvcPostGainDb(0f);
-            appliedCompensationDb = 0f;
-            return false;
+        if (next > 0f) {
+            engine.setDvcHeadroomDb(0f);
         }
-        appliedCompensationDb = next;
-        return success;
+        return false;
     }
 
     private boolean ensureVolumeEffect() {
         if (volumeEffect != null) {
             return true;
         }
-        AudioEffect probe = null;
         try {
-            int probeSession = audioManager.generateAudioSessionId();
-            probe = createVolumeEffect(probeSession);
-            if (!verifyVolumeEffect(probe)) {
+            volumeEffect = createVolumeEffect(GLOBAL_AUDIO_SESSION);
+            if (!verifyVolumeEffect(volumeEffect)
+                    || volumeEffect.setEnabled(true) != AudioEffect.SUCCESS
+                    || !volumeEffect.getEnabled()) {
+                releaseVolumeEffect();
                 return false;
             }
-            probe.release();
-            probe = null;
-            volumeEffect = createVolumeEffect(GLOBAL_AUDIO_SESSION);
+            // Re-submit the current stream volume without changing its index. This makes the
+            // framework immediately propagate its existing volume to the newly enabled volume
+            // controller and cannot create a volume jump in either direction.
+            try {
+                audioManager.adjustStreamVolume(
+                        AudioManager.STREAM_MUSIC,
+                        AudioManager.ADJUST_SAME,
+                        0);
+            } catch (RuntimeException syncError) {
+                // The effect is already active. Some OEMs reject ADJUST_SAME from third-party
+                // apps, but that does not invalidate AudioFlinger's volume-controller state.
+                Log.d(TAG, "Current media-volume sync was rejected", syncError);
+            }
+            if (!engine.recreateAfterDvcVolumeEffect()) {
+                Log.w(TAG, "Could not place DynamicsProcessing after the Volume effect");
+                releaseVolumeEffect();
+                return false;
+            }
+            Log.d(TAG, "Enabled session-0 Volume AudioEffect for media-volume mapping");
             return true;
         } catch (ReflectiveOperationException | RuntimeException error) {
             Log.w(TAG, "Volume AudioEffect probe failed", error);
+            releaseVolumeEffect();
             return false;
-        } finally {
-            if (probe != null) {
-                try {
-                    probe.release();
-                } catch (RuntimeException ignored) {
-                }
-            }
         }
     }
 
     private boolean verifyVolumeEffect(AudioEffect effect) {
-        try {
-            Method getParameter = AudioEffect.class.getDeclaredMethod(
-                    "getParameter", int.class, short[].class);
-            getParameter.setAccessible(true);
-            Object result = getParameter.invoke(effect, 0, new short[1]);
-            if (result instanceof Integer && (Integer) result >= 0) {
-                return true;
-            }
-        } catch (ReflectiveOperationException | RuntimeException hiddenApiError) {
-            // Poweramp calls the same parameter getter through JNI. When Android blocks hidden
-            // Java reflection, descriptor and control ownership still give us a safe probe.
-            Log.d(TAG, "Hidden Volume AudioEffect parameter probe unavailable", hiddenApiError);
-        }
         try {
             AudioEffect.Descriptor descriptor = effect.getDescriptor();
             boolean matchingType = descriptor != null
@@ -279,11 +262,20 @@ final class GlobalDvcController {
     }
 
     private AudioEffect createVolumeEffect(int sessionId) throws ReflectiveOperationException {
+        return createAudioEffect(
+                VOLUME_EFFECT_TYPE,
+                VOLUME_EFFECT_IMPLEMENTATION,
+                sessionId);
+    }
+
+    private AudioEffect createAudioEffect(UUID type,
+                                          UUID implementation,
+                                          int sessionId) throws ReflectiveOperationException {
         Constructor<AudioEffect> constructor = AudioEffect.class.getConstructor(
                 UUID.class, UUID.class, int.class, int.class);
         return constructor.newInstance(
-                VOLUME_EFFECT_TYPE,
-                VOLUME_EFFECT_IMPLEMENTATION,
+                type,
+                implementation,
                 EFFECT_PRIORITY,
                 sessionId);
     }
@@ -293,6 +285,9 @@ final class GlobalDvcController {
             return;
         }
         try {
+            if (volumeEffect.getEnabled()) {
+                volumeEffect.setEnabled(false);
+            }
             volumeEffect.release();
         } catch (RuntimeException ignored) {
         } finally {
@@ -303,7 +298,6 @@ final class GlobalDvcController {
     private void publish(DvcRuntimeState.Kind kind,
                          boolean active,
                          boolean switchAvailable,
-                         float compensationDb,
                          String detail) {
         DvcVolumeMapper.Curve currentCurve = curve;
         repository.saveDvcRuntimeState(new DvcRuntimeState(
@@ -316,7 +310,6 @@ final class GlobalDvcController {
                 currentCurve == null ? 0 : currentCurve.currentIndex,
                 currentCurve == null ? 0 : currentCurve.minIndex,
                 currentCurve == null ? 0 : currentCurve.maxIndex,
-                compensationDb,
                 detail));
     }
 

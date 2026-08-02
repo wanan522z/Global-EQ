@@ -15,7 +15,7 @@ final class DvcRuntimeState {
     }
 
     static final DvcRuntimeState DEFAULT = new DvcRuntimeState(
-            Kind.OFF, false, true, "", "", 0, 0, 0, 0, 0f, "");
+            Kind.OFF, false, true, "", "", 0, 0, 0, 0, "");
 
     final Kind kind;
     final boolean active;
@@ -26,7 +26,6 @@ final class DvcRuntimeState {
     final int currentVolumeIndex;
     final int minVolumeIndex;
     final int maxVolumeIndex;
-    final float compensationDb;
     final String detail;
 
     DvcRuntimeState(Kind kind,
@@ -38,7 +37,6 @@ final class DvcRuntimeState {
                     int currentVolumeIndex,
                     int minVolumeIndex,
                     int maxVolumeIndex,
-                    float compensationDb,
                     String detail) {
         this.kind = kind == null ? Kind.OFF : kind;
         this.active = active;
@@ -49,7 +47,6 @@ final class DvcRuntimeState {
         this.currentVolumeIndex = currentVolumeIndex;
         this.minVolumeIndex = minVolumeIndex;
         this.maxVolumeIndex = maxVolumeIndex;
-        this.compensationDb = Float.isFinite(compensationDb) ? compensationDb : 0f;
         this.detail = normalize(detail);
     }
 
@@ -65,7 +62,6 @@ final class DvcRuntimeState {
             object.put("currentVolumeIndex", currentVolumeIndex);
             object.put("minVolumeIndex", minVolumeIndex);
             object.put("maxVolumeIndex", maxVolumeIndex);
-            object.put("compensationDb", compensationDb);
             object.put("detail", detail);
             return object.toString();
         } catch (JSONException ignored) {
@@ -95,7 +91,6 @@ final class DvcRuntimeState {
                     object.optInt("currentVolumeIndex", 0),
                     object.optInt("minVolumeIndex", 0),
                     object.optInt("maxVolumeIndex", 0),
-                    (float) object.optDouble("compensationDb", 0.0),
                     object.optString("detail", ""));
         } catch (JSONException ignored) {
             return DEFAULT;
