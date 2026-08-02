@@ -23,6 +23,9 @@ final class GlobalEqualizerEngine {
     private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
     private static final float DVC_LIMITER_RELEASE_MS = 75f;
     private static final float DVC_LIMITER_RATIO = 50f;
+    private static final float NO_DVC_PREAMP_REDUCTION_DB = -6f;
+    private static final float NO_DVC_LIMITER_RELEASE_MS = 175f;
+    private static final float NO_DVC_LIMITER_THRESHOLD_DB = -3.5f;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
@@ -222,17 +225,31 @@ final class GlobalEqualizerEngine {
             return true;
         }
 
+        boolean previousActive = dvcActive;
+        float previousVolumeDb = dvcVolumeDb;
+        float pregainDb = presetPregainDb(targetPreset);
         try {
             dvcActive = active;
             dvcVolumeDb = active ? nextVolumeDb : 0f;
-            dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter(targetPreset));
+            if (active) {
+                // Open the limiter first, then remove No-DVC attenuation.
+                dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(targetPreset));
+                dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
+            } else {
+                // Reduce the signal first, then install the tighter No-DVC limiter.
+                dynamicsProcessing.setInputGainAllChannelsTo(
+                        pregainDb + NO_DVC_PREAMP_REDUCTION_DB);
+                dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(targetPreset));
+            }
             Log.d(TAG, "Global DVC " + (active ? "mapped media volume " + nextVolumeDb + " dB" : "off"));
             return true;
         } catch (RuntimeException error) {
-            dvcActive = false;
-            dvcVolumeDb = 0f;
+            dvcActive = previousActive;
+            dvcVolumeDb = previousVolumeDb;
             try {
-                dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+                dynamicsProcessing.setInputGainAllChannelsTo(
+                        pregainDb + (dvcActive ? 0f : NO_DVC_PREAMP_REDUCTION_DB));
+                dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(targetPreset));
             } catch (RuntimeException ignored) {
             }
             Log.w(TAG, "Failed to map global DVC volume", error);
@@ -240,14 +257,22 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    private DynamicsProcessing.Limiter createActiveLimiter(Preset preset) {
-        if (!dvcActive || processingMode != ProcessingMode.GLOBAL_DSP || preset == null) {
+    private DynamicsProcessing.Limiter createGlobalLimiter(Preset preset) {
+        if (processingMode != ProcessingMode.GLOBAL_DSP || preset == null) {
             return createLimiter(dynamicsConfig, 0f);
         }
-        float pregainDb = clamp(
-                preset.pregainMb / 100f,
-                DYNAMICS_MIN_LEVEL_MB / 100f,
-                DYNAMICS_MAX_LEVEL_MB / 100f);
+        if (!dvcActive) {
+            return new DynamicsProcessing.Limiter(
+                    true,
+                    true,
+                    0,
+                    DVC_LIMITER_ATTACK_MS,
+                    NO_DVC_LIMITER_RELEASE_MS,
+                    DVC_LIMITER_RATIO,
+                    NO_DVC_LIMITER_THRESHOLD_DB,
+                    0f);
+        }
+        float pregainDb = presetPregainDb(preset);
         float safetyMarginDb = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
                 ? 7f
                 : 5f;
@@ -264,6 +289,16 @@ final class GlobalEqualizerEngine {
                 DVC_LIMITER_RATIO,
                 thresholdDb,
                 0f);
+    }
+
+    private static float presetPregainDb(Preset preset) {
+        if (preset == null) {
+            return 0f;
+        }
+        return clamp(
+                preset.pregainMb / 100f,
+                DYNAMICS_MIN_LEVEL_MB / 100f,
+                DYNAMICS_MAX_LEVEL_MB / 100f);
     }
 
     void apply(Preset preset) {
@@ -642,11 +677,11 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyDynamicsTargetLevels(Preset preset) {
-        float pregainDb = clamp(
-                preset.pregainMb / 100f,
-                DYNAMICS_MIN_LEVEL_MB / 100f,
-                DYNAMICS_MAX_LEVEL_MB / 100f);
-        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb);
+        float pregainDb = presetPregainDb(preset);
+        float dvcInputOffsetDb = processingMode == ProcessingMode.GLOBAL_DSP && !dvcActive
+                ? NO_DVC_PREAMP_REDUCTION_DB
+                : 0f;
+        dynamicsProcessing.setInputGainAllChannelsTo(pregainDb + dvcInputOffsetDb);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
             eqBand.setEnabled(true);
@@ -654,7 +689,7 @@ final class GlobalEqualizerEngine {
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter(preset));
+        dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(preset));
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
@@ -664,7 +699,10 @@ final class GlobalEqualizerEngine {
         if (dynamicsProcessing == null || dynamicsPostEq == null) {
             return;
         }
-        dynamicsProcessing.setInputGainAllChannelsTo(0f);
+        float dvcInputOffsetDb = processingMode == ProcessingMode.GLOBAL_DSP && !dvcActive
+                ? NO_DVC_PREAMP_REDUCTION_DB
+                : 0f;
+        dynamicsProcessing.setInputGainAllChannelsTo(dvcInputOffsetDb);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
             eqBand.setEnabled(true);
@@ -673,7 +711,7 @@ final class GlobalEqualizerEngine {
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
-        dynamicsProcessing.setLimiterAllChannelsTo(createActiveLimiter(targetPreset));
+        dynamicsProcessing.setLimiterAllChannelsTo(createGlobalLimiter(targetPreset));
     }
 
     private int targetDynamicsLevelMb(int frequencyHz, Preset preset) {
