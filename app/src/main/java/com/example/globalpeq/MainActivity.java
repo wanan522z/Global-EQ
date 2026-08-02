@@ -2197,9 +2197,30 @@ public final class MainActivity extends Activity {
     }
 
     private String globalDvcHintText() {
-        return tr(
-                "Poweramp-compatible direct gain and limiter profile. Global DSP only; system media volume is never changed.",
-                "Poweramp \u517c\u5bb9\u7684\u76f4\u901a\u589e\u76ca\u4e0e\u9650\u5e45\u7b56\u7565\uff0c\u4ec5\u5bf9 Global DSP \u751f\u6548\uff0c\u4e0d\u4f1a\u4fee\u6539\u7cfb\u7edf\u5a92\u4f53\u97f3\u91cf\u3002");
+        DvcRuntimeState state = repository == null
+                ? DvcRuntimeState.DEFAULT
+                : repository.loadDvcRuntimeState();
+        switch (state.kind) {
+            case ACTIVE:
+                return tr("DVC active", "DVC \u5df2\u542f\u7528");
+            case BLUETOOTH_UNAVAILABLE:
+                return tr(
+                        "Bluetooth: DVC unavailable. Bluetooth devices do not allow DVC.",
+                        "\u84dd\u7259\uff1aDVC \u4e0d\u53ef\u7528\u3002\u84dd\u7259\u8bbe\u5907\u4e0d\u5141\u8bb8\u542f\u7528 DVC\u3002");
+            case USB_HARDWARE:
+                return tr("USB hardware DVC", "USB \u786c\u4ef6 DVC");
+            case USB_DIGITAL_ONLY:
+                return tr(
+                        "USB digital-only / fixed volume. System volume is not changed.",
+                        "USB \u4ec5\u6570\u5b57 DVC / \u56fa\u5b9a\u97f3\u91cf\u3002\u4e0d\u4f1a\u4fee\u6539\u7cfb\u7edf\u97f3\u91cf\u3002");
+            case PROBE_FAILED:
+                return tr("DVC probe failed", "DVC \u80fd\u529b\u63a2\u6d4b\u5931\u8d25");
+            case ROUTE_UNAVAILABLE:
+                return tr("DVC unavailable on this output route", "\u5f53\u524d\u8f93\u51fa\u8def\u7531\u4e0d\u652f\u6301 DVC");
+            case OFF:
+            default:
+                return tr("DVC off", "DVC \u5df2\u5173\u95ed");
+        }
     }
 
     private String unusedAdvancedLabelText() {
@@ -3935,8 +3956,23 @@ public final class MainActivity extends Activity {
 
     private void refreshGlobalDvcUi() {
         boolean visible = processingMode == ProcessingMode.GLOBAL_DSP;
+        AudioOutputDevice physicalRoute = deviceMonitor == null
+                ? currentDevice
+                : deviceMonitor.currentOutputDevice();
+        DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(physicalRoute);
+        DvcRuntimeState runtimeState = repository == null
+                ? DvcRuntimeState.DEFAULT
+                : repository.loadDvcRuntimeState();
+        String physicalRouteKey = physicalRoute == null || physicalRoute.key == null
+                ? ""
+                : physicalRoute.key;
+        boolean runtimeMatchesRoute = physicalRouteKey.equals(runtimeState.routeKey);
+        boolean switchAvailable = visible
+                && routeDecision.allowsDvc
+                && (!runtimeMatchesRoute || runtimeState.switchAvailable);
         if (globalDvcRow != null) {
             globalDvcRow.setVisibility(visible ? View.VISIBLE : View.GONE);
+            globalDvcRow.setAlpha(switchAvailable ? 1f : 0.55f);
         }
         if (globalDvcHintView != null) {
             globalDvcHintView.setVisibility(visible ? View.VISIBLE : View.GONE);
@@ -3944,6 +3980,7 @@ public final class MainActivity extends Activity {
         }
         if (globalDvcSwitch != null) {
             globalDvcSwitch.setChecked(advancedModeConfig.globalDvcEnabled);
+            globalDvcSwitch.setEnabled(switchAvailable);
         }
     }
 
