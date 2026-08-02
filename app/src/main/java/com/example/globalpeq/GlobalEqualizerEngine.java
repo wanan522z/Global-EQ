@@ -46,6 +46,8 @@ final class GlobalEqualizerEngine {
     private long lastRouteReapplyElapsedMs;
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
+    private boolean dvcActive;
+    private float dvcVolumeDb;
 
     private enum ApplyStrategy {
         AUTO,
@@ -161,11 +163,15 @@ final class GlobalEqualizerEngine {
         return frequencies;
     }
 
-    private static DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config,
-                                                              float postGainDb) {
+    private DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config,
+                                                      float postGainDb) {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
-        float thresholdDb = (float) (20.0 * Math.log10(ceiling));
+        float normalThresholdDb = (float) (20.0 * Math.log10(ceiling));
+        float dvcHeadroomDb = dvcActive
+                ? Math.max(0f, -dvcVolumeDb - DvcVolumeMapper.SAFETY_MARGIN_DB)
+                : 0f;
+        float thresholdDb = normalThresholdDb + dvcHeadroomDb;
         return new DynamicsProcessing.Limiter(
                 true,
                 true,
@@ -178,36 +184,65 @@ final class GlobalEqualizerEngine {
     }
 
     boolean supportsDvcVolumeMapping() {
-        // A positive input-gain mapping on the same DP instance that owns the EQ/limiter is not
-        // a safe DVC path. AudioFlinger can expose that gain before a separate attenuation stage
-        // is processing, and the main limiter sees the boosted signal. Keep it disabled until an
-        // isolated, verified volume-controller path is available.
-        return false;
+        return processingMode == ProcessingMode.GLOBAL_DSP && dynamicsProcessing != null;
     }
 
     /**
-     * Restores the normal GlobalDSP input gain. The former DP-only compensation path is rejected:
-     * it could produce a short full-volume burst and drove the main limiter instead of creating
-     * usable downstream headroom.
+     * Maps AudioFlinger's downstream media-volume attenuation into limiter threshold headroom.
+     * Input gain and system volume are never changed by DVC.
      */
     boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
-        if (active) {
-            Log.w(TAG, "Rejected unsafe main-DP DVC compensation");
-            return false;
-        }
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
-            return true;
+            if (!active) {
+                dvcActive = false;
+                dvcVolumeDb = 0f;
+                return true;
+            }
+            return false;
         }
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         if (targetPreset == null || !targetPreset.enabled) {
-            return true;
+            if (!active) {
+                dvcActive = false;
+                dvcVolumeDb = 0f;
+                return true;
+            }
+            return false;
         }
+        if (active && (!Float.isFinite(requestedVolumeDb) || requestedVolumeDb > 0.5f)) {
+            return false;
+        }
+        boolean previousActive = dvcActive;
+        float previousVolumeDb = dvcVolumeDb;
         try {
-            applyAndVerifyInputGain(targetPreset);
-            Log.d(TAG, "Global DVC off");
+            dvcActive = active;
+            dvcVolumeDb = active ? clamp(requestedVolumeDb, -96f, 0f) : 0f;
+            DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
+            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+            float expectedThresholdDb = limiter.getThreshold();
+            for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
+                float actualThresholdDb = dynamicsProcessing
+                        .getLimiterByChannelIndex(channel)
+                        .getThreshold();
+                if (Math.abs(actualThresholdDb - expectedThresholdDb) >= 0.1f) {
+                    throw new IllegalStateException(
+                            "DVC limiter threshold rejected for channel " + channel);
+                }
+            }
+            Log.d(TAG, active
+                    ? "Global DVC volumeDb=" + dvcVolumeDb
+                    + " limiterHeadroomDb="
+                    + Math.max(0f, -dvcVolumeDb - DvcVolumeMapper.SAFETY_MARGIN_DB)
+                    : "Global DVC off");
             return true;
         } catch (RuntimeException error) {
-            Log.w(TAG, "Failed to restore normal GlobalDSP input gain", error);
+            dvcActive = previousActive;
+            dvcVolumeDb = previousVolumeDb;
+            try {
+                dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+            } catch (RuntimeException ignored) {
+            }
+            Log.w(TAG, "Failed to map global DVC limiter headroom", error);
             return false;
         }
     }
@@ -873,5 +908,7 @@ final class GlobalEqualizerEngine {
         targetApplyPending = false;
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
+        dvcActive = false;
+        dvcVolumeDb = 0f;
     }
 }

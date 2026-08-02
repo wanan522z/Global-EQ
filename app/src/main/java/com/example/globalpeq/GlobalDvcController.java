@@ -120,7 +120,7 @@ final class GlobalDvcController {
         }
         if (!engine.supportsDvcVolumeMapping()) {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, false,
-                    "Safe global volume-control path is unavailable; DVC was not applied");
+                    "Global DynamicsProcessing volume-control path is unavailable");
             return;
         }
         applyMappedCurve(routeDecision.isUsb()
@@ -161,8 +161,10 @@ final class GlobalDvcController {
     }
 
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {
-        float headroomDb = curve == null ? 0f : curve.headroomDb();
-        float displayedHeadroomDb = Math.round(headroomDb * 10f) / 10f;
+        float downstreamDb = curve == null ? 0f : curve.headroomDb();
+        float usableDb = curve == null ? 0f : curve.usableHeadroomDb();
+        float displayedDownstreamDb = Math.round(downstreamDb * 10f) / 10f;
+        float displayedUsableDb = Math.round(usableDb * 10f) / 10f;
         boolean applied = engine.setDvcVolumeMapping(true, curve == null ? 0f : curve.currentDb);
         if (!applied) {
             deactivateEngineMapping();
@@ -172,8 +174,9 @@ final class GlobalDvcController {
         }
         mappingActive = true;
         publish(kind, true, true,
-                "Downstream media-volume headroom: " + displayedHeadroomDb + " dB\n"
-                        + "Verified global volume-control path active");
+                "Downstream media-volume attenuation: " + displayedDownstreamDb + " dB\n"
+                        + "DVC limiter headroom: " + displayedUsableDb + " dB\n"
+                        + "System media volume is unchanged");
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {

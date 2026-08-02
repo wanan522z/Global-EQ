@@ -3,6 +3,11 @@ package com.example.globalpeq;
 import android.media.AudioManager;
 
 final class DvcVolumeMapper {
+    // Poweramp's Android 10+ global PEQ pipeline keeps a 7 dB guard below the mapped
+    // downstream media-volume attenuation. Besides filter overshoot, this also covers the
+    // short interval between a volume increase and VOLUME_CHANGED_ACTION delivery.
+    static final float SAFETY_MARGIN_DB = 7f;
+
     static final class Curve {
         final boolean fixedVolume;
         final boolean meaningful;
@@ -33,6 +38,10 @@ final class DvcVolumeMapper {
                 return 0f;
             }
             return clamp(-currentDb, 0f, 96f);
+        }
+
+        float usableHeadroomDb() {
+            return Math.max(0f, headroomDb() - SAFETY_MARGIN_DB);
         }
 
     }
