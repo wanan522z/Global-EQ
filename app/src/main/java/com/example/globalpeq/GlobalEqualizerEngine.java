@@ -211,7 +211,12 @@ final class GlobalEqualizerEngine {
         }
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         if (targetPreset == null || !targetPreset.enabled) {
-            return !active;
+            if (!active) {
+                dvcActive = false;
+                dvcVolumeDb = 0f;
+                return true;
+            }
+            return false;
         }
         if (active == dvcActive && Math.abs(nextVolumeDb - dvcVolumeDb) < 0.01f) {
             return true;
