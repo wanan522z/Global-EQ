@@ -162,6 +162,7 @@ final class GlobalDvcController {
 
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {
         float headroomDb = curve == null ? 0f : curve.headroomDb();
+        float displayedHeadroomDb = Math.round(headroomDb * 10f) / 10f;
         float volumeDb = curve == null ? 0f : curve.currentDb;
         if (!engine.setDvcVolumeMapping(true, volumeDb)) {
             mappingActive = false;
@@ -171,8 +172,7 @@ final class GlobalDvcController {
         }
         mappingActive = true;
         publish(kind, true, true,
-                "DVC active: " + headroomDb
-                        + " dB downstream media-volume headroom");
+                "Downstream media-volume headroom: " + displayedHeadroomDb + " dB");
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {

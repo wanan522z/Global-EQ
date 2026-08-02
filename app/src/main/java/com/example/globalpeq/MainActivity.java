@@ -2200,27 +2200,42 @@ public final class MainActivity extends Activity {
         DvcRuntimeState state = repository == null
                 ? DvcRuntimeState.DEFAULT
                 : repository.loadDvcRuntimeState();
+        String status;
         switch (state.kind) {
             case ACTIVE:
-                return tr("DVC active", "DVC \u5df2\u542f\u7528");
+                status = tr("DVC active", "DVC \u5df2\u542f\u7528");
+                break;
             case BLUETOOTH_UNAVAILABLE:
-                return tr(
+                status = tr(
                         "Bluetooth: DVC unavailable. Bluetooth devices do not allow DVC.",
                         "\u84dd\u7259\uff1aDVC \u4e0d\u53ef\u7528\u3002\u84dd\u7259\u8bbe\u5907\u4e0d\u5141\u8bb8\u542f\u7528 DVC\u3002");
+                break;
             case USB_HARDWARE:
-                return tr("USB hardware DVC", "USB \u786c\u4ef6 DVC");
+                status = tr("USB hardware DVC", "USB \u786c\u4ef6 DVC");
+                break;
             case USB_DIGITAL_ONLY:
-                return tr(
+                status = tr(
                         "USB digital-only / fixed volume. System volume is not changed.",
                         "USB \u4ec5\u6570\u5b57 DVC / \u56fa\u5b9a\u97f3\u91cf\u3002\u4e0d\u4f1a\u4fee\u6539\u7cfb\u7edf\u97f3\u91cf\u3002");
+                break;
             case PROBE_FAILED:
-                return tr("DVC probe failed", "DVC \u80fd\u529b\u63a2\u6d4b\u5931\u8d25");
+                status = tr("DVC probe failed", "DVC \u80fd\u529b\u63a2\u6d4b\u5931\u8d25");
+                break;
             case ROUTE_UNAVAILABLE:
-                return tr("DVC unavailable on this output route", "\u5f53\u524d\u8f93\u51fa\u8def\u7531\u4e0d\u652f\u6301 DVC");
+                status = tr("DVC unavailable on this output route", "\u5f53\u524d\u8f93\u51fa\u8def\u7531\u4e0d\u652f\u6301 DVC");
+                break;
             case OFF:
             default:
-                return tr("DVC off", "DVC \u5df2\u5173\u95ed");
+                status = tr("DVC off", "DVC \u5df2\u5173\u95ed");
+                break;
         }
+        if (!state.detail.isEmpty()
+                && state.kind != DvcRuntimeState.Kind.OFF
+                && state.kind != DvcRuntimeState.Kind.BLUETOOTH_UNAVAILABLE
+                && state.kind != DvcRuntimeState.Kind.ROUTE_UNAVAILABLE) {
+            return status + "\n" + state.detail;
+        }
+        return status;
     }
 
     private String unusedAdvancedLabelText() {
