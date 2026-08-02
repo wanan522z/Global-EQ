@@ -47,6 +47,10 @@ final class AudioDeviceIdentity {
             case AudioDeviceInfo.TYPE_LINE_DIGITAL:
             case AudioDeviceInfo.TYPE_AUX_LINE:
                 return "Line out";
+            case AudioDeviceInfo.TYPE_HDMI:
+            case AudioDeviceInfo.TYPE_HDMI_ARC:
+            case AudioDeviceInfo.TYPE_HDMI_EARC:
+                return "HDMI";
             default:
                 return "Output " + type;
         }

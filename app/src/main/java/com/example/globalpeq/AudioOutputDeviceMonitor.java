@@ -529,6 +529,9 @@ final class AudioOutputDeviceMonitor {
             case AudioDeviceInfo.TYPE_LINE_ANALOG:
             case AudioDeviceInfo.TYPE_LINE_DIGITAL:
             case AudioDeviceInfo.TYPE_AUX_LINE:
+            case AudioDeviceInfo.TYPE_HDMI:
+            case AudioDeviceInfo.TYPE_HDMI_ARC:
+            case AudioDeviceInfo.TYPE_HDMI_EARC:
                 return true;
             default:
                 return false;
@@ -565,6 +568,9 @@ final class AudioOutputDeviceMonitor {
             case AudioDeviceInfo.TYPE_AUX_LINE:
             case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
             case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE:
+            case AudioDeviceInfo.TYPE_HDMI:
+            case AudioDeviceInfo.TYPE_HDMI_ARC:
+            case AudioDeviceInfo.TYPE_HDMI_EARC:
                 return true;
             default:
                 return false;
