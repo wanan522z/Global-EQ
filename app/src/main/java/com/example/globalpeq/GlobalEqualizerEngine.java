@@ -32,6 +32,7 @@ final class GlobalEqualizerEngine {
     private static final long ROUTE_REAPPLY_GUARD_MS = 350;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final PowerampDvcRawBridge dvcRawBridge = new PowerampDvcRawBridge();
     private DynamicsProcessing dynamicsProcessing;
     private DynamicsProcessing.Eq dynamicsPostEq;
     private int[] dynamicsBandCenterHz = new int[0];
@@ -243,7 +244,13 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyDvcLimiter(DynamicsProcessing.Limiter limiter) {
-        dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+        boolean rawApplied = dvcActive && dvcRawBridge.setLimiterAllChannels(
+                dynamicsProcessing,
+                DYNAMICS_CHANNEL_COUNT,
+                limiter);
+        if (!rawApplied) {
+            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+        }
         boolean expectedEnabled = limiter.isEnabled();
         float expectedThreshold = limiter.getThreshold();
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
@@ -262,7 +269,8 @@ final class GlobalEqualizerEngine {
                         "Limiter write rejected for channel " + channel);
             }
         }
-        Log.d(TAG, "DVC limiter enabled=" + expectedEnabled
+        Log.d(TAG, "DVC limiter path=" + (rawApplied ? "Poweramp raw" : "public API")
+                + " enabled=" + expectedEnabled
                 + " threshold=" + expectedThreshold + " dB");
     }
 
