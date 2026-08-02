@@ -24,8 +24,13 @@ final class PowerampVolumeEffect {
     private static final int CREATE_ATTEMPTS = 3;
 
     private final PowerampDvcRawBridge rawBridge = new PowerampDvcRawBridge();
+    private final Runnable controlLostCallback;
     private AudioEffect effect;
     private int appliedLevelMb;
+
+    PowerampVolumeEffect(Runnable controlLostCallback) {
+        this.controlLostCallback = controlLostCallback;
+    }
 
     boolean openMuted() {
         if (effect != null) {
@@ -38,6 +43,12 @@ final class PowerampVolumeEffect {
                         UUID.class, UUID.class, int.class, int.class);
                 candidate = constructor.newInstance(
                         TYPE, IMPLEMENTATION, PRIORITY, GLOBAL_AUDIO_SESSION);
+                candidate.setControlStatusListener((audioEffect, controlGranted) -> {
+                    if (!controlGranted && this.effect == audioEffect
+                            && this.controlLostCallback != null) {
+                        this.controlLostCallback.run();
+                    }
+                });
                 if (!candidate.hasControl()) {
                     release(candidate);
                     continue;

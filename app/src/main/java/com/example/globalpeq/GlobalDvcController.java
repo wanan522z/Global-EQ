@@ -35,7 +35,8 @@ final class GlobalDvcController {
     private AudioOutputDevice route = new AudioOutputDevice("none", "Output device");
     private DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(route);
     private DvcVolumeMapper.Curve curve;
-    private final PowerampVolumeEffect volumeEffect = new PowerampVolumeEffect();
+    private final PowerampVolumeEffect volumeEffect =
+            new PowerampVolumeEffect(this::handleVolumeEffectControlLost);
     private boolean mappingActive;
     private int initialVolumeIndex;
 
@@ -213,6 +214,19 @@ final class GlobalDvcController {
         engine.setDvcVolumeMapping(false, 0f);
         mappingActive = false;
         volumeEffect.releaseToUnity();
+    }
+
+    private void handleVolumeEffectControlLost() {
+        if (!mappingActive) {
+            return;
+        }
+        // Do not leave the DP compensation running after its matching attenuation stage has
+        // stopped being ours. Removing positive gain first is always the safe direction.
+        engine.setDvcVolumeMapping(false, 0f);
+        mappingActive = false;
+        volumeEffect.releaseToUnity();
+        publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
+                "Volume AudioEffect control was lost; DVC was disabled safely");
     }
 
     private void publish(DvcRuntimeState.Kind kind,
