@@ -197,16 +197,17 @@ final class GlobalEqualizerEngine {
     boolean supportsDvcGainStages() {
         return processingMode == ProcessingMode.GLOBAL_DSP
                 && dynamicsProcessing != null
-                && lastAppliedPreset != null
-                && lastAppliedPreset.enabled;
+                && ((lastAppliedPreset != null && lastAppliedPreset.enabled)
+                || (pendingPreset != null && pendingPreset.enabled));
     }
 
     private boolean applyDvcGainStagesIfReady() {
-        if (processingMode != ProcessingMode.GLOBAL_DSP
-                || dynamicsProcessing == null
-                || lastAppliedPreset == null
-                || !lastAppliedPreset.enabled) {
+        if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
             return dvcPreCompensationDb == 0f && dvcPostGainDb == 0f;
+        }
+        if (lastAppliedPreset == null || !lastAppliedPreset.enabled) {
+            // The staged apply path will consume the stored values after its zero-band arm.
+            return pendingPreset != null && pendingPreset.enabled;
         }
         try {
             float presetPregainDb = clamp(
