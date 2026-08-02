@@ -16,6 +16,12 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_CHANNEL_COUNT = 2;
     private static final int[] DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES = {32, 24, 16, 10};
     private static final int[] GLOBAL_DSP_BAND_COUNT_CANDIDATES = {128, 96, 64, 48, 32, 24, 16, 10};
+    // Poweramp rebuilds a separate high-resolution post-EQ bank when DVC is active. Keep the
+    // established GlobalDSP candidates as fallbacks so devices with smaller DP parameter blocks
+    // continue to work exactly as before.
+    private static final int[] DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES = {
+            300, 256, 128, 96, 64, 48, 32, 24, 16, 10
+    };
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
@@ -68,7 +74,9 @@ final class GlobalEqualizerEngine {
     private boolean startDynamicsProcessing() {
         RuntimeException lastFailure = null;
         int[] bandCountCandidates = processingMode == ProcessingMode.GLOBAL_DSP
-                ? GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                ? (dvcActive
+                ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                : GLOBAL_DSP_BAND_COUNT_CANDIDATES)
                 : DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES;
         for (int bandCount : bandCountCandidates) {
             DynamicsProcessing candidate = null;
@@ -158,7 +166,13 @@ final class GlobalEqualizerEngine {
         double maxHz = 20000.0;
         for (int band = 0; band < safeCount; band++) {
             double position = safeCount == 1 ? 0.0 : band / (double) (safeCount - 1);
-            frequencies[band] = (int) Math.round(minHz * Math.pow(maxHz / minHz, position));
+            int frequency = (int) Math.round(minHz * Math.pow(maxHz / minHz, position));
+            // A 300-band logarithmic grid has sub-Hz spacing at its lower edge. DP exposes
+            // integer-Hz cutoffs, so keep the grid strictly increasing instead of writing
+            // duplicate cutoff values that some vendors reject.
+            frequencies[band] = band == 0
+                    ? frequency
+                    : Math.max(frequencies[band - 1] + 1, frequency);
         }
         return frequencies;
     }
@@ -188,8 +202,9 @@ final class GlobalEqualizerEngine {
     }
 
     /**
-     * Maps AudioFlinger's downstream media-volume attenuation into limiter threshold headroom.
-     * Input gain and system volume are never changed by DVC.
+     * Rebuilds the GlobalDSP post-EQ bank on a DVC state transition and maps AudioFlinger's
+     * downstream media-volume attenuation into limiter threshold headroom. Input gain and system
+     * volume are never changed by DVC.
      */
     boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
@@ -214,9 +229,20 @@ final class GlobalEqualizerEngine {
         }
         boolean previousActive = dvcActive;
         float previousVolumeDb = dvcVolumeDb;
+        float nextVolumeDb = active ? clamp(requestedVolumeDb, -96f, 0f) : 0f;
+
+        if (active != previousActive) {
+            return rebuildDynamicsProcessingForDvc(
+                    active,
+                    nextVolumeDb,
+                    targetPreset,
+                    previousActive,
+                    previousVolumeDb);
+        }
+
         try {
             dvcActive = active;
-            dvcVolumeDb = active ? clamp(requestedVolumeDb, -96f, 0f) : 0f;
+            dvcVolumeDb = nextVolumeDb;
             DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
             dynamicsProcessing.setLimiterAllChannelsTo(limiter);
             float expectedThresholdDb = limiter.getThreshold();
@@ -245,6 +271,70 @@ final class GlobalEqualizerEngine {
             Log.w(TAG, "Failed to map global DVC limiter headroom", error);
             return false;
         }
+    }
+
+    private boolean rebuildDynamicsProcessingForDvc(boolean active,
+                                                    float volumeDb,
+                                                    Preset targetPreset,
+                                                    boolean previousActive,
+                                                    float previousVolumeDb) {
+        Preset savedPendingPreset = pendingPreset;
+        Preset savedLastAppliedPreset = lastAppliedPreset;
+        AdvancedModeConfig savedLastAppliedConfig = lastAppliedDynamicsConfig;
+
+        applyGeneration++;
+        handler.removeCallbacksAndMessages(null);
+        releaseDynamicsProcessing();
+        dvcActive = active;
+        dvcVolumeDb = volumeDb;
+        dynamicsProcessingUnavailable = false;
+
+        try {
+            if (!startDynamicsProcessing()) {
+                throw new IllegalStateException("No DynamicsProcessing configuration accepted");
+            }
+            pendingPreset = targetPreset;
+            applyDynamicsTargetLevels(targetPreset);
+            applySystemVirtualBass(targetPreset);
+            lastAppliedPreset = targetPreset;
+            lastAppliedDynamicsConfig = dynamicsConfig;
+            armedWithZeroBands = true;
+            targetApplyPending = false;
+            Log.i(TAG, "Rebuilt GlobalDSP DVC=" + active
+                    + " with " + dynamicsBandCenterHz.length + " post-EQ bands");
+            return true;
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline; restoring previous state", error);
+            releaseDynamicsProcessing();
+            dvcActive = previousActive;
+            dvcVolumeDb = previousVolumeDb;
+            dynamicsProcessingUnavailable = false;
+            pendingPreset = savedPendingPreset;
+            lastAppliedPreset = savedLastAppliedPreset;
+            lastAppliedDynamicsConfig = savedLastAppliedConfig;
+            try {
+                if (startDynamicsProcessing()) {
+                    Preset restorePreset = savedPendingPreset != null
+                            ? savedPendingPreset
+                            : savedLastAppliedPreset;
+                    if (restorePreset != null && restorePreset.enabled) {
+                        applyDynamicsTargetLevels(restorePreset);
+                        applySystemVirtualBass(restorePreset);
+                        armedWithZeroBands = true;
+                        targetApplyPending = false;
+                    }
+                }
+            } catch (RuntimeException restoreError) {
+                Log.e(TAG, "Could not restore the previous GlobalDSP pipeline", restoreError);
+                releaseDynamicsProcessing();
+                dynamicsProcessingUnavailable = true;
+            }
+            return false;
+        }
+    }
+
+    int getActiveDynamicsBandCount() {
+        return dynamicsProcessing == null ? 0 : dynamicsBandCenterHz.length;
     }
 
     private void applyAndVerifyInputGain(Preset preset) {

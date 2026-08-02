@@ -173,9 +173,11 @@ final class GlobalDvcController {
             return;
         }
         mappingActive = true;
+        int activeBandCount = engine.getActiveDynamicsBandCount();
         publish(kind, true, true,
                 "Downstream media-volume attenuation: " + displayedDownstreamDb + " dB\n"
                         + "DVC limiter headroom: " + displayedUsableDb + " dB\n"
+                        + "DVC post-EQ bank: " + activeBandCount + " bands\n"
                         + "System media volume is unchanged");
     }
 
