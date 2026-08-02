@@ -14,6 +14,12 @@ android {
         versionName "1.5.0"
         manifestPlaceholders = [appLabel: "Global PEQ"]
 
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=none"
+            }
+        }
+
     }
 
     buildTypes {
@@ -27,6 +33,15 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+
+    ndkVersion "28.2.13676358"
+
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+            version "3.22.1"
+        }
     }
 
 }
