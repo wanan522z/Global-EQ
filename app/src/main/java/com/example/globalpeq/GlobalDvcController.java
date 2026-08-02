@@ -134,6 +134,11 @@ final class GlobalDvcController {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true, curve.failure);
             return;
         }
+        if (!engine.supportsDvcGainStages()) {
+            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
+                    "DynamicsProcessing gain stages unavailable");
+            return;
+        }
         if (!ensureVolumeEffect()) {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
                     "Volume AudioEffect probe failed");
@@ -178,7 +183,12 @@ final class GlobalDvcController {
 
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {
         float compensationDb = curve == null ? 0f : curve.compensationDb();
-        applyCompensationSafely(compensationDb);
+        if (!applyCompensationSafely(compensationDb)) {
+            releaseVolumeEffect();
+            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true, 0f,
+                    "DynamicsProcessing gain mapping failed");
+            return;
+        }
         publish(kind, true, true, compensationDb,
                 "Volume curve mapped through DynamicsProcessing");
     }
@@ -189,20 +199,30 @@ final class GlobalDvcController {
         publish(kind, false, switchAvailable, 0f, detail);
     }
 
-    private void applyCompensationSafely(float nextCompensationDb) {
+    private boolean applyCompensationSafely(float nextCompensationDb) {
         float next = Float.isFinite(nextCompensationDb)
                 ? Math.max(0f, Math.min(96f, nextCompensationDb))
                 : 0f;
+        boolean success;
         if (next > appliedCompensationDb) {
             // Add the negative digital-volume stage before raising the DP input stage.
-            engine.setDvcPostGainDb(-next);
-            engine.setDvcPreCompensationDb(next);
+            success = engine.setDvcPostGainDb(-next);
+            success = engine.setDvcPreCompensationDb(next) && success;
         } else {
             // Remove/reduce the positive stage before relaxing the negative stage.
-            engine.setDvcPreCompensationDb(next);
-            engine.setDvcPostGainDb(-next);
+            success = engine.setDvcPreCompensationDb(next);
+            success = engine.setDvcPostGainDb(-next) && success;
+        }
+        if (!success && next > 0f) {
+            // Roll back in the same safe order. A partial failure can only make the signal
+            // quieter while the negative stage is still present.
+            engine.setDvcPreCompensationDb(0f);
+            engine.setDvcPostGainDb(0f);
+            appliedCompensationDb = 0f;
+            return false;
         }
         appliedCompensationDb = next;
+        return success;
     }
 
     private boolean ensureVolumeEffect() {

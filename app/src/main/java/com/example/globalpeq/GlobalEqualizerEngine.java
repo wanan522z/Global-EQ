@@ -184,22 +184,29 @@ final class GlobalEqualizerEngine {
         return createLimiter(dynamicsConfig, postGainDb);
     }
 
-    void setDvcPreCompensationDb(float compensationDb) {
+    boolean setDvcPreCompensationDb(float compensationDb) {
         dvcPreCompensationDb = sanitizeDvcGain(compensationDb, 0f, 96f);
-        applyDvcGainStagesIfReady();
+        return applyDvcGainStagesIfReady();
     }
 
-    void setDvcPostGainDb(float postGainDb) {
+    boolean setDvcPostGainDb(float postGainDb) {
         dvcPostGainDb = sanitizeDvcGain(postGainDb, -96f, 0f);
-        applyDvcGainStagesIfReady();
+        return applyDvcGainStagesIfReady();
     }
 
-    private void applyDvcGainStagesIfReady() {
+    boolean supportsDvcGainStages() {
+        return processingMode == ProcessingMode.GLOBAL_DSP
+                && dynamicsProcessing != null
+                && lastAppliedPreset != null
+                && lastAppliedPreset.enabled;
+    }
+
+    private boolean applyDvcGainStagesIfReady() {
         if (processingMode != ProcessingMode.GLOBAL_DSP
                 || dynamicsProcessing == null
                 || lastAppliedPreset == null
                 || !lastAppliedPreset.enabled) {
-            return;
+            return dvcPreCompensationDb == 0f && dvcPostGainDb == 0f;
         }
         try {
             float presetPregainDb = clamp(
@@ -208,8 +215,10 @@ final class GlobalEqualizerEngine {
                     DYNAMICS_MAX_LEVEL_MB / 100f);
             dynamicsProcessing.setInputGainAllChannelsTo(presetPregainDb + dvcPreCompensationDb);
             dynamicsProcessing.setLimiterAllChannelsTo(createConfiguredLimiter());
+            return true;
         } catch (RuntimeException error) {
             Log.w(TAG, "Failed to update DVC gain stages", error);
+            return false;
         }
     }
 
