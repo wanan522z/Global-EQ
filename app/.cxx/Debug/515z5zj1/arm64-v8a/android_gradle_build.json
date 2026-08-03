@@ -17,11 +17,11 @@
     "{LIST_OF_TARGETS_TO_BUILD}"
   ],
   "libraries": {
-    "globalpeq_probe::@6890427a1f51a3e7e1df": {
+    "globalpeq_dvc::@6890427a1f51a3e7e1df": {
       "toolchain": "toolchain",
       "abi": "arm64-v8a",
-      "artifactName": "globalpeq_probe",
-      "output": "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\build\\intermediates\\cxx\\Debug\\515z5zj1\\obj\\arm64-v8a\\libglobalpeq_probe.so",
+      "artifactName": "globalpeq_dvc",
+      "output": "C:\\Users\\31855\\Documents\\New project\\GlobalPEQ\\app\\build\\intermediates\\cxx\\Debug\\515z5zj1\\obj\\arm64-v8a\\libglobalpeq_dvc.so",
       "runtimeFiles": []
     }
   },

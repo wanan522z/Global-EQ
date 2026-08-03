@@ -843,7 +843,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "globalpeq_probe"
+			"value" : "globalpeq_dvc"
 		},
 		{
 			"name" : "CMAKE_RANLIB",

@@ -11,7 +11,7 @@
 # =============================================================================
 
 # =============================================================================
-# Project: globalpeq_probe
+# Project: globalpeq_dvc
 # Configurations: Debug
 # =============================================================================
 
@@ -41,40 +41,40 @@ include CMakeFiles/rules.ninja
 
 cmake_ninja_workdir = C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/.cxx/Debug/515z5zj1/arm64-v8a/
 # =============================================================================
-# Object build statements for SHARED_LIBRARY target globalpeq_probe
+# Object build statements for SHARED_LIBRARY target globalpeq_dvc
 
 
 #############################################
-# Order-only phony target for globalpeq_probe
+# Order-only phony target for globalpeq_dvc
 
-build cmake_object_order_depends_target_globalpeq_probe: phony || CMakeFiles/globalpeq_probe.dir
+build cmake_object_order_depends_target_globalpeq_dvc: phony || CMakeFiles/globalpeq_dvc.dir
 
-build CMakeFiles/globalpeq_probe.dir/dvc_probe_bridge.c.o: C_COMPILER__globalpeq_probe_Debug C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/src/main/cpp/dvc_probe_bridge.c || cmake_object_order_depends_target_globalpeq_probe
-  DEFINES = -Dglobalpeq_probe_EXPORTS
-  DEP_FILE = CMakeFiles\globalpeq_probe.dir\dvc_probe_bridge.c.o.d
+build CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o: C_COMPILER__globalpeq_dvc_Debug C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/src/main/cpp/dvc_raw_bridge.c || cmake_object_order_depends_target_globalpeq_dvc
+  DEFINES = -Dglobalpeq_dvc_EXPORTS
+  DEP_FILE = CMakeFiles\globalpeq_dvc.dir\dvc_raw_bridge.c.o.d
   FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -fno-limit-debug-info  -fPIC -Wall -Wextra -Werror
-  OBJECT_DIR = CMakeFiles\globalpeq_probe.dir
-  OBJECT_FILE_DIR = CMakeFiles\globalpeq_probe.dir
+  OBJECT_DIR = CMakeFiles\globalpeq_dvc.dir
+  OBJECT_FILE_DIR = CMakeFiles\globalpeq_dvc.dir
 
 
 # =============================================================================
-# Link build statements for SHARED_LIBRARY target globalpeq_probe
+# Link build statements for SHARED_LIBRARY target globalpeq_dvc
 
 
 #############################################
-# Link the shared library C:\Users\31855\Documents\New project\GlobalPEQ\app\build\intermediates\cxx\Debug\515z5zj1\obj\arm64-v8a\libglobalpeq_probe.so
+# Link the shared library C:\Users\31855\Documents\New project\GlobalPEQ\app\build\intermediates\cxx\Debug\515z5zj1\obj\arm64-v8a\libglobalpeq_dvc.so
 
-build C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_probe.so: C_SHARED_LIBRARY_LINKER__globalpeq_probe_Debug CMakeFiles/globalpeq_probe.dir/dvc_probe_bridge.c.o
+build C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so: C_SHARED_LIBRARY_LINKER__globalpeq_dvc_Debug CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o
   LANGUAGE_COMPILE_FLAGS = -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -fno-limit-debug-info
   LINK_FLAGS = -nostdlib++ -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments
   LINK_LIBRARIES = -latomic -lm
-  OBJECT_DIR = CMakeFiles\globalpeq_probe.dir
+  OBJECT_DIR = CMakeFiles\globalpeq_dvc.dir
   POST_BUILD = cd .
   PRE_LINK = cd .
-  SONAME = libglobalpeq_probe.so
+  SONAME = libglobalpeq_dvc.so
   SONAME_FLAG = -Wl,-soname,
-  TARGET_FILE = "C:\Users\31855\Documents\New project\GlobalPEQ\app\build\intermediates\cxx\Debug\515z5zj1\obj\arm64-v8a\libglobalpeq_probe.so"
-  TARGET_PDB = globalpeq_probe.so.dbg
+  TARGET_FILE = "C:\Users\31855\Documents\New project\GlobalPEQ\app\build\intermediates\cxx\Debug\515z5zj1\obj\arm64-v8a\libglobalpeq_dvc.so"
+  TARGET_PDB = globalpeq_dvc.so.dbg
 
 
 #############################################
@@ -102,9 +102,9 @@ build rebuild_cache: phony CMakeFiles/rebuild_cache.util
 # =============================================================================
 # Target aliases.
 
-build globalpeq_probe: phony C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_probe.so
+build globalpeq_dvc: phony C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so
 
-build libglobalpeq_probe.so: phony C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_probe.so
+build libglobalpeq_dvc.so: phony C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so
 
 # =============================================================================
 # Folder targets.
@@ -114,7 +114,7 @@ build libglobalpeq_probe.so: phony C$:/Users/31855/Documents/New$ project/Global
 #############################################
 # Folder: C:/Users/31855/Documents/New project/GlobalPEQ/app/.cxx/Debug/515z5zj1/arm64-v8a
 
-build all: phony C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_probe.so
+build all: phony C$:/Users/31855/Documents/New$ project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so
 
 # =============================================================================
 # Built-in targets

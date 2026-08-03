@@ -152,7 +152,7 @@ CMAKE_PROJECT_DESCRIPTION:STATIC=
 CMAKE_PROJECT_HOMEPAGE_URL:STATIC=
 
 //Value Computed by CMake
-CMAKE_PROJECT_NAME:STATIC=globalpeq_probe
+CMAKE_PROJECT_NAME:STATIC=globalpeq_dvc
 
 //Ranlib
 CMAKE_RANLIB:FILEPATH=C:/Users/31855/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-ranlib.exe
