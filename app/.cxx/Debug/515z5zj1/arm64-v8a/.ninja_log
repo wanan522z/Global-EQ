@@ -3,3 +3,5 @@
 161	418	8074000713077479	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
 1	283	8074075278643305	CMakeFiles/globalpeq_probe.dir/dvc_probe_bridge.c.o	397ae809adc90cfd
 284	786	8074075283540647	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_probe.so	10c2c2120b334b45
+7	143	8074481437801521	CMakeFiles/globalpeq_dvc.dir/dvc_raw_bridge.c.o	b44ddc0172774482
+144	1574	8074481452081441	C:/Users/31855/Documents/New project/GlobalPEQ/app/build/intermediates/cxx/Debug/515z5zj1/obj/arm64-v8a/libglobalpeq_dvc.so	7722699414e7e687
