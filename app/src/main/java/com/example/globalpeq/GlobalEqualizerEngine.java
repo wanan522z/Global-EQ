@@ -34,7 +34,7 @@ final class GlobalEqualizerEngine {
     private final PowerampDvcRawBridge dvcRawBridge = new PowerampDvcRawBridge();
     private DynamicsProcessing dynamicsProcessing;
     private DynamicsProcessing.Eq dynamicsPostEq;
-    private int[] dynamicsBandCenterHz = new int[0];
+    private float[] dynamicsBandCenterHz = new float[0];
     private boolean dynamicsProcessingUnavailable;
     private Equalizer equalizer;
     private BassBoost bassBoost;
@@ -100,7 +100,7 @@ final class GlobalEqualizerEngine {
                         GLOBAL_AUDIO_SESSION,
                         config);
                 DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(true, true, bandCount);
-                int[] centerFrequencies = createLogBandCenters(
+                float[] centerFrequencies = createLogBandCenters(
                         bandCount,
                         processingMode == ProcessingMode.GLOBAL_DSP && bandCount >= 48 ? 10.0 : 20.0);
                 for (int band = 0; band < bandCount; band++) {
@@ -169,19 +169,18 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    private static int[] createLogBandCenters(int bandCount, double minHz) {
+    private static float[] createLogBandCenters(int bandCount, double minHz) {
         int safeCount = Math.max(1, bandCount);
-        int[] frequencies = new int[safeCount];
+        float[] frequencies = new float[safeCount];
         double maxHz = 20000.0;
         for (int band = 0; band < safeCount; band++) {
             double position = safeCount == 1 ? 0.0 : band / (double) (safeCount - 1);
-            int frequency = (int) Math.round(minHz * Math.pow(maxHz / minHz, position));
-            // A 300-band logarithmic grid has sub-Hz spacing at its lower edge. DP exposes
-            // integer-Hz cutoffs, so keep the grid strictly increasing instead of writing
-            // duplicate cutoff values that some vendors reject.
+            float frequency = (float) (minHz * Math.pow(maxHz / minHz, position));
+            // EqBand cutoff is a float. Preserve the sub-Hz log spacing used by the 300-band DVC
+            // bank instead of quantizing the lowest octaves into a coarse integer-Hz staircase.
             frequencies[band] = band == 0
                     ? frequency
-                    : Math.max(frequencies[band - 1] + 1, frequency);
+                    : Math.max(Math.nextUp(frequencies[band - 1]), frequency);
         }
         return frequencies;
     }
@@ -595,7 +594,7 @@ final class GlobalEqualizerEngine {
         try {
             if (dynamicsProcessing != null) {
                 return band >= 0 && band < dynamicsBandCenterHz.length
-                        ? dynamicsBandCenterHz[band]
+                        ? Math.round(dynamicsBandCenterHz[band])
                         : 0;
             }
             return equalizer.getCenterFreq((short) band) / 1000;
@@ -840,11 +839,11 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    private int targetDynamicsLevelMb(int frequencyHz, Preset preset) {
+    private int targetDynamicsLevelMb(double frequencyHz, Preset preset) {
         if (preset == null) {
             return 0;
         }
-        int levelMb = PeqMath.gainAtHzMb(frequencyHz, preset) - preset.pregainMb;
+        int levelMb = PeqMath.gainAtFrequencyMb(frequencyHz, preset) - preset.pregainMb;
         if (preset.extraBassEnabled && preset.extraBassAmountPercent > 0) {
             int extraBassGainMb = Math.round(
                     preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
@@ -1023,7 +1022,7 @@ final class GlobalEqualizerEngine {
     private void releaseDynamicsProcessing() {
         if (dynamicsProcessing == null) {
             dynamicsPostEq = null;
-            dynamicsBandCenterHz = new int[0];
+            dynamicsBandCenterHz = new float[0];
             return;
         }
         try {
@@ -1033,7 +1032,7 @@ final class GlobalEqualizerEngine {
         } finally {
             dynamicsProcessing = null;
             dynamicsPostEq = null;
-            dynamicsBandCenterHz = new int[0];
+            dynamicsBandCenterHz = new float[0];
         }
     }
 
