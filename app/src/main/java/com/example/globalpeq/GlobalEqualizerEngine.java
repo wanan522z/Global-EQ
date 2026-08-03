@@ -8,6 +8,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
+import java.util.Locale;
+
 final class GlobalEqualizerEngine {
     private static final String TAG = "GlobalEqualizerEngine";
     private static final int GLOBAL_AUDIO_SESSION = 0;
@@ -360,6 +362,50 @@ final class GlobalEqualizerEngine {
 
     int getActiveDynamicsBandCount() {
         return dynamicsProcessing == null ? 0 : dynamicsBandCenterHz.length;
+    }
+
+    String describeDvcReadback() {
+        if (dynamicsProcessing == null) {
+            return "DVC readback: DynamicsProcessing unavailable";
+        }
+        try {
+            DynamicsProcessing.Eq appliedEq = dynamicsProcessing.getPostEqByChannelIndex(0);
+            int bandCount = appliedEq.getBandCount();
+            float firstCutoffHz = bandCount > 0
+                    ? appliedEq.getBand(0).getCutoffFrequency()
+                    : 0f;
+            float maxLowGainDb = -Float.MAX_VALUE;
+            float maxGainDb = -Float.MAX_VALUE;
+            for (int band = 0; band < bandCount; band++) {
+                DynamicsProcessing.EqBand appliedBand = appliedEq.getBand(band);
+                float gainDb = appliedBand.getGain();
+                maxGainDb = Math.max(maxGainDb, gainDb);
+                if (appliedBand.getCutoffFrequency() <= 80f) {
+                    maxLowGainDb = Math.max(maxLowGainDb, gainDb);
+                }
+            }
+            if (maxLowGainDb == -Float.MAX_VALUE) {
+                maxLowGainDb = 0f;
+            }
+            if (maxGainDb == -Float.MAX_VALUE) {
+                maxGainDb = 0f;
+            }
+            float inputGainDb = dynamicsProcessing.getInputGainByChannelIndex(0);
+            boolean limiterEnabled = dynamicsProcessing
+                    .getLimiterByChannelIndex(0)
+                    .isEnabled();
+            return String.format(
+                    Locale.US,
+                    "DVC readback: input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, first %.2f Hz, limiter %s",
+                    inputGainDb,
+                    maxLowGainDb,
+                    maxGainDb,
+                    firstCutoffHz,
+                    limiterEnabled ? "enabled" : "bypassed");
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Could not read back the DVC pipeline", error);
+            return "DVC readback: unavailable (" + error.getClass().getSimpleName() + ")";
+        }
     }
 
     private void applyAndVerifyInputGain(Preset preset) {

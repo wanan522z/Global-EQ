@@ -177,6 +177,7 @@ final class GlobalDvcController {
                         + "DVC post-EQ bank: " + activeBandCount + " full-range bands\n"
                         + "DVC limiter: bypassed\n"
                         + "Unsafe positive volume compensation: disabled\n"
+                        + engine.describeDvcReadback() + "\n"
                         + "System media volume is unchanged");
     }
 
