@@ -211,7 +211,8 @@ final class PresetRepository {
 
     synchronized void saveDvcRuntimeState(DvcRuntimeState state) {
         DvcRuntimeState safe = state == null ? DvcRuntimeState.DEFAULT : state;
-        prefs.edit().putString(DVC_RUNTIME_STATE, safe.toJson()).apply();
+        // DVC recovery depends on this value if the process exits while physical volume is locked.
+        prefs.edit().putString(DVC_RUNTIME_STATE, safe.toJson()).commit();
     }
 
     synchronized String loadMonitorCaptureStatus() {

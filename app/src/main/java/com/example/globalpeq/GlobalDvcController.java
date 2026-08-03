@@ -215,6 +215,8 @@ final class GlobalDvcController {
         // From this point the negative pre-EQ gain is verified. Raising the physical stream can
         // therefore preserve loudness but cannot produce the former unattenuated burst.
         mappingActive = true;
+        publish(kind, true, true,
+                "DVC arming: pre-EQ attenuation verified; system volume not raised yet");
         if (!forceSystemVolumeMax()) {
             deactivateEngineMapping();
             publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,

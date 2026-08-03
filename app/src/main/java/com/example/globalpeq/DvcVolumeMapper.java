@@ -95,8 +95,13 @@ final class DvcVolumeMapper {
         }
         try {
             float value = readDb(audioManager, index, deviceType);
+            int maxIndex = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            float maxValue = readDb(audioManager, maxIndex, deviceType);
             if (Float.isFinite(value)) {
-                return clamp(value, -96f, 0f);
+                if (!Float.isFinite(maxValue)) {
+                    return Float.NaN;
+                }
+                return clamp(value - maxValue, -96f, 0f);
             }
             return value == Float.NEGATIVE_INFINITY ? -96f : Float.NaN;
         } catch (RuntimeException ignored) {
