@@ -370,7 +370,7 @@ final class GlobalEqualizerEngine {
         }
         try {
             DynamicsProcessing.Eq appliedEq = dynamicsProcessing.getPostEqByChannelIndex(0);
-            int bandCount = appliedEq.getBandCount();
+            int bandCount = dynamicsBandCenterHz.length;
             float firstCutoffHz = bandCount > 0
                     ? appliedEq.getBand(0).getCutoffFrequency()
                     : 0f;
