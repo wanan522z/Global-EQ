@@ -91,13 +91,16 @@ final class DvcVolumeMapper {
                                   int index,
                                   int deviceType) {
         if (audioManager == null) {
-            return 0f;
+            return Float.NaN;
         }
         try {
             float value = readDb(audioManager, index, deviceType);
-            return Float.isFinite(value) ? clamp(value, -96f, 0f) : -96f;
+            if (Float.isFinite(value)) {
+                return clamp(value, -96f, 0f);
+            }
+            return value == Float.NEGATIVE_INFINITY ? -96f : Float.NaN;
         } catch (RuntimeException ignored) {
-            return 0f;
+            return Float.NaN;
         }
     }
 
