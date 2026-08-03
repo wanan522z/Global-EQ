@@ -87,6 +87,20 @@ final class DvcVolumeMapper {
         }
     }
 
+    static float volumeDbForIndex(AudioManager audioManager,
+                                  int index,
+                                  int deviceType) {
+        if (audioManager == null) {
+            return 0f;
+        }
+        try {
+            float value = readDb(audioManager, index, deviceType);
+            return Float.isFinite(value) ? clamp(value, -96f, 0f) : -96f;
+        } catch (RuntimeException ignored) {
+            return 0f;
+        }
+    }
+
     private static float readDb(AudioManager audioManager, int index, int deviceType) {
         return audioManager.getStreamVolumeDb(AudioManager.STREAM_MUSIC, index, deviceType);
     }
