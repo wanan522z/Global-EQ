@@ -190,8 +190,9 @@ final class GlobalDvcController {
         int targetIndex = physicalIndex == curve.maxIndex - 1
                 ? virtualVolumeIndex - 1
                 : physicalIndex;
-        if (setVirtualVolumeIndex(targetIndex)) {
-            forceSystemVolumeMax();
+        if (setVirtualVolumeIndex(targetIndex) && !forceSystemVolumeMax()) {
+            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
+                    "DVC lost control of system media volume");
         }
     }
 
