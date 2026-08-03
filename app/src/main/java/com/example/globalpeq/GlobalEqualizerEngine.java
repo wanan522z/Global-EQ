@@ -395,7 +395,7 @@ final class GlobalEqualizerEngine {
         float targetGainDb = clamp(
                 presetPregainDb(preset) + compensationDb,
                 DYNAMICS_MIN_LEVEL_MB / 100f,
-                DvcVolumeMapper.MAX_COMPENSATION_DB + Preset.MAX_PREGAIN_MB / 100f);
+                DvcVolumeMapper.MAX_COMPENSATION_DB + 12f);
         boolean rawApplied = dvcActive && dvcRawBridge.setInputGainAllChannels(
                 dynamicsProcessing,
                 DYNAMICS_CHANNEL_COUNT,
