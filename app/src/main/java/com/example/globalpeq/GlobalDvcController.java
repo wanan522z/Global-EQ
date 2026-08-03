@@ -5,6 +5,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
+import android.media.VolumeProvider;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Build;
 
 final class GlobalDvcController {
@@ -23,7 +26,7 @@ final class GlobalDvcController {
             }
             int stream = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, AudioManager.STREAM_MUSIC);
             if (stream == AudioManager.STREAM_MUSIC) {
-                refreshVolumeMapping();
+                handlePhysicalVolumeChanged();
             }
         }
     };
@@ -37,6 +40,10 @@ final class GlobalDvcController {
     private DvcVolumeMapper.Curve curve;
     private boolean mappingActive;
     private int initialVolumeIndex;
+    private int virtualVolumeIndex;
+    private int lastAudibleVolumeIndex;
+    private MediaSession volumeSession;
+    private VolumeProvider volumeProvider;
 
     GlobalDvcController(Context context,
                         GlobalEqualizerEngine engine,
@@ -104,11 +111,17 @@ final class GlobalDvcController {
             return;
         }
 
-        boolean startingNewDvcSession = !mappingActive;
-        curve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
-        if (startingNewDvcSession) {
-            initialVolumeIndex = curve.currentIndex;
+        if (mappingActive) {
+            publishActiveState(routeDecision.isUsb()
+                    ? DvcRuntimeState.Kind.USB_HARDWARE
+                    : DvcRuntimeState.Kind.ACTIVE);
+            return;
         }
+
+        curve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
+        initialVolumeIndex = curve.currentIndex;
+        virtualVolumeIndex = curve.currentIndex;
+        lastAudibleVolumeIndex = curve.currentIndex;
         if (routeDecision.isUsb() && (curve.fixedVolume || !curve.meaningful)) {
             deactivate(DvcRuntimeState.Kind.USB_DIGITAL_ONLY, true,
                     curve.failure.isEmpty() ? "USB fixed hardware volume" : curve.failure);
@@ -123,7 +136,7 @@ final class GlobalDvcController {
                     "Global DynamicsProcessing volume-control path is unavailable");
             return;
         }
-        applyMappedCurve(routeDecision.isUsb()
+        activateMappedVolume(routeDecision.isUsb()
                 ? DvcRuntimeState.Kind.USB_HARDWARE
                 : DvcRuntimeState.Kind.ACTIVE);
     }
@@ -139,46 +152,107 @@ final class GlobalDvcController {
         deactivate(DvcRuntimeState.Kind.OFF, true, "DVC is off");
     }
 
-    private void refreshVolumeMapping() {
+    private void handlePhysicalVolumeChanged() {
         if (!started || mode != ProcessingMode.GLOBAL_DSP || !presetEnabled
                 || !userIntentEnabled || !routeDecision.allowsDvc || !mappingActive) {
             return;
         }
-        DvcVolumeMapper.Curve nextCurve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
-        if (!nextCurve.meaningful) {
-            curve = nextCurve;
-            deactivate(routeDecision.isUsb()
-                            ? DvcRuntimeState.Kind.USB_DIGITAL_ONLY
-                            : DvcRuntimeState.Kind.PROBE_FAILED,
-                    true,
-                    nextCurve.failure);
+        int physicalIndex;
+        try {
+            physicalIndex = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+        } catch (RuntimeException error) {
+            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
+                    "Could not read system media volume");
             return;
         }
-        curve = nextCurve;
-        applyMappedCurve(routeDecision.isUsb()
-                ? DvcRuntimeState.Kind.USB_HARDWARE
-                : DvcRuntimeState.Kind.ACTIVE);
+        if (curve == null || physicalIndex == curve.maxIndex) {
+            return;
+        }
+
+        // Fallback for ROMs that deliver hardware volume keys to STREAM_MUSIC instead of the
+        // active VolumeProvider. A down key moves max to max-1; apply one virtual step and put the
+        // physical stream back at max only after the new pre-EQ attenuation is installed.
+        int targetIndex = physicalIndex == curve.maxIndex - 1
+                ? virtualVolumeIndex - 1
+                : physicalIndex;
+        if (setVirtualVolumeIndex(targetIndex)) {
+            forceSystemVolumeMax();
+        }
     }
 
-    private void applyMappedCurve(DvcRuntimeState.Kind kind) {
-        float downstreamDb = curve == null ? 0f : curve.headroomDb();
-        float displayedDownstreamDb = Math.round(downstreamDb * 10f) / 10f;
-        boolean applied = engine.setDvcModeEnabled(true);
-        if (!applied) {
+    private void activateMappedVolume(DvcRuntimeState.Kind kind) {
+        float volumeDb = virtualVolumeDb();
+        if (!engine.setDvcVolumeMapping(true, volumeDb)) {
             deactivateEngineMapping();
             publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                    "DVC pipeline switch failed safely");
+                    "DVC pre-EQ volume mapping was rejected");
             return;
         }
+
+        if (!startVolumeSession()) {
+            deactivateEngineMapping();
+            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
+                    "DVC could not take ownership of media volume keys");
+            return;
+        }
+
+        // From this point the negative pre-EQ gain is verified. Raising the physical stream can
+        // therefore preserve loudness but cannot produce the former unattenuated burst.
         mappingActive = true;
+        if (!forceSystemVolumeMax()) {
+            deactivateEngineMapping();
+            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
+                    "DVC could not lock system media volume at maximum");
+            return;
+        }
+        publishActiveState(kind);
+    }
+
+    private boolean setVirtualVolumeIndex(int requestedIndex) {
+        if (!mappingActive || curve == null) {
+            return false;
+        }
+        int targetIndex = Math.max(curve.minIndex, Math.min(curve.maxIndex, requestedIndex));
+        float targetDb = DvcVolumeMapper.volumeDbForIndex(
+                audioManager,
+                targetIndex,
+                routeDecision.deviceType);
+        if (!engine.setDvcVolumeMapping(true, targetDb)) {
+            return false;
+        }
+        virtualVolumeIndex = targetIndex;
+        if (targetIndex > curve.minIndex) {
+            lastAudibleVolumeIndex = targetIndex;
+        }
+        if (volumeProvider != null) {
+            volumeProvider.setCurrentVolume(targetIndex - curve.minIndex);
+        }
+        publishActiveState(routeDecision.isUsb()
+                ? DvcRuntimeState.Kind.USB_HARDWARE
+                : DvcRuntimeState.Kind.ACTIVE);
+        return true;
+    }
+
+    private float virtualVolumeDb() {
+        return curve == null
+                ? 0f
+                : DvcVolumeMapper.volumeDbForIndex(
+                        audioManager,
+                        virtualVolumeIndex,
+                        routeDecision.deviceType);
+    }
+
+    private void publishActiveState(DvcRuntimeState.Kind kind) {
+        float volumeDb = virtualVolumeDb();
+        float displayedAttenuationDb = Math.round(Math.max(0f, -volumeDb) * 10f) / 10f;
         int activeBandCount = engine.getActiveDynamicsBandCount();
         publish(kind, true, true,
-                "Downstream media-volume attenuation: " + displayedDownstreamDb + " dB\n"
+                "DVC virtual media attenuation: " + displayedAttenuationDb + " dB\n"
+                        + "System media volume: locked at maximum\n"
                         + "DVC post-EQ bank: " + activeBandCount + " full-range bands\n"
                         + "DVC limiter: bypassed\n"
-                        + "Unsafe positive volume compensation: disabled\n"
                         + engine.describeDvcReadback() + "\n"
-                        + "System media volume is unchanged");
+                        + "Volume keys control pre-EQ virtual volume");
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
@@ -187,8 +261,100 @@ final class GlobalDvcController {
     }
 
     private void deactivateEngineMapping() {
-        engine.setDvcModeEnabled(false);
+        boolean wasActive = mappingActive;
         mappingActive = false;
+        if (wasActive && curve != null) {
+            setPhysicalVolume(virtualVolumeIndex);
+        }
+        // Restore downstream attenuation before removing the matching pre-EQ attenuation.
+        engine.setDvcVolumeMapping(false, 0f);
+        releaseVolumeSession();
+    }
+
+    private boolean forceSystemVolumeMax() {
+        if (curve == null || !setPhysicalVolume(curve.maxIndex)) {
+            return false;
+        }
+        try {
+            return audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) == curve.maxIndex;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    private boolean setPhysicalVolume(int index) {
+        try {
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, index, 0);
+            return true;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    private boolean startVolumeSession() {
+        if (curve == null) {
+            return false;
+        }
+        releaseVolumeSession();
+        try {
+            int range = Math.max(1, curve.maxIndex - curve.minIndex);
+            volumeProvider = new VolumeProvider(
+                    VolumeProvider.VOLUME_CONTROL_ABSOLUTE,
+                    range,
+                    virtualVolumeIndex - curve.minIndex) {
+                @Override
+                public void onAdjustVolume(int direction) {
+                    if (!mappingActive || curve == null) {
+                        return;
+                    }
+                    if (direction == AudioManager.ADJUST_RAISE) {
+                        setVirtualVolumeIndex(virtualVolumeIndex + 1);
+                    } else if (direction == AudioManager.ADJUST_LOWER) {
+                        setVirtualVolumeIndex(virtualVolumeIndex - 1);
+                    } else if (direction == AudioManager.ADJUST_MUTE) {
+                        setVirtualVolumeIndex(curve.minIndex);
+                    } else if (direction == AudioManager.ADJUST_UNMUTE) {
+                        setVirtualVolumeIndex(Math.max(curve.minIndex + 1,
+                                lastAudibleVolumeIndex));
+                    } else if (direction == AudioManager.ADJUST_TOGGLE_MUTE) {
+                        setVirtualVolumeIndex(virtualVolumeIndex <= curve.minIndex
+                                ? Math.max(curve.minIndex + 1, lastAudibleVolumeIndex)
+                                : curve.minIndex);
+                    }
+                }
+
+                @Override
+                public void onSetVolumeTo(int volume) {
+                    if (mappingActive && curve != null) {
+                        setVirtualVolumeIndex(curve.minIndex + volume);
+                    }
+                }
+            };
+            volumeSession = new MediaSession(appContext, "GlobalPEQ-DVC");
+            volumeSession.setPlaybackToRemote(volumeProvider);
+            volumeSession.setPlaybackState(new PlaybackState.Builder()
+                    .setState(PlaybackState.STATE_PLAYING, 0L, 1f)
+                    .build());
+            volumeSession.setActive(true);
+            return true;
+        } catch (RuntimeException error) {
+            releaseVolumeSession();
+            return false;
+        }
+    }
+
+    private void releaseVolumeSession() {
+        MediaSession currentSession = volumeSession;
+        volumeSession = null;
+        volumeProvider = null;
+        if (currentSession == null) {
+            return;
+        }
+        try {
+            currentSession.setActive(false);
+            currentSession.release();
+        } catch (RuntimeException ignored) {
+        }
     }
 
     private void publish(DvcRuntimeState.Kind kind,
@@ -203,7 +369,7 @@ final class GlobalDvcController {
                 route == null ? "" : route.key,
                 route == null ? "" : route.label,
                 initialVolumeIndex,
-                currentCurve == null ? 0 : currentCurve.currentIndex,
+                currentCurve == null ? 0 : virtualVolumeIndex,
                 currentCurve == null ? 0 : currentCurve.minIndex,
                 currentCurve == null ? 0 : currentCurve.maxIndex,
                 detail));
