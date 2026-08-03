@@ -645,7 +645,7 @@ final class GlobalEqualizerEngine {
         }
         if (dynamicsProcessing != null) {
             for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-                int centerHz = dynamicsBandCenterHz[band];
+                float centerHz = dynamicsBandCenterHz[band];
                 int beforeLevel = targetDynamicsLevelMb(centerHz, before);
                 int afterLevel = targetDynamicsLevelMb(centerHz, after);
                 if (afterLevel > 0 && afterLevel > beforeLevel) {
@@ -872,7 +872,7 @@ final class GlobalEqualizerEngine {
     private int activeBandCenterHz(int band) {
         if (dynamicsProcessing != null) {
             return band >= 0 && band < dynamicsBandCenterHz.length
-                    ? dynamicsBandCenterHz[band]
+                    ? Math.round(dynamicsBandCenterHz[band])
                     : 0;
         }
         if (equalizer == null || band < 0 || band >= equalizer.getNumberOfBands()) {
