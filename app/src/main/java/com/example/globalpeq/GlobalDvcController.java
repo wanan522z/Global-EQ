@@ -349,6 +349,8 @@ final class GlobalDvcController {
                 }
             };
             volumeSession = new MediaSession(appContext, "GlobalPEQ-DVC");
+            volumeSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS
+                    | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
             volumeSession.setPlaybackToRemote(volumeProvider);
             volumeSession.setPlaybackState(new PlaybackState.Builder()
                     .setState(PlaybackState.STATE_PLAYING, 0L, 1f)
