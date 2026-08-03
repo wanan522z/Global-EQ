@@ -31,7 +31,6 @@ final class GlobalEqualizerEngine {
     private static final long ROUTE_REAPPLY_GUARD_MS = 350;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final PowerampDvcRawBridge dvcRawBridge = new PowerampDvcRawBridge();
     private DynamicsProcessing dynamicsProcessing;
     private DynamicsProcessing.Eq dynamicsPostEq;
     private float[] dynamicsBandCenterHz = new float[0];
@@ -51,7 +50,6 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
-    private float dvcCompensationDb;
 
     private enum ApplyStrategy {
         AUTO,
@@ -219,16 +217,11 @@ final class GlobalEqualizerEngine {
         return processingMode == ProcessingMode.GLOBAL_DSP && dynamicsProcessing != null;
     }
 
-    /**
-     * Rebuilds the GlobalDSP post-EQ bank on a DVC state transition and applies the positive half
-     * of the DVC gain pair. GlobalDvcController installs the matching negative Volume-effect stage
-     * before positive compensation is allowed here.
-     */
-    boolean setDvcVolumeMapping(boolean active, float requestedCompensationDb) {
+    /** Rebuilds the GlobalDSP post-EQ bank when the safe DVC processing mode changes. */
+    boolean setDvcModeEnabled(boolean active) {
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
             if (!active) {
                 dvcActive = false;
-                dvcCompensationDb = 0f;
                 return true;
             }
             return false;
@@ -237,34 +230,21 @@ final class GlobalEqualizerEngine {
         if (targetPreset == null || !targetPreset.enabled) {
             if (!active) {
                 dvcActive = false;
-                dvcCompensationDb = 0f;
                 return true;
             }
             return false;
         }
-        if (active && (!Float.isFinite(requestedCompensationDb)
-                || requestedCompensationDb < 0f
-                || requestedCompensationDb > DvcVolumeMapper.MAX_COMPENSATION_DB)) {
-            return false;
-        }
         boolean previousActive = dvcActive;
-        float previousCompensationDb = dvcCompensationDb;
-        float nextCompensationDb = active
-                ? clamp(requestedCompensationDb, 0f, DvcVolumeMapper.MAX_COMPENSATION_DB)
-                : 0f;
 
         if (active != previousActive) {
             return rebuildDynamicsProcessingForDvc(
                     active,
-                    nextCompensationDb,
                     targetPreset,
-                    previousActive,
-                    previousCompensationDb);
+                    previousActive);
         }
 
         try {
             dvcActive = active;
-            dvcCompensationDb = nextCompensationDb;
             DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
             dynamicsProcessing.setLimiterAllChannelsTo(limiter);
             applyAndVerifyInputGain(targetPreset);
@@ -284,28 +264,23 @@ final class GlobalEqualizerEngine {
                             "DVC limiter bypass rejected for channel " + channel);
                 }
             }
-            Log.d(TAG, active
-                    ? "Global DVC compensation=" + dvcCompensationDb + " dB"
-                    : "Global DVC off");
+            Log.d(TAG, active ? "Safe Global DVC mode on" : "Global DVC off");
             return true;
         } catch (RuntimeException error) {
             dvcActive = previousActive;
-            dvcCompensationDb = previousCompensationDb;
             try {
                 dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
                 applyAndVerifyInputGain(targetPreset);
             } catch (RuntimeException ignored) {
             }
-            Log.w(TAG, "Failed to map global DVC limiter headroom", error);
+            Log.w(TAG, "Failed to switch the safe global DVC pipeline", error);
             return false;
         }
     }
 
     private boolean rebuildDynamicsProcessingForDvc(boolean active,
-                                                    float compensationDb,
                                                     Preset targetPreset,
-                                                    boolean previousActive,
-                                                    float previousCompensationDb) {
+                                                    boolean previousActive) {
         Preset savedPendingPreset = pendingPreset;
         Preset savedLastAppliedPreset = lastAppliedPreset;
         AdvancedModeConfig savedLastAppliedConfig = lastAppliedDynamicsConfig;
@@ -314,7 +289,6 @@ final class GlobalEqualizerEngine {
         handler.removeCallbacksAndMessages(null);
         releaseDynamicsProcessing();
         dvcActive = active;
-        dvcCompensationDb = compensationDb;
         dynamicsProcessingUnavailable = false;
 
         try {
@@ -335,7 +309,6 @@ final class GlobalEqualizerEngine {
             Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline; restoring previous state", error);
             releaseDynamicsProcessing();
             dvcActive = previousActive;
-            dvcCompensationDb = previousCompensationDb;
             dynamicsProcessingUnavailable = false;
             pendingPreset = savedPendingPreset;
             lastAppliedPreset = savedLastAppliedPreset;
@@ -390,18 +363,11 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyInputGain(Preset preset) {
-        float compensationDb = dvcActive ? dvcCompensationDb : 0f;
         float targetGainDb = clamp(
-                presetPregainDb(preset) + compensationDb,
+                presetPregainDb(preset),
                 DYNAMICS_MIN_LEVEL_MB / 100f,
-                DvcVolumeMapper.MAX_COMPENSATION_DB + 12f);
-        boolean rawApplied = dvcActive && dvcRawBridge.setInputGainAllChannels(
-                dynamicsProcessing,
-                DYNAMICS_CHANNEL_COUNT,
-                targetGainDb);
-        if (!rawApplied) {
-            dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
-        }
+                DYNAMICS_MAX_LEVEL_MB / 100f);
+        dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
             float appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
             if (Math.abs(appliedGainDb - targetGainDb) >= 0.1f) {
@@ -413,8 +379,7 @@ final class GlobalEqualizerEngine {
                         "DVC input-gain write rejected for channel " + channel);
             }
         }
-        Log.d(TAG, "GlobalDSP input gain=" + targetGainDb + " dB path="
-                + (rawApplied ? "raw" : "public"));
+        Log.d(TAG, "GlobalDSP input gain=" + targetGainDb + " dB");
     }
 
     private static float presetPregainDb(Preset preset) {
@@ -1059,6 +1024,5 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
-        dvcCompensationDb = 0f;
     }
 }
