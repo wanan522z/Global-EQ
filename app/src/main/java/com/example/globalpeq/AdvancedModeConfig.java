@@ -9,9 +9,9 @@ import java.util.Collections;
 import java.util.List;
 
 final class AdvancedModeConfig {
-    // Older versions could persist unsafe experimental DVC implementations. Never migrate their
-    // enabled bit into the volume-to-limiter mapping: the user must explicitly opt in again.
-    private static final int TRUE_DVC_CONFIG_VERSION = 4;
+    // Version 5 is the first build where DVC intentionally owns system media volume. Require a
+    // fresh opt-in instead of silently carrying the old non-owning switch across an upgrade.
+    private static final int TRUE_DVC_CONFIG_VERSION = 5;
     static final AdvancedModeConfig DEFAULT = new AdvancedModeConfig(
             "",
             "",
