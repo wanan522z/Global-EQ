@@ -16,6 +16,9 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_CHANNEL_COUNT = 2;
     private static final int[] DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES = {32, 24, 16, 10};
     private static final int[] GLOBAL_DSP_BAND_COUNT_CANDIDATES = {128, 96, 64, 48, 32, 24, 16, 10};
+    private static final int[] DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES = {
+            300, 256, 128, 96, 64, 48, 32, 24, 16, 10
+    };
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
@@ -28,6 +31,7 @@ final class GlobalEqualizerEngine {
     private static final long ROUTE_REAPPLY_GUARD_MS = 350;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final PowerampDvcRawBridge dvcRawBridge = new PowerampDvcRawBridge();
     private DynamicsProcessing dynamicsProcessing;
     private DynamicsProcessing.Eq dynamicsPostEq;
     private int[] dynamicsBandCenterHz = new int[0];
@@ -47,7 +51,7 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
-    private float dvcVolumeDb;
+    private float dvcCompensationDb;
 
     private enum ApplyStrategy {
         AUTO,
@@ -67,7 +71,9 @@ final class GlobalEqualizerEngine {
 
     private boolean startDynamicsProcessing() {
         int[] bandCountCandidates = processingMode == ProcessingMode.GLOBAL_DSP
-                ? GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                ? (dvcActive
+                ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                : GLOBAL_DSP_BAND_COUNT_CANDIDATES)
                 : DEFAULT_DYNAMICS_BAND_COUNT_CANDIDATES;
         return startDynamicsProcessing(bandCountCandidates, true);
     }
@@ -185,15 +191,10 @@ final class GlobalEqualizerEngine {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
         float normalThresholdDb = (float) (20.0 * Math.log10(ceiling));
-        float dvcHeadroomDb = dvcActive
-                ? Math.max(0f, -dvcVolumeDb - DvcVolumeMapper.SAFETY_MARGIN_DB)
-                : 0f;
-        float thresholdDb = normalThresholdDb + dvcHeadroomDb;
         if (dvcActive) {
-            // Poweramp Equalizer's measured session-0 DVC path keeps the limiter stage in use but
-            // disabled (attack 0 ms, release 75 ms, ratio 50) and lets downstream media-volume
-            // attenuation provide the headroom for post-EQ output above 0 dBFS. Merely raising an
-            // enabled limiter threshold does not produce the same path on this device.
+            // The matching Volume effect is the post-DP attenuation stage. Keeping this limiter
+            // disabled lets boosted low-frequency samples reach that stage without being flattened
+            // first, which is the essential difference between DVC and ordinary limiter headroom.
             return new DynamicsProcessing.Limiter(
                     true,
                     false,
@@ -201,7 +202,7 @@ final class GlobalEqualizerEngine {
                     0f,
                     75f,
                     50f,
-                    thresholdDb,
+                    normalThresholdDb,
                     postGainDb);
         }
         return new DynamicsProcessing.Limiter(
@@ -211,7 +212,7 @@ final class GlobalEqualizerEngine {
                 DYNAMICS_LIMITER_ATTACK_MS,
                 safeConfig.limiterReleaseMs,
                 DYNAMICS_LIMITER_RATIO,
-                thresholdDb,
+                normalThresholdDb,
                 postGainDb);
     }
 
@@ -220,15 +221,15 @@ final class GlobalEqualizerEngine {
     }
 
     /**
-     * Rebuilds the GlobalDSP post-EQ bank on a DVC state transition and maps AudioFlinger's
-     * downstream media-volume attenuation into limiter threshold headroom. Input gain and system
-     * volume are never changed by DVC.
+     * Rebuilds the GlobalDSP post-EQ bank on a DVC state transition and applies the positive half
+     * of the DVC gain pair. GlobalDvcController installs the matching negative Volume-effect stage
+     * before positive compensation is allowed here.
      */
-    boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
+    boolean setDvcVolumeMapping(boolean active, float requestedCompensationDb) {
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
             if (!active) {
                 dvcActive = false;
-                dvcVolumeDb = 0f;
+                dvcCompensationDb = 0f;
                 return true;
             }
             return false;
@@ -237,32 +238,37 @@ final class GlobalEqualizerEngine {
         if (targetPreset == null || !targetPreset.enabled) {
             if (!active) {
                 dvcActive = false;
-                dvcVolumeDb = 0f;
+                dvcCompensationDb = 0f;
                 return true;
             }
             return false;
         }
-        if (active && (!Float.isFinite(requestedVolumeDb) || requestedVolumeDb > 0.5f)) {
+        if (active && (!Float.isFinite(requestedCompensationDb)
+                || requestedCompensationDb < 0f
+                || requestedCompensationDb > DvcVolumeMapper.MAX_COMPENSATION_DB)) {
             return false;
         }
         boolean previousActive = dvcActive;
-        float previousVolumeDb = dvcVolumeDb;
-        float nextVolumeDb = active ? clamp(requestedVolumeDb, -96f, 0f) : 0f;
+        float previousCompensationDb = dvcCompensationDb;
+        float nextCompensationDb = active
+                ? clamp(requestedCompensationDb, 0f, DvcVolumeMapper.MAX_COMPENSATION_DB)
+                : 0f;
 
         if (active != previousActive) {
             return rebuildDynamicsProcessingForDvc(
                     active,
-                    nextVolumeDb,
+                    nextCompensationDb,
                     targetPreset,
                     previousActive,
-                    previousVolumeDb);
+                    previousCompensationDb);
         }
 
         try {
             dvcActive = active;
-            dvcVolumeDb = nextVolumeDb;
+            dvcCompensationDb = nextCompensationDb;
             DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
             dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+            applyAndVerifyInputGain(targetPreset);
             float expectedThresholdDb = limiter.getThreshold();
             for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
                 float actualThresholdDb = dynamicsProcessing
@@ -280,16 +286,15 @@ final class GlobalEqualizerEngine {
                 }
             }
             Log.d(TAG, active
-                    ? "Global DVC volumeDb=" + dvcVolumeDb
-                    + " limiterHeadroomDb="
-                    + Math.max(0f, -dvcVolumeDb - DvcVolumeMapper.SAFETY_MARGIN_DB)
+                    ? "Global DVC compensation=" + dvcCompensationDb + " dB"
                     : "Global DVC off");
             return true;
         } catch (RuntimeException error) {
             dvcActive = previousActive;
-            dvcVolumeDb = previousVolumeDb;
+            dvcCompensationDb = previousCompensationDb;
             try {
                 dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+                applyAndVerifyInputGain(targetPreset);
             } catch (RuntimeException ignored) {
             }
             Log.w(TAG, "Failed to map global DVC limiter headroom", error);
@@ -298,10 +303,10 @@ final class GlobalEqualizerEngine {
     }
 
     private boolean rebuildDynamicsProcessingForDvc(boolean active,
-                                                    float volumeDb,
+                                                    float compensationDb,
                                                     Preset targetPreset,
                                                     boolean previousActive,
-                                                    float previousVolumeDb) {
+                                                    float previousCompensationDb) {
         Preset savedPendingPreset = pendingPreset;
         Preset savedLastAppliedPreset = lastAppliedPreset;
         AdvancedModeConfig savedLastAppliedConfig = lastAppliedDynamicsConfig;
@@ -310,11 +315,13 @@ final class GlobalEqualizerEngine {
         handler.removeCallbacksAndMessages(null);
         releaseDynamicsProcessing();
         dvcActive = active;
-        dvcVolumeDb = volumeDb;
+        dvcCompensationDb = compensationDb;
         dynamicsProcessingUnavailable = false;
 
         try {
-            int[] nextCandidates = GLOBAL_DSP_BAND_COUNT_CANDIDATES;
+            int[] nextCandidates = active
+                    ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                    : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
             if (!startAndApplyDynamicsCandidates(nextCandidates, targetPreset)) {
                 throw new IllegalStateException("No DynamicsProcessing configuration accepted");
             }
@@ -329,7 +336,7 @@ final class GlobalEqualizerEngine {
             Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline; restoring previous state", error);
             releaseDynamicsProcessing();
             dvcActive = previousActive;
-            dvcVolumeDb = previousVolumeDb;
+            dvcCompensationDb = previousCompensationDb;
             dynamicsProcessingUnavailable = false;
             pendingPreset = savedPendingPreset;
             lastAppliedPreset = savedLastAppliedPreset;
@@ -338,7 +345,9 @@ final class GlobalEqualizerEngine {
                 Preset restorePreset = savedPendingPreset != null
                         ? savedPendingPreset
                         : savedLastAppliedPreset;
-                int[] restoreCandidates = GLOBAL_DSP_BAND_COUNT_CANDIDATES;
+                int[] restoreCandidates = previousActive
+                        ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
+                        : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
                 if (restorePreset == null
                         || !restorePreset.enabled
                         || !startAndApplyDynamicsCandidates(restoreCandidates, restorePreset)) {
@@ -382,11 +391,18 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyInputGain(Preset preset) {
+        float compensationDb = dvcActive ? dvcCompensationDb : 0f;
         float targetGainDb = clamp(
-                presetPregainDb(preset),
+                presetPregainDb(preset) + compensationDb,
                 DYNAMICS_MIN_LEVEL_MB / 100f,
-                DYNAMICS_MAX_LEVEL_MB / 100f);
-        dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
+                DvcVolumeMapper.MAX_COMPENSATION_DB + Preset.MAX_PREGAIN_MB / 100f);
+        boolean rawApplied = dvcActive && dvcRawBridge.setInputGainAllChannels(
+                dynamicsProcessing,
+                DYNAMICS_CHANNEL_COUNT,
+                targetGainDb);
+        if (!rawApplied) {
+            dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
+        }
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
             float appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
             if (Math.abs(appliedGainDb - targetGainDb) >= 0.1f) {
@@ -398,7 +414,8 @@ final class GlobalEqualizerEngine {
                         "DVC input-gain write rejected for channel " + channel);
             }
         }
-        Log.d(TAG, "GlobalDSP input gain=" + targetGainDb + " dB");
+        Log.d(TAG, "GlobalDSP input gain=" + targetGainDb + " dB path="
+                + (rawApplied ? "raw" : "public"));
     }
 
     private static float presetPregainDb(Preset preset) {
@@ -1043,6 +1060,6 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
-        dvcVolumeDb = 0f;
+        dvcCompensationDb = 0f;
     }
 }
