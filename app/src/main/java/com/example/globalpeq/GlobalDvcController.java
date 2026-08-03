@@ -58,6 +58,7 @@ final class GlobalDvcController {
         if (started) {
             return;
         }
+        restoreStaleDvcVolume();
         IntentFilter filter = new IntentFilter(VOLUME_CHANGED_ACTION);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             appContext.registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
@@ -66,6 +67,20 @@ final class GlobalDvcController {
         }
         started = true;
         publish(DvcRuntimeState.Kind.OFF, false, true, "DVC is off");
+    }
+
+    private void restoreStaleDvcVolume() {
+        DvcRuntimeState staleState = repository.loadDvcRuntimeState();
+        if (staleState == null || !staleState.active) {
+            return;
+        }
+        try {
+            int min = audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC);
+            int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int restoreIndex = Math.max(min, Math.min(max, staleState.currentVolumeIndex));
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreIndex, 0);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     void prepareForRouteChange(AudioOutputDevice nextRoute) {
