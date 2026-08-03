@@ -23,6 +23,7 @@ final class GlobalEqualizerEngine {
     };
     private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
     private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
+    private static final float DVC_INPUT_MIN_DB = -96f;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
@@ -52,6 +53,7 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
+    private float dvcVolumeDb;
 
     private enum ApplyStrategy {
         AUTO,
@@ -219,11 +221,12 @@ final class GlobalEqualizerEngine {
         return processingMode == ProcessingMode.GLOBAL_DSP && dynamicsProcessing != null;
     }
 
-    /** Rebuilds the GlobalDSP post-EQ bank when the safe DVC processing mode changes. */
-    boolean setDvcModeEnabled(boolean active) {
+    /** Moves media-volume attenuation ahead of the EQ while DVC owns system media volume. */
+    boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
         if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
             if (!active) {
                 dvcActive = false;
+                dvcVolumeDb = 0f;
                 return true;
             }
             return false;
@@ -232,21 +235,32 @@ final class GlobalEqualizerEngine {
         if (targetPreset == null || !targetPreset.enabled) {
             if (!active) {
                 dvcActive = false;
+                dvcVolumeDb = 0f;
                 return true;
             }
             return false;
         }
+        if (active && (!Float.isFinite(requestedVolumeDb)
+                || requestedVolumeDb < DVC_INPUT_MIN_DB
+                || requestedVolumeDb > 0.5f)) {
+            return false;
+        }
         boolean previousActive = dvcActive;
+        float previousVolumeDb = dvcVolumeDb;
+        float nextVolumeDb = active ? clamp(requestedVolumeDb, DVC_INPUT_MIN_DB, 0f) : 0f;
 
         if (active != previousActive) {
             return rebuildDynamicsProcessingForDvc(
                     active,
+                    nextVolumeDb,
                     targetPreset,
-                    previousActive);
+                    previousActive,
+                    previousVolumeDb);
         }
 
         try {
             dvcActive = active;
+            dvcVolumeDb = nextVolumeDb;
             DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
             dynamicsProcessing.setLimiterAllChannelsTo(limiter);
             applyAndVerifyInputGain(targetPreset);
@@ -266,10 +280,13 @@ final class GlobalEqualizerEngine {
                             "DVC limiter bypass rejected for channel " + channel);
                 }
             }
-            Log.d(TAG, active ? "Safe Global DVC mode on" : "Global DVC off");
+            Log.d(TAG, active
+                    ? "Global DVC virtual volume=" + dvcVolumeDb + " dB"
+                    : "Global DVC off");
             return true;
         } catch (RuntimeException error) {
             dvcActive = previousActive;
+            dvcVolumeDb = previousVolumeDb;
             try {
                 dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
                 applyAndVerifyInputGain(targetPreset);
@@ -281,8 +298,10 @@ final class GlobalEqualizerEngine {
     }
 
     private boolean rebuildDynamicsProcessingForDvc(boolean active,
+                                                    float volumeDb,
                                                     Preset targetPreset,
-                                                    boolean previousActive) {
+                                                    boolean previousActive,
+                                                    float previousVolumeDb) {
         Preset savedPendingPreset = pendingPreset;
         Preset savedLastAppliedPreset = lastAppliedPreset;
         AdvancedModeConfig savedLastAppliedConfig = lastAppliedDynamicsConfig;
@@ -291,6 +310,7 @@ final class GlobalEqualizerEngine {
         handler.removeCallbacksAndMessages(null);
         releaseDynamicsProcessing();
         dvcActive = active;
+        dvcVolumeDb = volumeDb;
         dynamicsProcessingUnavailable = false;
 
         try {
@@ -311,6 +331,7 @@ final class GlobalEqualizerEngine {
             Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline; restoring previous state", error);
             releaseDynamicsProcessing();
             dvcActive = previousActive;
+            dvcVolumeDb = previousVolumeDb;
             dynamicsProcessingUnavailable = false;
             pendingPreset = savedPendingPreset;
             lastAppliedPreset = savedLastAppliedPreset;
@@ -409,9 +430,10 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyInputGain(Preset preset) {
+        float volumeGainDb = dvcActive ? dvcVolumeDb : 0f;
         float targetGainDb = clamp(
-                presetPregainDb(preset),
-                DYNAMICS_MIN_LEVEL_MB / 100f,
+                presetPregainDb(preset) + volumeGainDb,
+                DVC_INPUT_MIN_DB,
                 DYNAMICS_MAX_LEVEL_MB / 100f);
         dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
@@ -1070,5 +1092,6 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
+        dvcVolumeDb = 0f;
     }
 }
