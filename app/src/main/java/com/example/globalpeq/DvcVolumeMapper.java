@@ -3,9 +3,6 @@ package com.example.globalpeq;
 import android.media.AudioManager;
 
 final class DvcVolumeMapper {
-    // Keep enough internal range for the app's +18 dB EQ/low-shelf range without allowing an
-    // unbounded positive stage if a vendor reports an unusually deep volume curve.
-    static final float MAX_COMPENSATION_DB = 24f;
     static final class Curve {
         final boolean fixedVolume;
         final boolean meaningful;
@@ -36,10 +33,6 @@ final class DvcVolumeMapper {
                 return 0f;
             }
             return clamp(-currentDb, 0f, 96f);
-        }
-
-        float compensationDb() {
-            return clamp(headroomDb(), 0f, MAX_COMPENSATION_DB);
         }
 
     }

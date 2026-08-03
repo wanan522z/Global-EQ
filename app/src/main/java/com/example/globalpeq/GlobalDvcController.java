@@ -35,8 +35,6 @@ final class GlobalDvcController {
     private AudioOutputDevice route = new AudioOutputDevice("none", "Output device");
     private DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(route);
     private DvcVolumeMapper.Curve curve;
-    private final PowerampVolumeEffect volumeEffect =
-            new PowerampVolumeEffect(this::handleVolumeEffectControlLost);
     private boolean mappingActive;
     private int initialVolumeIndex;
 
@@ -125,11 +123,6 @@ final class GlobalDvcController {
                     "Global DynamicsProcessing volume-control path is unavailable");
             return;
         }
-        if (!volumeEffect.openMuted()) {
-            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "DVC Volume effect is unavailable; positive gain was not applied");
-            return;
-        }
         applyMappedCurve(routeDecision.isUsb()
                 ? DvcRuntimeState.Kind.USB_HARDWARE
                 : DvcRuntimeState.Kind.ACTIVE);
@@ -169,38 +162,21 @@ final class GlobalDvcController {
 
     private void applyMappedCurve(DvcRuntimeState.Kind kind) {
         float downstreamDb = curve == null ? 0f : curve.headroomDb();
-        float compensationDb = curve == null ? 0f : curve.compensationDb();
         float displayedDownstreamDb = Math.round(downstreamDb * 10f) / 10f;
-        float displayedCompensationDb = Math.round(compensationDb * 10f) / 10f;
-        float previousCompensationDb = mappingActive
-                ? Math.max(0f, -volumeEffect.appliedLevelDb())
-                : 0f;
-        boolean applied;
-        if (compensationDb >= previousCompensationDb) {
-            // Establish the quieter post-DP stage before increasing DP input gain.
-            applied = volumeEffect.setLevelDb(-compensationDb)
-                    && volumeEffect.isActive()
-                    && engine.setDvcVolumeMapping(true, compensationDb);
-        } else {
-            // Remove positive input gain before relaxing the matching attenuation.
-            applied = engine.setDvcVolumeMapping(true, compensationDb)
-                    && volumeEffect.setLevelDb(-compensationDb)
-                    && volumeEffect.isActive();
-        }
+        boolean applied = engine.setDvcModeEnabled(true);
         if (!applied) {
             deactivateEngineMapping();
             publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                    "DVC gain pair failed safely and was removed");
+                    "DVC pipeline switch failed safely");
             return;
         }
         mappingActive = true;
         int activeBandCount = engine.getActiveDynamicsBandCount();
         publish(kind, true, true,
                 "Downstream media-volume attenuation: " + displayedDownstreamDb + " dB\n"
-                        + "DVC input compensation: +" + displayedCompensationDb + " dB\n"
-                        + "DVC post-DP attenuation: -" + displayedCompensationDb + " dB\n"
                         + "DVC post-EQ bank: " + activeBandCount + " full-range bands\n"
                         + "DVC limiter: bypassed\n"
+                        + "Unsafe positive volume compensation: disabled\n"
                         + "System media volume is unchanged");
     }
 
@@ -210,21 +186,8 @@ final class GlobalDvcController {
     }
 
     private void deactivateEngineMapping() {
-        // Always remove the positive half before releasing the negative safety stage.
-        engine.setDvcVolumeMapping(false, 0f);
+        engine.setDvcModeEnabled(false);
         mappingActive = false;
-        volumeEffect.releaseToUnity();
-    }
-
-    private void handleVolumeEffectControlLost() {
-        if (!mappingActive) {
-            return;
-        }
-        engine.setDvcVolumeMapping(false, 0f);
-        mappingActive = false;
-        volumeEffect.releaseToUnity();
-        publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                "DVC Volume-effect control was lost; positive gain was removed");
     }
 
     private void publish(DvcRuntimeState.Kind kind,
