@@ -281,12 +281,17 @@ final class GlobalDvcController {
         mappingActive = true;
         activeAudioSessionId = targetAudioSessionId;
         boolean sessionZeroFallback = targetAudioSessionId == 0;
+        boolean chineseUi = "zh".equalsIgnoreCase(repository.loadUiLanguage());
         String attachment = volumeChain == null
-                ? "EQ only"
-                : (sessionZeroFallback ? "Global fallback" : "Player chain");
+                ? (chineseUi ? "仅 EQ" : "EQ only")
+                : (sessionZeroFallback
+                ? (chineseUi ? "全局回退" : "Global fallback")
+                : (chineseUi ? "播放器链" : "Player chain"));
         String compactStatus = String.format(
                 Locale.US,
-                "Session %d · %s\nHeadroom %.1f dB · Safety %.1f dB · Limiter %+.1f dB",
+                chineseUi
+                        ? "会话 %d · %s\n余量 %.1f dB · 安全衰减 %.1f dB · 限幅 %+.1f dB"
+                        : "Session %d · %s\nHeadroom %.1f dB · Safety %.1f dB · Limiter %+.1f dB",
                 targetAudioSessionId,
                 attachment,
                 displayedHeadroomDb,

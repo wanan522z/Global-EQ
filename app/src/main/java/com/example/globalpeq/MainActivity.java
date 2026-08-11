@@ -2216,32 +2216,32 @@ public final class MainActivity extends Activity {
                 break;
             case BLUETOOTH_UNAVAILABLE:
                 status = tr(
-                        "Bluetooth: DVC unavailable. Bluetooth devices do not allow DVC.",
-                        "\u84dd\u7259\uff1aDVC \u4e0d\u53ef\u7528\u3002\u84dd\u7259\u8bbe\u5907\u4e0d\u5141\u8bb8\u542f\u7528 DVC\u3002");
+                        "DVC unavailable on Bluetooth",
+                        "\u84dd\u7259\u4e0d\u652f\u6301 DVC");
                 break;
             case USB_HARDWARE:
                 status = tr("USB hardware DVC", "USB \u786c\u4ef6 DVC");
                 break;
             case USB_DIGITAL_ONLY:
                 status = tr(
-                        "USB digital-only / fixed volume. System volume is not changed.",
-                        "USB \u4ec5\u6570\u5b57 DVC / \u56fa\u5b9a\u97f3\u91cf\u3002\u4e0d\u4f1a\u4fee\u6539\u7cfb\u7edf\u97f3\u91cf\u3002");
+                        "USB fixed volume · DVC unavailable",
+                        "USB \u56fa\u5b9a\u97f3\u91cf\uff0cDVC \u4e0d\u53ef\u7528");
                 break;
             case PROBE_FAILED:
                 status = tr("DVC probe failed", "DVC \u80fd\u529b\u63a2\u6d4b\u5931\u8d25");
                 break;
             case ROUTE_UNAVAILABLE:
-                status = tr("DVC unavailable on this output route", "\u5f53\u524d\u8f93\u51fa\u8def\u7531\u4e0d\u652f\u6301 DVC");
+                status = tr("DVC unavailable on this output", "\u5f53\u524d\u8f93\u51fa\u4e0d\u652f\u6301 DVC");
                 break;
             case OFF:
             default:
                 status = tr("DVC off", "DVC \u5df2\u5173\u95ed");
                 break;
         }
-        if (!state.detail.isEmpty()
-                && state.kind != DvcRuntimeState.Kind.OFF
-                && state.kind != DvcRuntimeState.Kind.BLUETOOTH_UNAVAILABLE
-                && state.kind != DvcRuntimeState.Kind.ROUTE_UNAVAILABLE) {
+        boolean showDetail = state.kind == DvcRuntimeState.Kind.ACTIVE
+                || state.kind == DvcRuntimeState.Kind.USB_HARDWARE
+                || state.kind == DvcRuntimeState.Kind.PROBE_FAILED;
+        if (showDetail && !state.detail.isEmpty()) {
             return status + "\n" + state.detail;
         }
         return status;
