@@ -79,7 +79,7 @@ final class GlobalEqualizerEngine {
         FORCE_FULL_RESET
     }
 
-    boolean start() {
+    synchronized boolean start() {
         if (dynamicsProcessing != null || powerampDynamicsProcessing != null || equalizer != null) {
             return true;
         }
@@ -338,7 +338,7 @@ final class GlobalEqualizerEngine {
      * In DVC mode the player-session EQ runs before Android's stream-volume attenuation, making
      * that unchanged downstream attenuation real post-EQ headroom.
      */
-    boolean setDvcModeEnabled(boolean active, int requestedAudioSessionId) {
+    synchronized boolean setDvcModeEnabled(boolean active, int requestedAudioSessionId) {
         if (processingMode != ProcessingMode.GLOBAL_DSP
                 || (dynamicsProcessing == null && powerampDynamicsProcessing == null)) {
             if (!active) {
@@ -695,7 +695,7 @@ final class GlobalEqualizerEngine {
         apply(preset, ProcessingMode.SYSTEM_EQ, config);
     }
 
-    void apply(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
+    synchronized void apply(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
         selectProcessingMode(mode);
         dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyInternal(preset, ApplyStrategy.AUTO);
@@ -709,7 +709,9 @@ final class GlobalEqualizerEngine {
         applyWithFullReset(preset, ProcessingMode.SYSTEM_EQ, config);
     }
 
-    void applyWithFullReset(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
+    synchronized void applyWithFullReset(Preset preset,
+                                         ProcessingMode mode,
+                                         AdvancedModeConfig config) {
         selectProcessingMode(mode);
         dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyInternal(preset, ApplyStrategy.FORCE_FULL_RESET);
@@ -760,7 +762,9 @@ final class GlobalEqualizerEngine {
         reapplyStaged(preset, processingMode, dynamicsConfig);
     }
 
-    void reapplyStaged(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
+    synchronized void reapplyStaged(Preset preset,
+                                    ProcessingMode mode,
+                                    AdvancedModeConfig config) {
         selectProcessingMode(mode);
         dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         applyGeneration++;
@@ -789,7 +793,9 @@ final class GlobalEqualizerEngine {
         reapplyForRouteChange(preset, processingMode, config);
     }
 
-    void reapplyForRouteChange(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
+    synchronized void reapplyForRouteChange(Preset preset,
+                                            ProcessingMode mode,
+                                            AdvancedModeConfig config) {
         if (preset == null || !preset.enabled) {
             return;
         }
@@ -813,7 +819,7 @@ final class GlobalEqualizerEngine {
         }, ROUTE_REAPPLY_DELAY_MS);
     }
 
-    private void onControlStatusChanged(AudioEffect effect, boolean controlGranted) {
+    private synchronized void onControlStatusChanged(AudioEffect effect, boolean controlGranted) {
         if (!controlGranted || pendingPreset == null || !pendingPreset.enabled) {
             return;
         }
@@ -832,7 +838,7 @@ final class GlobalEqualizerEngine {
         }, CONTROL_REARM_DELAY_MS);
     }
 
-    void setEnabled(boolean enabled) {
+    synchronized void setEnabled(boolean enabled) {
         if (!enabled) {
             release();
             return;
@@ -963,7 +969,7 @@ final class GlobalEqualizerEngine {
         return limiter;
     }
 
-    private void applyTargetLevels(Preset preset) {
+    private synchronized void applyTargetLevels(Preset preset) {
         if (!hasActiveEffect() || preset == null || !preset.enabled) {
             return;
         }
@@ -1457,7 +1463,7 @@ final class GlobalEqualizerEngine {
         powerampAppliedGainsDb = new float[0];
     }
 
-    void release() {
+    synchronized void release() {
         handler.removeCallbacksAndMessages(null);
         pendingPreset = null;
         lastAppliedPreset = null;
