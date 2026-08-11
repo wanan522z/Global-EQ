@@ -81,6 +81,105 @@ final class PeqMath {
         return preset.pregainMb + rawEqGainAtHzMb(frequencyHz, preset);
     }
 
+    static PreparedResponse prepareResponse(Preset preset) {
+        return new PreparedResponse(preset);
+    }
+
+    static PreparedBandResponse prepareBandResponse(ParametricBand band) {
+        return new PreparedBandResponse(band);
+    }
+
+    /**
+     * Immutable response evaluator that calculates filter coefficients once per preset update.
+     * The previous hot path rebuilt coefficient arrays for every graph sample and every one of
+     * the 300 DVC target bands.
+     */
+    static final class PreparedResponse {
+        private final Preset preset;
+        private final PreparedBandResponse[] bands;
+
+        PreparedResponse(Preset preset) {
+            this.preset = preset;
+            if (preset == null || preset.mode == EqMode.GEQ) {
+                bands = new PreparedBandResponse[0];
+                return;
+            }
+            bands = new PreparedBandResponse[preset.bands.length];
+            for (int i = 0; i < preset.bands.length; i++) {
+                bands[i] = new PreparedBandResponse(preset.bands[i]);
+            }
+        }
+
+        int visualGainAtFrequencyMb(double frequencyHz) {
+            return preset == null ? 0 : preset.pregainMb + eqGainAtFrequencyMb(frequencyHz);
+        }
+
+        int eqGainAtFrequencyMb(double frequencyHz) {
+            if (frequencyHz <= 0 || preset == null) {
+                return 0;
+            }
+            if (preset.mode == EqMode.GEQ) {
+                return rawGeqGainAtFrequencyMb(frequencyHz, preset);
+            }
+            int sumMb = 0;
+            for (PreparedBandResponse band : bands) {
+                sumMb += band.gainAtFrequencyMb(frequencyHz);
+            }
+            return sumMb;
+        }
+
+        int powerampDvcGainAtFrequencyMb(double frequencyHz) {
+            if (frequencyHz <= 0 || preset == null) {
+                return 0;
+            }
+            if (preset.mode == EqMode.GEQ) {
+                int responseMb = rawGeqGainAtFrequencyMb(frequencyHz, preset);
+                int largestGainMb = 0;
+                for (int gainMb : preset.geqGainsMb) {
+                    largestGainMb = Math.max(largestGainMb, Math.abs(gainMb));
+                }
+                return powerampDvcDeadBandMb(responseMb, largestGainMb);
+            }
+            int sumMb = 0;
+            for (PreparedBandResponse band : bands) {
+                int responseMb = band.gainAtFrequencyMb(frequencyHz);
+                sumMb += powerampDvcDeadBandMb(responseMb, band.configuredGainMb);
+            }
+            return sumMb;
+        }
+    }
+
+    static final class PreparedBandResponse {
+        private final int configuredGainMb;
+        private final double[][] coefficients;
+
+        PreparedBandResponse(ParametricBand band) {
+            configuredGainMb = band == null ? 0 : band.gainMb;
+            ParametricBand[] effectiveBands = effectiveResponseBands(band);
+            coefficients = new double[effectiveBands.length][];
+            for (int i = 0; i < effectiveBands.length; i++) {
+                coefficients[i] = normalizedBiquadCoefficients(
+                        effectiveBands[i],
+                        VISUAL_RESPONSE_SAMPLE_RATE);
+            }
+        }
+
+        int gainAtFrequencyMb(double frequencyHz) {
+            if (frequencyHz <= 0 || coefficients.length == 0) {
+                return 0;
+            }
+            double gainDb = 0.0;
+            for (double[] coefficient : coefficients) {
+                double magnitude = biquadMagnitudeAtFrequency(
+                        coefficient,
+                        frequencyHz,
+                        VISUAL_RESPONSE_SAMPLE_RATE);
+                gainDb += 20.0 * Math.log10(Math.max(MIN_RESPONSE_MAGNITUDE, magnitude));
+            }
+            return (int) Math.round(gainDb * 100.0);
+        }
+    }
+
     static int geqBandGainMb(int bandIndex, Preset preset) {
         if (preset == null || bandIndex < 0 || bandIndex >= preset.geqGainsMb.length) {
             return 0;

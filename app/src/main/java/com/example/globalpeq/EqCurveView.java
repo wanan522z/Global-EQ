@@ -18,7 +18,9 @@ final class EqCurveView extends View {
     private static final double LOG_MIN_HZ = Math.log(MIN_HZ);
     private static final double LOG_MAX_HZ = Math.log(MAX_HZ);
     private static final double LOG_HZ_SPAN = LOG_MAX_HZ - LOG_MIN_HZ;
-    private static final float CURVE_SAMPLE_STEP_PX = 0.24f;
+    // Sub-pixel oversampling below 0.25 px was visually redundant and made every slider preview
+    // evaluate thousands of extra biquad responses on the UI thread.
+    private static final float CURVE_SAMPLE_STEP_PX = 0.9f;
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
     private static final long ANIMATION_FRAME_DELAY_MS = 33L;
     private static final long VISUAL_FADE_DURATION_MS = 280L;
@@ -375,8 +377,9 @@ final class EqCurveView extends View {
     private void buildCurvePath(Path path, float left, float right, float top, float bottom) {
         path.reset();
         ensureSampleCache(left, right);
+        PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
         appendCachedPath(path, curveSampleXs, curveSampleHzs, hz -> {
-            float db = deviceCurve.gainAtFrequency(hz) + PeqMath.visualGainAtFrequencyMb(hz, preset) / 100f;
+            float db = deviceCurve.gainAtFrequency(hz) + response.visualGainAtFrequencyMb(hz) / 100f;
             return gainToY(db, top, bottom);
         });
     }

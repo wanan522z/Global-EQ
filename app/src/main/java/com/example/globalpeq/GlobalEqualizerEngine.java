@@ -1107,26 +1107,25 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyDynamicsTargetLevels(Preset preset) {
-        DynamicsProcessing.Eq nextPreEq = dynamicsPreEqBandCount > 0
-                ? new DynamicsProcessing.Eq(true, true, dynamicsPreEqBandCount)
-                : null;
-        int postEqBandCount = dynamicsBandCenterHz.length - dynamicsPreEqBandCount;
-        DynamicsProcessing.Eq nextPostEq =
-                new DynamicsProcessing.Eq(true, true, postEqBandCount);
+        PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
+        PeqMath.PreparedBandResponse extraBassResponse = prepareExtraBassResponse(preset);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-            DynamicsProcessing.EqBand eqBand = band < dynamicsPreEqBandCount
-                    ? nextPreEq.getBand(band)
-                    : nextPostEq.getBand(band - dynamicsPreEqBandCount);
+            DynamicsProcessing.EqBand eqBand = configuredDynamicsBandAt(band);
             eqBand.setEnabled(true);
             eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
-            eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
+            eqBand.setGain(targetDynamicsLevelMb(
+                    dynamicsBandCenterHz[band],
+                    preset,
+                    response,
+                    extraBassResponse) / 100f);
         }
-        if (nextPreEq != null) {
-            dynamicsProcessing.setPreEqAllChannelsTo(nextPreEq);
+        if (dynamicsPreEq != null) {
+            dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
         }
-        dynamicsProcessing.setPostEqAllChannelsTo(nextPostEq);
-        dynamicsPreEq = nextPreEq;
-        dynamicsPostEq = nextPostEq;
+        // DynamicsProcessing copies this configuration into the native effect. Reusing the same
+        // Java bank avoids allocating 300 EqBand objects per edit while retaining one atomic
+        // native submission (individual band setters can expose a partially updated response).
+        dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
         // Input gain remains the preset pregain. DVC's positive-threshold limiter protects only
         // internal peaks above +15 dB; downstream VolumeFX supplies the final output headroom.
         ensureFrameworkLimiterConfigured();
@@ -1143,9 +1142,15 @@ final class GlobalEqualizerEngine {
         if (powerampAppliedGainsDb.length != dynamicsBandCenterHz.length) {
             powerampAppliedGainsDb = new float[dynamicsBandCenterHz.length];
         }
+        PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
+        PeqMath.PreparedBandResponse extraBassResponse = prepareExtraBassResponse(preset);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             powerampAppliedGainsDb[band] =
-                    targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f;
+                    targetDynamicsLevelMb(
+                            dynamicsBandCenterHz[band],
+                            preset,
+                            response,
+                            extraBassResponse) / 100f;
         }
         powerampDynamicsProcessing.setEq(dynamicsBandCenterHz, powerampAppliedGainsDb);
         refreshPowerampDvcControls(preset);
@@ -1220,21 +1225,26 @@ final class GlobalEqualizerEngine {
         if (preset == null) {
             return 0;
         }
+        return targetDynamicsLevelMb(
+                frequencyHz,
+                preset,
+                PeqMath.prepareResponse(preset),
+                prepareExtraBassResponse(preset));
+    }
+
+    private int targetDynamicsLevelMb(double frequencyHz,
+                                      Preset preset,
+                                      PeqMath.PreparedResponse response,
+                                      PeqMath.PreparedBandResponse extraBassResponse) {
         boolean powerampDvcResponse = dvcActive
                 && processingMode == ProcessingMode.GLOBAL_DSP;
         int levelMb = powerampDvcResponse
-                ? PeqMath.powerampDvcGainAtFrequencyMb(frequencyHz, preset)
-                : PeqMath.gainAtFrequencyMb(frequencyHz, preset) - preset.pregainMb;
-        if (preset.extraBassEnabled && preset.extraBassAmountPercent > 0) {
+                ? response.powerampDvcGainAtFrequencyMb(frequencyHz)
+                : response.eqGainAtFrequencyMb(frequencyHz);
+        if (extraBassResponse != null) {
             int extraBassGainMb = Math.round(
                     preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
-            ParametricBand extraBassBand = new ParametricBand(
-                    FilterType.LOW_SHELF,
-                    true,
-                    preset.extraBassCutoffHz,
-                    extraBassGainMb,
-                    70);
-            int extraBassResponseMb = PeqMath.bandGainAtHzMb(frequencyHz, extraBassBand);
+            int extraBassResponseMb = extraBassResponse.gainAtFrequencyMb(frequencyHz);
             if (powerampDvcResponse) {
                 extraBassResponseMb = PeqMath.powerampDvcDeadBandMb(
                         extraBassResponseMb,
@@ -1243,6 +1253,20 @@ final class GlobalEqualizerEngine {
             levelMb += extraBassResponseMb;
         }
         return Math.max(DYNAMICS_MIN_LEVEL_MB, Math.min(DYNAMICS_MAX_LEVEL_MB, levelMb));
+    }
+
+    private PeqMath.PreparedBandResponse prepareExtraBassResponse(Preset preset) {
+        if (preset == null || !preset.extraBassEnabled || preset.extraBassAmountPercent <= 0) {
+            return null;
+        }
+        int extraBassGainMb = Math.round(
+                preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
+        return PeqMath.prepareBandResponse(new ParametricBand(
+                FilterType.LOW_SHELF,
+                true,
+                preset.extraBassCutoffHz,
+                extraBassGainMb,
+                70));
     }
 
     private int activeBandCount() {
