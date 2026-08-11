@@ -703,7 +703,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onStop() {
-        commitPendingExtraBassControl();
+        endExtraBassControlInteraction();
         commitPendingGeqUpdate();
         commitPendingPeqToggle();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
