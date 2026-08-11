@@ -360,6 +360,29 @@ final class GlobalEqualizerEngine {
         boolean previousActive = dvcActive;
         int previousAudioSessionId = dynamicsAudioSessionId;
 
+        if (!active
+                && previousActive
+                && previousAudioSessionId == GLOBAL_AUDIO_SESSION
+                && dynamicsProcessing != null) {
+            try {
+                // A session-0 fallback already occupies the normal GlobalDSP attachment point.
+                // Reuse it and atomically replace the DVC response/limiter instead of releasing
+                // and racing AudioFlinger to create another session-0 effect.
+                dvcActive = false;
+                dynamicsLimiterConfigured = false;
+                applyDynamicsTargetLevels(targetPreset);
+                lastAppliedPreset = targetPreset;
+                lastAppliedDynamicsConfig = dynamicsConfig;
+                armedWithZeroBands = true;
+                targetApplyPending = false;
+                Log.i(TAG, "Disabled session-0 DVC in place");
+                return true;
+            } catch (RuntimeException error) {
+                Log.w(TAG, "In-place session-0 DVC disable failed; rebuilding", error);
+                dvcActive = previousActive;
+            }
+        }
+
         if (active != previousActive || targetAudioSessionId != previousAudioSessionId) {
             return rebuildDynamicsProcessingForDvc(
                     active,
@@ -443,14 +466,38 @@ final class GlobalEqualizerEngine {
                     + " with " + describeActiveDynamicsBank());
             return true;
         } catch (RuntimeException error) {
-            Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline; restoring previous state", error);
+            Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline", error);
             releaseDynamicsProcessing();
-            dvcActive = previousActive;
-            dynamicsAudioSessionId = previousAudioSessionId;
             dynamicsProcessingUnavailable = false;
             pendingPreset = savedPendingPreset;
             lastAppliedPreset = savedLastAppliedPreset;
             lastAppliedDynamicsConfig = savedLastAppliedConfig;
+            if (!active) {
+                // Turning DVC off is fail-safe. Never restore a boosted player-session/session-0
+                // DVC bank after reporting the switch off. If framework DP cannot be recreated,
+                // fall back to Android's ordinary output-mix Equalizer instead.
+                dvcActive = false;
+                dynamicsAudioSessionId = GLOBAL_AUDIO_SESSION;
+                dynamicsProcessingUnavailable = true;
+                try {
+                    if (!startLegacyEqualizer()) {
+                        throw new IllegalStateException("Legacy Equalizer is unavailable");
+                    }
+                    applyTargetLevels(targetPreset);
+                    lastAppliedPreset = targetPreset;
+                    lastAppliedDynamicsConfig = dynamicsConfig;
+                    armedWithZeroBands = true;
+                    targetApplyPending = false;
+                    Log.i(TAG, "DVC off fell back to the ordinary global Equalizer");
+                    return true;
+                } catch (RuntimeException fallbackError) {
+                    Log.e(TAG, "Could not create a non-DVC fallback", fallbackError);
+                    release();
+                    return false;
+                }
+            }
+            dvcActive = previousActive;
+            dynamicsAudioSessionId = previousAudioSessionId;
             try {
                 Preset restorePreset = savedPendingPreset != null
                         ? savedPendingPreset
