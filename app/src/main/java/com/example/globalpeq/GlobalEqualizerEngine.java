@@ -27,7 +27,6 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_MIN_LEVEL_MB = -2400;
     private static final int DYNAMICS_MAX_LEVEL_MB = 3000;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
-    private static final float DVC_LIMITER_RELEASE_MS = 25f;
     private static final float DVC_LIMITER_RATIO = 50f;
     private static final float DVC_LIMITER_THRESHOLD_DB = 15f;
     private static final float DVC_MAX_VOLUME_POSITIVE_GAIN_DB = 2f;

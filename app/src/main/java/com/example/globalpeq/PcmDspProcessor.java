@@ -99,9 +99,11 @@ final class PcmDspProcessor {
             limiter = new LookaheadLimiter(sampleRate, channelCount);
         }
         limiter.configure(
+                safeConfig.limiterEnabled,
                 safeConfig.lookaheadMs,
                 safeConfig.latencyMs,
                 safeConfig.limiterCeilingPermille / 1000f,
+                safeConfig.limiterAttackMs,
                 safeConfig.limiterReleaseMs);
 
         processingActive = Math.abs(pregain * effectHeadroom - 1f) > 0.0001f
@@ -939,6 +941,7 @@ final class PcmDspProcessor {
         private int writeFrame;
         private int delayFrames;
         private int primedFrames;
+        private boolean enabled = true;
         private float envelope;
         private float gain = 1f;
         private float ceiling = 0.985f;
@@ -950,7 +953,13 @@ final class PcmDspProcessor {
             this.channelCount = channelCount;
         }
 
-        void configure(int lookaheadMs, int latencyMs, float ceiling, int releaseMs) {
+        void configure(boolean enabled,
+                       int lookaheadMs,
+                       int latencyMs,
+                       float ceiling,
+                       int attackMs,
+                       int releaseMs) {
+            this.enabled = enabled;
             this.ceiling = clamp(ceiling, 0.93f, 0.999f);
             delayFrames = Math.max(0, Math.min(sampleRate / 8, lookaheadMs * sampleRate / 1000));
             int latencyFrames = Math.max(delayFrames + 1, Math.min(sampleRate / 2, latencyMs * sampleRate / 1000));
@@ -965,14 +974,14 @@ final class PcmDspProcessor {
             primedFrames = 0;
             envelope = 0f;
             gain = 1f;
-            float attackSeconds = Math.max(0.0008f, Math.max(lookaheadMs, 1) / 1000f * 0.45f);
+            float attackSeconds = Math.max(0.000001f, attackMs / 1000f);
             float releaseSeconds = Math.max(0.025f, releaseMs / 1000f);
             attackCoeff = (float) Math.exp(-1.0 / (sampleRate * attackSeconds));
             releaseCoeff = (float) Math.exp(-1.0 / (sampleRate * releaseSeconds));
         }
 
         void process(float[] samples, int sampleCount, int channelCount) {
-            if (samples == null || sampleCount <= 0) {
+            if (!enabled || samples == null || sampleCount <= 0) {
                 return;
             }
 
@@ -1017,7 +1026,7 @@ final class PcmDspProcessor {
         }
 
         boolean isActive() {
-            return true;
+            return enabled;
         }
 
         private static float softLimit(float value, float ceiling) {
