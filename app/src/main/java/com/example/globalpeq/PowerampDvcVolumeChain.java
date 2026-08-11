@@ -114,6 +114,29 @@ final class PowerampDvcVolumeChain {
         }
     }
 
+    /**
+     * Releases VolumeFX and asks AudioFlinger to re-apply the unchanged stream-volume index.
+     * Creating VolumeFX is followed by a one-step volume pulse so Android moves attenuation into
+     * that effect path. A plain release can leave the old placement cached until the next user
+     * volume change, making a disabled DVC chain continue to sound active. Writing the same index
+     * refreshes routing without changing the user's volume level.
+     */
+    void releaseAndRefreshVolumePlacement() {
+        int currentIndex = -1;
+        try {
+            currentIndex = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+        } catch (RuntimeException ignored) {
+        }
+        release();
+        if (currentIndex < 0) {
+            return;
+        }
+        try {
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentIndex, 0);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
     private static AudioEffect createUsableEffect(Constructor<AudioEffect> constructor,
                                                   UUID implementationUuid,
                                                   int audioSessionId) {

@@ -241,6 +241,7 @@ final class GlobalDvcController {
                     && volumeChain.getAudioSessionId() != candidateSessionId) {
                 // Poweramp tears down player-session DP before VolumeFX. Reversing that order
                 // briefly leaves boosted DP without its downstream attenuation and can jump loud.
+                mappingActive = false;
                 engine.setDvcModeEnabled(false, 0);
                 releaseDvcVolumeChain();
             }
@@ -291,7 +292,8 @@ final class GlobalDvcController {
                         + "DVC EQ bank: " + engine.describeActiveDynamicsBank() + "\n"
                         + "DVC limiter: enabled above +15 dB (50:1, 25 ms release)\n"
                         + "DVC session tracking: optional; session 0 works without detection\n"
-                        + "System media volume ownership: disabled (Poweramp one-shot initialization only)\n"
+                        + "System media volume ownership: disabled (initialization pulse; "
+                        + "same-index teardown refresh)\n"
                         + engine.describeDvcReadback() + "\n"
                         + (sessionZeroFallback
                         ? "DVC chain: global session-0 EQ fallback"
@@ -324,7 +326,7 @@ final class GlobalDvcController {
             return;
         }
         try {
-            volumeChain.release();
+            volumeChain.releaseAndRefreshVolumePlacement();
         } catch (RuntimeException ignored) {
         } finally {
             volumeChain = null;
