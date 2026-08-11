@@ -293,7 +293,9 @@ final class GlobalDvcController {
                         + "DVC session tracking: optional; session 0 works without detection\n"
                         + "System media volume ownership: disabled (Poweramp one-shot initialization only)\n"
                         + engine.describeDvcReadback() + "\n"
-                        + "DVC chain: player-session VolumeFX + player-session EQ");
+                        + (sessionZeroFallback
+                        ? "DVC chain: global session-0 EQ fallback"
+                        : "DVC chain: player-session VolumeFX + player-session EQ"));
     }
 
     private void failMappedCurve(String detail) {
@@ -335,10 +337,11 @@ final class GlobalDvcController {
         }
         Set<Integer> sessions = discoverPlaybackSessionIds(excludedSessionId);
         if (sessions.isEmpty()) {
-            if (mappingActive) {
-                failMappedCurve(
-                        "当前播放器 audio session 已关闭；DVC 已安全退出，检测到新播放 session 后会自动重试");
-            }
+            applyMappedCurve(
+                    routeDecision.isUsb()
+                            ? DvcRuntimeState.Kind.USB_HARDWARE
+                            : DvcRuntimeState.Kind.ACTIVE,
+                    Collections.emptySet());
             return;
         }
         DvcVolumeMapper.Curve nextCurve =
@@ -371,6 +374,9 @@ final class GlobalDvcController {
         ArrayList<Integer> newestFirst = new ArrayList<>(playbackSessions);
         Collections.reverse(newestFirst);
         ordered.addAll(newestFirst);
+        // Always try session 0 last. This avoids making DVC activation depend on a player
+        // broadcasting a private session ID; a real player session still takes precedence.
+        ordered.add(0);
         return ordered;
     }
 
