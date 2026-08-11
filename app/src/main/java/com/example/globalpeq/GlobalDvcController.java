@@ -231,16 +231,12 @@ final class GlobalDvcController {
                                   Set<Integer> playbackSessions) {
         float downstreamHeadroomDb = curve == null ? 0f : curve.headroomDb();
         float displayedHeadroomDb = Math.round(downstreamHeadroomDb * 10f) / 10f;
-        if (playbackSessions.isEmpty()) {
-            failMappedCurve(
-                    "未发现播放器的非零 audio session；manifest session registry 与 playback callback 均为空。请让播放器停止后重新开始播放，DVC 会自动重试");
-            return;
-        }
-        int targetAudioSessionId = 0;
+        int targetAudioSessionId = -1;
         for (Integer candidateSessionId : orderedPlaybackSessionIds(playbackSessions)) {
-            if (candidateSessionId == null || candidateSessionId <= 0) {
+            if (candidateSessionId == null || candidateSessionId < 0) {
                 continue;
             }
+            boolean sessionZeroFallback = candidateSessionId == 0;
             if (volumeChain != null
                     && volumeChain.getAudioSessionId() != candidateSessionId) {
                 // Poweramp tears down player-session DP before VolumeFX. Reversing that order
@@ -248,7 +244,11 @@ final class GlobalDvcController {
                 engine.setDvcModeEnabled(false, 0);
                 releaseDvcVolumeChain();
             }
-            if (volumeChain == null) {
+            if (volumeChain == null
+                    && (!sessionZeroFallback || !sessionZeroVolumeAttempted)) {
+                if (sessionZeroFallback) {
+                    sessionZeroVolumeAttempted = true;
+                }
                 try {
                     // Poweramp initializes VolumeFX before it creates the real DP bank. This
                     // ordering moves the current stream attenuation behind the boosted EQ.
@@ -257,7 +257,9 @@ final class GlobalDvcController {
                     Log.w(TAG, "Could not create the Poweramp DVC volume chain for session "
                             + candidateSessionId, error);
                     releaseDvcVolumeChain();
-                    continue;
+                    if (!sessionZeroFallback) {
+                        continue;
+                    }
                 }
             }
             // Some broken players omit CLOSE. Try all known sessions, newest first, so one stale
@@ -269,21 +271,26 @@ final class GlobalDvcController {
             }
             releaseDvcVolumeChain();
         }
-        if (targetAudioSessionId <= 0) {
+        if (targetAudioSessionId < 0) {
             failMappedCurve("播放器 audio session、VolumeFX 或 DP effect 挂载失败，DVC 未启用");
             return;
         }
         mappingActive = true;
         activeAudioSessionId = targetAudioSessionId;
+        boolean sessionZeroFallback = targetAudioSessionId == 0;
         publish(kind, true, true,
-                "DVC EQ audio session: " + targetAudioSessionId + "\n"
+                "DVC EQ audio session: " + targetAudioSessionId
+                        + (sessionZeroFallback ? " (global fallback; detection bypassed)" : "")
+                        + "\n"
                         + "DVC discovered sessions: " + playbackSessions + "\n"
-                        + "Player-session VolumeFX: "
-                        + volumeChain.describeAttachment() + "\n"
+                        + (sessionZeroFallback ? "Global VolumeFX: " : "Player-session VolumeFX: ")
+                        + (volumeChain == null
+                        ? "unavailable (ignored; EQ remains active)"
+                        : volumeChain.describeAttachment()) + "\n"
                         + "DVC mapped headroom: " + displayedHeadroomDb + " dB\n"
                         + "DVC EQ bank: " + engine.describeActiveDynamicsBank() + "\n"
                         + "DVC limiter: enabled above +15 dB (50:1, 25 ms release)\n"
-                        + "DVC session tracking: manifest receiver + playback lifecycle\n"
+                        + "DVC session tracking: optional; session 0 works without detection\n"
                         + "System media volume ownership: disabled (Poweramp one-shot initialization only)\n"
                         + engine.describeDvcReadback() + "\n"
                         + "DVC chain: player-session VolumeFX + player-session EQ");
