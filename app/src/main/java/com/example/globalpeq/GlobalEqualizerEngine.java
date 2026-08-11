@@ -26,11 +26,6 @@ final class GlobalEqualizerEngine {
     // combined response of overlapping filters instead of truncating it at +/-18 dB.
     private static final int DYNAMICS_MIN_LEVEL_MB = -2400;
     private static final int DYNAMICS_MAX_LEVEL_MB = 3000;
-    // Poweramp builds separate no-DVC and DVC EQ banks. With its default -6 dB no-DVC input
-    // margin, the DVC bank raises every surviving positive response skirt to at least +12 dB:
-    // max(-(pregain - 6 dB), 0) + 6 dB. PeqMath removes each filter's dead-band tail first.
-    private static final int POWERAMP_NO_DVC_INPUT_GAIN_MB = -600;
-    private static final int POWERAMP_DVC_BORDER_BASE_MB = 600;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
     private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
     private static final float DVC_LIMITER_RELEASE_MS = 25f;
@@ -578,7 +573,6 @@ final class GlobalEqualizerEngine {
 
     String describeDvcReadback() {
         Preset activePreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
-        float positiveBorderDb = powerampDvcPositiveBorderGainMb(activePreset) / 100f;
         if (powerampDynamicsProcessing != null) {
             float maxLowGainDb = 0f;
             float maxGainDb = 0f;
@@ -591,13 +585,12 @@ final class GlobalEqualizerEngine {
             }
             return String.format(
                     Locale.US,
-                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, positive border %.1f dB, limiter enabled @ +%.1f dB, release %.0f ms",
+                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, EQ mapping 1:1, limiter enabled @ +%.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
                     powerampDynamicsProcessing.getChannelCount(),
                     presetPregainDb(activePreset),
                     maxLowGainDb,
                     maxGainDb,
-                    positiveBorderDb,
                     DVC_LIMITER_THRESHOLD_DB,
                     DVC_LIMITER_RELEASE_MS);
         }
@@ -641,12 +634,11 @@ final class GlobalEqualizerEngine {
             boolean limiterEnabled = appliedLimiter.isEnabled();
             return String.format(
                     Locale.US,
-                        "DVC readback: session %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, positive border %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
+                        "DVC readback: session %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, EQ mapping 1:1, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
-                    inputGainDb,
+                        inputGainDb,
                         maxLowGainDb,
                         maxGainDb,
-                        positiveBorderDb,
                         firstCutoffHz,
                         limiterEnabled ? "enabled" : "bypassed",
                         appliedLimiter.getThreshold(),
@@ -1250,16 +1242,7 @@ final class GlobalEqualizerEngine {
             }
             levelMb += extraBassResponseMb;
         }
-        if (powerampDvcResponse && levelMb > 0) {
-            levelMb = Math.max(levelMb, powerampDvcPositiveBorderGainMb(preset));
-        }
         return Math.max(DYNAMICS_MIN_LEVEL_MB, Math.min(DYNAMICS_MAX_LEVEL_MB, levelMb));
-    }
-
-    private static int powerampDvcPositiveBorderGainMb(Preset preset) {
-        int pregainMb = preset == null ? 0 : preset.pregainMb;
-        return Math.max(-(pregainMb + POWERAMP_NO_DVC_INPUT_GAIN_MB), 0)
-                + POWERAMP_DVC_BORDER_BASE_MB;
     }
 
     private int activeBandCount() {

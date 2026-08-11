@@ -37,8 +37,8 @@ final class PeqMath {
 
     /**
      * Response sampling used by Poweramp's 300-band DynamicsProcessing model. Each source filter
-     * has a small response dead band before the filters are accumulated; this prevents numerical
-     * tails from being promoted later by dsp_border_gain.
+     * has a small response dead band before the filters are accumulated; this removes numerical
+     * tails while preserving a one-to-one mapping between the requested and applied EQ response.
      */
     static int powerampDvcGainAtFrequencyMb(double frequencyHz, Preset preset) {
         if (frequencyHz <= 0 || preset == null) {
