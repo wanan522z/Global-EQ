@@ -354,7 +354,7 @@ final class GlobalEqualizerEngine {
             return false;
         }
         int targetAudioSessionId = active ? requestedAudioSessionId : GLOBAL_AUDIO_SESSION;
-        if (active && targetAudioSessionId <= GLOBAL_AUDIO_SESSION) {
+        if (active && targetAudioSessionId < GLOBAL_AUDIO_SESSION) {
             return false;
         }
         boolean previousActive = dvcActive;
