@@ -290,13 +290,10 @@ final class GlobalDvcController {
         String compactStatus = String.format(
                 Locale.US,
                 chineseUi
-                        ? "会话 %d · %s\n余量 %.1f dB · 安全衰减 %.1f dB · 限幅 %+.1f dB"
-                        : "Session %d · %s\nHeadroom %.1f dB · Safety %.1f dB · Limiter %+.1f dB",
-                targetAudioSessionId,
+                        ? "%s · 可用余量 %.1f dB"
+                        : "%s · %.1f dB headroom",
                 attachment,
-                displayedHeadroomDb,
-                engine.getDvcSafetyAttenuationDb(),
-                engine.getDvcLimiterThresholdDb());
+                displayedHeadroomDb);
         publish(kind, true, true,
                 compactStatus);
         Log.i(TAG, "DVC active: session=" + targetAudioSessionId

@@ -346,14 +346,6 @@ final class GlobalEqualizerEngine {
         return dvcActive;
     }
 
-    synchronized float getDvcSafetyAttenuationDb() {
-        return dvcSafetyAttenuationDb;
-    }
-
-    synchronized float getDvcLimiterThresholdDb() {
-        return dvcLimiterThresholdDb(dynamicsConfig);
-    }
-
     synchronized void setDvcDownstreamHeadroomDb(float headroomDb) {
         float nextHeadroomDb = Float.isFinite(headroomDb)
                 ? clamp(headroomDb, 0f, 96f)
