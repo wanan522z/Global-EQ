@@ -315,8 +315,8 @@ final class GlobalDvcController {
         mappingActive = false;
         activeAudioSessionId = 0;
         sessionZeroVolumeAttempted = false;
-        // Remove/re-home the boosted player-session DP before detaching VolumeFX. Neither step
-        // writes a replacement media-volume index during normal DVC teardown.
+        // Remove/re-home the boosted player-session DP before detaching VolumeFX. Teardown only
+        // re-applies the unchanged media-volume index so AudioFlinger cannot retain DVC placement.
         boolean switchedOff = engine.setDvcModeEnabled(false, 0);
         if (!switchedOff && engine.isDvcModeActive()) {
             // Never publish OFF while a failed rebuild has left the old DVC bank alive.
