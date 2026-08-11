@@ -102,6 +102,7 @@ public final class MainActivity extends Activity {
     private static final long ENABLE_TOGGLE_INTERACTION_LOCK_MS = 260L;
     private static final long ENABLE_TOGGLE_SHIZUKU_INTERACTION_LOCK_MS = 720L;
     private static final long EXTRA_BASS_TOGGLE_COMMIT_DELAY_MS = 320L;
+    private static final long EXTRA_BASS_CONTROL_COMMIT_DELAY_MS = 180L;
     private static final long ENABLE_TOGGLE_UI_DELAY_MS = 48L;
     private static final long ENABLE_NEON_HEADER_DELAY_MS = 90L;
     private static final long ENABLE_NEON_CURVE_DELAY_MS = 460L;
@@ -483,6 +484,7 @@ public final class MainActivity extends Activity {
     private final Runnable commitPeqToggleRunnable = this::commitPendingPeqToggle;
     private final Runnable commitEnabledToggleRunnable = this::commitPendingEnabledToggle;
     private final Runnable commitExtraBassToggleRunnable = this::commitPendingExtraBassToggle;
+    private final Runnable commitExtraBassControlRunnable = this::commitPendingExtraBassControl;
     private final Runnable refreshEnabledToggleUiRunnable = this::refreshPendingEnabledToggleUi;
     private final Runnable unlockEnabledToggleInteractionRunnable = this::unlockEnabledToggleInteraction;
     private final Runnable enableNeonHeaderRunnable = this::activateEnabledNeonHeader;
@@ -525,6 +527,7 @@ public final class MainActivity extends Activity {
     private Preset pendingEnabledApplyPreset;
     private Preset pendingEnabledPersistPreset;
     private Boolean pendingExtraBassEnabledState;
+    private Preset pendingExtraBassControlHistorySnapshot;
     private boolean pendingEnabledUiRefresh;
     private boolean enabledToggleInteractionLocked;
     private boolean modeVisualEnabled = true;
@@ -7523,6 +7526,58 @@ public final class MainActivity extends Activity {
             return;
         }
         setEditingPreset(editingPreset.withExtraBassEnabled(targetState), true);
+    }
+
+    private void updateExtraBassCutoff(int value) {
+        if (editingPreset == null || editingPreset.extraBassCutoffHz == value) {
+            return;
+        }
+        scheduleExtraBassControlUpdate(editingPreset.withExtraBassCutoffHz(value));
+    }
+
+    private void updateExtraBassAmount(int value) {
+        if (editingPreset == null || editingPreset.extraBassAmountPercent == value) {
+            return;
+        }
+        scheduleExtraBassControlUpdate(editingPreset.withExtraBassAmountPercent(value));
+    }
+
+    private void scheduleExtraBassControlUpdate(Preset nextPreset) {
+        if (editingPreset == null || nextPreset == null) {
+            return;
+        }
+        if (pendingExtraBassControlHistorySnapshot == null) {
+            pendingExtraBassControlHistorySnapshot = editingPreset;
+        }
+        // Preserve the latest edit immediately, but keep history, persistence and the 300-band
+        // DSP submission out of the ACTION_MOVE path.
+        editingPreset = nextPreset;
+        uiHandler.removeCallbacks(commitExtraBassControlRunnable);
+        uiHandler.postDelayed(
+                commitExtraBassControlRunnable,
+                EXTRA_BASS_CONTROL_COMMIT_DELAY_MS);
+    }
+
+    private void commitPendingExtraBassControl() {
+        uiHandler.removeCallbacks(commitExtraBassControlRunnable);
+        Preset historySnapshot = pendingExtraBassControlHistorySnapshot;
+        pendingExtraBassControlHistorySnapshot = null;
+        if (editingPreset == null || historySnapshot == null) {
+            return;
+        }
+        boolean changed = historySnapshot.extraBassCutoffHz != editingPreset.extraBassCutoffHz
+                || historySnapshot.extraBassAmountPercent != editingPreset.extraBassAmountPercent;
+        if (!changed) {
+            return;
+        }
+        pushHistory(undoStack, historySnapshot);
+        redoStack.clear();
+        syncEditingStateFromPreset();
+        // Extra Bass is not drawn by EqCurveView, so rebuilding the PEQ/GEQ curve here only adds
+        // latency and cannot change what is displayed.
+        syncRunningIfEditingPresetIsActive();
+        updateExtraControls();
+        updateEditStateLabels();
     }
 
     private void startEnabledNeonSequence() {
