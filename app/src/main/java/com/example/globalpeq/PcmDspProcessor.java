@@ -362,7 +362,11 @@ final class PcmDspProcessor {
                     float input = finiteOrZero(samples[frameOffset + ch]);
                     float dryBass = extractDryBass(input, ch);
                     float dryRest = input - dryBass;
-                    samples[frameOffset + ch] = clampSample(dryRest + dryBass * dryBassGain + wet);
+                    // Preserve floating-point headroom here. The shared lookahead limiter owns
+                    // final peak control; clipping this intermediate bass mix makes distortion
+                    // permanent before the limiter has a chance to reduce it cleanly.
+                    samples[frameOffset + ch] = finiteOrZero(
+                            dryRest + dryBass * dryBassGain + wet);
                 }
             }
         }
@@ -942,10 +946,10 @@ final class PcmDspProcessor {
         private int delayFrames;
         private int primedFrames;
         private boolean enabled = true;
-        private float envelope;
+        private float detectorPeak;
         private float gain = 1f;
         private float ceiling = 0.985f;
-        private float attackCoeff = 0.05f;
+        private float attackStep = 1f;
         private float releaseCoeff = 0.998f;
 
         LookaheadLimiter(int sampleRate, int channelCount) {
@@ -972,11 +976,13 @@ final class PcmDspProcessor {
             }
             writeFrame = 0;
             primedFrames = 0;
-            envelope = 0f;
+            detectorPeak = 0f;
             gain = 1f;
             float attackSeconds = Math.max(0.000001f, attackMs / 1000f);
             float releaseSeconds = Math.max(0.025f, releaseMs / 1000f);
-            attackCoeff = (float) Math.exp(-1.0 / (sampleRate * attackSeconds));
+            attackStep = attackMs <= 0
+                    ? 1f
+                    : 1f - (float) Math.exp(-1.0 / (sampleRate * attackSeconds));
             releaseCoeff = (float) Math.exp(-1.0 / (sampleRate * releaseSeconds));
         }
 
@@ -994,14 +1000,23 @@ final class PcmDspProcessor {
                     peak = Math.max(peak, Math.abs(samples[frameOffset + channel]));
                 }
 
-                if (peak > envelope) {
-                    envelope = peak + attackCoeff * (envelope - peak);
+                if (peak > detectorPeak) {
+                    // Detect a new peak immediately; the configurable attack is applied to the
+                    // gain ramp while lookahead keeps that ramp ahead of the delayed audio.
+                    detectorPeak = peak;
                 } else {
-                    envelope = peak + releaseCoeff * (envelope - peak);
+                    detectorPeak = peak + releaseCoeff * (detectorPeak - peak);
                 }
-                float targetGain = envelope > ceiling ? ceiling / Math.max(envelope, ceiling) : 1f;
-                float smoothing = targetGain < gain ? 0.55f : 0.08f;
-                gain += (targetGain - gain) * smoothing;
+                float targetGain = detectorPeak > ceiling
+                        ? ceiling / detectorPeak
+                        : 1f;
+                if (targetGain < gain) {
+                    gain += (targetGain - gain) * attackStep;
+                } else {
+                    // detectorPeak already follows the configured release curve, so following
+                    // its target directly avoids a second release stage and audible pumping.
+                    gain = targetGain;
+                }
 
                 int readFrame = writeFrame - delayFrames;
                 if (readFrame < 0) {
@@ -1010,11 +1025,19 @@ final class PcmDspProcessor {
                 for (int channel = 0; channel < channelCount; channel++) {
                     int writeIndex = writeFrame * this.channelCount + channel;
                     float input = samples[frameOffset + channel];
-                    float delayed = primedFrames >= delayFrames
-                            ? delayBuffer[readFrame * this.channelCount + channel]
-                            : input;
+                    float delayed;
+                    if (delayFrames <= 0) {
+                        delayed = input;
+                    } else if (primedFrames >= delayFrames) {
+                        delayed = delayBuffer[readFrame * this.channelCount + channel];
+                    } else {
+                        // Prime the lookahead buffer with silence instead of sending the first
+                        // unprotected frames straight through at full level.
+                        delayed = 0f;
+                    }
                     delayBuffer[writeIndex] = input;
-                    samples[frameOffset + channel] = finiteOrZero(softLimit(delayed * gain, ceiling));
+                    samples[frameOffset + channel] = finiteOrZero(
+                            clamp(delayed * gain, -ceiling, ceiling));
                 }
 
                 writeFrame++;
@@ -1029,25 +1052,6 @@ final class PcmDspProcessor {
             return enabled;
         }
 
-        private static float softLimit(float value, float ceiling) {
-            float safe = Math.max(0.5f, ceiling);
-            float magnitude = Math.abs(value);
-            float kneeStart = safe * 0.9f;
-            if (magnitude <= kneeStart) {
-                return value;
-            }
-
-            // Join the linear region to the saturation region continuously.
-            // The old implementation switched directly from x to tanh(x) at
-            // 90% of the ceiling, which introduced a large amplitude step each
-            // time a boosted waveform crossed the boundary and sounded like
-            // crackling rather than ordinary clipping.
-            float kneeWidth = Math.max(0.0001f, safe - kneeStart);
-            float kneeInput = (magnitude - kneeStart) / kneeWidth;
-            float limitedMagnitude = kneeStart + kneeWidth * fastTanh(kneeInput);
-            limitedMagnitude = Math.min(safe, limitedMagnitude);
-            return Math.copySign(limitedMagnitude, value);
-        }
     }
 
     private static final class StereoReverbCore {
