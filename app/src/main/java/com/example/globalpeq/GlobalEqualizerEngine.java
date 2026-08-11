@@ -669,6 +669,7 @@ final class GlobalEqualizerEngine {
     String describeDvcReadback() {
         Preset activePreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         if (powerampDynamicsProcessing != null) {
+            float inputGainDb = targetInputGainDb(activePreset);
             float maxLowGainDb = 0f;
             float maxGainDb = 0f;
             for (int band = 0; band < powerampAppliedGainsDb.length; band++) {
@@ -680,13 +681,15 @@ final class GlobalEqualizerEngine {
             }
             return String.format(
                     Locale.US,
-                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, EQ mapping 1:1, limiter enabled @ +%.1f dB, release %.0f ms",
+                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, safety attenuation %.1f dB, limiter enabled @ %+.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
                     powerampDynamicsProcessing.getChannelCount(),
-                    presetPregainDb(activePreset),
+                    inputGainDb,
                     maxLowGainDb,
                     maxGainDb,
-                    DVC_LIMITER_THRESHOLD_DB,
+                    dvcDownstreamHeadroomDb,
+                    dvcSafetyAttenuationDb,
+                    dvcLimiterThresholdDb(dynamicsConfig),
                     DVC_LIMITER_RELEASE_MS);
         }
         if (dynamicsProcessing == null) {
@@ -729,11 +732,13 @@ final class GlobalEqualizerEngine {
             boolean limiterEnabled = appliedLimiter.isEnabled();
             return String.format(
                     Locale.US,
-                        "DVC readback: session %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, EQ mapping 1:1, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
+                        "DVC readback: session %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, safety attenuation %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
                         inputGainDb,
                         maxLowGainDb,
                         maxGainDb,
+                        dvcDownstreamHeadroomDb,
+                        dvcSafetyAttenuationDb,
                         firstCutoffHz,
                         limiterEnabled ? "enabled" : "bypassed",
                         appliedLimiter.getThreshold(),
@@ -745,10 +750,7 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyInputGain(Preset preset) {
-        float targetGainDb = clamp(
-                presetPregainDb(preset),
-                DYNAMICS_MIN_LEVEL_MB / 100f,
-                DYNAMICS_MAX_LEVEL_MB / 100f);
+        float targetGainDb = targetInputGainDb(preset);
         dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
             float appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
@@ -762,6 +764,25 @@ final class GlobalEqualizerEngine {
             }
         }
         Log.d(TAG, "GlobalDSP input gain=" + targetGainDb + " dB");
+    }
+
+    private float targetInputGainDb(Preset preset) {
+        float presetGainDb = presetPregainDb(preset);
+        if (!dvcActive || processingMode != ProcessingMode.GLOBAL_DSP) {
+            dvcSafetyAttenuationDb = 0f;
+            return clamp(
+                    presetGainDb,
+                    DYNAMICS_MIN_LEVEL_MB / 100f,
+                    DYNAMICS_MAX_LEVEL_MB / 100f);
+        }
+        float safePeakDb = dvcDownstreamHeadroomDb
+                + normalLimiterThresholdDb(dynamicsConfig);
+        float unprotectedPeakDb = presetGainDb + dvcMappedPeakGainDb;
+        dvcSafetyAttenuationDb = Math.max(0f, unprotectedPeakDb - safePeakDb);
+        return clamp(
+                presetGainDb - dvcSafetyAttenuationDb,
+                DVC_INPUT_MIN_DB,
+                DYNAMICS_MAX_LEVEL_MB / 100f);
     }
 
     private static float presetPregainDb(Preset preset) {
@@ -1204,16 +1225,20 @@ final class GlobalEqualizerEngine {
     private void applyDynamicsTargetLevels(Preset preset) {
         PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
         PeqMath.PreparedBandResponse extraBassResponse = prepareExtraBassResponse(preset);
+        float mappedPeakGainDb = 0f;
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             DynamicsProcessing.EqBand eqBand = configuredDynamicsBandAt(band);
             eqBand.setEnabled(true);
             eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
-            eqBand.setGain(targetDynamicsLevelMb(
+            float targetGainDb = targetDynamicsLevelMb(
                     dynamicsBandCenterHz[band],
                     preset,
                     response,
-                    extraBassResponse) / 100f);
+                    extraBassResponse) / 100f;
+            eqBand.setGain(targetGainDb);
+            mappedPeakGainDb = Math.max(mappedPeakGainDb, targetGainDb);
         }
+        dvcMappedPeakGainDb = dvcActive ? mappedPeakGainDb : 0f;
         if (dynamicsPreEq != null) {
             dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
         }
@@ -1221,8 +1246,8 @@ final class GlobalEqualizerEngine {
         // Java bank avoids allocating 300 EqBand objects per edit while retaining one atomic
         // native submission (individual band setters can expose a partially updated response).
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        // Input gain remains the preset pregain. DVC's positive-threshold limiter protects only
-        // internal peaks above +15 dB; downstream VolumeFX supplies the final output headroom.
+        // Preserve the complete EQ shape, but use only the positive peak range that the current
+        // downstream stream-volume attenuation can safely absorb.
         ensureFrameworkLimiterConfigured();
         applyAndVerifyInputGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
@@ -1239,14 +1264,17 @@ final class GlobalEqualizerEngine {
         }
         PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
         PeqMath.PreparedBandResponse extraBassResponse = prepareExtraBassResponse(preset);
+        float mappedPeakGainDb = 0f;
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-            powerampAppliedGainsDb[band] =
-                    targetDynamicsLevelMb(
+            float targetGainDb = targetDynamicsLevelMb(
                             dynamicsBandCenterHz[band],
                             preset,
                             response,
                             extraBassResponse) / 100f;
+            powerampAppliedGainsDb[band] = targetGainDb;
+            mappedPeakGainDb = Math.max(mappedPeakGainDb, targetGainDb);
         }
+        dvcMappedPeakGainDb = dvcActive ? mappedPeakGainDb : 0f;
         powerampDynamicsProcessing.setEq(dynamicsBandCenterHz, powerampAppliedGainsDb);
         refreshPowerampDvcControls(preset);
     }
@@ -1261,11 +1289,11 @@ final class GlobalEqualizerEngine {
                     DVC_LIMITER_ATTACK_MS,
                     DVC_LIMITER_RELEASE_MS,
                     DVC_LIMITER_RATIO,
-                    DVC_LIMITER_THRESHOLD_DB,
+                    dvcLimiterThresholdDb(dynamicsConfig),
                     0f);
             dynamicsLimiterConfigured = true;
         }
-        powerampDynamicsProcessing.setInputGain(presetPregainDb(preset));
+        powerampDynamicsProcessing.setInputGain(targetInputGainDb(preset));
         if (!powerampDynamicsProcessing.getEnabled()) {
             powerampDynamicsProcessing.setEnabled(true);
         }
