@@ -31,6 +31,7 @@ final class GlobalEqualizerEngine {
     private static final float DVC_LIMITER_RELEASE_MS = 25f;
     private static final float DVC_LIMITER_RATIO = 50f;
     private static final float DVC_LIMITER_THRESHOLD_DB = 15f;
+    private static final float DVC_INPUT_MIN_DB = -96f;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
@@ -65,6 +66,9 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
+    private float dvcDownstreamHeadroomDb;
+    private float dvcMappedPeakGainDb;
+    private float dvcSafetyAttenuationDb;
     private int dynamicsAudioSessionId = GLOBAL_AUDIO_SESSION;
     private float[] powerampAppliedGainsDb = new float[0];
     private String powerampBackendFailure = "";
@@ -297,8 +301,9 @@ final class GlobalEqualizerEngine {
     private DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config,
                                                       float postGainDb) {
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
-            // DVC keeps stream attenuation downstream, so positive internal thresholds are safe.
-            // Preserve the complete EQ response through +15 dB and catch only peaks above it.
+            // Never expose a positive internal peak that the remaining downstream stream-volume
+            // attenuation cannot absorb. At medium volume this remains +15 dB; toward maximum
+            // volume it closes progressively to the configured output ceiling.
             return new DynamicsProcessing.Limiter(
                     true,
                     true,
@@ -306,12 +311,10 @@ final class GlobalEqualizerEngine {
                     DVC_LIMITER_ATTACK_MS,
                     DVC_LIMITER_RELEASE_MS,
                     DVC_LIMITER_RATIO,
-                    DVC_LIMITER_THRESHOLD_DB,
+                    dvcLimiterThresholdDb(config),
                     postGainDb);
         }
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
-        float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
-        float normalThresholdDb = (float) (20.0 * Math.log10(ceiling));
         return new DynamicsProcessing.Limiter(
                 true,
                 true,
@@ -319,8 +322,19 @@ final class GlobalEqualizerEngine {
                 DYNAMICS_LIMITER_ATTACK_MS,
                 safeConfig.limiterReleaseMs,
                 DYNAMICS_LIMITER_RATIO,
-                normalThresholdDb,
+                normalLimiterThresholdDb(safeConfig),
                 postGainDb);
+    }
+
+    private static float normalLimiterThresholdDb(AdvancedModeConfig config) {
+        AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
+        return (float) (20.0 * Math.log10(ceiling));
+    }
+
+    private float dvcLimiterThresholdDb(AdvancedModeConfig config) {
+        float availablePeakDb = dvcDownstreamHeadroomDb + normalLimiterThresholdDb(config);
+        return Math.min(DVC_LIMITER_THRESHOLD_DB, availablePeakDb);
     }
 
     boolean supportsDvcSessionPlacement() {
@@ -330,6 +344,36 @@ final class GlobalEqualizerEngine {
 
     synchronized boolean isDvcModeActive() {
         return dvcActive;
+    }
+
+    synchronized void setDvcDownstreamHeadroomDb(float headroomDb) {
+        float nextHeadroomDb = Float.isFinite(headroomDb)
+                ? clamp(headroomDb, 0f, 96f)
+                : 0f;
+        if (Math.abs(nextHeadroomDb - dvcDownstreamHeadroomDb) < 0.05f) {
+            return;
+        }
+        dvcDownstreamHeadroomDb = nextHeadroomDb;
+        if (!dvcActive) {
+            return;
+        }
+        Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
+        if (targetPreset == null || !targetPreset.enabled) {
+            return;
+        }
+        try {
+            // A volume change only affects available headroom. Keep the EQ bank intact and update
+            // the DVC input safety gain plus its final peak limiter.
+            dynamicsLimiterConfigured = false;
+            if (powerampDynamicsProcessing != null) {
+                refreshPowerampDvcControls(targetPreset);
+            } else if (dynamicsProcessing != null) {
+                ensureFrameworkLimiterConfigured();
+                applyAndVerifyInputGain(targetPreset);
+            }
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Could not update DVC headroom for media volume", error);
+        }
     }
 
     /**
