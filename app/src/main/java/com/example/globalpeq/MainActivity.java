@@ -2803,7 +2803,11 @@ public final class MainActivity extends Activity {
             return;
         }
         monitorSettingsOpen = true;
+        limiterSettingsOpen = false;
         settingsPage.setVisibility(View.GONE);
+        if (limiterSettingsPage != null) {
+            limiterSettingsPage.setVisibility(View.GONE);
+        }
         monitorSettingsPage.setVisibility(View.VISIBLE);
         monitorSettingsPage.bringToFront();
         bottomNavView.setVisibility(View.GONE);
@@ -2812,12 +2816,41 @@ public final class MainActivity extends Activity {
         renderAll();
     }
 
-    private void hideAdvancedSettingsSubpage() {
-        if (settingsPage == null || monitorSettingsPage == null || bottomNavView == null) {
+    private void showLimiterSettingsSubpage() {
+        if (settingsPage == null
+                || limiterSettingsPage == null
+                || bottomNavView == null) {
             return;
         }
         monitorSettingsOpen = false;
-        monitorSettingsPage.setVisibility(View.GONE);
+        limiterSettingsOpen = true;
+        settingsPage.setVisibility(View.GONE);
+        if (monitorSettingsPage != null) {
+            monitorSettingsPage.setVisibility(View.GONE);
+        }
+        limiterSettingsPage.setVisibility(View.VISIBLE);
+        limiterSettingsPage.bringToFront();
+        bottomNavView.setVisibility(View.GONE);
+        uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
+        renderAll();
+    }
+
+    private void hideAdvancedSettingsSubpage() {
+        hideSettingsSubpage();
+    }
+
+    private void hideSettingsSubpage() {
+        if (settingsPage == null || bottomNavView == null) {
+            return;
+        }
+        monitorSettingsOpen = false;
+        limiterSettingsOpen = false;
+        if (monitorSettingsPage != null) {
+            monitorSettingsPage.setVisibility(View.GONE);
+        }
+        if (limiterSettingsPage != null) {
+            limiterSettingsPage.setVisibility(View.GONE);
+        }
         settingsPage.setVisibility(View.VISIBLE);
         bottomNavView.setVisibility(View.VISIBLE);
         uiHandler.removeCallbacks(monitorStatusRefreshRunnable);
@@ -2825,8 +2858,8 @@ public final class MainActivity extends Activity {
     }
 
     private boolean handleBackNavigation() {
-        if (monitorSettingsOpen) {
-            hideAdvancedSettingsSubpage();
+        if (isSettingsSubpageOpen()) {
+            hideSettingsSubpage();
             return true;
         }
         if (activeMainPageIndex != 0) {
@@ -2835,6 +2868,10 @@ public final class MainActivity extends Activity {
         }
         moveTaskToBack(false);
         return true;
+    }
+
+    private boolean isSettingsSubpageOpen() {
+        return monitorSettingsOpen || limiterSettingsOpen;
     }
 
     private void registerSystemBackCallback() {
