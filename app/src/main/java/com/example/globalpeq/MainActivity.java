@@ -7858,6 +7858,9 @@ public final class MainActivity extends Activity {
     }
 
     private void setEditingPreset(Preset nextPreset, boolean recordHistory) {
+        if (pendingExtraBassControlHistorySnapshot != null) {
+            commitPendingExtraBassControl();
+        }
         if (pendingGeqHistorySnapshot != null) {
             commitPendingGeqUpdate();
         }
@@ -8491,12 +8494,22 @@ public final class MainActivity extends Activity {
         KnobView knob = new KnobView(this);
         if (cutoff) {
             cutoffKnob = knob;
-            knob.configure(60, 250, editingPreset.extraBassCutoffHz, "Hz", value -> setEditingPreset(editingPreset.withExtraBassCutoffHz(value), true));
+            knob.configure(
+                    60,
+                    250,
+                    editingPreset.extraBassCutoffHz,
+                    "Hz",
+                    this::updateExtraBassCutoff);
         } else {
             amountKnob = knob;
-            knob.configure(0, 100, editingPreset.extraBassAmountPercent, "%", value ->
-                    setEditingPreset(editingPreset.withExtraBassAmountPercent(value), true));
+            knob.configure(
+                    0,
+                    100,
+                    editingPreset.extraBassAmountPercent,
+                    "%",
+                    this::updateExtraBassAmount);
         }
+        knob.setInteractionEndListener(this::commitPendingExtraBassControl);
         // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);

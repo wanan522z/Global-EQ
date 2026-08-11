@@ -30,6 +30,7 @@ final class KnobView extends View {
     private boolean maybeTap;
     private Listener listener;
     private TapListener tapListener;
+    private Runnable interactionEndListener;
     private boolean forceSquare;
 
     KnobView(Context context) {
@@ -71,6 +72,10 @@ final class KnobView extends View {
 
     void setTapListener(TapListener l) {
         this.tapListener = l;
+    }
+
+    void setInteractionEndListener(Runnable listener) {
+        interactionEndListener = listener;
     }
 
     int getMin() { return min; }
@@ -152,6 +157,9 @@ final class KnobView extends View {
         }
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
                 downY = event.getY();
                 downX = event.getX();
                 downValue = value;
@@ -167,18 +175,31 @@ final class KnobView extends View {
                 if (Math.abs(dy) > dp(8)) {
                     maybeTap = false;
                     int range = max - min;
-                    int next = downValue + Math.round(dy * range / Math.max(80f, getHeight()));
+                    float dragSpan = Math.max(dp(120), getHeight() * 1.75f);
+                    int next = downValue + Math.round(dy * range / dragSpan);
                     setValue(next, true);
                 }
                 return true;
             case MotionEvent.ACTION_UP:
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
                 if (maybeTap && tapListener != null) {
                     tapListener.onDigitTapped(this);
+                }
+                if (interactionEndListener != null) {
+                    interactionEndListener.run();
                 }
                 performClick();
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
                 maybeTap = false;
+                if (interactionEndListener != null) {
+                    interactionEndListener.run();
+                }
                 return true;
             default:
                 return super.onTouchEvent(event);
