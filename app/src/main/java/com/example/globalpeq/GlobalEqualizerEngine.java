@@ -733,9 +733,10 @@ final class GlobalEqualizerEngine {
                 lastAppliedPreset = preset;
                 return;
             }
-            if (powerampDynamicsProcessing != null) {
-                // Raw DP accepts the complete target bank directly. Clearing all 300 bands and
-                // waiting 120 ms first makes a single-band toggle audibly jump to flat response.
+            if (usesAtomicDvcBankApply()) {
+                // DVC must never disable or clear the live DP bank during an edit. Submit the
+                // complete replacement bank directly so a single-band toggle cannot expose a
+                // short bypass/flat interval before the 120 ms staged write.
                 applyTargetLevels(preset);
                 return;
             }
@@ -769,7 +770,7 @@ final class GlobalEqualizerEngine {
 
         pendingPreset = preset;
         try {
-            if (powerampDynamicsProcessing != null) {
+            if (usesAtomicDvcBankApply()) {
                 applyTargetLevels(preset);
                 return;
             }
@@ -942,6 +943,12 @@ final class GlobalEqualizerEngine {
         targetApplyPending = true;
     }
 
+    private boolean usesAtomicDvcBankApply() {
+        return dvcActive
+                && processingMode == ProcessingMode.GLOBAL_DSP
+                && (dynamicsProcessing != null || powerampDynamicsProcessing != null);
+    }
+
     private void applyTargetLevels(Preset preset) {
         if (!hasActiveEffect() || preset == null || !preset.enabled) {
             return;
@@ -1088,16 +1095,26 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyDynamicsTargetLevels(Preset preset) {
+        DynamicsProcessing.Eq nextPreEq = dynamicsPreEqBandCount > 0
+                ? new DynamicsProcessing.Eq(true, true, dynamicsPreEqBandCount)
+                : null;
+        int postEqBandCount = dynamicsBandCenterHz.length - dynamicsPreEqBandCount;
+        DynamicsProcessing.Eq nextPostEq =
+                new DynamicsProcessing.Eq(true, true, postEqBandCount);
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-            DynamicsProcessing.EqBand eqBand = configuredDynamicsBandAt(band);
+            DynamicsProcessing.EqBand eqBand = band < dynamicsPreEqBandCount
+                    ? nextPreEq.getBand(band)
+                    : nextPostEq.getBand(band - dynamicsPreEqBandCount);
             eqBand.setEnabled(true);
             eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
-        if (dynamicsPreEq != null) {
-            dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
+        if (nextPreEq != null) {
+            dynamicsProcessing.setPreEqAllChannelsTo(nextPreEq);
         }
-        dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
+        dynamicsProcessing.setPostEqAllChannelsTo(nextPostEq);
+        dynamicsPreEq = nextPreEq;
+        dynamicsPostEq = nextPostEq;
         // Input gain remains the preset pregain. DVC's positive-threshold limiter protects only
         // internal peaks above +15 dB; downstream VolumeFX supplies the final output headroom.
         dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
