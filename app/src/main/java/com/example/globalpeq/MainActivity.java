@@ -4236,14 +4236,18 @@ public final class MainActivity extends Activity {
         if (view == null) {
             return;
         }
-        view.setEnabled(enabled);
         view.setAlpha(enabled ? 1f : 0.5f);
+        setViewEnabledRecursively(view, enabled);
+    }
+
+    private void setViewEnabledRecursively(View view, boolean enabled) {
+        view.setEnabled(enabled);
         if (!(view instanceof ViewGroup)) {
             return;
         }
         ViewGroup group = (ViewGroup) view;
         for (int index = 0; index < group.getChildCount(); index++) {
-            setViewTreeEnabled(group.getChildAt(index), enabled);
+            setViewEnabledRecursively(group.getChildAt(index), enabled);
         }
     }
 
