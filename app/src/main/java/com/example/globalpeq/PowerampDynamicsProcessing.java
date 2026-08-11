@@ -58,7 +58,7 @@ final class PowerampDynamicsProcessing {
     PowerampDynamicsProcessing(int audioSessionId,
                                int preEqBandCount,
                                int postEqBandCount) {
-        if (audioSessionId < 0 || preEqBandCount < 0 || postEqBandCount <= 0) {
+        if (audioSessionId <= 0 || preEqBandCount < 0 || postEqBandCount <= 0) {
             throw new IllegalArgumentException("Invalid Poweramp DP session/configuration");
         }
         this.audioSessionId = audioSessionId;
