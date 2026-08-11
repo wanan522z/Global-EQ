@@ -1568,20 +1568,14 @@ public final class MainActivity extends Activity {
         globalDvcHintView.setTextIsSelectable(true);
         panel.addView(globalDvcHintView, blockParams(2));
 
-        panel.addView(createAdvancedNumberRow(
-                this::limiterCeilingLabelText,
-                String.valueOf(advancedModeConfig.limiterCeilingPermille),
-                "930-999",
-                view -> limiterCeilingLabelView = view,
-                value -> updateAdvancedModeConfig(
-                        advancedModeConfig.withLimiterCeilingPermille(value))), blockParams(12));
-        panel.addView(createAdvancedNumberRow(
-                this::limiterReleaseLabelText,
-                String.valueOf(advancedModeConfig.limiterReleaseMs),
-                "20-400",
-                view -> limiterReleaseLabelView = view,
-                value -> updateAdvancedModeConfig(
-                        advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
+        limiterSettingsButton = createExtraChoiceButton();
+        bindText(limiterSettingsButton, this::limiterSettingsButtonText);
+        styleMonitorActionButton(limiterSettingsButton, 168);
+        limiterSettingsButton.setOnClickListener(v -> showLimiterSettingsSubpage());
+        panel.addView(labeledSettingsRow(
+                this::limiterSettingsLabelText,
+                limiterSettingsButton,
+                null), blockParams(12));
 
         shizukuRuntimePanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(shizukuRuntimePanel);
