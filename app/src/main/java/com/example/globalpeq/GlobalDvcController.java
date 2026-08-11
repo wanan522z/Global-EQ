@@ -312,6 +312,7 @@ final class GlobalDvcController {
     private void deactivateEngineMapping() {
         mappingActive = false;
         activeAudioSessionId = 0;
+        sessionZeroVolumeAttempted = false;
         // Remove/re-home the boosted player-session DP before detaching VolumeFX. Neither step
         // writes a replacement media-volume index during normal DVC teardown.
         engine.setDvcModeEnabled(false, 0);
