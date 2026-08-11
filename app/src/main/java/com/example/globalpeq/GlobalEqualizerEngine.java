@@ -1225,11 +1225,29 @@ final class GlobalEqualizerEngine {
         if (preset == null) {
             return 0;
         }
-        return targetDynamicsLevelMb(
-                frequencyHz,
-                preset,
-                PeqMath.prepareResponse(preset),
-                prepareExtraBassResponse(preset));
+        boolean powerampDvcResponse = dvcActive
+                && processingMode == ProcessingMode.GLOBAL_DSP;
+        int levelMb = powerampDvcResponse
+                ? PeqMath.powerampDvcGainAtFrequencyMb(frequencyHz, preset)
+                : PeqMath.gainAtFrequencyMb(frequencyHz, preset) - preset.pregainMb;
+        if (preset.extraBassEnabled && preset.extraBassAmountPercent > 0) {
+            int extraBassGainMb = Math.round(
+                    preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
+            ParametricBand extraBassBand = new ParametricBand(
+                    FilterType.LOW_SHELF,
+                    true,
+                    preset.extraBassCutoffHz,
+                    extraBassGainMb,
+                    70);
+            int extraBassResponseMb = PeqMath.bandGainAtHzMb(frequencyHz, extraBassBand);
+            if (powerampDvcResponse) {
+                extraBassResponseMb = PeqMath.powerampDvcDeadBandMb(
+                        extraBassResponseMb,
+                        extraBassGainMb);
+            }
+            levelMb += extraBassResponseMb;
+        }
+        return Math.max(DYNAMICS_MIN_LEVEL_MB, Math.min(DYNAMICS_MAX_LEVEL_MB, levelMb));
     }
 
     private int targetDynamicsLevelMb(double frequencyHz,
