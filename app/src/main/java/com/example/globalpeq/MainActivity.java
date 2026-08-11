@@ -702,6 +702,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onStop() {
+        commitPendingExtraBassControl();
         commitPendingGeqUpdate();
         commitPendingPeqToggle();
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
@@ -770,6 +771,7 @@ public final class MainActivity extends Activity {
         shimmerTargetViews.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         uiHandler.removeCallbacks(commitPeqToggleRunnable);
+        uiHandler.removeCallbacks(commitExtraBassControlRunnable);
         uiHandler.removeCallbacks(commitEnabledToggleRunnable);
         uiHandler.removeCallbacks(refreshEnabledToggleUiRunnable);
         uiHandler.removeCallbacks(unlockEnabledToggleInteractionRunnable);
@@ -7936,6 +7938,7 @@ public final class MainActivity extends Activity {
     }
 
     private void undoEdit() {
+        commitPendingExtraBassControl();
         commitPendingGeqUpdate();
         commitPendingPeqBandUpdate();
         commitPendingPeqToggle();
@@ -7949,6 +7952,7 @@ public final class MainActivity extends Activity {
     }
 
     private void redoEdit() {
+        commitPendingExtraBassControl();
         commitPendingGeqUpdate();
         commitPendingPeqBandUpdate();
         commitPendingPeqToggle();
