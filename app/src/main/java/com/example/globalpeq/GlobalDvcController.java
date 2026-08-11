@@ -5,19 +5,35 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
-import android.media.VolumeProvider;
-import android.media.session.MediaSession;
-import android.media.session.PlaybackState;
+import android.media.AudioPlaybackConfiguration;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class GlobalDvcController {
+    private static final String TAG = "GlobalDvcController";
     private static final String VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION";
     private static final String EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE";
+    private static final Pattern PLAYBACK_SESSION_REGEX = Pattern.compile(
+            "\\bsession(?:Id)?\\b\\s*[:=]\\s*(\\d+)",
+            Pattern.CASE_INSENSITIVE);
 
     private final Context appContext;
     private final AudioManager audioManager;
     private final GlobalEqualizerEngine engine;
     private final PresetRepository repository;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final LinkedHashSet<Integer> announcedPlaybackSessions = new LinkedHashSet<>();
     private final BroadcastReceiver volumeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -26,10 +42,18 @@ final class GlobalDvcController {
             }
             int stream = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, AudioManager.STREAM_MUSIC);
             if (stream == AudioManager.STREAM_MUSIC) {
-                handlePhysicalVolumeChanged();
+                refreshVolumeMapping();
             }
         }
     };
+    private final DvcAudioSessionRegistry.Listener sessionRegistryListener;
+    private final AudioManager.AudioPlaybackCallback playbackCallback =
+            new AudioManager.AudioPlaybackCallback() {
+                @Override
+                public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
+                    handlePlaybackSessionsChanged(-1);
+                }
+            };
 
     private boolean started;
     private ProcessingMode mode = ProcessingMode.SYSTEM_EQ;
@@ -39,11 +63,10 @@ final class GlobalDvcController {
     private DvcRoutePolicy.Decision routeDecision = DvcRoutePolicy.evaluate(route);
     private DvcVolumeMapper.Curve curve;
     private boolean mappingActive;
+    private PowerampDvcVolumeChain volumeChain;
+    private int activeAudioSessionId;
+    private int preferredAudioSessionId;
     private int initialVolumeIndex;
-    private int virtualVolumeIndex;
-    private int lastAudibleVolumeIndex;
-    private MediaSession volumeSession;
-    private VolumeProvider volumeProvider;
 
     GlobalDvcController(Context context,
                         GlobalEqualizerEngine engine,
@@ -52,35 +75,37 @@ final class GlobalDvcController {
         audioManager = (AudioManager) appContext.getSystemService(Context.AUDIO_SERVICE);
         this.engine = engine;
         this.repository = repository;
+        sessionRegistryListener =
+                (preferredSessionId, closedSessionId) -> mainHandler.post(() -> {
+                    announcedPlaybackSessions.clear();
+                    announcedPlaybackSessions.addAll(
+                            DvcAudioSessionRegistry.loadOpenSessionIds(appContext));
+                    preferredAudioSessionId = preferredSessionId > 0
+                            ? preferredSessionId
+                            : DvcAudioSessionRegistry.loadPreferredSessionId(appContext);
+                    handlePlaybackSessionsChanged(closedSessionId);
+                });
     }
 
     void start() {
         if (started) {
             return;
         }
-        restoreStaleDvcVolume();
         IntentFilter filter = new IntentFilter(VOLUME_CHANGED_ACTION);
+        // Keep status/headroom readback synchronized with physical stream-volume changes.
+        filter.setPriority(999);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             appContext.registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             appContext.registerReceiver(volumeReceiver, filter);
         }
+        announcedPlaybackSessions.clear();
+        announcedPlaybackSessions.addAll(DvcAudioSessionRegistry.loadOpenSessionIds(appContext));
+        preferredAudioSessionId = DvcAudioSessionRegistry.loadPreferredSessionId(appContext);
+        DvcAudioSessionRegistry.addListener(sessionRegistryListener);
+        audioManager.registerAudioPlaybackCallback(playbackCallback, mainHandler);
         started = true;
         publish(DvcRuntimeState.Kind.OFF, false, true, "DVC is off");
-    }
-
-    private void restoreStaleDvcVolume() {
-        DvcRuntimeState staleState = repository.loadDvcRuntimeState();
-        if (staleState == null || !staleState.active) {
-            return;
-        }
-        try {
-            int min = audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC);
-            int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-            int restoreIndex = Math.max(min, Math.min(max, staleState.currentVolumeIndex));
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, restoreIndex, 0);
-        } catch (RuntimeException ignored) {
-        }
     }
 
     void prepareForRouteChange(AudioOutputDevice nextRoute) {
@@ -126,17 +151,11 @@ final class GlobalDvcController {
             return;
         }
 
-        if (mappingActive) {
-            publishActiveState(routeDecision.isUsb()
-                    ? DvcRuntimeState.Kind.USB_HARDWARE
-                    : DvcRuntimeState.Kind.ACTIVE);
-            return;
-        }
-
+        boolean startingNewDvcSession = !mappingActive;
         curve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
-        initialVolumeIndex = curve.currentIndex;
-        virtualVolumeIndex = curve.currentIndex;
-        lastAudibleVolumeIndex = curve.currentIndex;
+        if (startingNewDvcSession) {
+            initialVolumeIndex = curve.currentIndex;
+        }
         if (routeDecision.isUsb() && (curve.fixedVolume || !curve.meaningful)) {
             deactivate(DvcRuntimeState.Kind.USB_DIGITAL_ONLY, true,
                     curve.failure.isEmpty() ? "USB fixed hardware volume" : curve.failure);
@@ -146,12 +165,12 @@ final class GlobalDvcController {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true, curve.failure);
             return;
         }
-        if (!engine.supportsDvcVolumeMapping()) {
+        if (!engine.supportsDvcSessionPlacement()) {
             deactivate(DvcRuntimeState.Kind.PROBE_FAILED, false,
-                    "Global DynamicsProcessing volume-control path is unavailable");
+                    "Global DynamicsProcessing player-session path is unavailable");
             return;
         }
-        activateMappedVolume(routeDecision.isUsb()
+        applyMappedCurve(routeDecision.isUsb()
                 ? DvcRuntimeState.Kind.USB_HARDWARE
                 : DvcRuntimeState.Kind.ACTIVE);
     }
@@ -162,115 +181,109 @@ final class GlobalDvcController {
                 appContext.unregisterReceiver(volumeReceiver);
             } catch (IllegalArgumentException ignored) {
             }
+            DvcAudioSessionRegistry.removeListener(sessionRegistryListener);
+            try {
+                audioManager.unregisterAudioPlaybackCallback(playbackCallback);
+            } catch (RuntimeException ignored) {
+            }
             started = false;
         }
+        announcedPlaybackSessions.clear();
+        preferredAudioSessionId = 0;
         deactivate(DvcRuntimeState.Kind.OFF, true, "DVC is off");
     }
 
-    private void handlePhysicalVolumeChanged() {
+    private void refreshVolumeMapping() {
         if (!started || mode != ProcessingMode.GLOBAL_DSP || !presetEnabled
                 || !userIntentEnabled || !routeDecision.allowsDvc || !mappingActive) {
             return;
         }
-        int physicalIndex;
-        try {
-            physicalIndex = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-        } catch (RuntimeException error) {
-            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "Could not read system media volume");
+        DvcVolumeMapper.Curve nextCurve = DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
+        if (!nextCurve.meaningful) {
+            curve = nextCurve;
+            deactivate(routeDecision.isUsb()
+                            ? DvcRuntimeState.Kind.USB_DIGITAL_ONLY
+                            : DvcRuntimeState.Kind.PROBE_FAILED,
+                    true,
+                    nextCurve.failure);
             return;
         }
-        if (curve == null || physicalIndex == curve.maxIndex) {
-            return;
-        }
-
-        // Fallback for ROMs that deliver hardware volume keys to STREAM_MUSIC instead of the
-        // active VolumeProvider. A down key moves max to max-1; apply one virtual step and put the
-        // physical stream back at max only after the new pre-EQ attenuation is installed.
-        int targetIndex = physicalIndex == curve.maxIndex - 1
-                ? virtualVolumeIndex - 1
-                : physicalIndex;
-        if (setVirtualVolumeIndex(targetIndex) && !forceSystemVolumeMax()) {
-            deactivate(DvcRuntimeState.Kind.PROBE_FAILED, true,
-                    "DVC lost control of system media volume");
-        }
-    }
-
-    private void activateMappedVolume(DvcRuntimeState.Kind kind) {
-        float volumeDb = virtualVolumeDb();
-        if (!engine.setDvcVolumeMapping(true, volumeDb)) {
-            deactivateEngineMapping();
-            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                    "DVC pre-EQ volume mapping was rejected");
-            return;
-        }
-
-        if (!startVolumeSession()) {
-            deactivateEngineMapping();
-            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                    "DVC could not take ownership of media volume keys");
-            return;
-        }
-
-        // From this point the negative pre-EQ gain is verified. Raising the physical stream can
-        // therefore preserve loudness but cannot produce the former unattenuated burst.
-        mappingActive = true;
-        publish(kind, true, true,
-                "DVC arming: pre-EQ attenuation verified; system volume not raised yet");
-        if (!forceSystemVolumeMax()) {
-            deactivateEngineMapping();
-            publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
-                    "DVC could not lock system media volume at maximum");
-            return;
-        }
-        publishActiveState(kind);
-    }
-
-    private boolean setVirtualVolumeIndex(int requestedIndex) {
-        if (!mappingActive || curve == null) {
-            return false;
-        }
-        int targetIndex = Math.max(curve.minIndex, Math.min(curve.maxIndex, requestedIndex));
-        float targetDb = DvcVolumeMapper.volumeDbForIndex(
-                audioManager,
-                targetIndex,
-                routeDecision.deviceType);
-        if (!engine.setDvcVolumeMapping(true, targetDb)) {
-            return false;
-        }
-        virtualVolumeIndex = targetIndex;
-        if (targetIndex > curve.minIndex) {
-            lastAudibleVolumeIndex = targetIndex;
-        }
-        if (volumeProvider != null) {
-            volumeProvider.setCurrentVolume(targetIndex - curve.minIndex);
-        }
-        publishActiveState(routeDecision.isUsb()
+        curve = nextCurve;
+        applyMappedCurve(routeDecision.isUsb()
                 ? DvcRuntimeState.Kind.USB_HARDWARE
                 : DvcRuntimeState.Kind.ACTIVE);
-        return true;
     }
 
-    private float virtualVolumeDb() {
-        return curve == null
-                ? 0f
-                : DvcVolumeMapper.volumeDbForIndex(
-                        audioManager,
-                        virtualVolumeIndex,
-                        routeDecision.deviceType);
+    private void applyMappedCurve(DvcRuntimeState.Kind kind) {
+        applyMappedCurve(kind, discoverPlaybackSessionIds(-1));
     }
 
-    private void publishActiveState(DvcRuntimeState.Kind kind) {
-        float volumeDb = virtualVolumeDb();
-        float displayedAttenuationDb = Math.round(Math.max(0f, -volumeDb) * 10f) / 10f;
-        int activeBandCount = engine.getActiveDynamicsBandCount();
+    private void applyMappedCurve(DvcRuntimeState.Kind kind,
+                                  Set<Integer> playbackSessions) {
+        float downstreamHeadroomDb = curve == null ? 0f : curve.headroomDb();
+        float displayedHeadroomDb = Math.round(downstreamHeadroomDb * 10f) / 10f;
+        if (playbackSessions.isEmpty()) {
+            failMappedCurve(
+                    "未发现播放器的非零 audio session；manifest session registry 与 playback callback 均为空。请让播放器停止后重新开始播放，DVC 会自动重试");
+            return;
+        }
+        int targetAudioSessionId = 0;
+        for (Integer candidateSessionId : orderedPlaybackSessionIds(playbackSessions)) {
+            if (candidateSessionId == null || candidateSessionId <= 0) {
+                continue;
+            }
+            if (volumeChain != null
+                    && volumeChain.getAudioSessionId() != candidateSessionId) {
+                // Poweramp tears down player-session DP before VolumeFX. Reversing that order
+                // briefly leaves boosted DP without its downstream attenuation and can jump loud.
+                engine.setDvcModeEnabled(false, 0);
+                releaseDvcVolumeChain();
+            }
+            if (volumeChain == null) {
+                try {
+                    // Poweramp initializes VolumeFX before it creates the real DP bank. This
+                    // ordering moves the current stream attenuation behind the boosted EQ.
+                    volumeChain = new PowerampDvcVolumeChain(audioManager, candidateSessionId);
+                } catch (RuntimeException error) {
+                    Log.w(TAG, "Could not create the Poweramp DVC volume chain for session "
+                            + candidateSessionId, error);
+                    releaseDvcVolumeChain();
+                    continue;
+                }
+            }
+            // Some broken players omit CLOSE. Try all known sessions, newest first, so one stale
+            // manifest entry cannot hide a valid current player session.
+            if (engine.setDvcModeEnabled(true, candidateSessionId)
+                    && engine.getActiveDynamicsAudioSessionId() == candidateSessionId) {
+                targetAudioSessionId = candidateSessionId;
+                break;
+            }
+            releaseDvcVolumeChain();
+        }
+        if (targetAudioSessionId <= 0) {
+            failMappedCurve("播放器 audio session、VolumeFX 或 DP effect 挂载失败，DVC 未启用");
+            return;
+        }
+        mappingActive = true;
+        activeAudioSessionId = targetAudioSessionId;
         publish(kind, true, true,
-                "DVC virtual media attenuation: " + displayedAttenuationDb + " dB\n"
-                        + "System media volume: locked at maximum\n"
-                        + "DVC post-EQ bank: " + activeBandCount + " full-range bands\n"
-                        + "DVC limiter: bypassed\n"
+                "DVC EQ audio session: " + targetAudioSessionId + "\n"
+                        + "DVC discovered sessions: " + playbackSessions + "\n"
+                        + "Player-session VolumeFX: "
+                        + volumeChain.describeAttachment() + "\n"
+                        + "DVC mapped headroom: " + displayedHeadroomDb + " dB\n"
+                        + "DVC EQ bank: " + engine.describeActiveDynamicsBank() + "\n"
+                        + "DVC limiter: enabled above +15 dB (50:1, 25 ms release)\n"
+                        + "DVC session tracking: manifest receiver + playback lifecycle\n"
+                        + "System media volume ownership: disabled (Poweramp one-shot initialization only)\n"
                         + engine.describeDvcReadback() + "\n"
-                        + "Volume keys control pre-EQ virtual volume");
+                        + "DVC chain: player-session VolumeFX + player-session EQ");
+    }
+
+    private void failMappedCurve(String detail) {
+        deactivateEngineMapping();
+        publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
+                detail == null ? "DVC player-session pipeline failed" : detail);
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
@@ -279,101 +292,130 @@ final class GlobalDvcController {
     }
 
     private void deactivateEngineMapping() {
-        boolean wasActive = mappingActive;
         mappingActive = false;
-        if (wasActive && curve != null) {
-            setPhysicalVolume(virtualVolumeIndex);
-        }
-        // Restore downstream attenuation before removing the matching pre-EQ attenuation.
-        engine.setDvcVolumeMapping(false, 0f);
-        releaseVolumeSession();
+        activeAudioSessionId = 0;
+        // Remove/re-home the boosted player-session DP before detaching VolumeFX. Neither step
+        // writes a replacement media-volume index during normal DVC teardown.
+        engine.setDvcModeEnabled(false, 0);
+        releaseDvcVolumeChain();
     }
 
-    private boolean forceSystemVolumeMax() {
-        if (curve == null || !setPhysicalVolume(curve.maxIndex)) {
-            return false;
-        }
-        try {
-            return audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) == curve.maxIndex;
-        } catch (RuntimeException error) {
-            return false;
-        }
-    }
-
-    private boolean setPhysicalVolume(int index) {
-        try {
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, index, 0);
-            return true;
-        } catch (RuntimeException error) {
-            return false;
-        }
-    }
-
-    private boolean startVolumeSession() {
-        if (curve == null) {
-            return false;
-        }
-        releaseVolumeSession();
-        try {
-            int range = Math.max(1, curve.maxIndex - curve.minIndex);
-            volumeProvider = new VolumeProvider(
-                    VolumeProvider.VOLUME_CONTROL_ABSOLUTE,
-                    range,
-                    virtualVolumeIndex - curve.minIndex) {
-                @Override
-                public void onAdjustVolume(int direction) {
-                    if (!mappingActive || curve == null) {
-                        return;
-                    }
-                    if (direction == AudioManager.ADJUST_RAISE) {
-                        setVirtualVolumeIndex(virtualVolumeIndex + 1);
-                    } else if (direction == AudioManager.ADJUST_LOWER) {
-                        setVirtualVolumeIndex(virtualVolumeIndex - 1);
-                    } else if (direction == AudioManager.ADJUST_MUTE) {
-                        setVirtualVolumeIndex(curve.minIndex);
-                    } else if (direction == AudioManager.ADJUST_UNMUTE) {
-                        setVirtualVolumeIndex(Math.max(curve.minIndex + 1,
-                                lastAudibleVolumeIndex));
-                    } else if (direction == AudioManager.ADJUST_TOGGLE_MUTE) {
-                        setVirtualVolumeIndex(virtualVolumeIndex <= curve.minIndex
-                                ? Math.max(curve.minIndex + 1, lastAudibleVolumeIndex)
-                                : curve.minIndex);
-                    }
-                }
-
-                @Override
-                public void onSetVolumeTo(int volume) {
-                    if (mappingActive && curve != null) {
-                        setVirtualVolumeIndex(curve.minIndex + volume);
-                    }
-                }
-            };
-            volumeSession = new MediaSession(appContext, "GlobalPEQ-DVC");
-            volumeSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS
-                    | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
-            volumeSession.setPlaybackToRemote(volumeProvider);
-            volumeSession.setPlaybackState(new PlaybackState.Builder()
-                    .setState(PlaybackState.STATE_PLAYING, 0L, 1f)
-                    .build());
-            volumeSession.setActive(true);
-            return true;
-        } catch (RuntimeException error) {
-            releaseVolumeSession();
-            return false;
-        }
-    }
-
-    private void releaseVolumeSession() {
-        MediaSession currentSession = volumeSession;
-        volumeSession = null;
-        volumeProvider = null;
-        if (currentSession == null) {
+    private void releaseDvcVolumeChain() {
+        if (volumeChain == null) {
             return;
         }
         try {
-            currentSession.setActive(false);
-            currentSession.release();
+            volumeChain.release();
         } catch (RuntimeException ignored) {
+        } finally {
+            volumeChain = null;
+        }
+    }
+
+    private void handlePlaybackSessionsChanged(int excludedSessionId) {
+        if (!started || mode != ProcessingMode.GLOBAL_DSP || !presetEnabled
+                || !userIntentEnabled || !routeDecision.allowsDvc) {
+            return;
+        }
+        Set<Integer> sessions = discoverPlaybackSessionIds(excludedSessionId);
+        if (sessions.isEmpty()) {
+            if (mappingActive) {
+                failMappedCurve(
+                        "当前播放器 audio session 已关闭；DVC 已安全退出，检测到新播放 session 后会自动重试");
+            }
+            return;
+        }
+        DvcVolumeMapper.Curve nextCurve =
+                DvcVolumeMapper.probe(audioManager, routeDecision.deviceType);
+        if (!nextCurve.meaningful) {
+            curve = nextCurve;
+            failMappedCurve(nextCurve.failure);
+            return;
+        }
+        if (!engine.supportsDvcSessionPlacement()) {
+            failMappedCurve("Global DynamicsProcessing player-session path is unavailable");
+            return;
+        }
+        curve = nextCurve;
+        applyMappedCurve(
+                routeDecision.isUsb()
+                        ? DvcRuntimeState.Kind.USB_HARDWARE
+                        : DvcRuntimeState.Kind.ACTIVE,
+                sessions);
+    }
+
+    private Iterable<Integer> orderedPlaybackSessionIds(Set<Integer> playbackSessions) {
+        LinkedHashSet<Integer> ordered = new LinkedHashSet<>();
+        if (activeAudioSessionId > 0 && playbackSessions.contains(activeAudioSessionId)) {
+            ordered.add(activeAudioSessionId);
+        }
+        if (preferredAudioSessionId > 0 && playbackSessions.contains(preferredAudioSessionId)) {
+            ordered.add(preferredAudioSessionId);
+        }
+        ArrayList<Integer> newestFirst = new ArrayList<>(playbackSessions);
+        Collections.reverse(newestFirst);
+        ordered.addAll(newestFirst);
+        return ordered;
+    }
+
+    private Set<Integer> discoverPlaybackSessionIds(int excludedSessionId) {
+        LinkedHashSet<Integer> result = new LinkedHashSet<>();
+        for (Integer sessionId : announcedPlaybackSessions) {
+            if (sessionId != null && sessionId > 0 && sessionId != excludedSessionId) {
+                result.add(sessionId);
+            }
+        }
+        try {
+            List<AudioPlaybackConfiguration> configurations =
+                    audioManager.getActivePlaybackConfigurations();
+            int lastConfigurationSessionId = 0;
+            if (configurations != null) {
+                for (AudioPlaybackConfiguration configuration : configurations) {
+                    int sessionId = readPlaybackSessionId(configuration);
+                    if (sessionId > 0 && sessionId != excludedSessionId) {
+                        result.add(sessionId);
+                        lastConfigurationSessionId = sessionId;
+                    }
+                }
+            }
+            if ((preferredAudioSessionId <= 0 || !result.contains(preferredAudioSessionId))
+                    && lastConfigurationSessionId > 0) {
+                preferredAudioSessionId = lastConfigurationSessionId;
+            }
+        } catch (RuntimeException error) {
+            Log.d(TAG, "Could not enumerate active player audio sessions", error);
+        }
+        return result;
+    }
+
+    private int readPlaybackSessionId(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return -1;
+        }
+        String[] methodNames = new String[]{
+                "getSessionId",
+                "getAudioSessionId",
+                "getClientSessionId",
+                "getClientAudioSessionId"
+        };
+        for (String methodName : methodNames) {
+            try {
+                Method method = AudioPlaybackConfiguration.class.getMethod(methodName);
+                Object value = method.invoke(configuration);
+                if (value instanceof Integer && (Integer) value > 0) {
+                    return (Integer) value;
+                }
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+            }
+        }
+        Matcher matcher = PLAYBACK_SESSION_REGEX.matcher(configuration.toString());
+        if (!matcher.find()) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return -1;
         }
     }
 
@@ -389,7 +431,7 @@ final class GlobalDvcController {
                 route == null ? "" : route.key,
                 route == null ? "" : route.label,
                 initialVolumeIndex,
-                currentCurve == null ? 0 : virtualVolumeIndex,
+                currentCurve == null ? 0 : currentCurve.currentIndex,
                 currentCurve == null ? 0 : currentCurve.minIndex,
                 currentCurve == null ? 0 : currentCurve.maxIndex,
                 detail));

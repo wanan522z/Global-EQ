@@ -1533,6 +1533,9 @@ public final class MainActivity extends Activity {
         bindText(globalDvcHintView, this::globalDvcHintText);
         globalDvcHintView.setTextSize(12);
         globalDvcHintView.setTextColor(Color.rgb(160, 170, 190));
+        globalDvcHintView.setMaxLines(Integer.MAX_VALUE);
+        globalDvcHintView.setLineSpacing(dp(2), 1f);
+        globalDvcHintView.setTextIsSelectable(true);
         panel.addView(globalDvcHintView, blockParams(2));
 
         shizukuRuntimePanel = createSettingsSectionPanel(30, 16);

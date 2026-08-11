@@ -211,7 +211,9 @@ final class PresetRepository {
 
     synchronized void saveDvcRuntimeState(DvcRuntimeState state) {
         DvcRuntimeState safe = state == null ? DvcRuntimeState.DEFAULT : state;
-        // DVC recovery depends on this value if the process exits while physical volume is locked.
+        // The settings page may read this immediately from a separate repository instance.
+        // Commit the small diagnostic record synchronously so ACTIVE never appears without the
+        // matching session/readback detail.
         prefs.edit().putString(DVC_RUNTIME_STATE, safe.toJson()).commit();
     }
 

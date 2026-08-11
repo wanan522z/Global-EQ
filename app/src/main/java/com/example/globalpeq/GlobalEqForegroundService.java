@@ -238,10 +238,7 @@ public final class GlobalEqForegroundService extends Service {
             requestStopAllAndStopService();
             return START_NOT_STICKY;
         }
-        return currentProcessingMode == ProcessingMode.GLOBAL_DSP
-                && currentAdvancedModeConfig.globalDvcEnabled
-                ? START_STICKY
-                : START_NOT_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override

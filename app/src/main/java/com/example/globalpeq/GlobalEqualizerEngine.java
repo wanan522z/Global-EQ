@@ -21,10 +21,21 @@ final class GlobalEqualizerEngine {
     private static final int[] DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES = {
             300, 256, 128, 96, 64, 48, 32, 24, 16, 10
     };
-    private static final int DYNAMICS_MIN_LEVEL_MB = -1800;
-    private static final int DYNAMICS_MAX_LEVEL_MB = 1800;
-    private static final float DVC_INPUT_MIN_DB = -96f;
+    // Poweramp's API 29+ DynamicsProcessing model clamps the generated response to -24..+30 dB.
+    // Individual UI filters remain limited by ParametricBand; this wider range only preserves the
+    // combined response of overlapping filters instead of truncating it at +/-18 dB.
+    private static final int DYNAMICS_MIN_LEVEL_MB = -2400;
+    private static final int DYNAMICS_MAX_LEVEL_MB = 3000;
+    // Poweramp builds separate no-DVC and DVC EQ banks. With its default -6 dB no-DVC input
+    // margin, the DVC bank raises every surviving positive response skirt to at least +12 dB:
+    // max(-(pregain - 6 dB), 0) + 6 dB. PeqMath removes each filter's dead-band tail first.
+    private static final int POWERAMP_NO_DVC_INPUT_GAIN_MB = -600;
+    private static final int POWERAMP_DVC_BORDER_BASE_MB = 600;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
+    private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
+    private static final float DVC_LIMITER_RELEASE_MS = 25f;
+    private static final float DVC_LIMITER_RATIO = 50f;
+    private static final float DVC_LIMITER_THRESHOLD_DB = 15f;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
@@ -35,11 +46,16 @@ final class GlobalEqualizerEngine {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private DynamicsProcessing dynamicsProcessing;
+    private PowerampDynamicsProcessing powerampDynamicsProcessing;
+    private DynamicsProcessing.Eq dynamicsPreEq;
     private DynamicsProcessing.Eq dynamicsPostEq;
+    private int dynamicsPreEqBandCount;
     private float[] dynamicsBandCenterHz = new float[0];
+    private float dynamicsPreferredFrameDurationMs;
     private boolean dynamicsProcessingUnavailable;
     private Equalizer equalizer;
     private BassBoost bassBoost;
+    private int bassBoostAudioSessionId = GLOBAL_AUDIO_SESSION;
     private short minLevelMb = -1800;
     private short maxLevelMb = 1800;
     private Preset pendingPreset;
@@ -53,7 +69,9 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
-    private float dvcVolumeDb;
+    private int dynamicsAudioSessionId = GLOBAL_AUDIO_SESSION;
+    private float[] powerampAppliedGainsDb = new float[0];
+    private String powerampBackendFailure = "";
 
     private enum ApplyStrategy {
         AUTO,
@@ -61,7 +79,7 @@ final class GlobalEqualizerEngine {
     }
 
     boolean start() {
-        if (dynamicsProcessing != null || equalizer != null) {
+        if (dynamicsProcessing != null || powerampDynamicsProcessing != null || equalizer != null) {
             return true;
         }
 
@@ -86,45 +104,87 @@ final class GlobalEqualizerEngine {
         for (int bandCount : bandCountCandidates) {
             DynamicsProcessing candidate = null;
             try {
-                DynamicsProcessing.Config config = new DynamicsProcessing.Config.Builder(
+                // Poweramp model P=0 is the preferred 300-band single post-EQ bank. Its P=1/P=2
+                // compatibility models (256/64 bands) are the ones split across pre/post stages.
+                boolean splitDvcBank = dvcActive
+                        && processingMode == ProcessingMode.GLOBAL_DSP
+                        && (bandCount == 256 || bandCount == 64);
+                int preEqBandCount = splitDvcBank ? bandCount / 2 : 0;
+                int postEqBandCount = bandCount - preEqBandCount;
+                DynamicsProcessing.Config.Builder configBuilder =
+                        new DynamicsProcessing.Config.Builder(
                         0,
                         DYNAMICS_CHANNEL_COUNT,
-                        false,
-                        0,
+                        splitDvcBank,
+                        preEqBandCount,
                         false,
                         0,
                         true,
-                        bandCount,
+                        postEqBandCount,
                         true
-                ).build();
+                );
+                float preferredFrameDurationMs = processingMode == ProcessingMode.GLOBAL_DSP
+                        ? PowerampDynamicsProcessing.resolvePreferredFrameDurationMs()
+                        : 0f;
+                if (preferredFrameDurationMs > 0f) {
+                    configBuilder.setPreferredFrameDuration(preferredFrameDurationMs);
+                }
+                DynamicsProcessing.Config config = configBuilder.build();
                 candidate = new DynamicsProcessing(
                         AUDIO_EFFECT_PRIORITY,
-                        GLOBAL_AUDIO_SESSION,
+                        dynamicsAudioSessionId,
                         config);
-                DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(true, true, bandCount);
-                float[] centerFrequencies = createLogBandCenters(
+                float[] centerFrequencies = dvcActive
+                        && processingMode == ProcessingMode.GLOBAL_DSP
+                        && bandCount == 300
+                        ? createPoweramp300BandCenters()
+                        : createLogBandCenters(
                         bandCount,
-                        processingMode == ProcessingMode.GLOBAL_DSP && bandCount >= 48 ? 10.0 : 20.0);
-                for (int band = 0; band < bandCount; band++) {
-                    DynamicsProcessing.EqBand eqBand = postEq.getBand(band);
+                        processingMode == ProcessingMode.GLOBAL_DSP && bandCount >= 48
+                                ? 10.0
+                                : 20.0);
+                DynamicsProcessing.Eq preEq = splitDvcBank
+                        ? new DynamicsProcessing.Eq(true, true, preEqBandCount)
+                        : null;
+                DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(
+                        true,
+                        true,
+                        postEqBandCount);
+                for (int band = 0; band < preEqBandCount; band++) {
+                    DynamicsProcessing.EqBand eqBand = preEq.getBand(band);
                     eqBand.setEnabled(true);
                     eqBand.setCutoffFrequency(centerFrequencies[band]);
                     eqBand.setGain(0f);
                 }
+                for (int band = 0; band < postEqBandCount; band++) {
+                    DynamicsProcessing.EqBand eqBand = postEq.getBand(band);
+                    eqBand.setEnabled(true);
+                    eqBand.setCutoffFrequency(centerFrequencies[preEqBandCount + band]);
+                    eqBand.setGain(0f);
+                }
                 candidate.setInputGainAllChannelsTo(0f);
+                if (preEq != null) {
+                    candidate.setPreEqAllChannelsTo(preEq);
+                }
                 candidate.setPostEqAllChannelsTo(postEq);
                 candidate.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
                 candidate.setEnabled(false);
                 candidate.setControlStatusListener(this::onControlStatusChanged);
 
                 dynamicsProcessing = candidate;
+                dynamicsPreEq = preEq;
                 dynamicsPostEq = postEq;
+                dynamicsPreEqBandCount = preEqBandCount;
                 dynamicsBandCenterHz = centerFrequencies;
+                dynamicsPreferredFrameDurationMs = config.getPreferredFrameDuration();
                 minLevelMb = DYNAMICS_MIN_LEVEL_MB;
                 maxLevelMb = DYNAMICS_MAX_LEVEL_MB;
                 armedWithZeroBands = false;
-                Log.i(TAG, "Using DynamicsProcessing on global audio session with "
-                        + bandCount + " post-EQ bands");
+                Log.i(TAG, "Using DynamicsProcessing on audio session "
+                        + dynamicsAudioSessionId + " with "
+                        + (splitDvcBank
+                        ? preEqBandCount + "+" + postEqBandCount + " pre/post-EQ bands"
+                        : postEqBandCount + " post-EQ bands"));
                 return true;
             } catch (RuntimeException ex) {
                 lastFailure = ex;
@@ -187,25 +247,74 @@ final class GlobalEqualizerEngine {
         return frequencies;
     }
 
+    private static float[] createPoweramp300BandCenters() {
+        final int bandCount = 300;
+        final float maximumFrequencyHz = 20000f;
+        final float firstOctaveStartHz = 200f;
+        float[] frequencies = new float[bandCount];
+        float[] lowFrequencyGrid = {
+                10f, 15f, 20f, 25f, 30f, 35f, 40f, 45f, 50f, 56f, 63f,
+                76f, 80f, 100f, 112.5f, 125f, 148f, 160f, 172f, 185f, 200f
+        };
+        System.arraycopy(lowFrequencyGrid, 0, frequencies, 0, lowFrequencyGrid.length);
+
+        // Match sa0.B's grid construction. It counts complete octaves and the remaining part of
+        // the last octave linearly, rather than using log2(20_000 / 200). Poweramp deliberately
+        // bases the density on 19 reserved slots although the P=0 low grid contains 21 points.
+        float octaveEndHz = firstOctaveStartHz * 2f;
+        float previousOctaveEndHz = firstOctaveStartHz;
+        float octaveSpan = 0f;
+        while (octaveEndHz <= maximumFrequencyHz) {
+            octaveSpan += 1f;
+            previousOctaveEndHz = octaveEndHz;
+            octaveEndHz *= 2f;
+        }
+        octaveSpan += 1f - (octaveEndHz - maximumFrequencyHz)
+                / (octaveEndHz - previousOctaveEndHz);
+        float bandsPerOctave = (bandCount - 19) / octaveSpan;
+
+        int index = lowFrequencyGrid.length;
+        float frequencyHz = firstOctaveStartHz;
+        float intervalStartHz = firstOctaveStartHz;
+        float intervalEndHz = firstOctaveStartHz * 2f;
+        float lastStepHz = 0f;
+        while (index < bandCount) {
+            lastStepHz = (intervalEndHz - intervalStartHz) / bandsPerOctave;
+            while (frequencyHz < intervalEndHz && index < bandCount) {
+                frequencyHz += lastStepHz;
+                frequencies[index++] = frequencyHz;
+            }
+            intervalStartHz = intervalEndHz;
+            intervalEndHz *= 2f;
+        }
+
+        // sa0.B pulls the final point close to 20 kHz when the two extra low-frequency border
+        // points make the generated sequence finish more than half a step below the ceiling.
+        int lastBand = bandCount - 1;
+        if (maximumFrequencyHz - frequencies[lastBand] > lastStepHz / 2f) {
+            frequencies[lastBand] = maximumFrequencyHz - lastStepHz / 2f;
+        }
+        return frequencies;
+    }
+
     private DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config,
                                                       float postGainDb) {
+        if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
+            // DVC keeps stream attenuation downstream, so positive internal thresholds are safe.
+            // Preserve the complete EQ response through +15 dB and catch only peaks above it.
+            return new DynamicsProcessing.Limiter(
+                    true,
+                    true,
+                    0,
+                    DVC_LIMITER_ATTACK_MS,
+                    DVC_LIMITER_RELEASE_MS,
+                    DVC_LIMITER_RATIO,
+                    DVC_LIMITER_THRESHOLD_DB,
+                    postGainDb);
+        }
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
         float normalThresholdDb = (float) (20.0 * Math.log10(ceiling));
-        if (dvcActive) {
-            // The matching Volume effect is the post-DP attenuation stage. Keeping this limiter
-            // disabled lets boosted low-frequency samples reach that stage without being flattened
-            // first, which is the essential difference between DVC and ordinary limiter headroom.
-            return new DynamicsProcessing.Limiter(
-                    true,
-                    false,
-                    0,
-                    0f,
-                    75f,
-                    50f,
-                    normalThresholdDb,
-                    postGainDb);
-        }
         return new DynamicsProcessing.Limiter(
                 true,
                 true,
@@ -217,16 +326,22 @@ final class GlobalEqualizerEngine {
                 postGainDb);
     }
 
-    boolean supportsDvcVolumeMapping() {
-        return processingMode == ProcessingMode.GLOBAL_DSP && dynamicsProcessing != null;
+    boolean supportsDvcSessionPlacement() {
+        return processingMode == ProcessingMode.GLOBAL_DSP
+                && (dynamicsProcessing != null || powerampDynamicsProcessing != null);
     }
 
-    /** Moves media-volume attenuation ahead of the EQ while DVC owns system media volume. */
-    boolean setDvcVolumeMapping(boolean active, float requestedVolumeDb) {
-        if (processingMode != ProcessingMode.GLOBAL_DSP || dynamicsProcessing == null) {
+    /**
+     * Moves the full GlobalDSP EQ between output-mix session 0 and a player session.
+     * In DVC mode the player-session EQ runs before Android's stream-volume attenuation, making
+     * that unchanged downstream attenuation real post-EQ headroom.
+     */
+    boolean setDvcModeEnabled(boolean active, int requestedAudioSessionId) {
+        if (processingMode != ProcessingMode.GLOBAL_DSP
+                || (dynamicsProcessing == null && powerampDynamicsProcessing == null)) {
             if (!active) {
                 dvcActive = false;
-                dvcVolumeDb = 0f;
+                dynamicsAudioSessionId = GLOBAL_AUDIO_SESSION;
                 return true;
             }
             return false;
@@ -234,62 +349,64 @@ final class GlobalEqualizerEngine {
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         if (targetPreset == null || !targetPreset.enabled) {
             if (!active) {
-                dvcActive = false;
-                dvcVolumeDb = 0f;
+                // There is no enabled preset worth rebuilding on session 0. Releasing here keeps
+                // the real effect attachment and the recorded session state consistent.
+                release();
                 return true;
             }
             return false;
         }
-        if (active && (!Float.isFinite(requestedVolumeDb)
-                || requestedVolumeDb < DVC_INPUT_MIN_DB
-                || requestedVolumeDb > 0.5f)) {
+        int targetAudioSessionId = active ? requestedAudioSessionId : GLOBAL_AUDIO_SESSION;
+        if (active && targetAudioSessionId <= GLOBAL_AUDIO_SESSION) {
             return false;
         }
         boolean previousActive = dvcActive;
-        float previousVolumeDb = dvcVolumeDb;
-        float nextVolumeDb = active ? clamp(requestedVolumeDb, DVC_INPUT_MIN_DB, 0f) : 0f;
+        int previousAudioSessionId = dynamicsAudioSessionId;
 
-        if (active != previousActive) {
+        if (active != previousActive || targetAudioSessionId != previousAudioSessionId) {
             return rebuildDynamicsProcessingForDvc(
                     active,
-                    nextVolumeDb,
+                    targetAudioSessionId,
                     targetPreset,
                     previousActive,
-                    previousVolumeDb);
+                    previousAudioSessionId);
         }
 
         try {
             dvcActive = active;
-            dvcVolumeDb = nextVolumeDb;
+            if (powerampDynamicsProcessing != null) {
+                refreshPowerampDvcControls(targetPreset);
+                Log.d(TAG, "Poweramp raw DVC on for player session "
+                        + dynamicsAudioSessionId);
+                return true;
+            }
+            applyAndVerifyInputGain(targetPreset);
             DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
             dynamicsProcessing.setLimiterAllChannelsTo(limiter);
-            applyAndVerifyInputGain(targetPreset);
             float expectedThresholdDb = limiter.getThreshold();
             for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
-                float actualThresholdDb = dynamicsProcessing
-                        .getLimiterByChannelIndex(channel)
-                        .getThreshold();
-                if (Math.abs(actualThresholdDb - expectedThresholdDb) >= 0.1f) {
+                DynamicsProcessing.Limiter appliedLimiter =
+                        dynamicsProcessing.getLimiterByChannelIndex(channel);
+                if (!appliedLimiter.isEnabled()
+                        || Math.abs(appliedLimiter.getThreshold() - expectedThresholdDb) >= 0.1f) {
                     throw new IllegalStateException(
-                            "DVC limiter threshold rejected for channel " + channel);
-                }
-                if (active && dynamicsProcessing
-                        .getLimiterByChannelIndex(channel)
-                        .isEnabled()) {
-                    throw new IllegalStateException(
-                            "DVC limiter bypass rejected for channel " + channel);
+                            "Limiter configuration rejected for channel " + channel);
                 }
             }
             Log.d(TAG, active
-                    ? "Global DVC virtual volume=" + dvcVolumeDb + " dB"
-                    : "Global DVC off");
+                    ? "Global DVC on for player session " + dynamicsAudioSessionId
+                    : "Global DVC off on session 0");
             return true;
         } catch (RuntimeException error) {
             dvcActive = previousActive;
-            dvcVolumeDb = previousVolumeDb;
             try {
-                dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
-                applyAndVerifyInputGain(targetPreset);
+                if (powerampDynamicsProcessing != null) {
+                    refreshPowerampDvcControls(targetPreset);
+                } else if (dynamicsProcessing != null) {
+                    dynamicsProcessing.setLimiterAllChannelsTo(
+                            createLimiter(dynamicsConfig, 0f));
+                    applyAndVerifyInputGain(targetPreset);
+                }
             } catch (RuntimeException ignored) {
             }
             Log.w(TAG, "Failed to switch the safe global DVC pipeline", error);
@@ -298,10 +415,10 @@ final class GlobalEqualizerEngine {
     }
 
     private boolean rebuildDynamicsProcessingForDvc(boolean active,
-                                                    float volumeDb,
+                                                    int targetAudioSessionId,
                                                     Preset targetPreset,
                                                     boolean previousActive,
-                                                    float previousVolumeDb) {
+                                                    int previousAudioSessionId) {
         Preset savedPendingPreset = pendingPreset;
         Preset savedLastAppliedPreset = lastAppliedPreset;
         AdvancedModeConfig savedLastAppliedConfig = lastAppliedDynamicsConfig;
@@ -310,14 +427,16 @@ final class GlobalEqualizerEngine {
         handler.removeCallbacksAndMessages(null);
         releaseDynamicsProcessing();
         dvcActive = active;
-        dvcVolumeDb = volumeDb;
+        dynamicsAudioSessionId = targetAudioSessionId;
         dynamicsProcessingUnavailable = false;
 
         try {
-            int[] nextCandidates = active
-                    ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
-                    : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
-            if (!startAndApplyDynamicsCandidates(nextCandidates, targetPreset)) {
+            boolean started = active
+                    ? startAndApplyDvcBackend(targetPreset)
+                    : startAndApplyDynamicsCandidates(
+                    GLOBAL_DSP_BAND_COUNT_CANDIDATES,
+                    targetPreset);
+            if (!started) {
                 throw new IllegalStateException("No DynamicsProcessing configuration accepted");
             }
             lastAppliedPreset = targetPreset;
@@ -325,13 +444,14 @@ final class GlobalEqualizerEngine {
             armedWithZeroBands = true;
             targetApplyPending = false;
             Log.i(TAG, "Rebuilt GlobalDSP DVC=" + active
-                    + " with " + dynamicsBandCenterHz.length + " post-EQ bands");
+                    + " session=" + dynamicsAudioSessionId
+                    + " with " + describeActiveDynamicsBank());
             return true;
         } catch (RuntimeException error) {
             Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline; restoring previous state", error);
             releaseDynamicsProcessing();
             dvcActive = previousActive;
-            dvcVolumeDb = previousVolumeDb;
+            dynamicsAudioSessionId = previousAudioSessionId;
             dynamicsProcessingUnavailable = false;
             pendingPreset = savedPendingPreset;
             lastAppliedPreset = savedLastAppliedPreset;
@@ -340,12 +460,14 @@ final class GlobalEqualizerEngine {
                 Preset restorePreset = savedPendingPreset != null
                         ? savedPendingPreset
                         : savedLastAppliedPreset;
-                int[] restoreCandidates = previousActive
-                        ? DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES
-                        : GLOBAL_DSP_BAND_COUNT_CANDIDATES;
-                if (restorePreset == null
-                        || !restorePreset.enabled
-                        || !startAndApplyDynamicsCandidates(restoreCandidates, restorePreset)) {
+                boolean restored = restorePreset != null
+                        && restorePreset.enabled
+                        && (previousActive
+                        ? startAndApplyDvcBackend(restorePreset)
+                        : startAndApplyDynamicsCandidates(
+                        GLOBAL_DSP_BAND_COUNT_CANDIDATES,
+                        restorePreset));
+                if (!restored) {
                     throw new IllegalStateException("No previous DynamicsProcessing configuration accepted");
                 }
                 armedWithZeroBands = true;
@@ -355,6 +477,50 @@ final class GlobalEqualizerEngine {
                 releaseDynamicsProcessing();
                 dynamicsProcessingUnavailable = true;
             }
+            return false;
+        }
+    }
+
+    private boolean startAndApplyDvcBackend(Preset preset) {
+        if (PowerampDynamicsProcessing.isRawCommandApiAvailable()) {
+            if (startAndApplyPowerampDvc(preset)) {
+                return true;
+            }
+            Log.w(TAG, "Poweramp raw DVC backend unavailable; using framework DP: "
+                    + powerampBackendFailure);
+        } else {
+            // Poweramp reaches AudioEffect.command through its private JNI bridge. Reflection on
+            // the SDK AudioEffect class cannot provide that method, so do not create and tear down
+            // a temporary DP effect before starting the working framework backend.
+            powerampBackendFailure = "JNI raw command bridge unavailable";
+        }
+        return startAndApplyDynamicsCandidates(DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES, preset);
+    }
+
+    private boolean startAndApplyPowerampDvc(Preset preset) {
+        releaseDynamicsProcessing();
+        try {
+            int bandCount = DVC_GLOBAL_DSP_BAND_COUNT_CANDIDATES[0];
+            dynamicsPreEqBandCount = 0;
+            dynamicsBandCenterHz = createPoweramp300BandCenters();
+            dynamicsPreferredFrameDurationMs =
+                    PowerampDynamicsProcessing.resolvePreferredFrameDurationMs();
+            powerampDynamicsProcessing = new PowerampDynamicsProcessing(
+                    dynamicsAudioSessionId,
+                    dynamicsPreEqBandCount,
+                    bandCount - dynamicsPreEqBandCount);
+            powerampAppliedGainsDb = new float[bandCount];
+            minLevelMb = DYNAMICS_MIN_LEVEL_MB;
+            maxLevelMb = DYNAMICS_MAX_LEVEL_MB;
+            pendingPreset = preset;
+            applyPowerampDvcTargetLevels(preset);
+            powerampBackendFailure = "";
+            return true;
+        } catch (RuntimeException error) {
+            powerampBackendFailure = error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : ": " + error.getMessage());
+            Log.w(TAG, "Poweramp raw DVC candidate failed", error);
+            releaseDynamicsProcessing();
             return false;
         }
     }
@@ -381,24 +547,82 @@ final class GlobalEqualizerEngine {
         return false;
     }
 
-    int getActiveDynamicsBandCount() {
-        return dynamicsProcessing == null ? 0 : dynamicsBandCenterHz.length;
+    int getActiveDynamicsAudioSessionId() {
+        if (powerampDynamicsProcessing != null) {
+            return powerampDynamicsProcessing.getAudioSessionId();
+        }
+        return dynamicsProcessing == null ? -1 : dynamicsAudioSessionId;
+    }
+
+    String describeActiveDynamicsBank() {
+        if (powerampDynamicsProcessing != null) {
+            int postEqBandCount = dynamicsBandCenterHz.length - dynamicsPreEqBandCount;
+            return dynamicsPreEqBandCount > 0
+                    ? "Poweramp raw UUID, " + dynamicsPreEqBandCount + "+"
+                    + postEqBandCount + " pre/post bands"
+                    : "Poweramp raw UUID, " + postEqBandCount + " post-EQ bands";
+        }
+        if (dynamicsProcessing == null) {
+            return "unavailable";
+        }
+        int postEqBandCount = dynamicsBandCenterHz.length - dynamicsPreEqBandCount;
+        String bank = dynamicsPreEqBandCount > 0
+                ? dynamicsPreEqBandCount + "+" + postEqBandCount + " pre/post bands"
+                : postEqBandCount + " post-EQ bands";
+        return String.format(
+                Locale.US,
+                "framework DP, %s, frame %.2f ms",
+                bank,
+                dynamicsPreferredFrameDurationMs);
     }
 
     String describeDvcReadback() {
+        Preset activePreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
+        float positiveBorderDb = powerampDvcPositiveBorderGainMb(activePreset) / 100f;
+        if (powerampDynamicsProcessing != null) {
+            float maxLowGainDb = 0f;
+            float maxGainDb = 0f;
+            for (int band = 0; band < powerampAppliedGainsDb.length; band++) {
+                float gainDb = powerampAppliedGainsDb[band];
+                maxGainDb = Math.max(maxGainDb, gainDb);
+                if (band < dynamicsBandCenterHz.length && dynamicsBandCenterHz[band] <= 80f) {
+                    maxLowGainDb = Math.max(maxLowGainDb, gainDb);
+                }
+            }
+            return String.format(
+                    Locale.US,
+                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, positive border %.1f dB, limiter enabled @ +%.1f dB, release %.0f ms",
+                    dynamicsAudioSessionId,
+                    powerampDynamicsProcessing.getChannelCount(),
+                    presetPregainDb(activePreset),
+                    maxLowGainDb,
+                    maxGainDb,
+                    positiveBorderDb,
+                    DVC_LIMITER_THRESHOLD_DB,
+                    DVC_LIMITER_RELEASE_MS);
+        }
         if (dynamicsProcessing == null) {
-            return "DVC readback: DynamicsProcessing unavailable";
+            return powerampBackendFailure.isEmpty()
+                    ? "DVC readback: DynamicsProcessing unavailable"
+                    : "DVC raw backend failed: " + powerampBackendFailure;
         }
         try {
-            DynamicsProcessing.Eq appliedEq = dynamicsProcessing.getPostEqByChannelIndex(0);
+            DynamicsProcessing.Eq appliedPreEq = dynamicsPreEqBandCount > 0
+                    ? dynamicsProcessing.getPreEqByChannelIndex(0)
+                    : null;
+            DynamicsProcessing.Eq appliedPostEq = dynamicsProcessing.getPostEqByChannelIndex(0);
             int bandCount = dynamicsBandCenterHz.length;
             float firstCutoffHz = bandCount > 0
-                    ? appliedEq.getBand(0).getCutoffFrequency()
+                    ? appliedDynamicsBandAt(appliedPreEq, appliedPostEq, 0)
+                    .getCutoffFrequency()
                     : 0f;
             float maxLowGainDb = -Float.MAX_VALUE;
             float maxGainDb = -Float.MAX_VALUE;
             for (int band = 0; band < bandCount; band++) {
-                DynamicsProcessing.EqBand appliedBand = appliedEq.getBand(band);
+                DynamicsProcessing.EqBand appliedBand = appliedDynamicsBandAt(
+                        appliedPreEq,
+                        appliedPostEq,
+                        band);
                 float gainDb = appliedBand.getGain();
                 maxGainDb = Math.max(maxGainDb, gainDb);
                 if (appliedBand.getCutoffFrequency() <= 80f) {
@@ -412,17 +636,21 @@ final class GlobalEqualizerEngine {
                 maxGainDb = 0f;
             }
             float inputGainDb = dynamicsProcessing.getInputGainByChannelIndex(0);
-            boolean limiterEnabled = dynamicsProcessing
-                    .getLimiterByChannelIndex(0)
-                    .isEnabled();
+            DynamicsProcessing.Limiter appliedLimiter =
+                    dynamicsProcessing.getLimiterByChannelIndex(0);
+            boolean limiterEnabled = appliedLimiter.isEnabled();
             return String.format(
                     Locale.US,
-                    "DVC readback: input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, first %.2f Hz, limiter %s",
+                        "DVC readback: session %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, positive border %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
+                    dynamicsAudioSessionId,
                     inputGainDb,
-                    maxLowGainDb,
-                    maxGainDb,
-                    firstCutoffHz,
-                    limiterEnabled ? "enabled" : "bypassed");
+                        maxLowGainDb,
+                        maxGainDb,
+                        positiveBorderDb,
+                        firstCutoffHz,
+                        limiterEnabled ? "enabled" : "bypassed",
+                        appliedLimiter.getThreshold(),
+                        appliedLimiter.getReleaseTime());
         } catch (RuntimeException error) {
             Log.w(TAG, "Could not read back the DVC pipeline", error);
             return "DVC readback: unavailable (" + error.getClass().getSimpleName() + ")";
@@ -430,10 +658,9 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyInputGain(Preset preset) {
-        float volumeGainDb = dvcActive ? dvcVolumeDb : 0f;
         float targetGainDb = clamp(
-                presetPregainDb(preset) + volumeGainDb,
-                DVC_INPUT_MIN_DB,
+                presetPregainDb(preset),
+                DYNAMICS_MIN_LEVEL_MB / 100f,
                 DYNAMICS_MAX_LEVEL_MB / 100f);
         dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
@@ -506,6 +733,12 @@ final class GlobalEqualizerEngine {
                 lastAppliedPreset = preset;
                 return;
             }
+            if (powerampDynamicsProcessing != null) {
+                // Raw DP accepts the complete target bank directly. Clearing all 300 bands and
+                // waiting 120 ms first makes a single-band toggle audibly jump to flat response.
+                applyTargetLevels(preset);
+                return;
+            }
             if (strategy == ApplyStrategy.FORCE_FULL_RESET || shouldStageThroughZero(preset)) {
                 armWithZeroBands();
                 scheduleTargetApply();
@@ -536,6 +769,10 @@ final class GlobalEqualizerEngine {
 
         pendingPreset = preset;
         try {
+            if (powerampDynamicsProcessing != null) {
+                applyTargetLevels(preset);
+                return;
+            }
             armWithZeroBands();
             scheduleTargetApply();
         } catch (RuntimeException ex) {
@@ -610,7 +847,7 @@ final class GlobalEqualizerEngine {
         }
 
         try {
-            if (dynamicsProcessing != null) {
+            if (dynamicsProcessing != null || powerampDynamicsProcessing != null) {
                 return dynamicsBandCenterHz.length;
             }
             return equalizer.getNumberOfBands();
@@ -625,7 +862,7 @@ final class GlobalEqualizerEngine {
         }
 
         try {
-            if (dynamicsProcessing != null) {
+            if (dynamicsProcessing != null || powerampDynamicsProcessing != null) {
                 return band >= 0 && band < dynamicsBandCenterHz.length
                         ? Math.round(dynamicsBandCenterHz[band])
                         : 0;
@@ -682,8 +919,11 @@ final class GlobalEqualizerEngine {
                 int beforeLevel = targetDynamicsLevelMb(centerHz, before);
                 int afterLevel = targetDynamicsLevelMb(centerHz, after);
                 if (afterLevel > 0 && afterLevel > beforeLevel) {
-                    dynamicsPostEq.getBand(band).setGain(0f);
+                    configuredDynamicsBandAt(band).setGain(0f);
                 }
+            }
+            if (dynamicsPreEq != null) {
+                dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
             }
             dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
             armedWithZeroBands = true;
@@ -708,6 +948,14 @@ final class GlobalEqualizerEngine {
         }
 
         try {
+            if (powerampDynamicsProcessing != null) {
+                applyPowerampDvcTargetLevels(preset);
+                applySystemVirtualBass(preset);
+                lastAppliedPreset = preset;
+                lastAppliedDynamicsConfig = dynamicsConfig;
+                targetApplyPending = false;
+                return;
+            }
             if (dynamicsProcessing != null) {
                 applyDynamicsTargetLevels(preset);
                 applySystemVirtualBass(preset);
@@ -733,6 +981,10 @@ final class GlobalEqualizerEngine {
             lastAppliedDynamicsConfig = dynamicsConfig;
             targetApplyPending = false;
         } catch (RuntimeException ex) {
+            if (powerampDynamicsProcessing != null) {
+                Log.w(TAG, "Poweramp raw DynamicsProcessing apply failed", ex);
+                return;
+            }
             if (dynamicsProcessing != null) {
                 Log.w(TAG, "DynamicsProcessing apply failed; switching to legacy Equalizer", ex);
                 releaseDynamicsProcessing();
@@ -810,7 +1062,7 @@ final class GlobalEqualizerEngine {
         for (int band = 0; band < bandCount; band++) {
             try {
                 int centerHz = activeBandCenterHz(band);
-                int levelMb = dynamicsProcessing != null
+                int levelMb = dynamicsProcessing != null || powerampDynamicsProcessing != null
                         ? targetDynamicsLevelMb(centerHz, preset) + preset.pregainMb
                         : PeqMath.gainAtHzMb(centerHz, preset);
                 if (levelMb != 0) {
@@ -837,18 +1089,53 @@ final class GlobalEqualizerEngine {
 
     private void applyDynamicsTargetLevels(Preset preset) {
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-            DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
+            DynamicsProcessing.EqBand eqBand = configuredDynamicsBandAt(band);
             eqBand.setEnabled(true);
             eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
             eqBand.setGain(targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f);
         }
+        if (dynamicsPreEq != null) {
+            dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
+        }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
-        // DVC does not own or reinterpret limiter state. Input gain is always the preset pregain;
-        // volume control must not inject compensation into this EQ/limiter instance.
+        // Input gain remains the preset pregain. DVC's positive-threshold limiter protects only
+        // internal peaks above +15 dB; downstream VolumeFX supplies the final output headroom.
         dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
         applyAndVerifyInputGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
+        }
+    }
+
+    private void applyPowerampDvcTargetLevels(Preset preset) {
+        if (powerampDynamicsProcessing == null || preset == null) {
+            throw new IllegalStateException("Poweramp raw DVC is unavailable");
+        }
+        if (powerampAppliedGainsDb.length != dynamicsBandCenterHz.length) {
+            powerampAppliedGainsDb = new float[dynamicsBandCenterHz.length];
+        }
+        for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
+            powerampAppliedGainsDb[band] =
+                    targetDynamicsLevelMb(dynamicsBandCenterHz[band], preset) / 100f;
+        }
+        powerampDynamicsProcessing.setEq(dynamicsBandCenterHz, powerampAppliedGainsDb);
+        refreshPowerampDvcControls(preset);
+    }
+
+    private void refreshPowerampDvcControls(Preset preset) {
+        if (powerampDynamicsProcessing == null || preset == null) {
+            throw new IllegalStateException("Poweramp raw DVC is unavailable");
+        }
+        powerampDynamicsProcessing.setLimiter(
+                true,
+                DVC_LIMITER_ATTACK_MS,
+                DVC_LIMITER_RELEASE_MS,
+                DVC_LIMITER_RATIO,
+                DVC_LIMITER_THRESHOLD_DB,
+                0f);
+        powerampDynamicsProcessing.setInputGain(presetPregainDb(preset));
+        if (!powerampDynamicsProcessing.getEnabled()) {
+            powerampDynamicsProcessing.setEnabled(true);
         }
     }
 
@@ -857,10 +1144,13 @@ final class GlobalEqualizerEngine {
             return;
         }
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-            DynamicsProcessing.EqBand eqBand = dynamicsPostEq.getBand(band);
+            DynamicsProcessing.EqBand eqBand = configuredDynamicsBandAt(band);
             eqBand.setEnabled(true);
             eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
             eqBand.setGain(0f);
+        }
+        if (dynamicsPreEq != null) {
+            dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
@@ -872,11 +1162,37 @@ final class GlobalEqualizerEngine {
         }
     }
 
+    private DynamicsProcessing.EqBand configuredDynamicsBandAt(int band) {
+        if (band < 0 || band >= dynamicsBandCenterHz.length) {
+            throw new IndexOutOfBoundsException("DynamicsProcessing band " + band);
+        }
+        if (band < dynamicsPreEqBandCount) {
+            return dynamicsPreEq.getBand(band);
+        }
+        return dynamicsPostEq.getBand(band - dynamicsPreEqBandCount);
+    }
+
+    private DynamicsProcessing.EqBand appliedDynamicsBandAt(DynamicsProcessing.Eq appliedPreEq,
+                                                             DynamicsProcessing.Eq appliedPostEq,
+                                                             int band) {
+        if (band < dynamicsPreEqBandCount) {
+            if (appliedPreEq == null) {
+                throw new IllegalStateException("DVC pre-EQ readback is unavailable");
+            }
+            return appliedPreEq.getBand(band);
+        }
+        return appliedPostEq.getBand(band - dynamicsPreEqBandCount);
+    }
+
     private int targetDynamicsLevelMb(double frequencyHz, Preset preset) {
         if (preset == null) {
             return 0;
         }
-        int levelMb = PeqMath.gainAtFrequencyMb(frequencyHz, preset) - preset.pregainMb;
+        boolean powerampDvcResponse = dvcActive
+                && processingMode == ProcessingMode.GLOBAL_DSP;
+        int levelMb = powerampDvcResponse
+                ? PeqMath.powerampDvcGainAtFrequencyMb(frequencyHz, preset)
+                : PeqMath.gainAtFrequencyMb(frequencyHz, preset) - preset.pregainMb;
         if (preset.extraBassEnabled && preset.extraBassAmountPercent > 0) {
             int extraBassGainMb = Math.round(
                     preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
@@ -886,14 +1202,29 @@ final class GlobalEqualizerEngine {
                     preset.extraBassCutoffHz,
                     extraBassGainMb,
                     70);
-            levelMb += PeqMath.bandGainAtHzMb(frequencyHz, extraBassBand);
+            int extraBassResponseMb = PeqMath.bandGainAtHzMb(frequencyHz, extraBassBand);
+            if (powerampDvcResponse) {
+                extraBassResponseMb = PeqMath.powerampDvcDeadBandMb(
+                        extraBassResponseMb,
+                        extraBassGainMb);
+            }
+            levelMb += extraBassResponseMb;
+        }
+        if (powerampDvcResponse && levelMb > 0) {
+            levelMb = Math.max(levelMb, powerampDvcPositiveBorderGainMb(preset));
         }
         return Math.max(DYNAMICS_MIN_LEVEL_MB, Math.min(DYNAMICS_MAX_LEVEL_MB, levelMb));
     }
 
+    private static int powerampDvcPositiveBorderGainMb(Preset preset) {
+        int pregainMb = preset == null ? 0 : preset.pregainMb;
+        return Math.max(-(pregainMb + POWERAMP_NO_DVC_INPUT_GAIN_MB), 0)
+                + POWERAMP_DVC_BORDER_BASE_MB;
+    }
+
     private int activeBandCount() {
         try {
-            if (dynamicsProcessing != null) {
+            if (dynamicsProcessing != null || powerampDynamicsProcessing != null) {
                 return dynamicsBandCenterHz.length;
             }
             return equalizer == null ? 0 : equalizer.getNumberOfBands();
@@ -903,7 +1234,7 @@ final class GlobalEqualizerEngine {
     }
 
     private int activeBandCenterHz(int band) {
-        if (dynamicsProcessing != null) {
+        if (dynamicsProcessing != null || powerampDynamicsProcessing != null) {
             return band >= 0 && band < dynamicsBandCenterHz.length
                     ? Math.round(dynamicsBandCenterHz[band])
                     : 0;
@@ -916,17 +1247,20 @@ final class GlobalEqualizerEngine {
 
     private int activeTargetLevelMb(int band, Preset preset) {
         int centerHz = activeBandCenterHz(band);
-        if (dynamicsProcessing != null) {
+        if (dynamicsProcessing != null || powerampDynamicsProcessing != null) {
             return targetDynamicsLevelMb(centerHz, preset) + (preset == null ? 0 : preset.pregainMb);
         }
         return targetLevelMb((short) band, preset);
     }
 
     private boolean hasActiveEffect() {
-        return dynamicsProcessing != null || equalizer != null;
+        return dynamicsProcessing != null || powerampDynamicsProcessing != null || equalizer != null;
     }
 
     private boolean isActiveEffectEnabled() {
+        if (powerampDynamicsProcessing != null) {
+            return powerampDynamicsProcessing.getEnabled();
+        }
         if (dynamicsProcessing != null) {
             return dynamicsProcessing.getEnabled();
         }
@@ -934,7 +1268,9 @@ final class GlobalEqualizerEngine {
     }
 
     private void setActiveEffectEnabled(boolean enabled) {
-        if (dynamicsProcessing != null) {
+        if (powerampDynamicsProcessing != null) {
+            powerampDynamicsProcessing.setEnabled(enabled);
+        } else if (dynamicsProcessing != null) {
             dynamicsProcessing.setEnabled(enabled);
         } else if (equalizer != null) {
             equalizer.setEnabled(enabled);
@@ -1026,8 +1362,15 @@ final class GlobalEqualizerEngine {
         }
 
         try {
+            int targetAudioSessionId = dvcActive
+                    ? dynamicsAudioSessionId
+                    : GLOBAL_AUDIO_SESSION;
+            if (bassBoost != null && bassBoostAudioSessionId != targetAudioSessionId) {
+                releaseSystemVirtualBass();
+            }
             if (bassBoost == null) {
-                bassBoost = new BassBoost(AUDIO_EFFECT_PRIORITY, GLOBAL_AUDIO_SESSION);
+                bassBoost = new BassBoost(AUDIO_EFFECT_PRIORITY, targetAudioSessionId);
+                bassBoostAudioSessionId = targetAudioSessionId;
             }
             bassBoost.setEnabled(false);
             bassBoost.setStrength((short) Math.max(0, Math.min(1000, systemBassAmountPercent * 10)));
@@ -1049,24 +1392,34 @@ final class GlobalEqualizerEngine {
         } catch (RuntimeException ignored) {
         } finally {
             bassBoost = null;
+            bassBoostAudioSessionId = GLOBAL_AUDIO_SESSION;
         }
     }
 
     private void releaseDynamicsProcessing() {
-        if (dynamicsProcessing == null) {
-            dynamicsPostEq = null;
-            dynamicsBandCenterHz = new float[0];
-            return;
+        if (powerampDynamicsProcessing != null) {
+            try {
+                powerampDynamicsProcessing.release();
+            } catch (RuntimeException ignored) {
+            } finally {
+                powerampDynamicsProcessing = null;
+            }
         }
-        try {
-            dynamicsProcessing.setEnabled(false);
-            dynamicsProcessing.release();
-        } catch (RuntimeException ignored) {
-        } finally {
-            dynamicsProcessing = null;
-            dynamicsPostEq = null;
-            dynamicsBandCenterHz = new float[0];
+        if (dynamicsProcessing != null) {
+            try {
+                dynamicsProcessing.setEnabled(false);
+                dynamicsProcessing.release();
+            } catch (RuntimeException ignored) {
+            } finally {
+                dynamicsProcessing = null;
+            }
         }
+        dynamicsPreEq = null;
+        dynamicsPostEq = null;
+        dynamicsPreEqBandCount = 0;
+        dynamicsBandCenterHz = new float[0];
+        dynamicsPreferredFrameDurationMs = 0f;
+        powerampAppliedGainsDb = new float[0];
     }
 
     void release() {
@@ -1092,6 +1445,6 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
-        dvcVolumeDb = 0f;
+        dynamicsAudioSessionId = GLOBAL_AUDIO_SESSION;
     }
 }

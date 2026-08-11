@@ -9,9 +9,9 @@ import java.util.Collections;
 import java.util.List;
 
 final class AdvancedModeConfig {
-    // Version 5 is the first build where DVC intentionally owns system media volume. Require a
-    // fresh opt-in instead of silently carrying the old non-owning switch across an upgrade.
-    private static final int TRUE_DVC_CONFIG_VERSION = 5;
+    // Older versions could persist rejected system-volume and positive-compensation experiments.
+    // Version 10 requires a fresh opt-in for the separate Poweramp-style DVC EQ bank.
+    private static final int TRUE_DVC_CONFIG_VERSION = 10;
     static final AdvancedModeConfig DEFAULT = new AdvancedModeConfig(
             "",
             "",
