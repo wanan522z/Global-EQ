@@ -36,8 +36,8 @@ final class PowerampDvcVolumeChain {
     private boolean initializationPulseApplied;
 
     PowerampDvcVolumeChain(AudioManager audioManager, int audioSessionId) {
-        if (audioSessionId <= 0) {
-            throw new IllegalArgumentException("DVC VolumeFX requires a player audio session");
+        if (audioSessionId < 0) {
+            throw new IllegalArgumentException("DVC VolumeFX requires a valid audio session");
         }
         if (audioManager == null) {
             throw new IllegalArgumentException("DVC VolumeFX requires AudioManager");
