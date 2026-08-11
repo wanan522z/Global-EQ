@@ -222,6 +222,7 @@ public final class MainActivity extends Activity {
     private LinearLayout extraPage;
     private LinearLayout settingsPage;
     private LinearLayout monitorSettingsPage;
+    private LinearLayout limiterSettingsPage;
     private MainPageHost mainPageHost;
     private LinearLayout rows;
     private KnobView cutoffKnob;
@@ -254,6 +255,16 @@ public final class MainActivity extends Activity {
     private TextView settingsImportPanelDetailView;
     private LinearLayout shizukuRuntimePanel;
     private TextView advancedModeDetailButton;
+    private TextView limiterSettingsButton;
+    private TextView limiterSettingsTitleView;
+    private TextView limiterSettingsDetailView;
+    private Switch limiterEnabledSwitch;
+    private View limiterCeilingRow;
+    private View limiterAttackRow;
+    private View limiterReleaseRow;
+    private EditText limiterCeilingInput;
+    private EditText limiterAttackInput;
+    private EditText limiterReleaseInput;
     private TextView advancedMonitorAppButton;
     private TextView monitorCaptureStatusView;
     private TextView shizukuRuntimeTitleView;
@@ -282,6 +293,7 @@ public final class MainActivity extends Activity {
     private TextView pollIntervalLabelView;
     private TextView lookaheadLabelView;
     private TextView limiterCeilingLabelView;
+    private TextView limiterAttackLabelView;
     private TextView limiterReleaseLabelView;
     private LinearLayout settingsRootContent;
     private Button presetSelectButton;
@@ -537,6 +549,7 @@ public final class MainActivity extends Activity {
     private boolean peqVisualSequenceRunning;
     private int pendingPeqVisualIndex;
     private boolean monitorSettingsOpen;
+    private boolean limiterSettingsOpen;
     private boolean pendingMonitorCaptureAuthorization;
     private String activePlaybackPackageName = "";
     private String lastDeviceSpinnerSignature = "";
@@ -1066,6 +1079,17 @@ public final class MainActivity extends Activity {
         monitorSettingsPage.setClickable(true);
         mainPageHost.addView(monitorSettingsPage, pageHostParams());
         buildMonitorSettingsPage(monitorSettingsPage);
+
+        limiterSettingsPage = new LinearLayout(this);
+        limiterSettingsPage.setOrientation(LinearLayout.VERTICAL);
+        limiterSettingsPage.setVisibility(View.GONE);
+        limiterSettingsPage.setPadding(0, dp(16), 0, 0);
+        limiterSettingsPage.setClipChildren(false);
+        limiterSettingsPage.setClipToPadding(false);
+        limiterSettingsPage.setBackgroundColor(Color.TRANSPARENT);
+        limiterSettingsPage.setClickable(true);
+        mainPageHost.addView(limiterSettingsPage, pageHostParams());
+        buildLimiterSettingsPage(limiterSettingsPage);
 
         LinearLayout controlCard = new LinearLayout(this);
         controlCard.setOrientation(LinearLayout.VERTICAL);
