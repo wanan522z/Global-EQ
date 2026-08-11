@@ -52,6 +52,7 @@ final class GlobalEqualizerEngine {
     private int dynamicsPreEqBandCount;
     private float[] dynamicsBandCenterHz = new float[0];
     private float dynamicsPreferredFrameDurationMs;
+    private boolean dynamicsLimiterConfigured;
     private boolean dynamicsProcessingUnavailable;
     private Equalizer equalizer;
     private BassBoost bassBoost;
@@ -177,6 +178,7 @@ final class GlobalEqualizerEngine {
                 dynamicsPreEqBandCount = preEqBandCount;
                 dynamicsBandCenterHz = centerFrequencies;
                 dynamicsPreferredFrameDurationMs = config.getPreferredFrameDuration();
+                dynamicsLimiterConfigured = true;
                 minLevelMb = DYNAMICS_MIN_LEVEL_MB;
                 maxLevelMb = DYNAMICS_MAX_LEVEL_MB;
                 armedWithZeroBands = false;
@@ -381,8 +383,7 @@ final class GlobalEqualizerEngine {
                 return true;
             }
             applyAndVerifyInputGain(targetPreset);
-            DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
-            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+            DynamicsProcessing.Limiter limiter = ensureFrameworkLimiterConfigured();
             float expectedThresholdDb = limiter.getThreshold();
             for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
                 DynamicsProcessing.Limiter appliedLimiter =
@@ -403,8 +404,7 @@ final class GlobalEqualizerEngine {
                 if (powerampDynamicsProcessing != null) {
                     refreshPowerampDvcControls(targetPreset);
                 } else if (dynamicsProcessing != null) {
-                    dynamicsProcessing.setLimiterAllChannelsTo(
-                            createLimiter(dynamicsConfig, 0f));
+                    ensureFrameworkLimiterConfigured();
                     applyAndVerifyInputGain(targetPreset);
                 }
             } catch (RuntimeException ignored) {
@@ -949,6 +949,20 @@ final class GlobalEqualizerEngine {
                 && (dynamicsProcessing != null || powerampDynamicsProcessing != null);
     }
 
+    private DynamicsProcessing.Limiter ensureFrameworkLimiterConfigured() {
+        if (dynamicsProcessing == null) {
+            throw new IllegalStateException("DynamicsProcessing is unavailable");
+        }
+        DynamicsProcessing.Limiter limiter = createLimiter(dynamicsConfig, 0f);
+        // Rewriting an active limiter clears its gain-reduction envelope. In DVC that produces a
+        // short loud surge followed by re-compression whenever an EQ band is edited.
+        if (!dvcActive || !dynamicsLimiterConfigured) {
+            dynamicsProcessing.setLimiterAllChannelsTo(limiter);
+            dynamicsLimiterConfigured = true;
+        }
+        return limiter;
+    }
+
     private void applyTargetLevels(Preset preset) {
         if (!hasActiveEffect() || preset == null || !preset.enabled) {
             return;
@@ -1117,7 +1131,7 @@ final class GlobalEqualizerEngine {
         dynamicsPostEq = nextPostEq;
         // Input gain remains the preset pregain. DVC's positive-threshold limiter protects only
         // internal peaks above +15 dB; downstream VolumeFX supplies the final output headroom.
-        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+        ensureFrameworkLimiterConfigured();
         applyAndVerifyInputGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
@@ -1143,13 +1157,16 @@ final class GlobalEqualizerEngine {
         if (powerampDynamicsProcessing == null || preset == null) {
             throw new IllegalStateException("Poweramp raw DVC is unavailable");
         }
-        powerampDynamicsProcessing.setLimiter(
-                true,
-                DVC_LIMITER_ATTACK_MS,
-                DVC_LIMITER_RELEASE_MS,
-                DVC_LIMITER_RATIO,
-                DVC_LIMITER_THRESHOLD_DB,
-                0f);
+        if (!dynamicsLimiterConfigured) {
+            powerampDynamicsProcessing.setLimiter(
+                    true,
+                    DVC_LIMITER_ATTACK_MS,
+                    DVC_LIMITER_RELEASE_MS,
+                    DVC_LIMITER_RATIO,
+                    DVC_LIMITER_THRESHOLD_DB,
+                    0f);
+            dynamicsLimiterConfigured = true;
+        }
         powerampDynamicsProcessing.setInputGain(presetPregainDb(preset));
         if (!powerampDynamicsProcessing.getEnabled()) {
             powerampDynamicsProcessing.setEnabled(true);
@@ -1171,7 +1188,7 @@ final class GlobalEqualizerEngine {
         }
         dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
-        dynamicsProcessing.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
+        ensureFrameworkLimiterConfigured();
         if (targetPreset != null) {
             applyAndVerifyInputGain(targetPreset);
         } else {
@@ -1436,6 +1453,7 @@ final class GlobalEqualizerEngine {
         dynamicsPreEqBandCount = 0;
         dynamicsBandCenterHz = new float[0];
         dynamicsPreferredFrameDurationMs = 0f;
+        dynamicsLimiterConfigured = false;
         powerampAppliedGainsDb = new float[0];
     }
 
