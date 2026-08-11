@@ -67,6 +67,7 @@ final class GlobalDvcController {
     private int activeAudioSessionId;
     private int preferredAudioSessionId;
     private int initialVolumeIndex;
+    private boolean sessionZeroVolumeAttempted;
 
     GlobalDvcController(Context context,
                         GlobalEqualizerEngine engine,
@@ -192,6 +193,7 @@ final class GlobalDvcController {
         preferredAudioSessionId = 0;
         mappingActive = false;
         activeAudioSessionId = 0;
+        sessionZeroVolumeAttempted = false;
         // Service shutdown must not use the normal DVC-off path: that path deliberately rebuilds
         // a session-0 EQ. Release the player-session EQ directly so no replacement effect can be
         // created while the service is being destroyed.
