@@ -59,6 +59,7 @@ public final class GlobalEqForegroundService extends Service {
     private long suppressCaptureRouteUpdatesUntilMs;
     private boolean systemEqPlaybackStateKnown;
     private boolean systemEqPlaybackActive;
+    private volatile boolean stopping;
     private final BroadcastReceiver screenStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
@@ -148,6 +149,9 @@ public final class GlobalEqForegroundService extends Service {
         }
         awaitingInitialDeviceMonitorEvent = true;
         deviceMonitor.start(device -> {
+            if (stopping) {
+                return;
+            }
             dvcController.prepareForRouteChange(device);
             repository.saveKnownDevice(device);
             repository.reconcileManualDeviceSelectionOverride(device);
@@ -213,6 +217,10 @@ public final class GlobalEqForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (stopping) {
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
         String action = intent == null ? null : intent.getAction();
         if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
             startForegroundInternal(true);
@@ -254,6 +262,7 @@ public final class GlobalEqForegroundService extends Service {
 
     @Override
     public void onDestroy() {
+        stopping = true;
         instanceRunning = false;
         deviceMonitor.stop();
         unregisterReceiver(screenStateReceiver);
@@ -342,6 +351,9 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     private void updateNotification() {
+        if (stopping) {
+            return;
+        }
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
             manager.notify(NOTIFICATION_ID, buildNotification());
@@ -593,40 +605,59 @@ public final class GlobalEqForegroundService extends Service {
     }
 
     private void requestStopAllAndStopService() {
+        if (stopping) {
+            return;
+        }
+        stopping = true;
+        instanceRunning = false;
         resetSystemEqPlaybackState();
+        mainHandler.removeCallbacksAndMessages(null);
+        if (deviceMonitor != null) {
+            deviceMonitor.stop();
+        }
+        // Tear down AudioEffect handles synchronously on the service/main thread. Deferring this
+        // to the capture worker allowed queued route/session callbacks to attach a replacement EQ
+        // after shutdown had already begun.
+        stopSystemEffectsNow();
         Handler handler = captureControlHandler;
         if (handler == null) {
-            stopAllProcessingNow();
+            stopRemainingProcessingNow();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
-            updateNotification();
             return;
         }
         handler.removeCallbacks(applyPendingCaptureUpdateRunnable);
         handler.removeCallbacks(wakeRecoveryRunnable);
         handler.post(() -> {
-            stopAllProcessingNow();
+            stopRemainingProcessingNow();
             mainHandler.post(() -> {
                 stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
-                updateNotification();
             });
         });
     }
 
-    private void stopAllProcessingNow() {
-        resetSystemEqPlaybackState();
+    private void stopSystemEffectsNow() {
         if (dvcController != null) {
             dvcController.stop();
         }
+        if (engine != null) {
+            engine.release();
+        }
+    }
+
+    private void stopAllProcessingNow() {
+        resetSystemEqPlaybackState();
+        stopSystemEffectsNow();
+        stopRemainingProcessingNow();
+    }
+
+    private void stopRemainingProcessingNow() {
         if (captureEngine != null) {
             captureEngine.stopAll();
         }
         if (shizukuMuteEngine != null) {
             shizukuMuteEngine.stopAll();
-        }
-        if (engine != null) {
-            engine.apply(Preset.flat(false), currentProcessingMode, currentAdvancedModeConfig);
         }
         if (repository != null) {
             repository.clearRuntimeAudioState(currentProcessingMode.requiresShizukuMute()
