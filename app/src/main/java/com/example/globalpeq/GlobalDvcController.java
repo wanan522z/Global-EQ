@@ -67,6 +67,7 @@ final class GlobalDvcController {
     private int activeAudioSessionId;
     private int preferredAudioSessionId;
     private int initialVolumeIndex;
+    private boolean sessionZeroVolumeAttempted;
 
     GlobalDvcController(Context context,
                         GlobalEqualizerEngine engine,
@@ -192,6 +193,7 @@ final class GlobalDvcController {
         preferredAudioSessionId = 0;
         mappingActive = false;
         activeAudioSessionId = 0;
+        sessionZeroVolumeAttempted = false;
         // Service shutdown must not use the normal DVC-off path: that path deliberately rebuilds
         // a session-0 EQ. Release the player-session EQ directly so no replacement effect can be
         // created while the service is being destroyed.
@@ -231,9 +233,10 @@ final class GlobalDvcController {
         float displayedHeadroomDb = Math.round(downstreamHeadroomDb * 10f) / 10f;
         int targetAudioSessionId = -1;
         for (Integer candidateSessionId : orderedPlaybackSessionIds(playbackSessions)) {
-            if (candidateSessionId == null || candidateSessionId <= 0) {
+            if (candidateSessionId == null || candidateSessionId < 0) {
                 continue;
             }
+            boolean sessionZeroFallback = candidateSessionId == 0;
             if (volumeChain != null
                     && volumeChain.getAudioSessionId() != candidateSessionId) {
                 // Poweramp tears down player-session DP before VolumeFX. Reversing that order
@@ -241,7 +244,11 @@ final class GlobalDvcController {
                 engine.setDvcModeEnabled(false, 0);
                 releaseDvcVolumeChain();
             }
-            if (volumeChain == null) {
+            if (volumeChain == null
+                    && (!sessionZeroFallback || !sessionZeroVolumeAttempted)) {
+                if (sessionZeroFallback) {
+                    sessionZeroVolumeAttempted = true;
+                }
                 try {
                     // Poweramp initializes VolumeFX before it creates the real DP bank. This
                     // ordering moves the current stream attenuation behind the boosted EQ.
@@ -250,7 +257,9 @@ final class GlobalDvcController {
                     Log.w(TAG, "Could not create the Poweramp DVC volume chain for session "
                             + candidateSessionId, error);
                     releaseDvcVolumeChain();
-                    continue;
+                    if (!sessionZeroFallback) {
+                        continue;
+                    }
                 }
             }
             // Some broken players omit CLOSE. Try all known sessions, newest first, so one stale
@@ -263,38 +272,30 @@ final class GlobalDvcController {
             releaseDvcVolumeChain();
         }
         if (targetAudioSessionId < 0) {
-            if (playbackSessions == null || playbackSessions.isEmpty()) {
-                waitForPlayerSession();
-                return;
-            }
             failMappedCurve("播放器 audio session、VolumeFX 或 DP effect 挂载失败，DVC 未启用");
             return;
         }
         mappingActive = true;
         activeAudioSessionId = targetAudioSessionId;
+        boolean sessionZeroFallback = targetAudioSessionId == 0;
         publish(kind, true, true,
                 "DVC EQ audio session: " + targetAudioSessionId
+                        + (sessionZeroFallback ? " (global fallback; detection bypassed)" : "")
                         + "\n"
                         + "DVC discovered sessions: " + playbackSessions + "\n"
-                        + "Player-session VolumeFX: " + volumeChain.describeAttachment() + "\n"
+                        + (sessionZeroFallback ? "Global VolumeFX: " : "Player-session VolumeFX: ")
+                        + (volumeChain == null
+                        ? "unavailable (ignored; EQ remains active)"
+                        : volumeChain.describeAttachment()) + "\n"
                         + "DVC mapped headroom: " + displayedHeadroomDb + " dB\n"
                         + "DVC EQ bank: " + engine.describeActiveDynamicsBank() + "\n"
                         + "DVC limiter: enabled above +15 dB (50:1, 25 ms release)\n"
-                        + "DVC session tracking: active player session required\n"
+                        + "DVC session tracking: optional; session 0 works without detection\n"
                         + "System media volume ownership: disabled (Poweramp one-shot initialization only)\n"
                         + engine.describeDvcReadback() + "\n"
-                        + "DVC chain: player-session VolumeFX + player-session EQ");
-    }
-
-    private void waitForPlayerSession() {
-        deactivateEngineMapping();
-        publish(
-                DvcRuntimeState.Kind.WAITING_FOR_SESSION,
-                false,
-                true,
-                "DVC is requested but no player audio session is available yet. "
-                        + "Normal GlobalDSP remains active; DVC will attach automatically when "
-                        + "a player session appears.");
+                        + (sessionZeroFallback
+                        ? "DVC chain: global session-0 EQ fallback"
+                        : "DVC chain: player-session VolumeFX + player-session EQ"));
     }
 
     private void failMappedCurve(String detail) {
@@ -311,6 +312,7 @@ final class GlobalDvcController {
     private void deactivateEngineMapping() {
         mappingActive = false;
         activeAudioSessionId = 0;
+        sessionZeroVolumeAttempted = false;
         // Remove/re-home the boosted player-session DP before detaching VolumeFX. Neither step
         // writes a replacement media-volume index during normal DVC teardown.
         engine.setDvcModeEnabled(false, 0);
@@ -373,6 +375,9 @@ final class GlobalDvcController {
         ArrayList<Integer> newestFirst = new ArrayList<>(playbackSessions);
         Collections.reverse(newestFirst);
         ordered.addAll(newestFirst);
+        // Always try session 0 last. This avoids making DVC activation depend on a player
+        // broadcasting a private session ID; a real player session still takes precedence.
+        ordered.add(0);
         return ordered;
     }
 

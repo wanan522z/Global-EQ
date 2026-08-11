@@ -354,9 +354,7 @@ final class GlobalEqualizerEngine {
             return false;
         }
         int targetAudioSessionId = active ? requestedAudioSessionId : GLOBAL_AUDIO_SESSION;
-        // Session 0 is Android's output mix and is also the normal GlobalDSP attachment point.
-        // Treating it as DVC makes the switch a no-op while incorrectly reporting DVC active.
-        if (active && targetAudioSessionId <= GLOBAL_AUDIO_SESSION) {
+        if (active && targetAudioSessionId < GLOBAL_AUDIO_SESSION) {
             return false;
         }
         boolean previousActive = dvcActive;

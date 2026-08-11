@@ -2205,11 +2205,6 @@ public final class MainActivity extends Activity {
                 : repository.loadDvcRuntimeState();
         String status;
         switch (state.kind) {
-            case WAITING_FOR_SESSION:
-                status = tr(
-                        "DVC waiting for a player audio session",
-                        "DVC 正在等待播放器音频会话");
-                break;
             case ACTIVE:
                 status = tr("DVC active", "DVC \u5df2\u542f\u7528");
                 break;
