@@ -1544,6 +1544,21 @@ public final class MainActivity extends Activity {
         globalDvcHintView.setTextIsSelectable(true);
         panel.addView(globalDvcHintView, blockParams(2));
 
+        panel.addView(createAdvancedNumberRow(
+                this::limiterCeilingLabelText,
+                String.valueOf(advancedModeConfig.limiterCeilingPermille),
+                "930-999",
+                view -> limiterCeilingLabelView = view,
+                value -> updateAdvancedModeConfig(
+                        advancedModeConfig.withLimiterCeilingPermille(value))), blockParams(12));
+        panel.addView(createAdvancedNumberRow(
+                this::limiterReleaseLabelText,
+                String.valueOf(advancedModeConfig.limiterReleaseMs),
+                "20-400",
+                view -> limiterReleaseLabelView = view,
+                value -> updateAdvancedModeConfig(
+                        advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
+
         shizukuRuntimePanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(shizukuRuntimePanel);
         shizukuRuntimePanel.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
@@ -1794,10 +1809,6 @@ public final class MainActivity extends Activity {
                 updateAdvancedModeConfig(advancedModeConfig.withBufferSizeFrames(value))), blockParams(6));
         panel.addView(createAdvancedNumberRow(this::lookaheadLabelText, String.valueOf(advancedModeConfig.lookaheadMs), "0-120", view -> lookaheadLabelView = view, value ->
                 updateAdvancedModeConfig(advancedModeConfig.withLookaheadMs(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(this::limiterCeilingLabelText, String.valueOf(advancedModeConfig.limiterCeilingPermille), "930-999", view -> limiterCeilingLabelView = view, value ->
-                updateAdvancedModeConfig(advancedModeConfig.withLimiterCeilingPermille(value))), blockParams(6));
-        panel.addView(createAdvancedNumberRow(this::limiterReleaseLabelText, String.valueOf(advancedModeConfig.limiterReleaseMs), "20-400", view -> limiterReleaseLabelView = view, value ->
-                updateAdvancedModeConfig(advancedModeConfig.withLimiterReleaseMs(value))), blockParams(6));
 
     }
 
