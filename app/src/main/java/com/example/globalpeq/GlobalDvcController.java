@@ -190,7 +190,14 @@ final class GlobalDvcController {
         }
         announcedPlaybackSessions.clear();
         preferredAudioSessionId = 0;
-        deactivate(DvcRuntimeState.Kind.OFF, true, "DVC is off");
+        mappingActive = false;
+        activeAudioSessionId = 0;
+        // Service shutdown must not use the normal DVC-off path: that path deliberately rebuilds
+        // a session-0 EQ. Release the player-session EQ directly so no replacement effect can be
+        // created while the service is being destroyed.
+        engine.release();
+        releaseDvcVolumeChain();
+        publish(DvcRuntimeState.Kind.OFF, false, true, "DVC is off");
     }
 
     private void refreshVolumeMapping() {
