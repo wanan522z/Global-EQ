@@ -115,26 +115,16 @@ final class PowerampDvcVolumeChain {
     }
 
     /**
-     * Releases VolumeFX and asks AudioFlinger to re-apply the unchanged stream-volume index.
+     * Releases VolumeFX and asks AudioFlinger to re-apply stream-volume attenuation.
      * Creating VolumeFX is followed by a one-step volume pulse so Android moves attenuation into
      * that effect path. A plain release can leave the old placement cached until the next user
-     * volume change, making a disabled DVC chain continue to sound active. Writing the same index
-     * refreshes routing without changing the user's volume level.
+     * volume change, making a disabled DVC chain continue to sound active. Some Bluetooth stacks
+     * ignore a write of the unchanged index, so teardown uses the same real one-step pulse and
+     * restores the user's original volume afterward.
      */
     void releaseAndRefreshVolumePlacement() {
-        int currentIndex = -1;
-        try {
-            currentIndex = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-        } catch (RuntimeException ignored) {
-        }
         release();
-        if (currentIndex < 0) {
-            return;
-        }
-        try {
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentIndex, 0);
-        } catch (RuntimeException ignored) {
-        }
+        pulseStreamVolume();
     }
 
     private static AudioEffect createUsableEffect(Constructor<AudioEffect> constructor,
@@ -179,13 +169,22 @@ final class PowerampDvcVolumeChain {
             return;
         }
 
+        initializationPulseApplied = pulseStreamVolume();
+    }
+
+    private boolean pulseStreamVolume() {
         int originalIndex;
+        int minIndex;
         try {
             originalIndex = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            minIndex = audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC);
         } catch (RuntimeException ignored) {
-            return;
+            return false;
         }
-        int temporaryIndex = originalIndex == 0 ? 1 : originalIndex - 1;
+        int temporaryIndex = Math.max(minIndex, originalIndex - 1);
+        if (temporaryIndex == originalIndex) {
+            return false;
+        }
         boolean temporaryApplied = false;
         boolean restored = false;
         try {
@@ -202,7 +201,7 @@ final class PowerampDvcVolumeChain {
                 }
             }
         }
-        initializationPulseApplied = restored;
+        return restored;
     }
 
     private boolean restartPowerampDynamicsEffect(Constructor<AudioEffect> constructor) {

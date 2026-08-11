@@ -138,11 +138,6 @@ final class GlobalDvcController {
             deactivate(DvcRuntimeState.Kind.OFF, true, "DVC is off");
             return;
         }
-        if (routeDecision.isBluetooth()) {
-            deactivate(DvcRuntimeState.Kind.BLUETOOTH_UNAVAILABLE, false,
-                    "Bluetooth devices do not allow DVC");
-            return;
-        }
         if (!routeDecision.allowsDvc) {
             deactivate(DvcRuntimeState.Kind.ROUTE_UNAVAILABLE, false,
                     "This output route does not support DVC");

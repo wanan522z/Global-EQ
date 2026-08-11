@@ -25,10 +25,6 @@ final class DvcRoutePolicy {
         boolean isUsb() {
             return kind == Kind.USB;
         }
-
-        boolean isBluetooth() {
-            return kind == Kind.BLUETOOTH;
-        }
     }
 
     private DvcRoutePolicy() {
@@ -56,7 +52,9 @@ final class DvcRoutePolicy {
             case AudioDeviceInfo.TYPE_BLE_SPEAKER:
             case AudioDeviceInfo.TYPE_BLE_BROADCAST:
             case AudioDeviceInfo.TYPE_HEARING_AID:
-                return new Decision(Kind.BLUETOOTH, type, false);
+                // Bluetooth routes still need the same runtime volume-curve and effect-placement
+                // probes as other outputs, but the route itself must not prevent DVC activation.
+                return new Decision(Kind.BLUETOOTH, type, true);
             default:
                 // HDMI, docks, remote submix and unknown routes are intentionally opt-in.
                 return new Decision(Kind.UNSUPPORTED, type, false);

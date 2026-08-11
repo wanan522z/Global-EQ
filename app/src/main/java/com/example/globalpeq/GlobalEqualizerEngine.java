@@ -31,6 +31,7 @@ final class GlobalEqualizerEngine {
     private static final float DVC_LIMITER_RELEASE_MS = 25f;
     private static final float DVC_LIMITER_RATIO = 50f;
     private static final float DVC_LIMITER_THRESHOLD_DB = 15f;
+    private static final float DVC_MAX_VOLUME_POSITIVE_GAIN_DB = 2f;
     private static final float DVC_INPUT_MIN_DB = -96f;
     private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
@@ -301,9 +302,9 @@ final class GlobalEqualizerEngine {
     private DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config,
                                                       float postGainDb) {
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
-            // Never expose a positive internal peak that the remaining downstream stream-volume
-            // attenuation cannot absorb. At medium volume this remains +15 dB; toward maximum
-            // volume it closes progressively to the configured output ceiling.
+            // Use real downstream attenuation when it exceeds the explicit maximum-volume test
+            // allowance. Toward maximum volume, retain up to +2 dB for distortion testing while
+            // still respecting the configured limiter-ceiling margin.
             return new DynamicsProcessing.Limiter(
                     true,
                     true,
@@ -333,7 +334,9 @@ final class GlobalEqualizerEngine {
     }
 
     private float dvcLimiterThresholdDb(AdvancedModeConfig config) {
-        float availablePeakDb = dvcDownstreamHeadroomDb + normalLimiterThresholdDb(config);
+        float availablePeakDb = Math.max(
+                DVC_MAX_VOLUME_POSITIVE_GAIN_DB,
+                dvcDownstreamHeadroomDb) + normalLimiterThresholdDb(config);
         return Math.min(DVC_LIMITER_THRESHOLD_DB, availablePeakDb);
     }
 
@@ -775,8 +778,7 @@ final class GlobalEqualizerEngine {
                     DYNAMICS_MIN_LEVEL_MB / 100f,
                     DYNAMICS_MAX_LEVEL_MB / 100f);
         }
-        float safePeakDb = dvcDownstreamHeadroomDb
-                + normalLimiterThresholdDb(dynamicsConfig);
+        float safePeakDb = dvcLimiterThresholdDb(dynamicsConfig);
         float unprotectedPeakDb = presetGainDb + dvcMappedPeakGainDb;
         dvcSafetyAttenuationDb = Math.max(0f, unprotectedPeakDb - safePeakDb);
         return clamp(
