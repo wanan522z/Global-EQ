@@ -1634,6 +1634,9 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
+        dvcDownstreamHeadroomDb = 0f;
+        dvcMappedPeakGainDb = 0f;
+        dvcSafetyAttenuationDb = 0f;
         dynamicsAudioSessionId = GLOBAL_AUDIO_SESSION;
     }
 }

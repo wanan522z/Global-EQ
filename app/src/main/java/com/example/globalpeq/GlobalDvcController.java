@@ -231,6 +231,7 @@ final class GlobalDvcController {
                                   Set<Integer> playbackSessions) {
         float downstreamHeadroomDb = curve == null ? 0f : curve.headroomDb();
         float displayedHeadroomDb = Math.round(downstreamHeadroomDb * 10f) / 10f;
+        engine.setDvcDownstreamHeadroomDb(downstreamHeadroomDb);
         int targetAudioSessionId = -1;
         for (Integer candidateSessionId : orderedPlaybackSessionIds(playbackSessions)) {
             if (candidateSessionId == null || candidateSessionId < 0) {
@@ -290,7 +291,8 @@ final class GlobalDvcController {
                         : volumeChain.describeAttachment()) + "\n"
                         + "DVC mapped headroom: " + displayedHeadroomDb + " dB\n"
                         + "DVC EQ bank: " + engine.describeActiveDynamicsBank() + "\n"
-                        + "DVC limiter: enabled above +15 dB (50:1, 25 ms release)\n"
+                        + "DVC protection: volume-adaptive input headroom + limiter "
+                        + "(maximum +15 dB, 50:1, 25 ms release)\n"
                         + "DVC session tracking: optional; session 0 works without detection\n"
                         + "System media volume ownership: disabled (initialization pulse; "
                         + "same-index teardown refresh)\n"
@@ -324,6 +326,7 @@ final class GlobalDvcController {
         }
         Log.i(TAG, "DVC teardown: switchedOff=" + switchedOff
                 + ", engineDvcActive=" + engine.isDvcModeActive());
+        engine.setDvcDownstreamHeadroomDb(0f);
         releaseDvcVolumeChain();
     }
 
