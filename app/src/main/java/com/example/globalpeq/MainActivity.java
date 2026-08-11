@@ -528,6 +528,7 @@ public final class MainActivity extends Activity {
     private Preset pendingEnabledPersistPreset;
     private Boolean pendingExtraBassEnabledState;
     private Preset pendingExtraBassControlHistorySnapshot;
+    private boolean extraBassControlInteractionActive;
     private boolean pendingEnabledUiRefresh;
     private boolean enabledToggleInteractionLocked;
     private boolean modeVisualEnabled = true;
@@ -7555,9 +7556,21 @@ public final class MainActivity extends Activity {
         // DSP submission out of the ACTION_MOVE path.
         editingPreset = nextPreset;
         uiHandler.removeCallbacks(commitExtraBassControlRunnable);
-        uiHandler.postDelayed(
-                commitExtraBassControlRunnable,
-                EXTRA_BASS_CONTROL_COMMIT_DELAY_MS);
+        if (!extraBassControlInteractionActive) {
+            uiHandler.postDelayed(
+                    commitExtraBassControlRunnable,
+                    EXTRA_BASS_CONTROL_COMMIT_DELAY_MS);
+        }
+    }
+
+    private void beginExtraBassControlInteraction() {
+        extraBassControlInteractionActive = true;
+        uiHandler.removeCallbacks(commitExtraBassControlRunnable);
+    }
+
+    private void endExtraBassControlInteraction() {
+        extraBassControlInteractionActive = false;
+        commitPendingExtraBassControl();
     }
 
     private void commitPendingExtraBassControl() {
@@ -8513,7 +8526,8 @@ public final class MainActivity extends Activity {
                     "%",
                     this::updateExtraBassAmount);
         }
-        knob.setInteractionEndListener(this::commitPendingExtraBassControl);
+        knob.setInteractionStartListener(this::beginExtraBassControlInteraction);
+        knob.setInteractionEndListener(this::endExtraBassControlInteraction);
         // 旋钮中间数字可点击：弹出数值输入对话框，写入新值
         knob.setTapListener(this::showStyledKnobInputDialog);
         LinearLayout.LayoutParams knobParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);

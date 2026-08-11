@@ -30,6 +30,7 @@ final class KnobView extends View {
     private boolean maybeTap;
     private Listener listener;
     private TapListener tapListener;
+    private Runnable interactionStartListener;
     private Runnable interactionEndListener;
     private boolean forceSquare;
 
@@ -76,6 +77,10 @@ final class KnobView extends View {
 
     void setInteractionEndListener(Runnable listener) {
         interactionEndListener = listener;
+    }
+
+    void setInteractionStartListener(Runnable listener) {
+        interactionStartListener = listener;
     }
 
     int getMin() { return min; }
@@ -159,6 +164,9 @@ final class KnobView extends View {
             case MotionEvent.ACTION_DOWN:
                 if (getParent() != null) {
                     getParent().requestDisallowInterceptTouchEvent(true);
+                }
+                if (interactionStartListener != null) {
+                    interactionStartListener.run();
                 }
                 downY = event.getY();
                 downX = event.getX();
