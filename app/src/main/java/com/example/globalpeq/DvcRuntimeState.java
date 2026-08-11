@@ -6,6 +6,7 @@ import org.json.JSONObject;
 final class DvcRuntimeState {
     enum Kind {
         OFF,
+        WAITING_FOR_SESSION,
         ACTIVE,
         BLUETOOTH_UNAVAILABLE,
         USB_HARDWARE,
