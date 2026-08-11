@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -280,26 +281,26 @@ final class GlobalDvcController {
         mappingActive = true;
         activeAudioSessionId = targetAudioSessionId;
         boolean sessionZeroFallback = targetAudioSessionId == 0;
+        String attachment = volumeChain == null
+                ? "EQ only"
+                : (sessionZeroFallback ? "Global fallback" : "Player chain");
+        String compactStatus = String.format(
+                Locale.US,
+                "Session %d · %s\nHeadroom %.1f dB · Safety %.1f dB · Limiter %+.1f dB",
+                targetAudioSessionId,
+                attachment,
+                displayedHeadroomDb,
+                engine.getDvcSafetyAttenuationDb(),
+                engine.getDvcLimiterThresholdDb());
         publish(kind, true, true,
-                "DVC EQ audio session: " + targetAudioSessionId
-                        + (sessionZeroFallback ? " (global fallback; detection bypassed)" : "")
-                        + "\n"
-                        + "DVC discovered sessions: " + playbackSessions + "\n"
-                        + (sessionZeroFallback ? "Global VolumeFX: " : "Player-session VolumeFX: ")
-                        + (volumeChain == null
-                        ? "unavailable (ignored; EQ remains active)"
-                        : volumeChain.describeAttachment()) + "\n"
-                        + "DVC mapped headroom: " + displayedHeadroomDb + " dB\n"
-                        + "DVC EQ bank: " + engine.describeActiveDynamicsBank() + "\n"
-                        + "DVC protection: volume-adaptive input headroom + limiter "
-                        + "(maximum +15 dB, 50:1, 25 ms release)\n"
-                        + "DVC session tracking: optional; session 0 works without detection\n"
-                        + "System media volume ownership: disabled (initialization pulse; "
-                        + "same-index teardown refresh)\n"
-                        + engine.describeDvcReadback() + "\n"
-                        + (sessionZeroFallback
-                        ? "DVC chain: global session-0 EQ fallback"
-                        : "DVC chain: player-session VolumeFX + player-session EQ"));
+                compactStatus);
+        Log.i(TAG, "DVC active: session=" + targetAudioSessionId
+                + ", discovered=" + playbackSessions
+                + ", VolumeFX=" + (volumeChain == null
+                ? "unavailable"
+                : volumeChain.describeAttachment())
+                + ", bank=" + engine.describeActiveDynamicsBank()
+                + "\n" + engine.describeDvcReadback());
     }
 
     private void failMappedCurve(String detail) {
