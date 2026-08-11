@@ -1830,6 +1830,107 @@ public final class MainActivity extends Activity {
 
     }
 
+    private void buildLimiterSettingsPage(LinearLayout page) {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setClipChildren(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(0, dp(8), 0, dp(18));
+        page.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT));
+
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setClipChildren(false);
+        body.setClipToPadding(false);
+        body.setPadding(dp(2), 0, dp(2), dp(20));
+        scroll.addView(body, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setClipChildren(false);
+        panel.setClipToPadding(false);
+        panel.setPadding(dp(16), dp(16), dp(16), dp(16));
+        panel.setBackground(createGlassCard(35));
+        body.addView(panel, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        limiterSettingsTitleView = addSettingsSectionTitle(
+                panel, this::limiterSettingsTitleText, 18);
+
+        limiterSettingsDetailView = new TextView(this);
+        bindText(limiterSettingsDetailView, this::limiterSettingsDetailText);
+        limiterSettingsDetailView.setTextSize(12);
+        limiterSettingsDetailView.setTextColor(Color.rgb(160, 170, 190));
+        panel.addView(limiterSettingsDetailView, blockParams(2));
+
+        limiterEnabledSwitch = new Switch(this);
+        limiterEnabledSwitch.setText("");
+        limiterEnabledSwitch.setShowText(false);
+        limiterEnabledSwitch.setChecked(advancedModeConfig.limiterEnabled);
+        styleTopSwitch(limiterEnabledSwitch, false);
+        limiterEnabledSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingUi) {
+                updateAdvancedModeConfig(
+                        advancedModeConfig.withLimiterEnabled(checked));
+            }
+        });
+        panel.addView(labeledSettingsRow(
+                this::limiterEnabledLabelText,
+                limiterEnabledSwitch,
+                null), blockParams(12));
+
+        limiterCeilingRow = createAdvancedNumberRow(
+                this::limiterCeilingLabelText,
+                String.valueOf(advancedModeConfig.limiterCeilingPermille),
+                "930-999",
+                view -> limiterCeilingLabelView = view,
+                value -> updateAdvancedModeConfig(
+                        advancedModeConfig.withLimiterCeilingPermille(value)));
+        limiterCeilingInput = numberInputFromRow(limiterCeilingRow);
+        panel.addView(limiterCeilingRow, blockParams(6));
+
+        limiterAttackRow = createAdvancedNumberRow(
+                this::limiterAttackLabelText,
+                String.valueOf(advancedModeConfig.limiterAttackMs),
+                "0-100",
+                view -> limiterAttackLabelView = view,
+                value -> updateAdvancedModeConfig(
+                        advancedModeConfig.withLimiterAttackMs(value)));
+        limiterAttackInput = numberInputFromRow(limiterAttackRow);
+        panel.addView(limiterAttackRow, blockParams(6));
+
+        limiterReleaseRow = createAdvancedNumberRow(
+                this::limiterReleaseLabelText,
+                String.valueOf(advancedModeConfig.limiterReleaseMs),
+                "20-400",
+                view -> limiterReleaseLabelView = view,
+                value -> updateAdvancedModeConfig(
+                        advancedModeConfig.withLimiterReleaseMs(value)));
+        limiterReleaseInput = numberInputFromRow(limiterReleaseRow);
+        panel.addView(limiterReleaseRow, blockParams(6));
+
+        refreshLimiterSettingsUi();
+    }
+
+    private EditText numberInputFromRow(View row) {
+        if (!(row instanceof ViewGroup)) {
+            return null;
+        }
+        ViewGroup group = (ViewGroup) row;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            View child = group.getChildAt(index);
+            if (child instanceof EditText) {
+                return (EditText) child;
+            }
+        }
+        return null;
+    }
+
     private View labeledSettingsRow(String labelText, View trailingView) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2222,8 +2323,36 @@ public final class MainActivity extends Activity {
         return tr("Lookahead (ms)", "Lookahead (ms)");
     }
 
+    private String limiterSettingsLabelText() {
+        return tr("Limiter", "Limiter");
+    }
+
+    private String limiterSettingsButtonText() {
+        return advancedModeConfig.limiterEnabled
+                ? tr("Enabled · Configure", "\u5df2\u5f00\u542f · \u8bbe\u7f6e")
+                : tr("Disabled · Configure", "\u5df2\u5173\u95ed · \u8bbe\u7f6e");
+    }
+
+    private String limiterSettingsTitleText() {
+        return tr("Limiter Settings", "Limiter \u8bbe\u7f6e");
+    }
+
+    private String limiterSettingsDetailText() {
+        return tr(
+                "Configure the shared output limiter for system effects, DVC, and Shizuku PCM processing. Disabling it can cause hard clipping when boosted peaks exceed the output range.",
+                "\u8bbe\u7f6e System Effect\u3001DVC \u548c Shizuku PCM \u5171\u7528\u7684\u8f93\u51fa Limiter\u3002\u5173\u95ed\u540e\uff0c\u6b63\u589e\u76ca\u5cf0\u503c\u8d85\u51fa\u8f93\u51fa\u8303\u56f4\u65f6\u53ef\u80fd\u53d1\u751f\u786c\u524a\u6ce2\u3002");
+    }
+
+    private String limiterEnabledLabelText() {
+        return tr("Limiter enabled", "Limiter \u603b\u5f00\u5173");
+    }
+
     private String limiterCeilingLabelText() {
         return tr("Limiter ceiling (\u2030)", "Limiter ceiling (\u2030)");
+    }
+
+    private String limiterAttackLabelText() {
+        return tr("Limiter attack (ms)", "Limiter attack (ms)");
     }
 
     private String limiterReleaseLabelText() {
