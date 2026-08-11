@@ -328,6 +328,10 @@ final class GlobalEqualizerEngine {
                 && (dynamicsProcessing != null || powerampDynamicsProcessing != null);
     }
 
+    synchronized boolean isDvcModeActive() {
+        return dvcActive;
+    }
+
     /**
      * Moves the full GlobalDSP EQ between output-mix session 0 and a player session.
      * In DVC mode the player-session EQ runs before Android's stream-volume attenuation, making

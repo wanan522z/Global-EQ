@@ -317,7 +317,13 @@ final class GlobalDvcController {
         sessionZeroVolumeAttempted = false;
         // Remove/re-home the boosted player-session DP before detaching VolumeFX. Neither step
         // writes a replacement media-volume index during normal DVC teardown.
-        engine.setDvcModeEnabled(false, 0);
+        boolean switchedOff = engine.setDvcModeEnabled(false, 0);
+        if (!switchedOff && engine.isDvcModeActive()) {
+            // Never publish OFF while a failed rebuild has left the old DVC bank alive.
+            engine.release();
+        }
+        Log.i(TAG, "DVC teardown: switchedOff=" + switchedOff
+                + ", engineDvcActive=" + engine.isDvcModeActive());
         releaseDvcVolumeChain();
     }
 
