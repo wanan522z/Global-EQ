@@ -27,13 +27,11 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_MIN_LEVEL_MB = -2400;
     private static final int DYNAMICS_MAX_LEVEL_MB = 3000;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
-    private static final float DVC_LIMITER_ATTACK_MS = 0.000001f;
     private static final float DVC_LIMITER_RELEASE_MS = 25f;
     private static final float DVC_LIMITER_RATIO = 50f;
     private static final float DVC_LIMITER_THRESHOLD_DB = 15f;
     private static final float DVC_MAX_VOLUME_POSITIVE_GAIN_DB = 2f;
     private static final float DVC_INPUT_MIN_DB = -96f;
-    private static final float DYNAMICS_LIMITER_ATTACK_MS = 1f;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
     private static final long CONTROL_REARM_DELAY_MS = 180;
@@ -301,30 +299,36 @@ final class GlobalEqualizerEngine {
 
     private DynamicsProcessing.Limiter createLimiter(AdvancedModeConfig config,
                                                       float postGainDb) {
+        AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        float attackMs = configuredLimiterAttackMs(safeConfig);
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
             // Use real downstream attenuation when it exceeds the explicit maximum-volume test
             // allowance. Toward maximum volume, retain up to +2 dB for distortion testing while
             // still respecting the configured limiter-ceiling margin.
             return new DynamicsProcessing.Limiter(
-                    true,
+                    safeConfig.limiterEnabled,
                     true,
                     0,
-                    DVC_LIMITER_ATTACK_MS,
-                    DVC_LIMITER_RELEASE_MS,
+                    attackMs,
+                    safeConfig.limiterReleaseMs,
                     DVC_LIMITER_RATIO,
                     dvcLimiterThresholdDb(config),
                     postGainDb);
         }
-        AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         return new DynamicsProcessing.Limiter(
-                true,
+                safeConfig.limiterEnabled,
                 true,
                 0,
-                DYNAMICS_LIMITER_ATTACK_MS,
+                attackMs,
                 safeConfig.limiterReleaseMs,
                 DYNAMICS_LIMITER_RATIO,
                 normalLimiterThresholdDb(safeConfig),
                 postGainDb);
+    }
+
+    private static float configuredLimiterAttackMs(AdvancedModeConfig config) {
+        AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        return safeConfig.limiterAttackMs <= 0 ? 0.000001f : safeConfig.limiterAttackMs;
     }
 
     private static float normalLimiterThresholdDb(AdvancedModeConfig config) {
@@ -457,7 +461,7 @@ final class GlobalEqualizerEngine {
             for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
                 DynamicsProcessing.Limiter appliedLimiter =
                         dynamicsProcessing.getLimiterByChannelIndex(channel);
-                if (!appliedLimiter.isEnabled()
+                if (appliedLimiter.isEnabled() != dynamicsConfig.limiterEnabled
                         || Math.abs(appliedLimiter.getThreshold() - expectedThresholdDb) >= 0.1f) {
                     throw new IllegalStateException(
                             "Limiter configuration rejected for channel " + channel);
@@ -684,7 +688,7 @@ final class GlobalEqualizerEngine {
             }
             return String.format(
                     Locale.US,
-                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, safety attenuation %.1f dB, limiter enabled @ %+.1f dB, release %.0f ms",
+                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, safety attenuation %.1f dB, limiter %s @ %+.1f dB, attack %.3f ms, release %d ms",
                     dynamicsAudioSessionId,
                     powerampDynamicsProcessing.getChannelCount(),
                     inputGainDb,
@@ -692,8 +696,10 @@ final class GlobalEqualizerEngine {
                     maxGainDb,
                     dvcDownstreamHeadroomDb,
                     dvcSafetyAttenuationDb,
+                    dynamicsConfig.limiterEnabled ? "enabled" : "bypassed",
                     dvcLimiterThresholdDb(dynamicsConfig),
-                    DVC_LIMITER_RELEASE_MS);
+                    configuredLimiterAttackMs(dynamicsConfig),
+                    dynamicsConfig.limiterReleaseMs);
         }
         if (dynamicsProcessing == null) {
             return powerampBackendFailure.isEmpty()
@@ -1287,9 +1293,9 @@ final class GlobalEqualizerEngine {
         }
         if (!dynamicsLimiterConfigured) {
             powerampDynamicsProcessing.setLimiter(
-                    true,
-                    DVC_LIMITER_ATTACK_MS,
-                    DVC_LIMITER_RELEASE_MS,
+                    dynamicsConfig.limiterEnabled,
+                    configuredLimiterAttackMs(dynamicsConfig),
+                    dynamicsConfig.limiterReleaseMs,
                     DVC_LIMITER_RATIO,
                     dvcLimiterThresholdDb(dynamicsConfig),
                     0f);
@@ -1531,6 +1537,8 @@ final class GlobalEqualizerEngine {
             return false;
         }
         return before.limiterCeilingPermille == after.limiterCeilingPermille
+                && before.limiterEnabled == after.limiterEnabled
+                && before.limiterAttackMs == after.limiterAttackMs
                 && before.limiterReleaseMs == after.limiterReleaseMs;
     }
 
