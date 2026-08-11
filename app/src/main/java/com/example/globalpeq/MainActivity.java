@@ -2780,8 +2780,8 @@ public final class MainActivity extends Activity {
         }
         adoptDevicePresetForCurrentMode(currentDevice, true);
         if (processingMode.usesSystemEqBackend()) {
-            if (monitorSettingsOpen) {
-                hideAdvancedSettingsSubpage();
+            if (isSettingsSubpageOpen()) {
+                hideSettingsSubpage();
             }
             applyRunningPreset(true);
         } else {
@@ -4201,6 +4201,52 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void refreshLimiterSettingsUi() {
+        boolean wasUpdatingUi = updatingUi;
+        updatingUi = true;
+        if (limiterSettingsButton != null) {
+            setTextIfChanged(limiterSettingsButton, limiterSettingsButtonText());
+        }
+        if (limiterEnabledSwitch != null) {
+            limiterEnabledSwitch.setChecked(advancedModeConfig.limiterEnabled);
+        }
+        if (limiterCeilingInput != null && !limiterCeilingInput.hasFocus()) {
+            setEditTextIfChanged(
+                    limiterCeilingInput,
+                    String.valueOf(advancedModeConfig.limiterCeilingPermille));
+        }
+        if (limiterAttackInput != null && !limiterAttackInput.hasFocus()) {
+            setEditTextIfChanged(
+                    limiterAttackInput,
+                    String.valueOf(advancedModeConfig.limiterAttackMs));
+        }
+        if (limiterReleaseInput != null && !limiterReleaseInput.hasFocus()) {
+            setEditTextIfChanged(
+                    limiterReleaseInput,
+                    String.valueOf(advancedModeConfig.limiterReleaseMs));
+        }
+        updatingUi = wasUpdatingUi;
+
+        setViewTreeEnabled(limiterCeilingRow, advancedModeConfig.limiterEnabled);
+        setViewTreeEnabled(limiterAttackRow, advancedModeConfig.limiterEnabled);
+        setViewTreeEnabled(limiterReleaseRow, advancedModeConfig.limiterEnabled);
+    }
+
+    private void setViewTreeEnabled(View view, boolean enabled) {
+        if (view == null) {
+            return;
+        }
+        view.setEnabled(enabled);
+        view.setAlpha(enabled ? 1f : 0.5f);
+        if (!(view instanceof ViewGroup)) {
+            return;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            setViewTreeEnabled(group.getChildAt(index), enabled);
+        }
+    }
+
     private void renderAll() {
         updatingUi = true;
         boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
@@ -4223,6 +4269,7 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
+        refreshLimiterSettingsUi();
         refreshGlobalDvcUi();
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
@@ -4311,6 +4358,7 @@ public final class MainActivity extends Activity {
         if (advancedModeSummaryView != null) {
             setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
         }
+        refreshLimiterSettingsUi();
         refreshGlobalDvcUi();
         if (monitorCaptureStatusView != null) {
             setTextIfChanged(monitorCaptureStatusView, monitorCaptureStatusText());
@@ -12424,7 +12472,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean shouldBlockPageSwipe(View view, float rawX, float rawY) {
-        if (monitorSettingsOpen) {
+        if (isSettingsSubpageOpen()) {
             return true;
         }
         View current = view;
@@ -12481,7 +12529,7 @@ public final class MainActivity extends Activity {
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent event) {
-            if (monitorSettingsOpen) {
+            if (isSettingsSubpageOpen()) {
                 trackSwipe = false;
                 handlingSwipe = false;
                 return false;
@@ -12519,7 +12567,7 @@ public final class MainActivity extends Activity {
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
-            if (monitorSettingsOpen) {
+            if (isSettingsSubpageOpen()) {
                 return false;
             }
             if (!trackSwipe && !handlingSwipe) {
