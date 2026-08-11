@@ -812,7 +812,7 @@ final class GlobalEqualizerEngine {
 
     synchronized void apply(Preset preset, ProcessingMode mode, AdvancedModeConfig config) {
         selectProcessingMode(mode);
-        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        updateDynamicsConfig(config);
         applyInternal(preset, ApplyStrategy.AUTO);
     }
 
@@ -828,7 +828,7 @@ final class GlobalEqualizerEngine {
                                          ProcessingMode mode,
                                          AdvancedModeConfig config) {
         selectProcessingMode(mode);
-        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        updateDynamicsConfig(config);
         applyInternal(preset, ApplyStrategy.FORCE_FULL_RESET);
     }
 
@@ -881,7 +881,7 @@ final class GlobalEqualizerEngine {
                                     ProcessingMode mode,
                                     AdvancedModeConfig config) {
         selectProcessingMode(mode);
-        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        updateDynamicsConfig(config);
         applyGeneration++;
         if (preset == null || !preset.enabled || !start()) {
             return;
@@ -915,7 +915,7 @@ final class GlobalEqualizerEngine {
             return;
         }
         selectProcessingMode(mode);
-        dynamicsConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        updateDynamicsConfig(config);
 
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastRouteReapplyElapsedMs < ROUTE_REAPPLY_GUARD_MS) {
@@ -1526,6 +1526,14 @@ final class GlobalEqualizerEngine {
 
     private boolean samePresetState(Preset before, Preset after) {
         return before != null && after != null && before.toJson().equals(after.toJson());
+    }
+
+    private void updateDynamicsConfig(AdvancedModeConfig config) {
+        AdvancedModeConfig nextConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
+        if (!sameLimiterConfig(dynamicsConfig, nextConfig)) {
+            dynamicsLimiterConfigured = false;
+        }
+        dynamicsConfig = nextConfig;
     }
 
     private boolean sameLimiterConfig(AdvancedModeConfig before, AdvancedModeConfig after) {
