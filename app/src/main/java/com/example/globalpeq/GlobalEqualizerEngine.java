@@ -102,21 +102,21 @@ final class GlobalEqualizerEngine {
         for (int bandCount : bandCountCandidates) {
             DynamicsProcessing candidate = null;
             try {
-                // Poweramp model P=0 is the preferred 300-band single post-EQ bank. Its P=1/P=2
-                // compatibility models (256/64 bands) are the ones split across pre/post stages.
-                boolean splitDvcBank = dvcActive
-                        && processingMode == ProcessingMode.GLOBAL_DSP
-                        && (bandCount == 256 || bandCount == 64);
-                int preEqBandCount = splitDvcBank ? bandCount / 2 : 0;
-                int postEqBandCount = bandCount - preEqBandCount;
+                // Keep every DVC EQ band in post-EQ. A flat one-band MBC before it is the DVC
+                // pregain stage. This avoids framework input-gain implementations that report the
+                // requested value but become non-flat when a session VolumeFX follows the DP.
+                boolean useDvcPregainStage = dvcActive
+                        && processingMode == ProcessingMode.GLOBAL_DSP;
+                int preEqBandCount = 0;
+                int postEqBandCount = bandCount;
                 DynamicsProcessing.Config.Builder configBuilder =
                         new DynamicsProcessing.Config.Builder(
                         0,
                         DYNAMICS_CHANNEL_COUNT,
-                        splitDvcBank,
-                        preEqBandCount,
                         false,
-                        0,
+                        preEqBandCount,
+                        useDvcPregainStage,
+                        useDvcPregainStage ? 1 : 0,
                         true,
                         postEqBandCount,
                         true
@@ -141,9 +141,7 @@ final class GlobalEqualizerEngine {
                         processingMode == ProcessingMode.GLOBAL_DSP && bandCount >= 48
                                 ? 10.0
                                 : 20.0);
-                DynamicsProcessing.Eq preEq = splitDvcBank
-                        ? new DynamicsProcessing.Eq(true, true, preEqBandCount)
-                        : null;
+                DynamicsProcessing.Eq preEq = null;
                 DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(
                         true,
                         true,
@@ -161,8 +159,8 @@ final class GlobalEqualizerEngine {
                     eqBand.setGain(0f);
                 }
                 candidate.setInputGainAllChannelsTo(0f);
-                if (preEq != null) {
-                    candidate.setPreEqAllChannelsTo(preEq);
+                if (useDvcPregainStage) {
+                    candidate.setMbcAllChannelsTo(createDvcPregainStage(0f));
                 }
                 candidate.setPostEqAllChannelsTo(postEq);
                 candidate.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
@@ -181,9 +179,8 @@ final class GlobalEqualizerEngine {
                 armedWithZeroBands = false;
                 Log.i(TAG, "Using DynamicsProcessing on audio session "
                         + dynamicsAudioSessionId + " with "
-                        + (splitDvcBank
-                        ? preEqBandCount + "+" + postEqBandCount + " pre/post-EQ bands"
-                        : postEqBandCount + " post-EQ bands"));
+                        + postEqBandCount + " post-EQ bands"
+                        + (useDvcPregainStage ? " + pre-EQ pregain stage" : ""));
                 return true;
             } catch (RuntimeException ex) {
                 lastFailure = ex;
