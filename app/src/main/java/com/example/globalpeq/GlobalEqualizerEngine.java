@@ -102,21 +102,21 @@ final class GlobalEqualizerEngine {
         for (int bandCount : bandCountCandidates) {
             DynamicsProcessing candidate = null;
             try {
-                // Keep every DVC EQ band in post-EQ. A flat one-band MBC before it is the DVC
-                // pregain stage. This avoids framework input-gain implementations that report the
-                // requested value but become non-flat when a session VolumeFX follows the DP.
+                // Keep every response band in post-EQ. A separate one-band pre-EQ is the DVC
+                // pregain stage. This device's input-gain and MBC stages both accept readback but
+                // do not provide reliable broadband gain once session VolumeFX is attached.
                 boolean useDvcPregainStage = dvcActive
                         && processingMode == ProcessingMode.GLOBAL_DSP;
-                int preEqBandCount = 0;
+                int frameworkPreEqBandCount = useDvcPregainStage ? 1 : 0;
                 int postEqBandCount = bandCount;
                 DynamicsProcessing.Config.Builder configBuilder =
                         new DynamicsProcessing.Config.Builder(
                         0,
                         DYNAMICS_CHANNEL_COUNT,
-                        false,
-                        preEqBandCount,
                         useDvcPregainStage,
-                        useDvcPregainStage ? 1 : 0,
+                        frameworkPreEqBandCount,
+                        false,
+                        0,
                         true,
                         postEqBandCount,
                         true
@@ -141,26 +141,28 @@ final class GlobalEqualizerEngine {
                         processingMode == ProcessingMode.GLOBAL_DSP && bandCount >= 48
                                 ? 10.0
                                 : 20.0);
-                DynamicsProcessing.Eq preEq = null;
+                DynamicsProcessing.Eq preEq = useDvcPregainStage
+                        ? new DynamicsProcessing.Eq(true, true, 1)
+                        : null;
                 DynamicsProcessing.Eq postEq = new DynamicsProcessing.Eq(
                         true,
                         true,
                         postEqBandCount);
-                for (int band = 0; band < preEqBandCount; band++) {
-                    DynamicsProcessing.EqBand eqBand = preEq.getBand(band);
-                    eqBand.setEnabled(true);
-                    eqBand.setCutoffFrequency(centerFrequencies[band]);
-                    eqBand.setGain(0f);
+                if (preEq != null) {
+                    DynamicsProcessing.EqBand pregainBand = preEq.getBand(0);
+                    pregainBand.setEnabled(true);
+                    pregainBand.setCutoffFrequency(20000f);
+                    pregainBand.setGain(0f);
                 }
                 for (int band = 0; band < postEqBandCount; band++) {
                     DynamicsProcessing.EqBand eqBand = postEq.getBand(band);
                     eqBand.setEnabled(true);
-                    eqBand.setCutoffFrequency(centerFrequencies[preEqBandCount + band]);
+                    eqBand.setCutoffFrequency(centerFrequencies[band]);
                     eqBand.setGain(0f);
                 }
                 candidate.setInputGainAllChannelsTo(0f);
-                if (useDvcPregainStage) {
-                    candidate.setMbcAllChannelsTo(createDvcPregainStage(0f));
+                if (preEq != null) {
+                    candidate.setPreEqAllChannelsTo(preEq);
                 }
                 candidate.setPostEqAllChannelsTo(postEq);
                 candidate.setLimiterAllChannelsTo(createLimiter(dynamicsConfig, 0f));
@@ -170,7 +172,8 @@ final class GlobalEqualizerEngine {
                 dynamicsProcessing = candidate;
                 dynamicsPreEq = preEq;
                 dynamicsPostEq = postEq;
-                dynamicsPreEqBandCount = preEqBandCount;
+                // The dedicated pre-EQ band is a gain stage, not part of the sampled EQ response.
+                dynamicsPreEqBandCount = 0;
                 dynamicsBandCenterHz = centerFrequencies;
                 dynamicsPreferredFrameDurationMs = config.getPreferredFrameDuration();
                 dynamicsLimiterConfigured = true;
