@@ -327,6 +327,23 @@ final class GlobalEqualizerEngine {
         return safeConfig.limiterAttackMs <= 0 ? 0.000001f : safeConfig.limiterAttackMs;
     }
 
+    private static DynamicsProcessing.Mbc createDvcPregainStage(float pregainDb) {
+        DynamicsProcessing.Mbc mbc = new DynamicsProcessing.Mbc(true, true, 1);
+        mbc.setBand(0, new DynamicsProcessing.MbcBand(
+                true,
+                20000f,
+                1f,
+                100f,
+                1f,
+                -45f,
+                0f,
+                -90f,
+                1f,
+                pregainDb,
+                0f));
+        return mbc;
+    }
+
     private static float normalLimiterThresholdDb(AdvancedModeConfig config) {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
@@ -662,6 +679,9 @@ final class GlobalEqualizerEngine {
         String bank = dynamicsPreEqBandCount > 0
                 ? dynamicsPreEqBandCount + "+" + postEqBandCount + " pre/post bands"
                 : postEqBandCount + " post-EQ bands";
+        if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
+            bank += " + pre-EQ pregain stage";
+        }
         return String.format(
                 Locale.US,
                 "framework DP, %s, frame %.2f ms",
@@ -734,14 +754,18 @@ final class GlobalEqualizerEngine {
                 maxGainDb = 0f;
             }
             float inputGainDb = dynamicsProcessing.getInputGainByChannelIndex(0);
+            float pregainStageDb = dvcActive && processingMode == ProcessingMode.GLOBAL_DSP
+                    ? dynamicsProcessing.getMbcByChannelIndex(0).getBand(0).getPreGain()
+                    : inputGainDb;
             DynamicsProcessing.Limiter appliedLimiter =
                     dynamicsProcessing.getLimiterByChannelIndex(0);
             boolean limiterEnabled = appliedLimiter.isEnabled();
             return String.format(
                     Locale.US,
-                        "DVC readback: session %d, user pregain %.1f dB, pre-EQ input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, auto attenuation %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
+                        "DVC readback: session %d, user pregain %.1f dB, pre-EQ pregain stage %.1f dB, DP input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, auto attenuation %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
                         userPregainDb,
+                        pregainStageDb,
                         inputGainDb,
                         maxLowGainDb,
                         maxGainDb,
@@ -759,6 +783,29 @@ final class GlobalEqualizerEngine {
 
     private void applyAndVerifyPreEqInputGain(Preset preset) {
         float targetGainDb = targetPreEqInputGainDb(preset);
+        if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
+            // On the DVC player-session chain, keep the framework input stage neutral. This
+            // device accepts and reads back negative input gain, but its audible response becomes
+            // frequency-dependent once VolumeFX owns downstream stream attenuation. A 1:1 MBC
+            // pre-gain is still before the only EQ bank and provides a true broadband pregain.
+            dynamicsProcessing.setInputGainAllChannelsTo(0f);
+            dynamicsProcessing.setMbcAllChannelsTo(createDvcPregainStage(targetGainDb));
+            for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
+                float appliedInputDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
+                float appliedPregainDb = dynamicsProcessing
+                        .getMbcByChannelIndex(channel)
+                        .getBand(0)
+                        .getPreGain();
+                if (Math.abs(appliedInputDb) >= 0.1f
+                        || Math.abs(appliedPregainDb - targetGainDb) >= 0.1f) {
+                    throw new IllegalStateException(
+                            "DVC pre-EQ pregain stage rejected for channel " + channel);
+                }
+            }
+            Log.d(TAG, "GlobalDSP DVC pre-EQ pregain stage=" + targetGainDb
+                    + " dB, DP input=0.0 dB");
+            return;
+        }
         dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
             float appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
