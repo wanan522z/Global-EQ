@@ -330,23 +330,6 @@ final class GlobalEqualizerEngine {
         return safeConfig.limiterAttackMs <= 0 ? 0.000001f : safeConfig.limiterAttackMs;
     }
 
-    private static DynamicsProcessing.Mbc createDvcPregainStage(float pregainDb) {
-        DynamicsProcessing.Mbc mbc = new DynamicsProcessing.Mbc(true, true, 1);
-        mbc.setBand(0, new DynamicsProcessing.MbcBand(
-                true,
-                20000f,
-                1f,
-                100f,
-                1f,
-                -45f,
-                0f,
-                -90f,
-                1f,
-                pregainDb,
-                0f));
-        return mbc;
-    }
-
     private static float normalLimiterThresholdDb(AdvancedModeConfig config) {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float ceiling = Math.max(0.001f, safeConfig.limiterCeilingPermille / 1000f);
@@ -758,7 +741,7 @@ final class GlobalEqualizerEngine {
             }
             float inputGainDb = dynamicsProcessing.getInputGainByChannelIndex(0);
             float pregainStageDb = dvcActive && processingMode == ProcessingMode.GLOBAL_DSP
-                    ? dynamicsProcessing.getMbcByChannelIndex(0).getBand(0).getPreGain()
+                    ? dynamicsProcessing.getPreEqByChannelIndex(0).getBand(0).getGain()
                     : inputGainDb;
             DynamicsProcessing.Limiter appliedLimiter =
                     dynamicsProcessing.getLimiterByChannelIndex(0);
@@ -787,18 +770,21 @@ final class GlobalEqualizerEngine {
     private void applyAndVerifyPreEqGain(Preset preset) {
         float targetGainDb = targetPreEqInputGainDb(preset);
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
-            // On the DVC player-session chain, keep the framework input stage neutral. This
-            // device accepts and reads back negative input gain, but its audible response becomes
-            // frequency-dependent once VolumeFX owns downstream stream attenuation. A 1:1 MBC
-            // pre-gain is still before the only EQ bank and provides a true broadband pregain.
+            // On the DVC player-session chain, keep the unreliable framework input and MBC stages
+            // neutral. A dedicated one-band pre-EQ provides broadband gain before the sampled
+            // response in post-EQ, preserving the required pregain -> EQ ordering.
             dynamicsProcessing.setInputGainAllChannelsTo(0f);
-            dynamicsProcessing.setMbcAllChannelsTo(createDvcPregainStage(targetGainDb));
+            DynamicsProcessing.EqBand pregainBand = dynamicsPreEq.getBand(0);
+            pregainBand.setEnabled(true);
+            pregainBand.setCutoffFrequency(20000f);
+            pregainBand.setGain(targetGainDb);
+            dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
             for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
                 float appliedInputDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
                 float appliedPregainDb = dynamicsProcessing
-                        .getMbcByChannelIndex(channel)
+                        .getPreEqByChannelIndex(channel)
                         .getBand(0)
-                        .getPreGain();
+                        .getGain();
                 if (Math.abs(appliedInputDb) >= 0.1f
                         || Math.abs(appliedPregainDb - targetGainDb) >= 0.1f) {
                     throw new IllegalStateException(
