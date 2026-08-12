@@ -375,7 +375,7 @@ final class GlobalEqualizerEngine {
                 refreshPowerampDvcControls(targetPreset);
             } else if (dynamicsProcessing != null) {
                 ensureFrameworkLimiterConfigured();
-                applyAndVerifyInputGain(targetPreset);
+                applyAndVerifyPreEqInputGain(targetPreset);
             }
         } catch (RuntimeException error) {
             Log.w(TAG, "Could not update DVC headroom for media volume", error);
@@ -454,7 +454,7 @@ final class GlobalEqualizerEngine {
                         + dynamicsAudioSessionId);
                 return true;
             }
-            applyAndVerifyInputGain(targetPreset);
+            applyAndVerifyPreEqInputGain(targetPreset);
             DynamicsProcessing.Limiter limiter = ensureFrameworkLimiterConfigured();
             float expectedThresholdDb = limiter.getThreshold();
             for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
@@ -477,7 +477,7 @@ final class GlobalEqualizerEngine {
                     refreshPowerampDvcControls(targetPreset);
                 } else if (dynamicsProcessing != null) {
                     ensureFrameworkLimiterConfigured();
-                    applyAndVerifyInputGain(targetPreset);
+                    applyAndVerifyPreEqInputGain(targetPreset);
                 }
             } catch (RuntimeException ignored) {
             }
@@ -675,7 +675,7 @@ final class GlobalEqualizerEngine {
     String describeDvcReadback() {
         Preset activePreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         if (powerampDynamicsProcessing != null) {
-            float inputGainDb = targetInputGainDb(activePreset);
+            float inputGainDb = targetPreEqInputGainDb(activePreset);
             float maxLowGainDb = 0f;
             float maxGainDb = 0f;
             for (int band = 0; band < powerampAppliedGainsDb.length; band++) {
@@ -757,8 +757,8 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    private void applyAndVerifyInputGain(Preset preset) {
-        float targetGainDb = targetInputGainDb(preset);
+    private void applyAndVerifyPreEqInputGain(Preset preset) {
+        float targetGainDb = targetPreEqInputGainDb(preset);
         dynamicsProcessing.setInputGainAllChannelsTo(targetGainDb);
         for (int channel = 0; channel < DYNAMICS_CHANNEL_COUNT; channel++) {
             float appliedGainDb = dynamicsProcessing.getInputGainByChannelIndex(channel);
@@ -771,10 +771,10 @@ final class GlobalEqualizerEngine {
                         "DVC input-gain write rejected for channel " + channel);
             }
         }
-        Log.d(TAG, "GlobalDSP input gain=" + targetGainDb + " dB");
+        Log.d(TAG, "GlobalDSP pre-EQ input gain=" + targetGainDb + " dB");
     }
 
-    private float targetInputGainDb(Preset preset) {
+    private float targetPreEqInputGainDb(Preset preset) {
         float presetGainDb = presetPregainDb(preset);
         if (!dvcActive || processingMode != ProcessingMode.GLOBAL_DSP) {
             dvcSafetyAttenuationDb = 0f;
@@ -1261,7 +1261,7 @@ final class GlobalEqualizerEngine {
         // Preserve the complete EQ shape, but use only the positive peak range that the current
         // downstream stream-volume attenuation can safely absorb.
         ensureFrameworkLimiterConfigured();
-        applyAndVerifyInputGain(preset);
+        applyAndVerifyPreEqInputGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
@@ -1305,7 +1305,8 @@ final class GlobalEqualizerEngine {
                     0f);
             dynamicsLimiterConfigured = true;
         }
-        powerampDynamicsProcessing.setInputGain(targetInputGainDb(preset));
+        // PARAM_INPUT_GAIN is the DP input stage, before both pre-EQ and post-EQ banks.
+        powerampDynamicsProcessing.setInputGain(targetPreEqInputGainDb(preset));
         if (!powerampDynamicsProcessing.getEnabled()) {
             powerampDynamicsProcessing.setEnabled(true);
         }
@@ -1328,7 +1329,7 @@ final class GlobalEqualizerEngine {
         Preset targetPreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
         ensureFrameworkLimiterConfigured();
         if (targetPreset != null) {
-            applyAndVerifyInputGain(targetPreset);
+            applyAndVerifyPreEqInputGain(targetPreset);
         } else {
             dynamicsProcessing.setInputGainAllChannelsTo(0f);
         }
