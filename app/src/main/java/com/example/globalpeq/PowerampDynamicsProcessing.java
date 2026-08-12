@@ -109,6 +109,8 @@ final class PowerampDynamicsProcessing {
     }
 
     void setInputGain(float gainDb) {
+        // DynamicsProcessing input gain is evaluated before its pre/post EQ stages. Keep user
+        // pregain here rather than baking it into EQ bands or the limiter's post-gain field.
         for (int channel = 0; channel < channelCount; channel++) {
             ByteBuffer parameter = buffer(24);
             parameter.putInt(0);
