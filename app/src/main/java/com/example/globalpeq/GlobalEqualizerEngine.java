@@ -674,6 +674,7 @@ final class GlobalEqualizerEngine {
 
     String describeDvcReadback() {
         Preset activePreset = pendingPreset != null ? pendingPreset : lastAppliedPreset;
+        float userPregainDb = presetPregainDb(activePreset);
         if (powerampDynamicsProcessing != null) {
             float inputGainDb = targetPreEqInputGainDb(activePreset);
             float maxLowGainDb = 0f;
@@ -687,9 +688,10 @@ final class GlobalEqualizerEngine {
             }
             return String.format(
                     Locale.US,
-                    "DVC raw command/reply accepted: session %d, channels %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, safety attenuation %.1f dB, limiter %s @ %+.1f dB, attack %.3f ms, release %d ms",
+                    "DVC raw command/reply accepted: session %d, channels %d, user pregain %.1f dB, pre-EQ input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, auto attenuation %.1f dB, limiter %s @ %+.1f dB, attack %.3f ms, release %d ms",
                     dynamicsAudioSessionId,
                     powerampDynamicsProcessing.getChannelCount(),
+                    userPregainDb,
                     inputGainDb,
                     maxLowGainDb,
                     maxGainDb,
@@ -740,8 +742,9 @@ final class GlobalEqualizerEngine {
             boolean limiterEnabled = appliedLimiter.isEnabled();
             return String.format(
                     Locale.US,
-                        "DVC readback: session %d, input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, safety attenuation %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
+                        "DVC readback: session %d, user pregain %.1f dB, pre-EQ input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, auto attenuation %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
+                        userPregainDb,
                         inputGainDb,
                         maxLowGainDb,
                         maxGainDb,
@@ -783,13 +786,16 @@ final class GlobalEqualizerEngine {
                     DYNAMICS_MIN_LEVEL_MB / 100f,
                     DYNAMICS_MAX_LEVEL_MB / 100f);
         }
+        if (presetGainDb < 0f) {
+            // A negative user pregain is manual headroom. It must be the exact broadband gain
+            // written to the DP input stage; stacking DVC's automatic attenuation here made a
+            // requested -10 dB become substantially lower than -10 dB before reaching the EQ.
+            dvcSafetyAttenuationDb = 0f;
+            return clamp(presetGainDb, DVC_INPUT_MIN_DB, 0f);
+        }
         float safePeakDb = dvcLimiterThresholdDb(dynamicsConfig);
-        // Negative pregain is an explicit user attenuation and must remain audible. Including it
-        // in the automatic headroom calculation made the safety attenuation shrink by the same
-        // amount, cancelling every downward pregain adjustment while the DVC peak cap was active.
-        // Positive pregain still consumes the safety budget and is capped when no headroom remains.
-        float safetyPregainDb = Math.max(0f, presetGainDb);
-        float unprotectedPeakDb = safetyPregainDb + dvcMappedPeakGainDb;
+        // At zero or positive pregain, retain DVC's automatic peak protection.
+        float unprotectedPeakDb = presetGainDb + dvcMappedPeakGainDb;
         dvcSafetyAttenuationDb = Math.max(0f, unprotectedPeakDb - safePeakDb);
         return clamp(
                 presetGainDb - dvcSafetyAttenuationDb,
