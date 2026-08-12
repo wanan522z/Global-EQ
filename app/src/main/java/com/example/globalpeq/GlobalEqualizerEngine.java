@@ -784,7 +784,12 @@ final class GlobalEqualizerEngine {
                     DYNAMICS_MAX_LEVEL_MB / 100f);
         }
         float safePeakDb = dvcLimiterThresholdDb(dynamicsConfig);
-        float unprotectedPeakDb = presetGainDb + dvcMappedPeakGainDb;
+        // Negative pregain is an explicit user attenuation and must remain audible. Including it
+        // in the automatic headroom calculation made the safety attenuation shrink by the same
+        // amount, cancelling every downward pregain adjustment while the DVC peak cap was active.
+        // Positive pregain still consumes the safety budget and is capped when no headroom remains.
+        float safetyPregainDb = Math.max(0f, presetGainDb);
+        float unprotectedPeakDb = safetyPregainDb + dvcMappedPeakGainDb;
         dvcSafetyAttenuationDb = Math.max(0f, unprotectedPeakDb - safePeakDb);
         return clamp(
                 presetGainDb - dvcSafetyAttenuationDb,
