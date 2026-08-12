@@ -183,7 +183,7 @@ final class GlobalEqualizerEngine {
                 Log.i(TAG, "Using DynamicsProcessing on audio session "
                         + dynamicsAudioSessionId + " with "
                         + postEqBandCount + " post-EQ bands"
-                        + (useDvcPregainStage ? " + pre-EQ pregain stage" : ""));
+                        + (useDvcPregainStage ? " + pre-EQ gain band" : ""));
                 return true;
             } catch (RuntimeException ex) {
                 lastFailure = ex;
@@ -666,7 +666,7 @@ final class GlobalEqualizerEngine {
                 ? dynamicsPreEqBandCount + "+" + postEqBandCount + " pre/post bands"
                 : postEqBandCount + " post-EQ bands";
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
-            bank += " + pre-EQ pregain stage";
+            bank += " + pre-EQ gain band";
         }
         return String.format(
                 Locale.US,
@@ -748,7 +748,7 @@ final class GlobalEqualizerEngine {
             boolean limiterEnabled = appliedLimiter.isEnabled();
             return String.format(
                     Locale.US,
-                        "DVC readback: session %d, user pregain %.1f dB, pre-EQ pregain stage %.1f dB, DP input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, auto attenuation %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
+                        "DVC readback: session %d, user pregain %.1f dB, pre-EQ gain band %.1f dB, DP input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, auto attenuation %.1f dB, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
                         userPregainDb,
                         pregainStageDb,
@@ -788,10 +788,10 @@ final class GlobalEqualizerEngine {
                 if (Math.abs(appliedInputDb) >= 0.1f
                         || Math.abs(appliedPregainDb - targetGainDb) >= 0.1f) {
                     throw new IllegalStateException(
-                            "DVC pre-EQ pregain stage rejected for channel " + channel);
+                            "DVC pre-EQ gain band rejected for channel " + channel);
                 }
             }
-            Log.d(TAG, "GlobalDSP DVC pre-EQ pregain stage=" + targetGainDb
+            Log.d(TAG, "GlobalDSP DVC pre-EQ gain band=" + targetGainDb
                     + " dB, DP input=0.0 dB");
             return;
         }
