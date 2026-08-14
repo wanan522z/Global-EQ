@@ -11428,18 +11428,42 @@ public final class MainActivity extends Activity {
                 lensShader = new android.graphics.BitmapShader(
                         bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             }
-            configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, zoom);
             lensPaint.setShader(lensShader);
             lensPaint.setStyle(Paint.Style.FILL);
-            lensPaint.setAlpha(Math.round((pressed ? 238f : 218f) * drawableAlpha / 255f));
-            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+            if (darkSurface) {
+                // Five nearby backdrop samples form a deeper, stable blur for the classic
+                // tab bar. The area is small, so this avoids a full-screen RenderEffect
+                // while preserving the animated background beneath it.
+                float blurOffset = dpf(1.65f);
+                lensPaint.setAlpha(Math.round((pressed ? 68f : 60f) * drawableAlpha / 255f));
+                configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, zoom);
+                canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+                configureLensShader(screenPerPixelX, screenPerPixelY,
+                        relativeX - blurOffset, relativeY, zoom);
+                canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+                configureLensShader(screenPerPixelX, screenPerPixelY,
+                        relativeX + blurOffset, relativeY, zoom);
+                canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+                configureLensShader(screenPerPixelX, screenPerPixelY,
+                        relativeX, relativeY - blurOffset, zoom);
+                canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+                configureLensShader(screenPerPixelX, screenPerPixelY,
+                        relativeX, relativeY + blurOffset, zoom);
+                canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+            } else {
+                configureLensShader(screenPerPixelX, screenPerPixelY,
+                        relativeX, relativeY, zoom);
+                lensPaint.setAlpha(Math.round((pressed ? 238f : 218f) * drawableAlpha / 255f));
+                canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+            }
 
             // Sample the same live backdrop with a stronger magnification only on the
             // perimeter. This produces actual edge warping beneath the subtle color split.
             configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, zoom + 0.046f);
             lensPaint.setStyle(Paint.Style.STROKE);
             lensPaint.setStrokeWidth(dpf(outerLayer ? 1.05f : 1.32f));
-            lensPaint.setAlpha(Math.round((outerLayer ? 116f : 142f) * drawableAlpha / 255f));
+            float rimAlpha = darkSurface ? 104f : (outerLayer ? 116f : 142f);
+            lensPaint.setAlpha(Math.round(rimAlpha * drawableAlpha / 255f));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
 
             lensPaint.setShader(null);
