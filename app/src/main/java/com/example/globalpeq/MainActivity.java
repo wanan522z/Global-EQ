@@ -118,8 +118,7 @@ public final class MainActivity extends Activity {
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
     private static final long APPEARANCE_SWITCH_SETTLE_MS = 140L;
-    private static final long APPEARANCE_FADE_OUT_MS = 180L;
-    private static final long APPEARANCE_FADE_IN_MS = 240L;
+    private static final long APPEARANCE_CROSSFADE_MS = 360L;
     private static final long ACTIVE_APP_REFRESH_INTERVAL_MS = 5000L;
     private static final long RUNTIME_STATUS_REFRESH_INTERVAL_MS = 1000L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
@@ -2122,47 +2121,71 @@ public final class MainActivity extends Activity {
             liquidGlassSwitch.setEnabled(false);
         }
         oldScene.animate().cancel();
-        oldScene.animate()
-                .alpha(0f)
-                .setStartDelay(APPEARANCE_SWITCH_SETTLE_MS)
-                .setDuration(APPEARANCE_FADE_OUT_MS)
-                .setInterpolator(new android.view.animation.AccelerateInterpolator())
-                .withLayer()
-                .withEndAction(() -> {
-                    liquidGlassTheme = nextLiquidTheme;
-                    UiTheme.applyWindowAppearance(this, liquidGlassTheme);
-                    rebuildContentForAppearance(pageIndex, settingsScrollY);
+        oldScene.postDelayed(() -> {
+            if (oldScene.getParent() != content) {
+                appearanceTransitionRunning = false;
+                return;
+            }
 
-                    ViewGroup rebuiltContent = findViewById(android.R.id.content);
-                    View newScene = rebuiltContent == null || rebuiltContent.getChildCount() == 0
-                            ? null
-                            : rebuiltContent.getChildAt(rebuiltContent.getChildCount() - 1);
-                    if (newScene == null) {
-                        appearanceTransitionRunning = false;
-                        return;
-                    }
-                    if (liquidGlassSwitch != null) {
-                        liquidGlassSwitch.setEnabled(false);
-                    }
-                    newScene.setAlpha(0f);
-                    newScene.animate().cancel();
-                    newScene.animate()
-                            .alpha(1f)
-                            .setDuration(APPEARANCE_FADE_IN_MS)
-                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                            .withLayer()
-                            .withEndAction(() -> {
-                                appearanceTransitionRunning = false;
-                                if (liquidGlassSwitch != null) {
-                                    liquidGlassSwitch.setEnabled(true);
-                                }
-                            })
-                            .start();
-                })
-                .start();
+            liquidGlassTheme = nextLiquidTheme;
+            UiTheme.applyWindowAppearance(this, liquidGlassTheme);
+            View newScene = addContentLayerForAppearance(content, pageIndex);
+            if (newScene == null) {
+                appearanceTransitionRunning = false;
+                return;
+            }
+            if (liquidGlassSwitch != null) {
+                liquidGlassSwitch.setEnabled(false);
+            }
+
+            // Keep the old scene fully opaque underneath while the new scene fades in. This
+            // avoids exposing the Window background (the white flash in the previous version).
+            newScene.post(() -> {
+                if (settingsScrollView != null) {
+                    settingsScrollView.scrollTo(0, settingsScrollY);
+                }
+                newScene.animate().cancel();
+                newScene.animate()
+                        .alpha(1f)
+                        .setDuration(APPEARANCE_CROSSFADE_MS)
+                        .setInterpolator(new android.view.animation.LinearInterpolator())
+                        .withLayer()
+                        .withEndAction(() -> {
+                            content.removeView(oldScene);
+                            appearanceTransitionRunning = false;
+                            if (liquidGlassSwitch != null) {
+                                liquidGlassSwitch.setEnabled(true);
+                            }
+                        })
+                        .start();
+            });
+        }, APPEARANCE_SWITCH_SETTLE_MS);
+    }
+
+    private View addContentLayerForAppearance(ViewGroup content, int pageIndex) {
+        prepareForAppearanceContentBuild();
+        View scene = buildContent();
+        scene.setAlpha(0f);
+        content.addView(scene, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        finishAppearanceContentBuild(pageIndex);
+        return scene;
     }
 
     private void rebuildContentForAppearance(int pageIndex, int settingsScrollY) {
+        prepareForAppearanceContentBuild();
+
+        // Rebuild only the view hierarchy. Runtime/audio state and the Activity stay alive.
+        setContentView(buildContent());
+        finishAppearanceContentBuild(pageIndex);
+
+        if (settingsScrollView != null) {
+            settingsScrollView.post(() -> settingsScrollView.scrollTo(0, settingsScrollY));
+        }
+    }
+
+    private void prepareForAppearanceContentBuild() {
         removeKeyboardVisibilityListener();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         shimmerTargetViews.clear();
@@ -2171,18 +2194,14 @@ public final class MainActivity extends Activity {
         titleVisualStates.clear();
         liquidGlassDrawables.clear();
         lastShimmerTime = 0L;
-
-        // Rebuild only the view hierarchy. Runtime/audio state and the Activity stay alive.
         languageController = new LanguageController(repository);
-        setContentView(buildContent());
+    }
+
+    private void finishAppearanceContentBuild(int pageIndex) {
         installKeyboardVisibilityListener();
         bindRootLanguageRefresh();
         renderAll();
         switchToMainPage(pageIndex, false);
-
-        if (settingsScrollView != null) {
-            settingsScrollView.post(() -> settingsScrollView.scrollTo(0, settingsScrollY));
-        }
     }
 
     private LinearLayout createSettingsSectionPanel(int alphaPercent, int topMarginDp) {
