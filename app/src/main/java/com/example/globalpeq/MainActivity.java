@@ -1542,9 +1542,9 @@ public final class MainActivity extends Activity {
             mistPaint.setShader(new LinearGradient(
                     0f, 0f, 0f, height,
                     new int[]{
-                            Color.argb(226, 145, 207, 207),
-                            Color.argb(172, 151, 211, 211),
-                            Color.argb(72, 157, 216, 215),
+                            Color.argb(240, 145, 207, 207),
+                            Color.argb(202, 151, 211, 211),
+                            Color.argb(104, 157, 216, 215),
                             Color.TRANSPARENT
                     },
                     new float[]{0f, 0.38f, 0.72f, 1f},
