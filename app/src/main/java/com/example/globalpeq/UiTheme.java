@@ -32,7 +32,7 @@ final class UiTheme {
 
     static void applyWindowAppearance(Activity activity, boolean liquid) {
         Window window = activity.getWindow();
-        int paleSurface = liquid ? Color.rgb(245, 249, 255) : Color.rgb(18, 18, 25);
+        int paleSurface = liquid ? Color.rgb(205, 238, 234) : Color.rgb(18, 18, 25);
         window.setStatusBarColor(paleSurface);
         window.setNavigationBarColor(paleSurface);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -55,31 +55,31 @@ final class UiTheme {
     }
 
     static int textPrimary(boolean liquid) {
-        return liquid ? Color.rgb(24, 34, 52) : Color.rgb(238, 246, 255);
+        return liquid ? Color.rgb(8, 27, 54) : Color.rgb(238, 246, 255);
     }
 
     static int textSecondary(boolean liquid) {
-        return liquid ? Color.rgb(73, 88, 111) : Color.rgb(180, 190, 210);
+        return liquid ? Color.rgb(43, 67, 88) : Color.rgb(180, 190, 210);
     }
 
     static int textMuted(boolean liquid) {
-        return liquid ? Color.rgb(118, 132, 153) : Color.rgb(142, 154, 168);
+        return liquid ? Color.rgb(83, 108, 126) : Color.rgb(142, 154, 168);
     }
 
     static int textFaint(boolean liquid) {
-        return liquid ? Color.rgb(148, 158, 174) : Color.rgb(100, 110, 130);
+        return liquid ? Color.rgb(105, 127, 143) : Color.rgb(100, 110, 130);
     }
 
     static int hint(boolean liquid) {
-        return liquid ? Color.argb(150, 86, 103, 128) : Color.argb(120, 220, 230, 245);
+        return liquid ? Color.argb(180, 73, 98, 118) : Color.argb(120, 220, 230, 245);
     }
 
     static int fieldFill(boolean liquid) {
-        return liquid ? Color.argb(178, 255, 255, 255) : Color.argb(24, 255, 255, 255);
+        return liquid ? Color.argb(146, 255, 255, 255) : Color.argb(24, 255, 255, 255);
     }
 
     static int fieldStroke(boolean liquid) {
-        return liquid ? Color.argb(170, 183, 201, 225) : Color.argb(52, 255, 255, 255);
+        return liquid ? Color.argb(190, 170, 225, 220) : Color.argb(52, 255, 255, 255);
     }
 
     static int popupSurface(boolean liquid) {
@@ -87,11 +87,11 @@ final class UiTheme {
     }
 
     static int controlSurface(boolean liquid) {
-        return liquid ? Color.argb(232, 248, 251, 255) : Color.argb(240, 22, 26, 38);
+        return liquid ? Color.argb(205, 248, 253, 253) : Color.argb(240, 22, 26, 38);
     }
 
     static int quietLine(boolean liquid) {
-        return liquid ? Color.argb(64, 66, 88, 120) : Color.argb(35, 255, 255, 255);
+        return liquid ? Color.argb(72, 20, 55, 82) : Color.argb(35, 255, 255, 255);
     }
 
     private static SharedPreferences preferences(Context context) {
