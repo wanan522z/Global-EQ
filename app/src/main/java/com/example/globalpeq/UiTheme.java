@@ -83,7 +83,7 @@ final class UiTheme {
     }
 
     static int popupSurface(boolean liquid) {
-        return liquid ? Color.rgb(247, 250, 255) : Color.rgb(22, 26, 38);
+        return liquid ? Color.argb(236, 235, 249, 247) : Color.rgb(22, 26, 38);
     }
 
     static int controlSurface(boolean liquid) {
