@@ -476,7 +476,7 @@ final class EqCurveView extends View {
         float enabledAmount = clamp01(visualLevel);
         if (!targetCurve.isDefault()) {
             referencePaint.setColor(liquidGlassTheme
-                    ? Color.argb(242, 44, 128, 142)
+                    ? Color.argb(242, 58, 158, 171)
                     : Color.argb(180, 190, 128, 255));
             referencePaint.setPathEffect(dashPathEffect);
             canvas.drawPath(refCurvePath, referencePaint);
@@ -484,13 +484,13 @@ final class EqCurveView extends View {
         }
 
         if (liquidGlassTheme) {
-            // Match enabled EQ typography: a restrained deep blue body provides the
-            // stable identity, while the moving cyan pass below supplies the highlight.
+            // Use a lighter, more cyan blue so the curve blends with the liquid field
+            // without losing the stable body beneath the moving highlight.
             curvePaint.setStrokeWidth(5.0f);
             curvePaint.setDither(true);
             curvePaint.setColor(lerpColor(
                     Color.argb(18, 130, 140, 150),
-                    Color.rgb(0, 70, 142),
+                    Color.rgb(0, 132, 204),
                     enabledAmount));
             canvas.drawPath(curvePath, curvePaint);
         }
@@ -514,9 +514,9 @@ final class EqCurveView extends View {
             lastTime = (animationSuppressed || enabledAmount <= 0.001f) ? 0L : now;
 
             float totalWidth = right - left;
-            // One full-width period produces a single long light band. During wrapping it
-            // can split across the two edges, so at most two bands are visible at once.
-            float sweepPatternWidth = totalWidth;
+            // Start the next liquid band 12% earlier while retaining enough transparent
+            // separation that no more than two visible bands can occupy the graph.
+            float sweepPatternWidth = liquidGlassTheme ? totalWidth * 0.88f : totalWidth;
             if (sweepGradient == null || Math.abs(sweepGradientWidth - sweepPatternWidth) > 0.5f) {
                 sweepGradientWidth = sweepPatternWidth;
                 // Liquid uses a broad, slowly moving cyan band; classic retains its
@@ -525,17 +525,17 @@ final class EqCurveView extends View {
                         ? new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
                                 new int[]{
-                                        Color.argb(0, 0, 216, 255),
-                                        Color.argb(18, 0, 216, 255),
-                                        Color.argb(82, 0, 216, 255),
-                                        Color.argb(188, 20, 224, 255),
-                                        Color.argb(255, 174, 242, 255),
-                                        Color.argb(188, 20, 224, 255),
-                                        Color.argb(82, 0, 216, 255),
-                                        Color.argb(18, 0, 216, 255),
-                                        Color.argb(0, 0, 216, 255)
+                                        Color.argb(0, 0, 226, 255),
+                                        Color.argb(0, 0, 226, 255),
+                                        Color.argb(92, 0, 226, 255),
+                                        Color.argb(215, 0, 232, 255),
+                                        Color.argb(255, 132, 245, 255),
+                                        Color.argb(215, 0, 232, 255),
+                                        Color.argb(92, 0, 226, 255),
+                                        Color.argb(0, 0, 226, 255),
+                                        Color.argb(0, 0, 226, 255)
                                 },
-                                new float[]{0f, 0.08f, 0.22f, 0.38f, 0.50f, 0.62f, 0.78f, 0.92f, 1f},
+                                new float[]{0f, 0.08f, 0.20f, 0.38f, 0.50f, 0.62f, 0.80f, 0.92f, 1f},
                                 Shader.TileMode.REPEAT)
                         : new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
