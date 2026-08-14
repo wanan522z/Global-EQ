@@ -377,9 +377,10 @@ final class EqCurveView extends View {
 
         drawCurveLayer(canvas, left, right);
 
-        canvas.drawText("+" + maxDb, left, top + 24f, textPaint);
-        canvas.drawText("0 dB", left, mid - 6f, textPaint);
-        canvas.drawText("-" + maxDb, left, bottom - 6f, textPaint);
+        float axisLabelX = left + getResources().getDisplayMetrics().density * 6f;
+        canvas.drawText("+" + maxDb, axisLabelX, top + 24f, textPaint);
+        canvas.drawText("0 dB", axisLabelX, mid - 6f, textPaint);
+        canvas.drawText("-" + maxDb, axisLabelX, bottom - 6f, textPaint);
 
         drawHorizontalEdgeFade(canvas, width, height);
         canvas.restoreToCount(contentLayer);
