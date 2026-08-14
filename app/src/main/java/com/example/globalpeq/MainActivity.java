@@ -1487,7 +1487,67 @@ public final class MainActivity extends Activity {
         sceneRoot.addView(root, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
+        if (liquidGlassTheme) {
+            addTopStatusMist(sceneRoot);
+        }
         return sceneRoot;
+    }
+
+    private void addTopStatusMist(FrameLayout sceneRoot) {
+        View mist = new TopStatusMistView(this);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(48),
+                Gravity.TOP);
+        sceneRoot.addView(mist, params);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            mist.setOnApplyWindowInsetsListener((view, insets) -> {
+                int desiredHeight = insets.getSystemWindowInsetTop() + dp(20);
+                ViewGroup.LayoutParams currentParams = view.getLayoutParams();
+                if (currentParams.height != desiredHeight) {
+                    currentParams.height = desiredHeight;
+                    view.setLayoutParams(currentParams);
+                }
+                return insets;
+            });
+            mist.post(mist::requestApplyInsets);
+        }
+    }
+
+    /** Softly obscures scrolling content before it reaches the transparent status bar. */
+    private final class TopStatusMistView extends View {
+        private final Paint mistPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+
+        TopStatusMistView(Context context) {
+            super(context);
+            setClickable(false);
+            setFocusable(false);
+            setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+
+        @Override
+        protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+            super.onSizeChanged(width, height, oldWidth, oldHeight);
+            if (height <= 0) {
+                return;
+            }
+            mistPaint.setShader(new LinearGradient(
+                    0f, 0f, 0f, height,
+                    new int[]{
+                            Color.argb(226, 145, 207, 207),
+                            Color.argb(172, 151, 211, 211),
+                            Color.argb(72, 157, 216, 215),
+                            Color.TRANSPARENT
+                    },
+                    new float[]{0f, 0.38f, 0.72f, 1f},
+                    Shader.TileMode.CLAMP));
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            canvas.drawRect(0f, 0f, getWidth(), getHeight(), mistPaint);
+        }
     }
 
     /** Animated, pre-blurred color field visible through every translucent glass surface. */
@@ -2031,7 +2091,8 @@ public final class MainActivity extends Activity {
         styleAppearanceSwitch(liquidGlassSwitch);
 
         ImageView sunIcon = createAppearanceIcon(
-                liquidGlassTheme ? R.drawable.appearance_sun_on : R.drawable.appearance_sun_off,
+                R.drawable.appearance_sun_aligned,
+                liquidGlassTheme ? 0xFF00468D : 0xFF738593,
                 tr("Liquid glass appearance", "液态玻璃外观"));
         sunIcon.setOnClickListener(v -> {
             if (!appearanceTransitionRunning) {
@@ -2047,7 +2108,8 @@ public final class MainActivity extends Activity {
                 new LinearLayout.LayoutParams(dp(60), dp(30)));
 
         ImageView moonIcon = createAppearanceIcon(
-                liquidGlassTheme ? R.drawable.appearance_moon_off : R.drawable.appearance_moon_on,
+                R.drawable.appearance_moon_aligned,
+                liquidGlassTheme ? 0xFF687B83 : 0xFF00F4D3,
                 tr("Classic appearance", "经典外观"));
         moonIcon.setOnClickListener(v -> {
             if (!appearanceTransitionRunning) {
@@ -2094,9 +2156,10 @@ public final class MainActivity extends Activity {
 
     }
 
-    private ImageView createAppearanceIcon(int drawableRes, CharSequence description) {
+    private ImageView createAppearanceIcon(int drawableRes, int color, CharSequence description) {
         ImageView icon = new ImageView(this);
         icon.setImageResource(drawableRes);
+        icon.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN);
         icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         icon.setContentDescription(description);
         icon.setClickable(true);
