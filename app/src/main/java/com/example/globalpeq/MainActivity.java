@@ -224,6 +224,7 @@ public final class MainActivity extends Activity {
     private LinearLayout eqPage;
     private LinearLayout extraPage;
     private LinearLayout settingsPage;
+    private ScrollView settingsScrollView;
     private LinearLayout monitorSettingsPage;
     private LinearLayout limiterSettingsPage;
     private MainPageHost mainPageHost;
