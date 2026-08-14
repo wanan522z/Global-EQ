@@ -117,6 +117,9 @@ public final class MainActivity extends Activity {
     private static final long PRESET_PERSIST_DELAY_MS = 420L;
     private static final long EQ_EDIT_FADE_IN_MS = 180L;
     private static final long EQ_EDIT_FADE_OUT_MS = 160L;
+    private static final long APPEARANCE_SWITCH_SETTLE_MS = 140L;
+    private static final long APPEARANCE_FADE_OUT_MS = 180L;
+    private static final long APPEARANCE_FADE_IN_MS = 240L;
     private static final long ACTIVE_APP_REFRESH_INTERVAL_MS = 5000L;
     private static final long RUNTIME_STATUS_REFRESH_INTERVAL_MS = 1000L;
     private static final String[] CURVE_RANGE_LABELS = {"±6", "±12", "±18"};
@@ -523,6 +526,7 @@ public final class MainActivity extends Activity {
     private boolean updatingUi;
     private boolean autoSwitchOutput;
     private boolean liquidGlassTheme;
+    private boolean appearanceTransitionRunning;
     private int curveGraphMaxDb = 18;
     private String selectedDeviceCurveName = "Default";
     private String selectedTargetCurveName = "Default";
@@ -2049,14 +2053,12 @@ public final class MainActivity extends Activity {
 
         liquidGlassSwitch.setOnCheckedChangeListener((button, checked) -> {
             boolean nextLiquidTheme = !checked;
-            if (updatingUi || nextLiquidTheme == liquidGlassTheme) {
+            if (updatingUi || appearanceTransitionRunning || nextLiquidTheme == liquidGlassTheme) {
                 return;
             }
             int settingsScrollY = settingsScrollView == null ? 0 : settingsScrollView.getScrollY();
             UiTheme.setLiquidGlass(this, nextLiquidTheme);
-            liquidGlassTheme = nextLiquidTheme;
-            UiTheme.applyWindowAppearance(this, liquidGlassTheme);
-            rebuildContentForAppearance(activeMainPageIndex, settingsScrollY);
+            animateAppearanceChange(nextLiquidTheme, activeMainPageIndex, settingsScrollY);
         });
 
         LinearLayout aboutPanel = createSettingsSectionPanel(30, 16);
@@ -2093,6 +2095,55 @@ public final class MainActivity extends Activity {
         icon.setClickable(true);
         icon.setFocusable(true);
         return icon;
+    }
+
+    private void animateAppearanceChange(boolean nextLiquidTheme, int pageIndex, int settingsScrollY) {
+        ViewGroup content = findViewById(android.R.id.content);
+        View oldScene = content == null || content.getChildCount() == 0
+                ? null
+                : content.getChildAt(content.getChildCount() - 1);
+        if (oldScene == null) {
+            liquidGlassTheme = nextLiquidTheme;
+            UiTheme.applyWindowAppearance(this, liquidGlassTheme);
+            rebuildContentForAppearance(pageIndex, settingsScrollY);
+            return;
+        }
+
+        appearanceTransitionRunning = true;
+        if (liquidGlassSwitch != null) {
+            liquidGlassSwitch.setEnabled(false);
+        }
+        oldScene.animate().cancel();
+        oldScene.animate()
+                .alpha(0f)
+                .setStartDelay(APPEARANCE_SWITCH_SETTLE_MS)
+                .setDuration(APPEARANCE_FADE_OUT_MS)
+                .setInterpolator(new android.view.animation.AccelerateInterpolator())
+                .withLayer()
+                .withEndAction(() -> {
+                    liquidGlassTheme = nextLiquidTheme;
+                    UiTheme.applyWindowAppearance(this, liquidGlassTheme);
+                    rebuildContentForAppearance(pageIndex, settingsScrollY);
+
+                    ViewGroup rebuiltContent = findViewById(android.R.id.content);
+                    View newScene = rebuiltContent == null || rebuiltContent.getChildCount() == 0
+                            ? null
+                            : rebuiltContent.getChildAt(rebuiltContent.getChildCount() - 1);
+                    if (newScene == null) {
+                        appearanceTransitionRunning = false;
+                        return;
+                    }
+                    newScene.setAlpha(0f);
+                    newScene.animate().cancel();
+                    newScene.animate()
+                            .alpha(1f)
+                            .setDuration(APPEARANCE_FADE_IN_MS)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                            .withLayer()
+                            .withEndAction(() -> appearanceTransitionRunning = false)
+                            .start();
+                })
+                .start();
     }
 
     private void rebuildContentForAppearance(int pageIndex, int settingsScrollY) {
