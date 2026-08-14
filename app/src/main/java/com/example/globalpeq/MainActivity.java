@@ -1498,18 +1498,11 @@ public final class MainActivity extends Activity {
         private final float[] flowVx = {-0.086f, 0.072f, -0.064f, 0.094f, -0.058f, 0.068f};
         private final float[] flowVy = {0.067f, -0.082f, -0.061f, 0.074f, 0.088f, -0.076f};
         private final float[] flowRadius = {0.44f, 0.40f, 0.52f, 0.58f, 0.54f, 0.46f};
-        private final int[] flowColor = {
-                Color.argb(166, 0, 35, 142),
-                Color.argb(148, 24, 76, 164),
-                Color.argb(162, 70, 151, 199),
-                Color.argb(174, 76, 184, 174),
-                Color.argb(132, 145, 207, 205),
-                Color.argb(54, 225, 239, 238)
-        };
+        private final int[] flowColor;
         private android.graphics.Bitmap frameBitmap;
         private Canvas frameCanvas;
         private LinearGradient baseFlowShader;
-        private final RadialGradient[] cachedFlowShaders = new RadialGradient[flowColor.length];
+        private final RadialGradient[] cachedFlowShaders = new RadialGradient[flowX.length];
         private final Matrix baseFlowMatrix = new Matrix();
         private final Matrix blobFlowMatrix = new Matrix();
         private int fieldShaderWidth = -1;
@@ -1586,6 +1579,23 @@ public final class MainActivity extends Activity {
         LiquidBackdropView(Context context, boolean liquid) {
             super(context);
             this.liquid = liquid;
+            flowColor = liquid
+                    ? new int[]{
+                            Color.argb(166, 0, 35, 142),
+                            Color.argb(148, 24, 76, 164),
+                            Color.argb(162, 70, 151, 199),
+                            Color.argb(174, 76, 184, 174),
+                            Color.argb(132, 145, 207, 205),
+                            Color.argb(54, 225, 239, 238)
+                    }
+                    : new int[]{
+                            Color.argb(85, 0, 255, 255),
+                            Color.argb(70, 160, 100, 255),
+                            Color.argb(62, 0, 255, 255),
+                            Color.argb(58, 160, 100, 255),
+                            Color.argb(48, 0, 255, 255),
+                            Color.argb(42, 160, 100, 255)
+                    };
             setWillNotDraw(false);
             // The reduced-resolution filtered bitmap already supplies a slight softness.
             // Avoiding a full-screen RenderEffect keeps scrolling responsive.
@@ -1594,7 +1604,7 @@ public final class MainActivity extends Activity {
         @Override
         protected void onAttachedToWindow() {
             super.onAttachedToWindow();
-            if (!liquid || flowRunning) {
+            if (flowRunning) {
                 return;
             }
             flowRunning = true;
@@ -1656,16 +1666,11 @@ public final class MainActivity extends Activity {
             if (w <= 0 || h <= 0) {
                 return;
             }
-            if (!liquid) {
-                drawClassicBackdrop(canvas, w, h);
-                return;
-            }
-
             ensureFrameBitmap(w, h);
             if (frameBitmap == null || frameCanvas == null) {
                 return;
             }
-            drawLiquidField(frameCanvas, frameBitmap.getWidth(), frameBitmap.getHeight());
+            drawFlowField(frameCanvas, frameBitmap.getWidth(), frameBitmap.getHeight());
             bitmapPaint.setAlpha(255);
             bitmapPaint.setShader(null);
             bitmapDestination.set(0f, 0f, w, h);
@@ -1691,8 +1696,8 @@ public final class MainActivity extends Activity {
             frameCanvas = new Canvas(frameBitmap);
         }
 
-        private void drawLiquidField(Canvas canvas, int w, int h) {
-            ensureLiquidFieldShaders(w, h);
+        private void drawFlowField(Canvas canvas, int w, int h) {
+            ensureFlowFieldShaders(w, h);
             float baseDrift = (float) Math.sin(flowSeconds * 0.071d) * w * 0.14f;
             paint.setStyle(Paint.Style.FILL);
             paint.setAlpha(255);
@@ -1710,9 +1715,13 @@ public final class MainActivity extends Activity {
                         canvasSpan * flowRadius[i]);
             }
             paint.setShader(null);
+            if (!liquid) {
+                paint.setColor(Color.argb(70, 18, 18, 25));
+                canvas.drawRect(0f, 0f, w, h, paint);
+            }
         }
 
-        private void ensureLiquidFieldShaders(int width, int height) {
+        private void ensureFlowFieldShaders(int width, int height) {
             if (baseFlowShader != null && fieldShaderWidth == width && fieldShaderHeight == height) {
                 return;
             }
@@ -1720,12 +1729,19 @@ public final class MainActivity extends Activity {
             fieldShaderHeight = height;
             baseFlowShader = new LinearGradient(
                     0f, 0f, width, height,
-                    new int[]{
-                            Color.rgb(184, 207, 216),
-                            Color.rgb(128, 188, 188),
-                            Color.rgb(145, 187, 211),
-                            Color.rgb(166, 207, 201)
-                    },
+                    liquid
+                            ? new int[]{
+                                    Color.rgb(184, 207, 216),
+                                    Color.rgb(128, 188, 188),
+                                    Color.rgb(145, 187, 211),
+                                    Color.rgb(166, 207, 201)
+                            }
+                            : new int[]{
+                                    Color.rgb(18, 18, 25),
+                                    Color.rgb(15, 23, 31),
+                                    Color.rgb(26, 18, 38),
+                                    Color.rgb(18, 18, 25)
+                            },
                     new float[]{0f, 0.36f, 0.72f, 1f},
                     Shader.TileMode.CLAMP);
             for (int i = 0; i < cachedFlowShaders.length; i++) {
@@ -1748,25 +1764,6 @@ public final class MainActivity extends Activity {
 
         android.graphics.Bitmap frameBitmap() {
             return frameBitmap;
-        }
-
-        private void drawClassicBackdrop(Canvas canvas, int w, int h) {
-            canvas.drawColor(Color.rgb(18, 18, 25));
-            drawFlowBlob(canvas, w * 0.8f, h * 0.15f,
-                    Math.min(w, h) * 0.75f, Color.argb(85, 0, 255, 255));
-            drawFlowBlob(canvas, w * 0.15f, h * 0.75f,
-                    Math.min(w, h) * 0.85f, Color.argb(70, 160, 100, 255));
-            paint.setShader(null);
-            paint.setColor(Color.argb(70, 18, 18, 25));
-            canvas.drawRect(0f, 0f, w, h, paint);
-        }
-
-        private void drawFlowBlob(Canvas canvas, float x, float y, float radius, int color) {
-            paint.setStyle(Paint.Style.FILL);
-            paint.setStrokeWidth(0f);
-            paint.setShader(new RadialGradient(
-                    x, y, radius, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
-            canvas.drawCircle(x, y, radius, paint);
         }
 
     }
