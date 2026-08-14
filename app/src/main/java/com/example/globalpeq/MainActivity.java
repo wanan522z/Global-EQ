@@ -245,6 +245,7 @@ public final class MainActivity extends Activity {
     private TextView engineStatusTitleView;
     private ImageView monitoredAppIconView;
     private View bottomNavView;
+    private LiquidBackdropView liquidBackdropView;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
     private TextView modeSpinner;
@@ -1008,7 +1009,8 @@ public final class MainActivity extends Activity {
         FrameLayout sceneRoot = new FrameLayout(this);
         sceneRoot.setClipChildren(false);
         sceneRoot.setClipToPadding(false);
-        sceneRoot.addView(new LiquidBackdropView(this, liquidGlassTheme), new FrameLayout.LayoutParams(
+        liquidBackdropView = new LiquidBackdropView(this, liquidGlassTheme);
+        sceneRoot.addView(liquidBackdropView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
