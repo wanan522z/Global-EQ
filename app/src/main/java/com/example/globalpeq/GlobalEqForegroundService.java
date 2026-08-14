@@ -246,7 +246,11 @@ public final class GlobalEqForegroundService extends Service {
             requestStopAllAndStopService();
             return START_NOT_STICKY;
         }
-        return START_NOT_STICKY;
+        // The master switch represents the user's explicit request to keep the equalizer active.
+        // Ask Android to recreate the foreground service after reclaiming the process. State that
+        // can be restored without an Activity (system EQ/global DSP) is loaded from the repository
+        // when Android delivers the null restart intent.
+        return START_STICKY;
     }
 
     @Override
@@ -256,7 +260,9 @@ public final class GlobalEqForegroundService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        requestStopAllAndStopService();
+        // Removing the UI task is not the same as switching the equalizer off. The service is a
+        // foreground component and must keep owning the audio effects after the recent-apps card
+        // is dismissed. Explicit shutdown still goes through requestStopAllAndStopService().
         super.onTaskRemoved(rootIntent);
     }
 
