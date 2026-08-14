@@ -45,6 +45,7 @@ final class EqCurveView extends View {
     private final Paint edgeFadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private DashPathEffect dashPathEffect;
     private LinearGradient sweepGradient;
+    private float sweepGradientWidth = -1f;
     private LinearGradient leftEdgeFade;
     private LinearGradient rightEdgeFade;
     private int edgeFadeShaderWidth = -1;
@@ -215,7 +216,7 @@ final class EqCurveView extends View {
         sweepPaint.setStyle(Paint.Style.STROKE);
         sweepPaint.setStrokeCap(Paint.Cap.ROUND);
         sweepPaint.setStrokeJoin(Paint.Join.ROUND);
-        sweepPaint.setStrokeWidth(liquidGlassTheme ? 3.0f : 5.0f);
+        sweepPaint.setStrokeWidth(5.0f);
         sweepPaint.setAntiAlias(true);
         sweepPaint.setFilterBitmap(true);
         sweepPaint.setDither(true);
@@ -506,34 +507,37 @@ final class EqCurveView extends View {
             long now = System.currentTimeMillis();
             if (!animationSuppressed && lastTime > 0) {
                 float elapsed = (now - lastTime) / 1000f;
-                sweepPhase += elapsed * 0.25f;
-                if (sweepPhase > 1.0f) {
-                    sweepPhase -= 1.0f;
-                }
+                sweepPhase += elapsed * (liquidGlassTheme ? 0.48f : 0.25f);
+                sweepPhase -= (float) Math.floor(sweepPhase);
             }
             lastTime = (animationSuppressed || enabledAmount <= 0.001f) ? 0L : now;
 
-            if (sweepGradient == null) {
+            float totalWidth = right - left;
+            // Keep three liquid highlights on the curve at once. Moving the shader by
+            // exactly one repeating period makes the wrap point visually identical.
+            float sweepPatternWidth = liquidGlassTheme ? totalWidth / 3f : totalWidth;
+            if (sweepGradient == null || Math.abs(sweepGradientWidth - sweepPatternWidth) > 0.5f) {
+                sweepGradientWidth = sweepPatternWidth;
                 // 暗部范围扩大到约 60%，流光集中在 0.4~0.8 的窄带内，
                 // 让没流光覆盖的曲线区域更暗，增强流光经过时的对比度。
                 sweepGradient = liquidGlassTheme
                         ? new LinearGradient(
-                                0, 0, right - left, 0,
+                                0, 0, sweepPatternWidth, 0,
                                 new int[]{
                                         Color.argb(0, 0, 216, 255),
-                                        Color.argb(0, 0, 216, 255),
-                                        Color.argb(120, 0, 216, 255),
+                                        Color.argb(34, 0, 216, 255),
+                                        Color.argb(125, 0, 216, 255),
                                         Color.argb(238, 20, 224, 255),
                                         Color.argb(255, 174, 242, 255),
-                                        Color.argb(242, 40, 226, 255),
-                                        Color.argb(105, 0, 216, 255),
-                                        Color.argb(0, 0, 216, 255),
+                                        Color.argb(238, 20, 224, 255),
+                                        Color.argb(125, 0, 216, 255),
+                                        Color.argb(34, 0, 216, 255),
                                         Color.argb(0, 0, 216, 255)
                                 },
-                                new float[]{0.0f, 0.38f, 0.44f, 0.49f, 0.55f, 0.63f, 0.73f, 0.81f, 1.0f},
+                                new float[]{0f, 0.14f, 0.28f, 0.42f, 0.50f, 0.58f, 0.72f, 0.86f, 1f},
                                 Shader.TileMode.REPEAT)
                         : new LinearGradient(
-                                0, 0, right - left, 0,
+                                0, 0, sweepPatternWidth, 0,
                                 new int[]{
                                         Color.argb(0, 0, 255, 255),
                                         Color.argb(0, 0, 255, 255),
@@ -552,8 +556,7 @@ final class EqCurveView extends View {
 
             if (!animationSuppressed) {
                 sweepMatrix.reset();
-                float totalWidth = right - left;
-                sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
+                sweepMatrix.postTranslate(sweepPhase * sweepPatternWidth, 0);
                 sweepGradient.setLocalMatrix(sweepMatrix);
                 sweepPaint.setAlpha(Math.round(255f * enabledAmount));
                 canvas.drawPath(curvePath, sweepPaint);
