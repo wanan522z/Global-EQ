@@ -10887,13 +10887,13 @@ public final class MainActivity extends Activity {
 
             // Regular glass adapts its luminosity to the content underneath. Darker
             // regions receive a stronger milky lift so foreground text remains legible.
-            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 30f : 54f));
+            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 27f : 38f));
             int topAlpha = outerLayer
-                    ? clamp(44 + Math.round(density * 0.38f) + adaptiveLift, 58, 108)
-                    : clamp(92 + Math.round(density * 0.62f) + adaptiveLift, 118, 194);
+                    ? clamp(40 + Math.round(density * 0.34f) + adaptiveLift, 48, 98)
+                    : clamp(66 + Math.round(density * 0.38f) + adaptiveLift, 78, 146);
             int bottomAlpha = outerLayer
-                    ? clamp(topAlpha - 10, 48, 98)
-                    : clamp(topAlpha - 14, 104, 180);
+                    ? clamp(topAlpha - 10, 40, 90)
+                    : clamp(topAlpha - 8, 70, 138);
             if (pressed) {
                 topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
                 bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
@@ -10953,7 +10953,7 @@ public final class MainActivity extends Activity {
                     outerRect.centerX(), outerRect.top, outerRect.centerX(), outerRect.bottom,
                     new int[]{
                             Color.argb(topAlpha, 255, 255, 255),
-                            Color.argb(Math.max(outerLayer ? 48 : 104, topAlpha - 10), 242, 250, 252),
+                            Color.argb(Math.max(outerLayer ? 40 : 70, topAlpha - 6), 242, 250, 252),
                             Color.argb(bottomAlpha, 224, 237, 245)
                     },
                     new float[]{0f, 0.48f, 1f},
