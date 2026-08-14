@@ -476,7 +476,7 @@ final class EqCurveView extends View {
         float enabledAmount = clamp01(visualLevel);
         if (!targetCurve.isDefault()) {
             referencePaint.setColor(liquidGlassTheme
-                    ? Color.argb(220, 202, 158, 228)
+                    ? Color.argb(242, 44, 128, 142)
                     : Color.argb(180, 190, 128, 255));
             referencePaint.setPathEffect(dashPathEffect);
             canvas.drawPath(refCurvePath, referencePaint);
