@@ -10641,7 +10641,6 @@ public final class MainActivity extends Activity {
     private final class LiquidGlassDrawable extends Drawable {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private final android.graphics.RectF outerRect = new android.graphics.RectF();
-        private final android.graphics.RectF middleRect = new android.graphics.RectF();
         private final android.graphics.RectF innerRect = new android.graphics.RectF();
         private final float radius;
         private final int density;
@@ -10658,79 +10657,58 @@ public final class MainActivity extends Activity {
                 return;
             }
 
-            // Keep every optical layer on one centered silhouette. The previous offset
-            // contact shadow made the refractive edge look detached from the card.
-            float outerInset = dpf(0.65f);
-            float edgeWidth = radius >= dpf(18f) ? dpf(3.7f) : dpf(2.8f);
+            // The reference uses a thin optical boundary, not a thick coloured frame.
+            // All layers share the same centred silhouette to avoid detached edges.
+            float outerInset = dpf(0.8f);
             outerRect.set(bounds.left + outerInset, bounds.top + outerInset,
                     bounds.right - outerInset, bounds.bottom - outerInset);
-            float outerRadius = Math.max(edgeWidth, radius - outerInset);
+            float outerRadius = Math.max(0f, radius - outerInset);
 
-            // A filled optical rim is deliberately used instead of a thin stroke. It
-            // stays visible on both the pale field and the moving Klein-blue ribbons.
+            // Milky content plane: enough opacity for text, with background colour and
+            // motion still visible through the glass.
+            int topAlpha = Math.min(216, 148 + Math.round(density * 0.66f));
+            int bottomAlpha = Math.min(188, 112 + Math.round(density * 0.70f));
             paint.setStyle(Paint.Style.FILL);
             paint.setShader(new LinearGradient(
                     outerRect.left, outerRect.top, outerRect.right, outerRect.bottom,
                     new int[]{
-                            Color.argb(248, 255, 255, 255),
-                            Color.argb(224, 207, 252, 247),
-                            Color.argb(198, 96, 187, 220),
-                            Color.argb(190, 31, 84, 177),
-                            Color.argb(232, 242, 252, 255)
+                            Color.argb(topAlpha, 255, 255, 255),
+                            Color.argb(Math.max(128, topAlpha - 24), 235, 251, 249),
+                            Color.argb(bottomAlpha, 218, 238, 249)
                     },
-                    new float[]{0f, 0.28f, 0.56f, 0.8f, 1f},
+                    new float[]{0f, 0.55f, 1f},
                     Shader.TileMode.CLAMP));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // A softer middle band prevents the saturated edge from meeting the glass
-            // body abruptly and gives the rim the rounded, refractive lens profile.
-            middleRect.set(outerRect);
-            middleRect.inset(dpf(1.15f), dpf(1.15f));
-            paint.setShader(new LinearGradient(
-                    middleRect.left, middleRect.top, middleRect.right, middleRect.bottom,
-                    new int[]{
-                            Color.argb(224, 255, 255, 255),
-                            Color.argb(170, 204, 247, 243),
-                            Color.argb(146, 116, 176, 218),
-                            Color.argb(204, 248, 253, 255)
-                    },
-                    new float[]{0f, 0.42f, 0.78f, 1f},
-                    Shader.TileMode.CLAMP));
-            float middleRadius = Math.max(0f, outerRadius - dpf(1.15f));
-            canvas.drawRoundRect(middleRect, middleRadius, middleRadius, paint);
-
-            // The content plane is milky and substantially opaque for readable text,
-            // while still allowing the animated background to diffuse through it.
-            innerRect.set(outerRect);
-            innerRect.inset(edgeWidth, edgeWidth);
-            int topAlpha = Math.min(208, 145 + Math.round(density * 0.70f));
-            int bottomAlpha = Math.min(180, 112 + Math.round(density * 0.68f));
-            paint.setStyle(Paint.Style.FILL);
-            paint.setShader(new LinearGradient(
-                    innerRect.left, innerRect.top, innerRect.right, innerRect.bottom,
-                    new int[]{
-                            Color.argb(topAlpha, 255, 255, 255),
-                            Color.argb(Math.max(130, topAlpha - 22), 235, 251, 249),
-                            Color.argb(bottomAlpha, 220, 238, 249)
-                    },
-                    new float[]{0f, 0.54f, 1f},
-                    Shader.TileMode.CLAMP));
-            float innerRadius = Math.max(0f, outerRadius - edgeWidth);
-            canvas.drawRoundRect(innerRect, innerRadius, innerRadius, paint);
-
-            // Final inner highlight follows the exact same geometry, so it reads as
-            // glass thickness rather than as a second, misaligned card border.
-            float highlightInset = dpf(0.55f);
-            innerRect.inset(highlightInset, highlightInset);
+            // One-pixel-class outer refraction: white at the light-facing edge, a small
+            // aqua/blue shift at the far edge, and no saturated perimeter band.
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dpf(1.05f));
+            paint.setStrokeWidth(dpf(1.15f));
+            paint.setShader(new LinearGradient(
+                    outerRect.left, outerRect.top, outerRect.right, outerRect.bottom,
+                    new int[]{
+                            Color.argb(244, 255, 255, 255),
+                            Color.argb(186, 230, 255, 252),
+                            Color.argb(142, 113, 198, 220),
+                            Color.argb(92, 44, 104, 183),
+                            Color.argb(206, 248, 253, 255)
+                    },
+                    new float[]{0f, 0.34f, 0.62f, 0.82f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
+
+            // A restrained inner highlight is what creates the perceived glass thickness.
+            innerRect.set(outerRect);
+            float innerInset = dpf(1.45f);
+            innerRect.inset(innerInset, innerInset);
+            paint.setStrokeWidth(dpf(0.68f));
             paint.setShader(new LinearGradient(
                     innerRect.left, innerRect.top, innerRect.left, innerRect.bottom,
-                    Color.argb(205, 255, 255, 255),
-                    Color.argb(62, 74, 137, 194),
+                    Color.argb(178, 255, 255, 255),
+                    Color.argb(42, 62, 123, 178),
                     Shader.TileMode.CLAMP));
-            float highlightRadius = Math.max(0f, innerRadius - highlightInset);
-            canvas.drawRoundRect(innerRect, highlightRadius, highlightRadius, paint);
+            float innerRadius = Math.max(0f, outerRadius - innerInset);
+            canvas.drawRoundRect(innerRect, innerRadius, innerRadius, paint);
             paint.setShader(null);
             paint.setStyle(Paint.Style.FILL);
         }
@@ -10739,7 +10717,7 @@ public final class MainActivity extends Activity {
         public void getOutline(android.graphics.Outline outline) {
             Rect bounds = getBounds();
             outline.setRoundRect(bounds, radius);
-            outline.setAlpha(0.34f);
+            outline.setAlpha(0.24f);
         }
 
         @Override
@@ -10758,25 +10736,28 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private GradientDrawable createFieldBackground(int fillAlpha, int strokeAlpha, int radiusDp) {
+    private Drawable createFieldBackground(int fillAlpha, int strokeAlpha, int radiusDp) {
+        if (liquidGlassTheme) {
+            int density = clamp(22 + fillAlpha + strokeAlpha / 3, 28, 72);
+            return new LiquidGlassDrawable(dp(radiusDp + 4), density);
+        }
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setColor(liquidGlassTheme
-                ? Color.argb(Math.min(188, 104 + fillAlpha * 2), 246, 255, 254)
-                : Color.argb(fillAlpha, 255, 255, 255));
-        bg.setStroke(dp(1), liquidGlassTheme
-                ? Color.argb(Math.min(210, 128 + strokeAlpha), 151, 222, 216)
-                : Color.argb(strokeAlpha, 255, 255, 255));
-        bg.setCornerRadius(dp(radiusDp + (liquidGlassTheme ? 4 : 0)));
+        bg.setColor(Color.argb(fillAlpha, 255, 255, 255));
+        bg.setStroke(dp(1), Color.argb(strokeAlpha, 255, 255, 255));
+        bg.setCornerRadius(dp(radiusDp));
         return bg;
     }
 
-    private GradientDrawable createEqControlBackground() {
+    private Drawable createEqControlBackground() {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(14), 42);
+        }
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setColor(UiTheme.fieldFill(liquidGlassTheme));
-        bg.setStroke(dp(1), UiTheme.fieldStroke(liquidGlassTheme));
-        bg.setCornerRadius(dp(liquidGlassTheme ? 14 : 10));
+        bg.setColor(UiTheme.fieldFill(false));
+        bg.setStroke(dp(1), UiTheme.fieldStroke(false));
+        bg.setCornerRadius(dp(10));
         return bg;
     }
 
