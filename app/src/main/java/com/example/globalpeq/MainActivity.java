@@ -9435,6 +9435,12 @@ public final class MainActivity extends Activity {
         return UiTheme.hint(liquidGlassTheme);
     }
 
+    private void applyGlassElevation(View view, float elevationDp) {
+        if (liquidGlassTheme && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            view.setElevation(dpf(elevationDp));
+        }
+    }
+
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
