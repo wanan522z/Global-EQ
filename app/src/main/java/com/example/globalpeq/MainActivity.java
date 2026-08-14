@@ -10601,20 +10601,102 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private GradientDrawable createGlassCard(int alphaPercent) {
+    private Drawable createGlassCard(int alphaPercent) {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(22), alphaPercent);
+        }
         GradientDrawable gd = new GradientDrawable();
         gd.setShape(GradientDrawable.RECTANGLE);
-        if (liquidGlassTheme) {
-            int glassAlpha = Math.min(232, 172 + Math.round(alphaPercent * 1.25f));
-            gd.setColor(Color.argb(glassAlpha, 255, 255, 255));
-            gd.setStroke(dp(1), Color.argb(185, 190, 208, 232));
-            gd.setCornerRadius(dp(22));
-        } else {
-            gd.setColor(Color.argb((int)(alphaPercent * 2.55f), 18, 22, 34));
-            gd.setStroke(dp(1), Color.argb(35, 255, 255, 255));
-            gd.setCornerRadius(dp(14));
-        }
+        gd.setColor(Color.argb((int)(alphaPercent * 2.55f), 18, 22, 34));
+        gd.setStroke(dp(1), Color.argb(35, 255, 255, 255));
+        gd.setCornerRadius(dp(14));
         return gd;
+    }
+
+    /** Frosted body + refractive edge highlight; the moving backdrop supplies the blur content. */
+    private final class LiquidGlassDrawable extends Drawable {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final android.graphics.RectF rect = new android.graphics.RectF();
+        private final float radius;
+        private final int density;
+
+        LiquidGlassDrawable(float radius, int density) {
+            this.radius = radius;
+            this.density = clamp(density, 0, 100);
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            Rect bounds = getBounds();
+            float inset = dpf(1.25f);
+            rect.set(bounds.left + inset, bounds.top + inset,
+                    bounds.right - inset, bounds.bottom - inset - dpf(1.5f));
+
+            // Soft floating contact shadow, kept inside bounds so it is never clipped.
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(22, 0, 44, 112));
+            canvas.drawRoundRect(
+                    rect.left + dpf(1f), rect.top + dpf(3f),
+                    rect.right + dpf(1f), rect.bottom + dpf(3f),
+                    radius, radius, paint);
+
+            int topAlpha = Math.min(166, 78 + density);
+            int bottomAlpha = Math.min(126, 48 + Math.round(density * 0.72f));
+            paint.setShader(new LinearGradient(
+                    rect.left, rect.top, rect.right, rect.bottom,
+                    new int[]{
+                            Color.argb(topAlpha, 255, 255, 255),
+                            Color.argb(Math.max(44, bottomAlpha - 18), 232, 250, 248),
+                            Color.argb(bottomAlpha, 221, 239, 250)
+                    },
+                    new float[]{0f, 0.52f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, radius, radius, paint);
+
+            // Outer refraction: bright upper-left edge flowing into a restrained blue lower edge.
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dpf(1.35f));
+            paint.setShader(new LinearGradient(
+                    rect.left, rect.top, rect.right, rect.bottom,
+                    new int[]{
+                            Color.argb(235, 255, 255, 255),
+                            Color.argb(180, 180, 241, 234),
+                            Color.argb(145, 70, 132, 207),
+                            Color.argb(205, 255, 255, 255)
+                    },
+                    new float[]{0f, 0.38f, 0.76f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, radius, radius, paint);
+
+            // Inner highlight gives the raised, lens-like edge without distorting the center.
+            float innerInset = dpf(1.8f);
+            rect.inset(innerInset, innerInset);
+            paint.setStrokeWidth(dpf(0.75f));
+            paint.setShader(new LinearGradient(
+                    rect.left, rect.top, rect.left, rect.bottom,
+                    Color.argb(150, 255, 255, 255),
+                    Color.argb(34, 82, 142, 196),
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, Math.max(0f, radius - innerInset),
+                    Math.max(0f, radius - innerInset), paint);
+            paint.setShader(null);
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            paint.setAlpha(alpha);
+        }
+
+        @Override
+        public void setColorFilter(ColorFilter colorFilter) {
+            paint.setColorFilter(colorFilter);
+        }
+
+        @Override
+        public int getOpacity() {
+            return PixelFormat.TRANSLUCENT;
+        }
     }
 
     private GradientDrawable createFieldBackground(int fillAlpha, int strokeAlpha, int radiusDp) {
