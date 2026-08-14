@@ -9632,7 +9632,7 @@ public final class MainActivity extends Activity {
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(adjustingGain || hasActiveGain ? dpf(1.6f) : dpf(1.0f));
             paint.setColor(adjustingGain || hasActiveGain
-                    ? Color.rgb(0, 190, 176)
+                    ? (liquidGlassTheme ? Color.rgb(0, 190, 176) : Color.rgb(0, 245, 212))
                     : (liquidGlassTheme ? Color.argb(120, 72, 92, 120) : Color.argb(100, 255, 255, 255)));
             if (adjustingGain || hasActiveGain) {
                 paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
@@ -10022,7 +10022,7 @@ public final class MainActivity extends Activity {
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(adjusting || active ? dpf(1.6f) : dpf(1.0f));
             paint.setColor(adjusting || active
-                    ? Color.rgb(0, 190, 176)
+                    ? (liquidGlassTheme ? Color.rgb(0, 190, 176) : Color.rgb(0, 245, 212))
                     : (liquidGlassTheme ? Color.argb(120, 72, 92, 120) : Color.argb(100, 255, 255, 255)));
             if (adjusting || active) {
                 paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
@@ -10273,7 +10273,7 @@ public final class MainActivity extends Activity {
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(adjusting || active ? dpf(1.6f) : dpf(1.0f));
             paint.setColor(adjusting || active
-                    ? Color.rgb(0, 190, 176)
+                    ? (liquidGlassTheme ? Color.rgb(0, 190, 176) : Color.rgb(0, 245, 212))
                     : (liquidGlassTheme ? Color.argb(120, 72, 92, 120) : Color.argb(100, 255, 255, 255)));
             if (adjusting || active) {
                 paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
