@@ -1477,6 +1477,7 @@ public final class MainActivity extends Activity {
         private boolean flowRunning;
         private long lastFlowFrameMs;
         private double flowSeconds;
+        private final double flowSeed = (android.os.SystemClock.uptimeMillis() % 1000003L) * 0.000031d;
         private final Runnable flowTicker = new Runnable() {
             @Override
             public void run() {
@@ -1536,7 +1537,7 @@ public final class MainActivity extends Activity {
             // independent velocity and two slow steering frequencies. There is no reset
             // point, so the composition keeps evolving rather than replaying a clip.
             for (int i = 0; i < flowX.length; i++) {
-                double offset = 1.37d + i * 1.91d;
+                double offset = flowSeed + 1.37d + i * 1.91d;
                 float steerX = (float) (
                         Math.sin(flowSeconds * (0.113d + i * 0.013d) + offset) * 0.010d
                                 + Math.cos(flowSeconds * (0.047d + i * 0.009d) - offset) * 0.006d);

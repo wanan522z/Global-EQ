@@ -35,6 +35,9 @@ final class UiTheme {
         int paleSurface = liquid ? Color.rgb(205, 238, 234) : Color.rgb(18, 18, 25);
         window.setStatusBarColor(paleSurface);
         window.setNavigationBarColor(liquid ? Color.TRANSPARENT : paleSurface);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.setNavigationBarDividerColor(liquid ? Color.TRANSPARENT : paleSurface);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.setStatusBarContrastEnforced(false);
             window.setNavigationBarContrastEnforced(false);
