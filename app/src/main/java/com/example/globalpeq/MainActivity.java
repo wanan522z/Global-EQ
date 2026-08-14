@@ -11949,12 +11949,8 @@ public final class MainActivity extends Activity {
     }
 
     private void applyGlowToTextView(TextView view, int glowColor, float glowRadiusDp) {
-        if (view instanceof GlowTitleTextView) {
-            ((GlowTitleTextView) view).setGlowState(true, glowColor, dpf(glowRadiusDp));
-            view.getPaint().clearShadowLayer();
-            return;
-        }
-        view.getPaint().setShadowLayer(dpf(glowRadiusDp), 0, 0, glowColor);
+        // Typography is intentionally glow-free. Animated gradient shaders provide all motion.
+        clearGlowFromTextView(view);
     }
 
     private void clearGlowFromTextView(TextView view) {
