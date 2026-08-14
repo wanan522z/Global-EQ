@@ -3064,8 +3064,8 @@ public final class MainActivity extends Activity {
             searchInput.setSingleLine(true);
             searchInput.setHint(tr("Search added apps", "搜索已添加应用"));
             searchInput.setTextSize(13);
-            searchInput.setTextColor(Color.WHITE);
-            searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
+            searchInput.setTextColor(themeTextPrimary());
+            searchInput.setHintTextColor(themeHintColor());
             searchInput.setBackground(createFieldBackground(20, 40, 8));
             searchInput.setPadding(dp(12), dp(10), dp(12), dp(10));
             shell.addView(searchInput, new LinearLayout.LayoutParams(
@@ -3247,7 +3247,7 @@ public final class MainActivity extends Activity {
                     "No suggested media apps were detected. Use Add to pick any installed app.",
                     "没有检测到推荐的媒体应用。可以通过 Add 选择任意已安装应用。"));
             empty.setTextSize(12);
-            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setTextColor(themeTextSecondary());
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
             list.addView(empty, curveMenuRowParams(6));
         }
@@ -3332,8 +3332,8 @@ public final class MainActivity extends Activity {
         searchInput.setSingleLine(true);
         searchInput.setHint(tr("Search app or package", "搜索应用或包名"));
         searchInput.setTextSize(13);
-        searchInput.setTextColor(Color.WHITE);
-        searchInput.setHintTextColor(Color.argb(110, 255, 255, 255));
+        searchInput.setTextColor(themeTextPrimary());
+        searchInput.setHintTextColor(themeHintColor());
         searchInput.setBackground(createFieldBackground(20, 40, 8));
         searchInput.setPadding(dp(12), dp(10), dp(12), dp(10));
         shell.addView(searchInput, new LinearLayout.LayoutParams(
@@ -3594,7 +3594,7 @@ public final class MainActivity extends Activity {
                     ? tr("No monitored apps yet. Use Add to build your own list.", "还没有监听应用，先用 Add 手动添加。")
                     : tr("No added apps match your search.", "没有匹配当前搜索的已添加应用。"));
             empty.setTextSize(12);
-            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setTextColor(themeTextSecondary());
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
             list.addView(empty, curveMenuRowParams(10));
             indexBar.setVisibility(View.GONE);
@@ -3631,7 +3631,7 @@ public final class MainActivity extends Activity {
         TextView loading = new TextView(this);
         loading.setText(message);
         loading.setTextSize(12);
-        loading.setTextColor(Color.rgb(170, 180, 198));
+        loading.setTextColor(themeTextSecondary());
         loading.setPadding(dp(4), dp(8), dp(4), dp(4));
         list.addView(loading, curveMenuRowParams(0));
     }
@@ -3644,7 +3644,7 @@ public final class MainActivity extends Activity {
         TextView loading = new TextView(this);
         loading.setText(message);
         loading.setTextSize(12);
-        loading.setTextColor(Color.rgb(170, 180, 198));
+        loading.setTextColor(themeTextSecondary());
         loading.setPadding(dp(4), dp(8), dp(4), dp(4));
         list.addView(loading, curveMenuRowParams(0));
     }
@@ -3689,7 +3689,7 @@ public final class MainActivity extends Activity {
             TextView empty = new TextView(this);
             empty.setText(tr("No apps match your search.", "没有匹配搜索的应用"));
             empty.setTextSize(12);
-            empty.setTextColor(Color.rgb(170, 180, 198));
+            empty.setTextColor(themeTextSecondary());
             empty.setPadding(dp(4), dp(8), dp(4), dp(4));
             list.addView(empty, curveMenuRowParams(0));
             indexBar.setVisibility(View.GONE);
@@ -4920,7 +4920,7 @@ public final class MainActivity extends Activity {
         TextView text = new TextView(this);
         text.setText(value);
         text.setTextSize(13);
-        text.setTextColor(Color.WHITE);
+        text.setTextColor(themeTextPrimary());
         text.setGravity(android.view.Gravity.CENTER);
         text.setSingleLine(true);
         GradientDrawable bg = new GradientDrawable();
@@ -5116,8 +5116,8 @@ public final class MainActivity extends Activity {
         inputBg.setStroke(dp(1), Color.argb(52, 255, 255, 255));
         inputBg.setCornerRadius(dp(8));
         input.setBackground(inputBg);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setPadding(dp(6), dp(4), dp(6), dp(4));
         input.setGravity(android.view.Gravity.CENTER);
 
@@ -5223,8 +5223,8 @@ public final class MainActivity extends Activity {
         inputBg.setStroke(dp(1), Color.argb(52, 255, 255, 255));
         inputBg.setCornerRadius(dp(8));
         input.setBackground(inputBg);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setPadding(dp(6), dp(4), dp(6), dp(4));
         input.setGravity(android.view.Gravity.CENTER);
 
@@ -5602,8 +5602,8 @@ public final class MainActivity extends Activity {
         input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
         input.setGravity(android.view.Gravity.CENTER);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(145, 220, 230, 245));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setPadding(dp(4), 0, dp(4), 0);
         input.setBackground(createOverlayInputBackground());
         input.setOnEditorActionListener((view, actionId, event) -> {
@@ -6109,7 +6109,7 @@ public final class MainActivity extends Activity {
         };
         name.setText(targetCurve ? selectedTargetCurveName : selectedDeviceCurveName);
         name.setTextSize(13);
-        name.setTextColor(Color.rgb(185, 196, 212));
+        name.setTextColor(themeTextSecondary());
         name.setSingleLine(true);
         name.setGravity(android.view.Gravity.CENTER_VERTICAL);
         name.setClickable(true);
@@ -6150,8 +6150,8 @@ public final class MainActivity extends Activity {
         input.setText(formatDecimal(targetCurve ? targetCurveGainOffsetDb : deviceCurveGainOffsetDb));
         input.setTextSize(24);
         input.setGravity(android.view.Gravity.CENTER);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(8), dp(12), dp(8));
         LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
@@ -6181,7 +6181,7 @@ public final class MainActivity extends Activity {
         TextView unit = new TextView(this);
         unit.setText("dB");
         unit.setTextSize(12);
-        unit.setTextColor(Color.rgb(142, 154, 168));
+        unit.setTextColor(themeTextMuted());
         unit.setGravity(android.view.Gravity.CENTER);
         layout.addView(unit, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -6289,8 +6289,8 @@ public final class MainActivity extends Activity {
         input.setText(currentName);
         input.setSelectAllOnFocus(true);
         input.setTextSize(14);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setHint(targetCurve
                 ? tr("Target curve name", "Target curve 名称")
                 : tr("Device curve name", "Device curve 名称"));
@@ -6859,8 +6859,8 @@ public final class MainActivity extends Activity {
         input.setText(nextConflictingPresetName(presetDisplayName(existing)));
         input.setSelectAllOnFocus(true);
         input.setTextSize(14);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -7062,7 +7062,7 @@ public final class MainActivity extends Activity {
         TextView targetLabel = new TextView(this);
         targetLabel.setText(tr("Save to", "保存到"));
         targetLabel.setTextSize(12);
-        targetLabel.setTextColor(Color.rgb(142, 154, 168));
+        targetLabel.setTextColor(themeTextMuted());
         targetLabel.setPadding(dp(2), 0, dp(2), dp(6));
         layout.addView(targetLabel, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -7087,7 +7087,7 @@ public final class MainActivity extends Activity {
         TextView nameLabel = new TextView(this);
         nameLabel.setText(tr("Preset name", "预设名称"));
         nameLabel.setTextSize(12);
-        nameLabel.setTextColor(Color.rgb(142, 154, 168));
+        nameLabel.setTextColor(themeTextMuted());
         nameLabel.setPadding(dp(2), 0, dp(2), dp(6));
         LinearLayout.LayoutParams nameLabelParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -7101,8 +7101,8 @@ public final class MainActivity extends Activity {
         input.setText(names.contains(editingPreset.name) ? editingPreset.name : nextPresetName());
         input.setSelectAllOnFocus(true);
         input.setTextSize(14);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -7345,8 +7345,8 @@ public final class MainActivity extends Activity {
         input.setText(nextPresetName());
         input.setSelectAllOnFocus(true);
         input.setTextSize(14);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(120, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setHint(tr("Preset name", "预设名称"));
         input.setBackground(createFieldBackground(20, 40, 8));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -8718,7 +8718,7 @@ public final class MainActivity extends Activity {
         button.setTextSize(14);
         button.setSingleLine(true);
         button.setGravity(android.view.Gravity.CENTER);
-        button.setTextColor(Color.argb(210, 240, 244, 255));
+        button.setTextColor(themeTextPrimary());
         button.setPadding(dp(12), 0, dp(12), 0);
         button.setBackground(createFieldBackground(12, 35, 8));
         button.setOnTouchListener((view, event) -> {
@@ -8827,7 +8827,7 @@ public final class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText(label);
         title.setTextSize(13);
-        title.setTextColor(Color.rgb(200, 210, 230));
+        title.setTextColor(themeTextPrimary());
         title.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         titleParams.topMargin = dp(2);
@@ -8935,7 +8935,7 @@ public final class MainActivity extends Activity {
         TextView hint = new TextView(this);
         hint.setText(rangeText() + ": " + knob.getMin() + " - " + knob.getMax() + knob.getSuffix());
         hint.setTextSize(13);
-        hint.setTextColor(Color.rgb(150, 165, 185));
+        hint.setTextColor(themeTextSecondary());
         hint.setGravity(android.view.Gravity.CENTER);
         hint.setPadding(0, 0, 0, dp(10));
         content.addView(hint, new LinearLayout.LayoutParams(
@@ -8953,8 +8953,8 @@ public final class MainActivity extends Activity {
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setGravity(android.view.Gravity.CENTER);
         input.setTextSize(18);
-        input.setTextColor(Color.rgb(235, 245, 255));
-        input.setHintTextColor(Color.rgb(120, 135, 155));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setBackground(createFieldBackground(26, 90, 10));
         content.addView(input, new LinearLayout.LayoutParams(
@@ -8992,7 +8992,7 @@ public final class MainActivity extends Activity {
         TextView hint = new TextView(this);
         hint.setText(slider.getLabel() + "  " + slider.displayRangeText());
         hint.setTextSize(13);
-        hint.setTextColor(Color.rgb(150, 165, 185));
+        hint.setTextColor(themeTextSecondary());
         hint.setGravity(android.view.Gravity.CENTER);
         hint.setPadding(0, 0, 0, dp(10));
         content.addView(hint, new LinearLayout.LayoutParams(
@@ -9012,8 +9012,8 @@ public final class MainActivity extends Activity {
                 | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         input.setGravity(android.view.Gravity.CENTER);
         input.setTextSize(18);
-        input.setTextColor(Color.rgb(235, 245, 255));
-        input.setHintTextColor(Color.rgb(120, 135, 155));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
         input.setBackground(createFieldBackground(26, 90, 10));
         content.addView(input, new LinearLayout.LayoutParams(
@@ -9072,7 +9072,7 @@ public final class MainActivity extends Activity {
         TextView view = new TextView(this);
         view.setText(text);
         view.setTextSize(11);
-        view.setTextColor(Color.rgb(142, 154, 168));
+        view.setTextColor(themeTextMuted());
         view.setGravity(android.view.Gravity.CENTER);
         row.addView(view, cellParams(weight, 18));
     }
@@ -9115,7 +9115,7 @@ public final class MainActivity extends Activity {
 
     private void styleCurveButton(TextView button) {
         button.setBackground(curveControlBackground());
-        button.setTextColor(Color.rgb(232, 248, 246));
+        button.setTextColor(themeTextPrimary());
     }
 
     private Drawable curveControlBackground() {
@@ -9664,7 +9664,7 @@ public final class MainActivity extends Activity {
             TextView label = new TextView(context);
             label.setText("Enter gain in dB for " + frequencyLabel + " (-18.00 to 18.00):");
             label.setTextSize(13);
-            label.setTextColor(Color.rgb(142, 154, 168));
+            label.setTextColor(themeTextMuted());
             label.setPadding(dp(2), 0, dp(2), dp(8));
             layout.addView(label);
 
@@ -9681,7 +9681,7 @@ public final class MainActivity extends Activity {
             inputBg.setStroke(dp(1), Color.argb(40, 255, 255, 255));
             inputBg.setCornerRadius(dp(6));
             input.setBackground(inputBg);
-            input.setTextColor(Color.WHITE);
+            input.setTextColor(themeTextPrimary());
             input.setPadding(dp(10), dp(8), dp(10), dp(8));
             input.setGravity(android.view.Gravity.CENTER);
             
@@ -10394,7 +10394,7 @@ public final class MainActivity extends Activity {
             view.setFocusable(false);
             view.setFocusableInTouchMode(false);
             view.setIncludeFontPadding(false);
-            view.setBackgroundColor(Color.rgb(22, 26, 38));
+            view.setBackgroundColor(UiTheme.popupSurface(liquidGlassTheme));
             view.setPadding(dp(16), dp(12), dp(16), dp(12));
             return view;
         }
