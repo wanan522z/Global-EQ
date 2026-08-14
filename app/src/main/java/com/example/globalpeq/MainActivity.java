@@ -6831,6 +6831,38 @@ public final class MainActivity extends Activity {
             dimPath.addRoundRect(cutoutBounds, cutoutRadius, cutoutRadius, Path.Direction.CW);
             canvas.drawPath(dimPath, dimPaint);
         }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN
+                    && isInsideRoundedCutout(event.getX(), event.getY())) {
+                return false;
+            }
+            return super.onTouchEvent(event);
+        }
+
+        private boolean isInsideRoundedCutout(float x, float y) {
+            if (!cutoutBounds.contains(x, y)) {
+                return false;
+            }
+            float radius = Math.min(cutoutRadius,
+                    Math.min(cutoutBounds.width(), cutoutBounds.height()) * 0.5f);
+            if (x >= cutoutBounds.left + radius && x <= cutoutBounds.right - radius) {
+                return true;
+            }
+            if (y >= cutoutBounds.top + radius && y <= cutoutBounds.bottom - radius) {
+                return true;
+            }
+            float centerX = x < cutoutBounds.left + radius
+                    ? cutoutBounds.left + radius
+                    : cutoutBounds.right - radius;
+            float centerY = y < cutoutBounds.top + radius
+                    ? cutoutBounds.top + radius
+                    : cutoutBounds.bottom - radius;
+            float dx = x - centerX;
+            float dy = y - centerY;
+            return dx * dx + dy * dy <= radius * radius;
+        }
     }
 
     private void removeEqEditDim(boolean animated) {
