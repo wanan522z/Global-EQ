@@ -1440,7 +1440,6 @@ public final class MainActivity extends Activity {
         scrollView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scrollView.setVerticalFadingEdgeEnabled(true);
         scrollView.setFadingEdgeLength(dp(24));
-        scrollView.setRequiresFadingEdge(View.FADING_EDGE_VERTICAL);
         // The default five bands plus Add fit without clipping. Larger presets fade
         // softly into the viewport edges instead of ending on a hard cut line.
         scrollView.setPadding(0, dp(6), 0, dp(8));
@@ -10938,9 +10937,10 @@ public final class MainActivity extends Activity {
             int top = Math.round(outerRect.top);
             int right = Math.round(outerRect.right);
             int bottom = Math.round(outerRect.bottom);
-            if (glassFillShader != null && surfaceSheenShader != null && edgeDispersionShader != null
-                    && shaderLeft == left && shaderTop == top
-                    && shaderRight == right && shaderBottom == bottom
+            boolean geometryChanged = surfaceSheenShader == null || edgeDispersionShader == null
+                    || shaderLeft != left || shaderTop != top
+                    || shaderRight != right || shaderBottom != bottom;
+            if (glassFillShader != null && !geometryChanged
                     && shaderTopAlpha == topAlpha && shaderBottomAlpha == bottomAlpha) {
                 return;
             }
@@ -10959,6 +10959,9 @@ public final class MainActivity extends Activity {
                     },
                     new float[]{0f, 0.48f, 1f},
                     Shader.TileMode.CLAMP);
+            if (!geometryChanged) {
+                return;
+            }
             float sheenRadius = Math.max(outerRect.width(), outerRect.height()) * 0.88f;
             surfaceSheenShader = new RadialGradient(
                     outerRect.centerX(),
