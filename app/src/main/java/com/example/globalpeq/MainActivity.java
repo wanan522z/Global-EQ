@@ -1501,7 +1501,7 @@ public final class MainActivity extends Activity {
         private long nextRenderedFrameNanos;
         private double flowSeconds;
         private final double flowSeed = (android.os.SystemClock.uptimeMillis() % 1000003L) * 0.000031d;
-        private static final long TARGET_FRAME_INTERVAL_NANOS = 16_666_667L;
+        private static final long TARGET_FRAME_INTERVAL_NANOS = 16_000_000L;
         private final Choreographer.FrameCallback flowFrameCallback = new Choreographer.FrameCallback() {
             @Override
             public void doFrame(long frameTimeNanos) {
