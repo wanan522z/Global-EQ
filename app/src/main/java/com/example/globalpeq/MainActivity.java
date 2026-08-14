@@ -1579,7 +1579,7 @@ public final class MainActivity extends Activity {
             super(context);
             this.liquid = liquid;
             setWillNotDraw(false);
-            // The half-resolution filtered bitmap already supplies a slight softness.
+            // The reduced-resolution filtered bitmap already supplies a slight softness.
             // Avoiding a full-screen RenderEffect keeps scrolling responsive.
         }
 
