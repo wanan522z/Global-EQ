@@ -1462,20 +1462,24 @@ public final class MainActivity extends Activity {
     /** Animated, pre-blurred color field visible through every translucent glass surface. */
     private final class LiquidBackdropView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final android.graphics.RectF bitmapDestination = new android.graphics.RectF();
         private final boolean liquid;
         private final float[] flowX = {0.78f, 0.08f, 0.82f, 0.18f, 0.52f, 0.46f};
         private final float[] flowY = {0.18f, 0.58f, 0.78f, 0.16f, 0.52f, 0.92f};
-        private final float[] flowVx = {-0.020f, 0.016f, -0.013f, 0.021f, -0.009f, 0.011f};
-        private final float[] flowVy = {0.013f, -0.018f, -0.011f, 0.015f, 0.019f, -0.014f};
-        private final float[] flowRadius = {0.54f, 0.48f, 0.70f, 0.76f, 0.68f, 0.58f};
+        private final float[] flowVx = {-0.086f, 0.072f, -0.064f, 0.094f, -0.058f, 0.068f};
+        private final float[] flowVy = {0.067f, -0.082f, -0.061f, 0.074f, 0.088f, -0.076f};
+        private final float[] flowRadius = {0.44f, 0.40f, 0.52f, 0.58f, 0.54f, 0.46f};
         private final int[] flowColor = {
-                Color.argb(112, 0, 44, 176),
-                Color.argb(92, 25, 91, 190),
-                Color.argb(132, 96, 182, 228),
-                Color.argb(158, 102, 212, 200),
-                Color.argb(116, 186, 235, 232),
-                Color.argb(78, 255, 255, 255)
+                Color.argb(148, 0, 44, 176),
+                Color.argb(126, 31, 92, 194),
+                Color.argb(156, 92, 176, 226),
+                Color.argb(180, 102, 212, 200),
+                Color.argb(142, 181, 233, 230),
+                Color.argb(88, 255, 255, 255)
         };
+        private android.graphics.Bitmap frameBitmap;
+        private Canvas frameCanvas;
         private boolean flowRunning;
         private long lastFlowFrameMs;
         private double flowSeconds;
@@ -1503,11 +1507,9 @@ public final class MainActivity extends Activity {
             this.liquid = liquid;
             setWillNotDraw(false);
             if (liquid) {
-                setScaleX(1.08f);
-                setScaleY(1.08f);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
-                            dpf(22f), dpf(22f), Shader.TileMode.CLAMP));
+                            dpf(10f), dpf(10f), Shader.TileMode.CLAMP));
                 }
             }
         }
@@ -1541,11 +1543,11 @@ public final class MainActivity extends Activity {
             for (int i = 0; i < flowX.length; i++) {
                 double offset = flowSeed + 1.37d + i * 1.91d;
                 float steerX = (float) (
-                        Math.sin(flowSeconds * (0.113d + i * 0.013d) + offset) * 0.010d
-                                + Math.cos(flowSeconds * (0.047d + i * 0.009d) - offset) * 0.006d);
+                        Math.sin(flowSeconds * (0.113d + i * 0.013d) + offset) * 0.026d
+                                + Math.cos(flowSeconds * (0.047d + i * 0.009d) - offset) * 0.014d);
                 float steerY = (float) (
-                        Math.cos(flowSeconds * (0.097d + i * 0.017d) - offset) * 0.009d
-                                + Math.sin(flowSeconds * (0.061d + i * 0.011d) + offset) * 0.006d);
+                        Math.cos(flowSeconds * (0.097d + i * 0.017d) - offset) * 0.024d
+                                + Math.sin(flowSeconds * (0.061d + i * 0.011d) + offset) * 0.014d);
                 flowX[i] += (flowVx[i] + steerX) * deltaSeconds;
                 flowY[i] += (flowVy[i] + steerY) * deltaSeconds;
 
@@ -1579,7 +1581,38 @@ public final class MainActivity extends Activity {
                 return;
             }
 
+            ensureFrameBitmap(w, h);
+            if (frameBitmap == null || frameCanvas == null) {
+                return;
+            }
+            drawLiquidField(frameCanvas, frameBitmap.getWidth(), frameBitmap.getHeight());
+            bitmapPaint.setAlpha(255);
+            bitmapPaint.setShader(null);
+            bitmapDestination.set(0f, 0f, w, h);
+            canvas.drawBitmap(frameBitmap, null, bitmapDestination, bitmapPaint);
+        }
+
+        private void ensureFrameBitmap(int width, int height) {
+            int bitmapWidth = Math.max(1, Math.round(width * 0.5f));
+            int bitmapHeight = Math.max(1, Math.round(height * 0.5f));
+            if (frameBitmap != null
+                    && frameBitmap.getWidth() == bitmapWidth
+                    && frameBitmap.getHeight() == bitmapHeight) {
+                return;
+            }
+            if (frameBitmap != null) {
+                frameBitmap.recycle();
+            }
+            frameBitmap = android.graphics.Bitmap.createBitmap(
+                    bitmapWidth, bitmapHeight, android.graphics.Bitmap.Config.ARGB_8888);
+            frameCanvas = new Canvas(frameBitmap);
+        }
+
+        private void drawLiquidField(Canvas canvas, int w, int h) {
+
             float baseDrift = (float) Math.sin(flowSeconds * 0.071d) * w * 0.14f;
+            paint.setStyle(Paint.Style.FILL);
+            paint.setAlpha(255);
             paint.setShader(new LinearGradient(
                     -baseDrift, 0f, w + baseDrift, h,
                     new int[]{
@@ -1601,6 +1634,14 @@ public final class MainActivity extends Activity {
                         flowColor[i]);
             }
             paint.setShader(null);
+        }
+
+        android.graphics.Bitmap frameBitmap() {
+            return frameBitmap;
+        }
+
+        double flowSeconds() {
+            return flowSeconds;
         }
 
         private void drawClassicBackdrop(Canvas canvas, int w, int h) {
