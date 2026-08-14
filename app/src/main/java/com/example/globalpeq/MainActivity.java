@@ -9567,12 +9567,12 @@ public final class MainActivity extends Activity {
                 if (j == 3) {
                     // 0 dB center guideline
                     paint.setStrokeWidth(dpf(1.5f));
-                    paint.setColor(Color.argb(70, 255, 255, 255));
+                    paint.setColor(liquidGlassTheme ? Color.argb(72, 45, 62, 88) : Color.argb(70, 255, 255, 255));
                     canvas.drawLine(centerX - dpf(12f), tickY, centerX + dpf(12f), tickY, paint);
                 } else {
                     // Other dB reference tick lines
                     paint.setStrokeWidth(dpf(1f));
-                    paint.setColor(Color.argb(20, 255, 255, 255));
+                    paint.setColor(liquidGlassTheme ? Color.argb(28, 45, 62, 88) : Color.argb(20, 255, 255, 255));
                     canvas.drawLine(centerX - dpf(6f), tickY, centerX + dpf(6f), tickY, paint);
                 }
             }
@@ -9585,7 +9585,7 @@ public final class MainActivity extends Activity {
                 trackBottom
             );
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.argb(25, 255, 255, 255));
+            paint.setColor(UiTheme.quietLine(liquidGlassTheme));
             canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
 
             // 3. Draw active neon glowing track from 0 dB Y to current thumb center Y
@@ -9611,13 +9611,15 @@ public final class MainActivity extends Activity {
             
             // Fader background
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.argb(240, 22, 26, 38));
+            paint.setColor(UiTheme.controlSurface(liquidGlassTheme));
             canvas.drawRoundRect(thumbRect, dpf(6f), dpf(6f), paint);
 
             // Fader outline stroke (glows cyan when touched)
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(adjustingGain || hasActiveGain ? dpf(1.6f) : dpf(1.0f));
-            paint.setColor(adjustingGain || hasActiveGain ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
+            paint.setColor(adjustingGain || hasActiveGain
+                    ? Color.rgb(0, 190, 176)
+                    : (liquidGlassTheme ? Color.argb(120, 72, 92, 120) : Color.argb(100, 255, 255, 255)));
             if (adjustingGain || hasActiveGain) {
                 paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
             }
@@ -9646,7 +9648,7 @@ public final class MainActivity extends Activity {
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setFakeBoldText(true);
             paint.setTextSize(dpf(13f));
-            paint.setColor(Color.WHITE);
+            paint.setColor(themeTextPrimary());
             canvas.drawText(frequencyLabel, centerX, height - dpf(24f), paint);
 
             paint.setFakeBoldText(false);
@@ -9656,7 +9658,7 @@ public final class MainActivity extends Activity {
                 paint.setFakeBoldText(true);
                 paint.setShadowLayer(dpf(5f), 0, 0, Color.argb(150, 0, 245, 212));
             } else {
-                paint.setColor(Color.argb(130, 255, 255, 255));
+                paint.setColor(liquidGlassTheme ? Color.argb(170, 70, 84, 106) : Color.argb(130, 255, 255, 255));
             }
             canvas.drawText(formatDecimal(gainMb / 100f), centerX, height - dpf(6f), paint);
             paint.clearShadowLayer();
@@ -9975,14 +9977,14 @@ public final class MainActivity extends Activity {
                 paint.setColor(Color.rgb(0, 245, 212));
                 paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(150, 0, 245, 212));
             } else {
-                paint.setColor(Color.argb(150, 255, 255, 255));
+                paint.setColor(liquidGlassTheme ? Color.argb(190, 42, 58, 82) : Color.argb(150, 255, 255, 255));
             }
             canvas.drawText(displayValueText(), cx, dpf(14f), paint);
             paint.clearShadowLayer();
 
             android.graphics.RectF trackRect = new android.graphics.RectF(
                     cx - dpf(2f), top, cx + dpf(2f), bottom);
-            paint.setColor(Color.argb(25, 255, 255, 255));
+            paint.setColor(UiTheme.quietLine(liquidGlassTheme));
             canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
 
             if (active) {
@@ -10000,12 +10002,14 @@ public final class MainActivity extends Activity {
             thumbRect.set(cx - thumbW / 2f, thumbY - thumbH / 2f,
                     cx + thumbW / 2f, thumbY + thumbH / 2f);
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.argb(240, 22, 26, 38));
+            paint.setColor(UiTheme.controlSurface(liquidGlassTheme));
             canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
 
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(adjusting || active ? dpf(1.6f) : dpf(1.0f));
-            paint.setColor(adjusting || active ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
+            paint.setColor(adjusting || active
+                    ? Color.rgb(0, 190, 176)
+                    : (liquidGlassTheme ? Color.argb(120, 72, 92, 120) : Color.argb(100, 255, 255, 255)));
             if (adjusting || active) {
                 paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
             }
@@ -10028,7 +10032,7 @@ public final class MainActivity extends Activity {
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setFakeBoldText(false);
             paint.setTextSize(dpf(11f));
-            paint.setColor(Color.rgb(200, 210, 230));
+            paint.setColor(themeTextPrimary());
             canvas.drawText(label, width / 2f, getHeight() - dpf(8f), paint);
         }
 
@@ -10229,7 +10233,7 @@ public final class MainActivity extends Activity {
             android.graphics.RectF trackRect = new android.graphics.RectF(
                     left, cy - dpf(2f), right, cy + dpf(2f));
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.argb(25, 255, 255, 255));
+            paint.setColor(UiTheme.quietLine(liquidGlassTheme));
             canvas.drawRoundRect(trackRect, dpf(2f), dpf(2f), paint);
 
             // 2. 活动段发光（从 trackLeft 到 thumb）
@@ -10249,12 +10253,14 @@ public final class MainActivity extends Activity {
             thumbRect.set(thumbX - thumbW / 2f, cy - thumbH / 2f,
                     thumbX + thumbW / 2f, cy + thumbH / 2f);
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.argb(240, 22, 26, 38));
+            paint.setColor(UiTheme.controlSurface(liquidGlassTheme));
             canvas.drawRoundRect(thumbRect, dpf(5f), dpf(5f), paint);
 
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(adjusting || active ? dpf(1.6f) : dpf(1.0f));
-            paint.setColor(adjusting || active ? Color.rgb(0, 245, 212) : Color.argb(100, 255, 255, 255));
+            paint.setColor(adjusting || active
+                    ? Color.rgb(0, 190, 176)
+                    : (liquidGlassTheme ? Color.argb(120, 72, 92, 120) : Color.argb(100, 255, 255, 255)));
             if (adjusting || active) {
                 paint.setShadowLayer(dpf(3f), 0, 0, Color.argb(150, 0, 245, 212));
             }
@@ -10280,7 +10286,7 @@ public final class MainActivity extends Activity {
             paint.setTextAlign(Paint.Align.LEFT);
             paint.setFakeBoldText(true);
             paint.setTextSize(dpf(13f));
-            paint.setColor(Color.WHITE);
+            paint.setColor(themeTextPrimary());
             canvas.drawText(label, dpf(4f), height - dpf(8f), paint);
 
             paint.setTextAlign(Paint.Align.RIGHT);
@@ -10290,7 +10296,7 @@ public final class MainActivity extends Activity {
                 paint.setColor(Color.rgb(0, 245, 212));
                 paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(150, 0, 245, 212));
             } else {
-                paint.setColor(Color.argb(150, 255, 255, 255));
+                paint.setColor(liquidGlassTheme ? Color.argb(190, 42, 58, 82) : Color.argb(150, 255, 255, 255));
             }
             canvas.drawText(value + suffix, width - dpf(4f), height - dpf(8f), paint);
             paint.clearShadowLayer();
@@ -10634,14 +10640,18 @@ public final class MainActivity extends Activity {
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
-                paint.setColor(checked ? Color.argb(124, 176, 244, 248) : Color.argb(84, 194, 220, 255));
+                paint.setColor(checked
+                        ? Color.argb(124, 176, 244, 248)
+                        : (liquidGlassTheme ? Color.argb(105, 92, 112, 142) : Color.argb(84, 194, 220, 255)));
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 paint.setStyle(Paint.Style.FILL);
                 paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                 paint.setTextSize(dpf(8.5f));
                 paint.setTextAlign(Paint.Align.CENTER);
-                paint.setColor(checked ? Color.rgb(214, 235, 255) : Color.argb(136, 226, 236, 248));
+                paint.setColor(checked
+                        ? Color.rgb(214, 235, 255)
+                        : (liquidGlassTheme ? Color.argb(190, 48, 63, 86) : Color.argb(136, 226, 236, 248)));
                 if (checked) {
                     paint.setShadowLayer(dpf(2.2f), 0, 0, Color.argb(110, 96, 220, 234));
                 } else {
@@ -12131,7 +12141,7 @@ public final class MainActivity extends Activity {
                 // 白色主体（描边 + 填充）
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(strokeW);
-                paint.setColor(Color.WHITE);
+                paint.setColor(themeTextPrimary());
                 canvas.drawPath(arcPath, paint);
                 paint.setStyle(Paint.Style.FILL);
                 canvas.drawPath(headPath, paint);
