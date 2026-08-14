@@ -371,6 +371,7 @@ public final class MainActivity extends Activity {
     // 不同状态用不同色阶，但都用 baked offset 方式（不用 setLocalMatrix）。
     private void applyShimmerFrame(TextView view, int width, float phase) {
         if (view == null || width <= 0) {
+            return;
         }
 
         int[] colors;
@@ -11993,9 +11994,9 @@ public final class MainActivity extends Activity {
         final int styleVersion = bumpTextStyleVersion(view);
         // 关键优化：为了能够让完美丝滑的 shadowLayer (大半径高斯模糊) 在静态状态下同样发挥效果，
         // 同样将文字样式设置切换为精密的 SOFTWARE 图层，消除 GPU 渲染产生的颗粒伪影。
-        boolean usesCustomGlow = view instanceof GlowTitleTextView;
+        boolean needsSoftwareShimmer = view instanceof GlowTitleTextView;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            if (usesCustomGlow) {
+            if (needsSoftwareShimmer) {
                 // Inactive bottom tabs drop back to a hardware layer. Restore software
                 // text rendering when re-activating them so animated shimmer frames
                 // repaint correctly instead of being flattened by glyph caching.
