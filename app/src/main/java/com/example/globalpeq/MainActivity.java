@@ -18,6 +18,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
@@ -1492,6 +1493,12 @@ public final class MainActivity extends Activity {
         };
         private android.graphics.Bitmap frameBitmap;
         private Canvas frameCanvas;
+        private LinearGradient baseFlowShader;
+        private final RadialGradient[] cachedFlowShaders = new RadialGradient[flowColor.length];
+        private final Matrix baseFlowMatrix = new Matrix();
+        private final Matrix blobFlowMatrix = new Matrix();
+        private int fieldShaderWidth = -1;
+        private int fieldShaderHeight = -1;
         private boolean flowRunning;
         private long lastFlowFrameMs;
         private int flowFrameIndex;
@@ -1642,12 +1649,34 @@ public final class MainActivity extends Activity {
         }
 
         private void drawLiquidField(Canvas canvas, int w, int h) {
-
+            ensureLiquidFieldShaders(w, h);
             float baseDrift = (float) Math.sin(flowSeconds * 0.071d) * w * 0.14f;
             paint.setStyle(Paint.Style.FILL);
             paint.setAlpha(255);
-            paint.setShader(new LinearGradient(
-                    -baseDrift, 0f, w + baseDrift, h,
+            baseFlowMatrix.reset();
+            baseFlowMatrix.setTranslate(baseDrift, 0f);
+            baseFlowShader.setLocalMatrix(baseFlowMatrix);
+            paint.setShader(baseFlowShader);
+            canvas.drawRect(0f, 0f, w, h, paint);
+
+            float canvasSpan = (float) Math.sqrt(w * (double) h);
+            for (int i = 0; i < flowX.length; i++) {
+                drawCachedFlowBlob(canvas, i,
+                        w * flowX[i],
+                        h * flowY[i],
+                        canvasSpan * flowRadius[i]);
+            }
+            paint.setShader(null);
+        }
+
+        private void ensureLiquidFieldShaders(int width, int height) {
+            if (baseFlowShader != null && fieldShaderWidth == width && fieldShaderHeight == height) {
+                return;
+            }
+            fieldShaderWidth = width;
+            fieldShaderHeight = height;
+            baseFlowShader = new LinearGradient(
+                    0f, 0f, width, height,
                     new int[]{
                             Color.rgb(184, 207, 216),
                             Color.rgb(128, 188, 188),
@@ -1655,18 +1684,23 @@ public final class MainActivity extends Activity {
                             Color.rgb(166, 207, 201)
                     },
                     new float[]{0f, 0.36f, 0.72f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawRect(0f, 0f, w, h, paint);
-
-            float canvasSpan = (float) Math.sqrt(w * (double) h);
-            for (int i = 0; i < flowX.length; i++) {
-                drawFlowBlob(canvas,
-                        w * flowX[i],
-                        h * flowY[i],
-                        canvasSpan * flowRadius[i],
-                        flowColor[i]);
+                    Shader.TileMode.CLAMP);
+            for (int i = 0; i < cachedFlowShaders.length; i++) {
+                cachedFlowShaders[i] = new RadialGradient(
+                        0f, 0f, 1f, flowColor[i], Color.TRANSPARENT, Shader.TileMode.CLAMP);
             }
-            paint.setShader(null);
+        }
+
+        private void drawCachedFlowBlob(Canvas canvas, int index, float x, float y, float radius) {
+            RadialGradient shader = cachedFlowShaders[index];
+            blobFlowMatrix.reset();
+            blobFlowMatrix.setScale(radius, radius);
+            blobFlowMatrix.postTranslate(x, y);
+            shader.setLocalMatrix(blobFlowMatrix);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setStrokeWidth(0f);
+            paint.setShader(shader);
+            canvas.drawCircle(x, y, radius, paint);
         }
 
         android.graphics.Bitmap frameBitmap() {
