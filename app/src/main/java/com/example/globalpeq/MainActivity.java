@@ -12254,28 +12254,28 @@ public final class MainActivity extends Activity {
         button.setEnabled(isEnabled);
         GradientDrawable gd = new GradientDrawable();
         gd.setShape(GradientDrawable.RECTANGLE);
-        gd.setCornerRadius(dp(10));
+        gd.setCornerRadius(dp(liquidGlassTheme ? 14 : 10));
         if (isPrimary) {
             if (isEnabled) {
                 gd.setColors(new int[]{Color.rgb(0, 160, 255), Color.rgb(0, 229, 255)});
                 gd.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
                 styleCyanGlowText(button);
             } else {
-                gd.setColor(Color.argb(40, 80, 90, 100));
-                button.setTextColor(Color.argb(100, 255, 255, 255));
+                gd.setColor(liquidGlassTheme ? Color.argb(170, 208, 216, 226) : Color.argb(40, 80, 90, 100));
+                button.setTextColor(liquidGlassTheme ? Color.argb(120, 40, 55, 76) : Color.argb(100, 255, 255, 255));
                 button.getPaint().clearShadowLayer();
             }
         } else {
             if (isEnabled) {
-                gd.setColor(Color.argb(24, 255, 255, 255));
-                gd.setStroke(dp(1), Color.argb(52, 255, 255, 255));
+                gd.setColor(UiTheme.fieldFill(liquidGlassTheme));
+                gd.setStroke(dp(1), UiTheme.fieldStroke(liquidGlassTheme));
                 if (button != undoButton && button != redoButton) {
                     styleCyanGlowText(button);
                 }
             } else {
-                gd.setColor(Color.argb(10, 255, 255, 255));
-                gd.setStroke(dp(1), Color.argb(20, 255, 255, 255));
-                button.setTextColor(Color.argb(80, 255, 255, 255));
+                gd.setColor(liquidGlassTheme ? Color.argb(110, 245, 248, 252) : Color.argb(10, 255, 255, 255));
+                gd.setStroke(dp(1), liquidGlassTheme ? Color.argb(90, 172, 190, 214) : Color.argb(20, 255, 255, 255));
+                button.setTextColor(liquidGlassTheme ? Color.argb(105, 40, 55, 76) : Color.argb(80, 255, 255, 255));
                 button.getPaint().clearShadowLayer();
             }
         }
@@ -12321,21 +12321,21 @@ public final class MainActivity extends Activity {
         }
         GradientDrawable gd = new GradientDrawable();
         gd.setShape(GradientDrawable.RECTANGLE);
-        gd.setCornerRadius(dp(10));
+        gd.setCornerRadius(dp(liquidGlassTheme ? 14 : 10));
         if (isEnabled) {
             button.setBackground(strokeGlowRoundRectDrawable(
-                    Color.argb(24, 255, 255, 255),
+                    liquidGlassTheme ? Color.argb(210, 255, 255, 255) : Color.argb(24, 255, 255, 255),
                     Color.argb(160, 0, 245, 212),
-                    dp(10),
+                    dp(liquidGlassTheme ? 14 : 10),
                     dp(3),
                     Color.argb(85, 0, 245, 212)
             ));
-            button.setTextColor(Color.argb(255, 220, 255, 250));
+            button.setTextColor(liquidGlassTheme ? Color.rgb(0, 110, 126) : Color.argb(255, 220, 255, 250));
             button.setShadowLayer(dp(5), 0, 0, Color.argb(130, 0, 245, 212));
         } else {
             gd.setColor(Color.argb(15, 0, 245, 212));
             gd.setStroke(dp(1), Color.argb(40, 0, 245, 212));
-            button.setTextColor(Color.argb(120, 220, 255, 250));
+            button.setTextColor(liquidGlassTheme ? Color.argb(120, 0, 110, 126) : Color.argb(120, 220, 255, 250));
             button.getPaint().clearShadowLayer();
             button.setBackground(gd);
         }
