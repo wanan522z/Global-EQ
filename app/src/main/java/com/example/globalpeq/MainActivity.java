@@ -12584,9 +12584,7 @@ public final class MainActivity extends Activity {
         }
         Button neg = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
         if (neg != null) {
-            if (liquidGlassTheme) {
-                styleButton(neg, false, true);
-            } else {
+            if (!liquidGlassTheme) {
                 neg.setTextColor(themeTextSecondary());
             }
             neg.setAllCaps(false);
@@ -12594,9 +12592,7 @@ public final class MainActivity extends Activity {
         }
         Button pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (pos != null) {
-            if (liquidGlassTheme) {
-                styleAccentButton(pos, true);
-            } else {
+            if (!liquidGlassTheme) {
                 styleCyanGlowText(pos);
             }
             pos.setAllCaps(false);
@@ -12604,9 +12600,7 @@ public final class MainActivity extends Activity {
         }
         Button neu = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
         if (neu != null) {
-            if (liquidGlassTheme) {
-                styleButton(neu, false, true);
-            } else {
+            if (!liquidGlassTheme) {
                 neu.setTextColor(themeTextSecondary());
             }
             compactDialogAction(neu);
@@ -12625,7 +12619,7 @@ public final class MainActivity extends Activity {
             button.setBackground(null);
             button.setStateListAnimator(null);
             button.getPaint().clearShadowLayer();
-            button.setTextColor(button == dialogPositiveButton(button)
+            button.setTextColor(button.getId() == android.R.id.button1
                     ? Color.rgb(0, 92, 190)
                     : themeTextSecondary());
         }
@@ -12634,21 +12628,6 @@ public final class MainActivity extends Activity {
             params.height = dp(40);
             button.setLayoutParams(params);
         }
-    }
-
-    private Button dialogPositiveButton(Button button) {
-        ViewParent parent = button == null ? null : button.getParent();
-        if (!(parent instanceof ViewGroup)) {
-            return null;
-        }
-        ViewGroup group = (ViewGroup) parent;
-        for (int i = 0; i < group.getChildCount(); i++) {
-            View child = group.getChildAt(i);
-            if (child instanceof Button && child.getId() == android.R.id.button1) {
-                return (Button) child;
-            }
-        }
-        return null;
     }
 
     private ColorDrawable solidColorDrawable(int color) {
