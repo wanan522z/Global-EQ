@@ -10758,10 +10758,18 @@ public final class MainActivity extends Activity {
     /** Frosted body + refractive edge highlight; the moving backdrop supplies the blur content. */
     private final class LiquidGlassDrawable extends Drawable {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final Paint lensPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final android.graphics.RectF outerRect = new android.graphics.RectF();
         private final android.graphics.RectF innerRect = new android.graphics.RectF();
+        private final android.graphics.Matrix lensMatrix = new android.graphics.Matrix();
+        private final float[] lensMatrixValues = new float[9];
+        private final int[] glassLocation = new int[2];
+        private final int[] backdropLocation = new int[2];
+        private android.graphics.Bitmap lensBitmap;
+        private android.graphics.BitmapShader lensShader;
         private final float radius;
         private final int density;
+        private boolean pressed;
 
         LiquidGlassDrawable(float radius, int density) {
             this.radius = radius;
@@ -10782,36 +10790,53 @@ public final class MainActivity extends Activity {
                     bounds.right - outerInset, bounds.bottom - outerInset);
             float outerRadius = Math.max(0f, radius - outerInset);
 
-            // Milky content plane: enough opacity for text, with background colour and
-            // motion still visible through the glass.
-            int topAlpha = Math.min(216, 148 + Math.round(density * 0.66f));
-            int bottomAlpha = Math.min(188, 112 + Math.round(density * 0.70f));
+            // Lensing is the defining layer of Liquid Glass: resample the live backdrop
+            // at this view's screen position and magnify it gently around the centre.
+            float backdropLuminance = drawBackdropLens(canvas, outerRadius);
+
+            // Regular glass adapts its luminosity to the content underneath. Darker
+            // regions receive a stronger milky lift so foreground text remains legible.
+            int adaptiveLift = Math.round((1f - backdropLuminance) * 58f);
+            int topAlpha = clamp(72 + Math.round(density * 0.48f) + adaptiveLift, 88, 168);
+            int bottomAlpha = clamp(topAlpha - 30, 58, 138);
+            if (pressed) {
+                topAlpha = Math.min(184, topAlpha + 18);
+                bottomAlpha = Math.min(154, bottomAlpha + 14);
+            }
             paint.setStyle(Paint.Style.FILL);
             paint.setShader(new LinearGradient(
                     outerRect.left, outerRect.top, outerRect.right, outerRect.bottom,
                     new int[]{
                             Color.argb(topAlpha, 255, 255, 255),
-                            Color.argb(Math.max(128, topAlpha - 24), 235, 251, 249),
-                            Color.argb(bottomAlpha, 218, 238, 249)
+                            Color.argb(Math.max(64, topAlpha - 24), 242, 250, 250),
+                            Color.argb(bottomAlpha, 224, 237, 245)
                     },
                     new float[]{0f, 0.55f, 1f},
                     Shader.TileMode.CLAMP));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // One-pixel-class outer refraction: white at the light-facing edge, a small
-            // aqua/blue shift at the far edge, and no saturated perimeter band.
+            // Specular light moves slowly around the silhouette, defining the shape
+            // without turning the edge into a coloured border.
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dpf(1.15f));
+            paint.setStrokeWidth(dpf(1.05f));
+            double lightPhase = liquidBackdropView == null
+                    ? 0d
+                    : liquidBackdropView.flowSeconds() * 0.72d;
+            float lightDx = (float) Math.cos(lightPhase) * outerRect.width() * 0.54f;
+            float lightDy = (float) Math.sin(lightPhase) * outerRect.height() * 0.54f;
             paint.setShader(new LinearGradient(
-                    outerRect.left, outerRect.top, outerRect.right, outerRect.bottom,
+                    outerRect.centerX() - lightDx,
+                    outerRect.centerY() - lightDy,
+                    outerRect.centerX() + lightDx,
+                    outerRect.centerY() + lightDy,
                     new int[]{
-                            Color.argb(244, 255, 255, 255),
-                            Color.argb(186, 230, 255, 252),
-                            Color.argb(142, 113, 198, 220),
-                            Color.argb(92, 44, 104, 183),
-                            Color.argb(206, 248, 253, 255)
+                            Color.argb(pressed ? 255 : 238, 255, 255, 255),
+                            Color.argb(118, 242, 255, 255),
+                            Color.argb(72, 178, 221, 226),
+                            Color.argb(48, 45, 71, 102),
+                            Color.argb(196, 255, 255, 255)
                     },
-                    new float[]{0f, 0.34f, 0.62f, 0.82f, 1f},
+                    new float[]{0f, 0.28f, 0.60f, 0.82f, 1f},
                     Shader.TileMode.CLAMP));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
@@ -10822,13 +10847,86 @@ public final class MainActivity extends Activity {
             paint.setStrokeWidth(dpf(0.68f));
             paint.setShader(new LinearGradient(
                     innerRect.left, innerRect.top, innerRect.left, innerRect.bottom,
-                    Color.argb(178, 255, 255, 255),
-                    Color.argb(42, 62, 123, 178),
+                    Color.argb(164, 255, 255, 255),
+                    Color.argb(40, 39, 58, 82),
                     Shader.TileMode.CLAMP));
             float innerRadius = Math.max(0f, outerRadius - innerInset);
             canvas.drawRoundRect(innerRect, innerRadius, innerRadius, paint);
             paint.setShader(null);
             paint.setStyle(Paint.Style.FILL);
+        }
+
+        private float drawBackdropLens(Canvas canvas, float outerRadius) {
+            if (liquidBackdropView == null || !(getCallback() instanceof View)) {
+                return 0.72f;
+            }
+            android.graphics.Bitmap bitmap = liquidBackdropView.frameBitmap();
+            if (bitmap == null || bitmap.isRecycled()
+                    || liquidBackdropView.getWidth() <= 0
+                    || liquidBackdropView.getHeight() <= 0) {
+                return 0.72f;
+            }
+            View host = (View) getCallback();
+            host.getLocationOnScreen(glassLocation);
+            liquidBackdropView.getLocationOnScreen(backdropLocation);
+            float relativeX = glassLocation[0] - backdropLocation[0];
+            float relativeY = glassLocation[1] - backdropLocation[1];
+            float screenPerPixelX = liquidBackdropView.getWidth() / (float) bitmap.getWidth();
+            float screenPerPixelY = liquidBackdropView.getHeight() / (float) bitmap.getHeight();
+            float zoom = 1.032f + density * 0.00034f + (pressed ? 0.022f : 0f);
+
+            if (lensBitmap != bitmap || lensShader == null) {
+                lensBitmap = bitmap;
+                lensShader = new android.graphics.BitmapShader(
+                        bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            }
+            lensMatrixValues[android.graphics.Matrix.MSCALE_X] = screenPerPixelX * zoom;
+            lensMatrixValues[android.graphics.Matrix.MSKEW_X] = 0f;
+            lensMatrixValues[android.graphics.Matrix.MTRANS_X] =
+                    -relativeX * zoom + outerRect.centerX() * (1f - zoom);
+            lensMatrixValues[android.graphics.Matrix.MSKEW_Y] = 0f;
+            lensMatrixValues[android.graphics.Matrix.MSCALE_Y] = screenPerPixelY * zoom;
+            lensMatrixValues[android.graphics.Matrix.MTRANS_Y] =
+                    -relativeY * zoom + outerRect.centerY() * (1f - zoom);
+            lensMatrixValues[android.graphics.Matrix.MPERSP_0] = 0f;
+            lensMatrixValues[android.graphics.Matrix.MPERSP_1] = 0f;
+            lensMatrixValues[android.graphics.Matrix.MPERSP_2] = 1f;
+            lensMatrix.setValues(lensMatrixValues);
+            lensShader.setLocalMatrix(lensMatrix);
+            lensPaint.setShader(lensShader);
+            lensPaint.setAlpha(pressed ? 238 : 218);
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+            lensPaint.setShader(null);
+
+            float centreX = relativeX + outerRect.centerX();
+            float centreY = relativeY + outerRect.centerY();
+            int pixelX = clamp(Math.round(centreX / liquidBackdropView.getWidth() * bitmap.getWidth()),
+                    0, bitmap.getWidth() - 1);
+            int pixelY = clamp(Math.round(centreY / liquidBackdropView.getHeight() * bitmap.getHeight()),
+                    0, bitmap.getHeight() - 1);
+            return (float) Color.luminance(bitmap.getPixel(pixelX, pixelY));
+        }
+
+        @Override
+        public boolean isStateful() {
+            return true;
+        }
+
+        @Override
+        protected boolean onStateChange(int[] state) {
+            boolean nextPressed = false;
+            for (int value : state) {
+                if (value == android.R.attr.state_pressed) {
+                    nextPressed = true;
+                    break;
+                }
+            }
+            if (pressed == nextPressed) {
+                return false;
+            }
+            pressed = nextPressed;
+            invalidateSelf();
+            return true;
         }
 
         @Override
