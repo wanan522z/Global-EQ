@@ -483,18 +483,18 @@ public final class MainActivity extends Activity {
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
     private static final int[] SHIMMER_LIQUID_COLORS = {
-            Color.rgb(22, 142, 198),
-            Color.rgb(50, 92, 218),
-            Color.rgb(255, 255, 255),
-            Color.rgb(120, 72, 218),
-            Color.rgb(22, 142, 198)
+            Color.rgb(0, 44, 176),
+            Color.rgb(18, 105, 191),
+            Color.rgb(35, 172, 170),
+            Color.rgb(53, 116, 200),
+            Color.rgb(0, 44, 176)
     };
     private static final int[] SHIMMER_LIQUID_EDIT_COLORS = {
-            Color.rgb(46, 126, 192),
-            Color.rgb(86, 92, 208),
-            Color.rgb(245, 252, 255),
-            Color.rgb(104, 84, 198),
-            Color.rgb(46, 126, 192)
+            Color.rgb(12, 67, 166),
+            Color.rgb(28, 126, 188),
+            Color.rgb(38, 165, 164),
+            Color.rgb(44, 100, 184),
+            Color.rgb(12, 67, 166)
     };
 
     private final List<Preset> undoStack = new ArrayList<>();
