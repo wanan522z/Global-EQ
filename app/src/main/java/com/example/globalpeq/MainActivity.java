@@ -9277,13 +9277,16 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable curveControlBackground() {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(11), 44);
+        }
         return verticalGradientStrokeGlowDrawable(
-                liquidGlassTheme ? Color.argb(182, 255, 255, 255) : Color.argb(232, 21, 34, 43),
-                liquidGlassTheme ? Color.argb(138, 220, 245, 242) : Color.argb(232, 12, 18, 28),
-                liquidGlassTheme ? Color.argb(185, 102, 212, 200) : Color.argb(150, 76, 220, 205),
-                dp(liquidGlassTheme ? 11 : 7),
-                dp(liquidGlassTheme ? 1 : 2),
-                liquidGlassTheme ? Color.argb(28, 0, 44, 176) : Color.argb(70, 0, 245, 212)
+                Color.argb(232, 21, 34, 43),
+                Color.argb(232, 12, 18, 28),
+                Color.argb(150, 76, 220, 205),
+                dp(7),
+                dp(2),
+                Color.argb(70, 0, 245, 212)
         );
     }
 
@@ -9304,6 +9307,9 @@ public final class MainActivity extends Activity {
         button.setFocusable(true);
         button.setClickable(true);
 
+        if (liquidGlassTheme) {
+            button.setBackground(new LiquidGlassDrawable(dp(28), isDanger ? 52 : 40));
+        } else {
         GradientDrawable background = new GradientDrawable();
         background.setShape(GradientDrawable.OVAL);
 
@@ -9315,6 +9321,7 @@ public final class MainActivity extends Activity {
             background.setStroke(Math.round(dpf(1f)), Color.argb(60, 255, 255, 255));
         }
         button.setBackground(background);
+        }
 
         button.setOnTouchListener((view, event) -> {
             switch (event.getAction()) {
