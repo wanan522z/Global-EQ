@@ -490,7 +490,7 @@ final class EqCurveView extends View {
             curvePaint.setDither(true);
             curvePaint.setColor(lerpColor(
                     Color.argb(18, 130, 140, 150),
-                    Color.rgb(0, 132, 204),
+                    Color.rgb(112, 212, 255),
                     enabledAmount));
             canvas.drawPath(curvePath, curvePaint);
         }
@@ -525,15 +525,15 @@ final class EqCurveView extends View {
                         ? new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
                                 new int[]{
-                                        Color.argb(0, 0, 226, 255),
-                                        Color.argb(0, 0, 226, 255),
-                                        Color.argb(92, 0, 226, 255),
-                                        Color.argb(215, 0, 232, 255),
-                                        Color.argb(255, 132, 245, 255),
-                                        Color.argb(215, 0, 232, 255),
-                                        Color.argb(92, 0, 226, 255),
-                                        Color.argb(0, 0, 226, 255),
-                                        Color.argb(0, 0, 226, 255)
+                                        Color.argb(0, 86, 221, 255),
+                                        Color.argb(0, 86, 221, 255),
+                                        Color.argb(92, 86, 221, 255),
+                                        Color.argb(215, 118, 232, 255),
+                                        Color.argb(255, 190, 248, 255),
+                                        Color.argb(215, 118, 232, 255),
+                                        Color.argb(92, 86, 221, 255),
+                                        Color.argb(0, 86, 221, 255),
+                                        Color.argb(0, 86, 221, 255)
                                 },
                                 new float[]{0f, 0.07f, 0.14f, 0.28f, 0.50f, 0.72f, 0.86f, 0.93f, 1f},
                                 Shader.TileMode.REPEAT)
