@@ -10848,11 +10848,7 @@ public final class MainActivity extends Activity {
                 paint.setColor(checked
                         ? Color.rgb(214, 235, 255)
                         : (liquidGlassTheme ? Color.argb(190, 48, 63, 86) : Color.argb(136, 226, 236, 248)));
-                if (checked) {
-                    paint.setShadowLayer(dpf(2.2f), 0, 0, Color.argb(110, 96, 220, 234));
-                } else {
-                    paint.setShadowLayer(dpf(1.4f), 0, 0, Color.argb(54, 150, 186, 214));
-                }
+                paint.clearShadowLayer();
                 Paint.FontMetrics metrics = paint.getFontMetrics();
                 float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
                 float leftTextX = rect.left + rect.width() * 0.32f;
@@ -12204,7 +12200,7 @@ public final class MainActivity extends Activity {
                 statusText.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             }
             statusText.setTextColor(Color.rgb(255, 100, 100));
-            statusText.setShadowLayer(dp(5), 0, 0, Color.argb(160, 255, 100, 100));
+            statusText.getPaint().clearShadowLayer();
         } else {
             registerShimmerView(statusText);
             applyShimmerFrame(statusText, settingsTitleGradientWidth(statusText), currentShimmerPhaseForView(statusText));
@@ -12507,7 +12503,7 @@ public final class MainActivity extends Activity {
                     Color.argb(85, 0, 245, 212)
             ));
             button.setTextColor(liquidGlassTheme ? Color.rgb(0, 110, 126) : Color.argb(255, 220, 255, 250));
-            button.setShadowLayer(dp(5), 0, 0, Color.argb(130, 0, 245, 212));
+            button.getPaint().clearShadowLayer();
         } else {
             gd.setColor(Color.argb(15, 0, 245, 212));
             gd.setStroke(dp(1), Color.argb(40, 0, 245, 212));
