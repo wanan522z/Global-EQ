@@ -1514,7 +1514,7 @@ public final class MainActivity extends Activity {
         settingsPanelDetailView = new TextView(this);
         bindText(settingsPanelDetailView, this::settingsModeDetailText);
         settingsPanelDetailView.setTextSize(12);
-        settingsPanelDetailView.setTextColor(Color.rgb(160, 170, 190));
+        settingsPanelDetailView.setTextColor(themeTextSecondary());
         panel.addView(settingsPanelDetailView, blockParams(2));
 
         LinearLayout statusRow = new LinearLayout(this);
@@ -1525,7 +1525,7 @@ public final class MainActivity extends Activity {
         settingsStatusLabelView = new TextView(this);
         bindText(settingsStatusLabelView, this::settingsStatusLabelText);
         settingsStatusLabelView.setTextSize(14);
-        settingsStatusLabelView.setTextColor(Color.rgb(200, 210, 230));
+        settingsStatusLabelView.setTextColor(themeTextPrimary());
         statusRow.addView(settingsStatusLabelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         engineStatusValueView = new GlowTitleTextView(this);
@@ -1546,7 +1546,7 @@ public final class MainActivity extends Activity {
         advancedModeSummaryView = new TextView(this);
         bindText(advancedModeSummaryView, this::advancedModeSummaryText);
         advancedModeSummaryView.setTextSize(12);
-        advancedModeSummaryView.setTextColor(Color.rgb(180, 190, 210));
+        advancedModeSummaryView.setTextColor(themeTextSecondary());
         panel.addView(advancedModeSummaryView, blockParams(4));
 
         globalDvcSwitch = new Switch(this);
@@ -1565,7 +1565,7 @@ public final class MainActivity extends Activity {
         globalDvcHintView = new TextView(this);
         bindText(globalDvcHintView, this::globalDvcHintText);
         globalDvcHintView.setTextSize(12);
-        globalDvcHintView.setTextColor(Color.rgb(160, 170, 190));
+        globalDvcHintView.setTextColor(themeTextSecondary());
         globalDvcHintView.setMaxLines(Integer.MAX_VALUE);
         globalDvcHintView.setLineSpacing(dp(2), 1f);
         globalDvcHintView.setTextIsSelectable(true);
@@ -1589,43 +1589,43 @@ public final class MainActivity extends Activity {
         shizukuRuntimeDetailView = new TextView(this);
         bindText(shizukuRuntimeDetailView, this::shizukuRuntimeDetailText);
         shizukuRuntimeDetailView.setTextSize(12);
-        shizukuRuntimeDetailView.setTextColor(Color.rgb(160, 170, 190));
+        shizukuRuntimeDetailView.setTextColor(themeTextSecondary());
         shizukuRuntimePanel.addView(shizukuRuntimeDetailView, blockParams(4));
 
         shizukuRuntimeModeView = new TextView(this);
         bindText(shizukuRuntimeModeView, this::shizukuRuntimeModeText);
         shizukuRuntimeModeView.setTextSize(13);
-        shizukuRuntimeModeView.setTextColor(Color.rgb(225, 235, 255));
+        shizukuRuntimeModeView.setTextColor(themeTextPrimary());
         shizukuRuntimePanel.addView(shizukuRuntimeModeView, blockParams(4));
 
         shizukuRuntimeRouteView = new TextView(this);
         bindText(shizukuRuntimeRouteView, this::shizukuRuntimeRouteText);
         shizukuRuntimeRouteView.setTextSize(12);
-        shizukuRuntimeRouteView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimeRouteView.setTextColor(themeTextSecondary());
         shizukuRuntimePanel.addView(shizukuRuntimeRouteView, blockParams(2));
 
         shizukuRuntimePlaybackView = new TextView(this);
         bindText(shizukuRuntimePlaybackView, this::shizukuRuntimePlaybackText);
         shizukuRuntimePlaybackView.setTextSize(12);
-        shizukuRuntimePlaybackView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimePlaybackView.setTextColor(themeTextSecondary());
         shizukuRuntimePanel.addView(shizukuRuntimePlaybackView, blockParams(2));
 
         shizukuRuntimeMuteView = new TextView(this);
         bindText(shizukuRuntimeMuteView, this::shizukuRuntimeMuteText);
         shizukuRuntimeMuteView.setTextSize(12);
-        shizukuRuntimeMuteView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimeMuteView.setTextColor(themeTextSecondary());
         shizukuRuntimePanel.addView(shizukuRuntimeMuteView, blockParams(2));
 
         shizukuRuntimeReplayView = new TextView(this);
         bindText(shizukuRuntimeReplayView, this::shizukuRuntimeReplayText);
         shizukuRuntimeReplayView.setTextSize(12);
-        shizukuRuntimeReplayView.setTextColor(Color.rgb(190, 205, 230));
+        shizukuRuntimeReplayView.setTextColor(themeTextSecondary());
         shizukuRuntimePanel.addView(shizukuRuntimeReplayView, blockParams(2));
 
         TextView shizukuReplayPromptView = new TextView(this);
         bindText(shizukuReplayPromptView, this::shizukuReplayPromptLabelText);
         shizukuReplayPromptView.setTextSize(12);
-        shizukuReplayPromptView.setTextColor(Color.rgb(180, 190, 210));
+        shizukuReplayPromptView.setTextColor(themeTextSecondary());
         shizukuRuntimePanel.addView(shizukuReplayPromptView, blockParams(12));
 
         LinearLayout importExportPanel = createSettingsSectionPanel(30, 16);
@@ -1636,7 +1636,7 @@ public final class MainActivity extends Activity {
         settingsImportPanelDetailView = new TextView(this);
         bindText(settingsImportPanelDetailView, this::settingsImportPanelDetailText);
         settingsImportPanelDetailView.setTextSize(12);
-        settingsImportPanelDetailView.setTextColor(Color.rgb(160, 170, 190));
+        settingsImportPanelDetailView.setTextColor(themeTextSecondary());
         importExportPanel.addView(settingsImportPanelDetailView, blockParams(2));
 
         languageButton = createExtraChoiceButton();
@@ -1715,13 +1715,13 @@ public final class MainActivity extends Activity {
         aboutTextView = new TextView(this);
         bindText(aboutTextView, this::aboutBodyText);
         aboutTextView.setTextSize(13);
-        aboutTextView.setTextColor(Color.rgb(180, 190, 210));
+        aboutTextView.setTextColor(themeTextSecondary());
         aboutPanel.addView(aboutTextView, blockParams(8));
 
         footerTextView = new TextView(this);
         bindText(footerTextView, this::footerText);
         footerTextView.setTextSize(11);
-        footerTextView.setTextColor(Color.rgb(100, 110, 130));
+        footerTextView.setTextColor(themeTextFaint());
         footerTextView.setGravity(android.view.Gravity.CENTER);
         
         LinearLayout.LayoutParams footerParams = new LinearLayout.LayoutParams(
@@ -1829,13 +1829,13 @@ public final class MainActivity extends Activity {
         monitorSettingsDetailView = new TextView(this);
         bindText(monitorSettingsDetailView, this::monitorSettingsDetailText);
         monitorSettingsDetailView.setTextSize(12);
-        monitorSettingsDetailView.setTextColor(Color.rgb(160, 170, 190));
+        monitorSettingsDetailView.setTextColor(themeTextSecondary());
         panel.addView(monitorSettingsDetailView, blockParams(2));
 
         monitorCaptureStatusView = new TextView(this);
         bindText(monitorCaptureStatusView, this::monitorCaptureStatusText);
         monitorCaptureStatusView.setTextSize(12);
-        monitorCaptureStatusView.setTextColor(Color.rgb(180, 190, 210));
+        monitorCaptureStatusView.setTextColor(themeTextSecondary());
         panel.addView(monitorCaptureStatusView, blockParams(4));
 
         shizukuAccessButton = createExtraChoiceButton();
@@ -1847,7 +1847,7 @@ public final class MainActivity extends Activity {
         shizukuAccessStatusView = new TextView(this);
         bindText(shizukuAccessStatusView, this::shizukuAccessStatusText);
         shizukuAccessStatusView.setTextSize(12);
-        shizukuAccessStatusView.setTextColor(Color.rgb(180, 190, 210));
+        shizukuAccessStatusView.setTextColor(themeTextSecondary());
         panel.addView(shizukuAccessStatusView, blockParams(4));
 
         advancedMonitorAppButton = createExtraChoiceButton();
@@ -1902,7 +1902,7 @@ public final class MainActivity extends Activity {
         limiterSettingsDetailView = new TextView(this);
         bindText(limiterSettingsDetailView, this::limiterSettingsDetailText);
         limiterSettingsDetailView.setTextSize(12);
-        limiterSettingsDetailView.setTextColor(Color.rgb(160, 170, 190));
+        limiterSettingsDetailView.setTextColor(themeTextSecondary());
         panel.addView(limiterSettingsDetailView, blockParams(2));
 
         limiterEnabledSwitch = new Switch(this);
@@ -1980,7 +1980,7 @@ public final class MainActivity extends Activity {
             label.setText(labelText);
         }
         label.setTextSize(14);
-        label.setTextColor(Color.rgb(200, 210, 230));
+        label.setTextColor(themeTextPrimary());
         if (languageLabelView == null && labelText.equals(settingsLanguageLabelText())) {
             languageLabelView = label;
         } else if (shizukuAccessLabelView == null && labelText.equals(shizukuAccessLabelText())) {
@@ -2000,7 +2000,7 @@ public final class MainActivity extends Activity {
         TextView label = new TextView(this);
         bindText(label, labelProvider);
         label.setTextSize(14);
-        label.setTextColor(Color.rgb(200, 210, 230));
+        label.setTextColor(themeTextPrimary());
         if (binder != null) {
             binder.onBound(label);
         }
@@ -2022,7 +2022,7 @@ public final class MainActivity extends Activity {
             label.setText(labelText);
         }
         label.setTextSize(14);
-        label.setTextColor(Color.rgb(200, 210, 230));
+        label.setTextColor(themeTextPrimary());
         if (latencyLabelView == null && labelText.equals(latencyLabelText())) {
             latencyLabelView = label;
         } else if (bufferLabelView == null && labelText.equals(bufferLabelText())) {
@@ -2047,8 +2047,8 @@ public final class MainActivity extends Activity {
         input.setGravity(android.view.Gravity.CENTER);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
         input.setBackground(createFieldBackground(12, 35, 8));
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setOnEditorActionListener((view, actionId, event) -> {
             boolean enterUp = event != null
                     && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
@@ -2077,7 +2077,7 @@ public final class MainActivity extends Activity {
         TextView label = new TextView(this);
         bindText(label, labelProvider);
         label.setTextSize(14);
-        label.setTextColor(Color.rgb(200, 210, 230));
+        label.setTextColor(themeTextPrimary());
         if (binder != null) {
             binder.onBound(label);
         }
@@ -2092,8 +2092,8 @@ public final class MainActivity extends Activity {
         input.setGravity(android.view.Gravity.CENTER);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
         input.setBackground(createFieldBackground(12, 35, 8));
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.argb(100, 255, 255, 255));
+        input.setTextColor(themeTextPrimary());
+        input.setHintTextColor(themeHintColor());
         input.setOnEditorActionListener((view, actionId, event) -> {
             boolean enterUp = event != null
                     && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
