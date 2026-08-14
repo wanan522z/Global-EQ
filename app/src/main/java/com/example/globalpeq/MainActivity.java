@@ -12496,10 +12496,15 @@ public final class MainActivity extends Activity {
             if (icon != null) {
                 icon.mutate();
                 if (isEnabled) {
-                    icon.setColorFilter(null);
-                } else {
                     icon.setColorFilter(new android.graphics.PorterDuffColorFilter(
-                            Color.argb(95, 255, 255, 255),
+                            themeTextPrimary(), android.graphics.PorterDuff.Mode.SRC_IN));
+                } else {
+                    int disabledIconColor = themeTextPrimary();
+                    icon.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                            Color.argb(95,
+                                    Color.red(disabledIconColor),
+                                    Color.green(disabledIconColor),
+                                    Color.blue(disabledIconColor)),
                             android.graphics.PorterDuff.Mode.SRC_IN));
                 }
             }
