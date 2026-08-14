@@ -1958,6 +1958,13 @@ public final class MainActivity extends Activity {
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.7f))
                     .start();
         }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            animate().cancel();
+            setTranslationY(0f);
+            super.onDetachedFromWindow();
+        }
     }
 
     private void buildSettingsPage(LinearLayout page) {
@@ -11298,8 +11305,13 @@ public final class MainActivity extends Activity {
                         : clamp(topAlpha - 5, 56, 106);
             }
             if (pressed) {
-                topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
-                bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
+                if (darkSurface) {
+                    topAlpha = Math.min(224, topAlpha + 8);
+                    bottomAlpha = Math.min(210, bottomAlpha + 8);
+                } else {
+                    topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
+                    bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
+                }
             }
             ensureSurfaceShaders(topAlpha, bottomAlpha);
             paint.setStyle(Paint.Style.FILL);
