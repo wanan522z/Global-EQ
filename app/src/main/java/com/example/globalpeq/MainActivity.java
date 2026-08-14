@@ -9354,6 +9354,9 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable stateIndicatorDrawable(boolean active) {
+        if (liquidGlassTheme) {
+            return liquidStateIndicatorDrawable(active);
+        }
         return new Drawable() {
             private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -9448,6 +9451,9 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable deleteSymbolDrawable(boolean enabled) {
+        if (liquidGlassTheme) {
+            return liquidDeleteSymbolDrawable(enabled);
+        }
         return new Drawable() {
             private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Paint crossPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -9514,6 +9520,64 @@ public final class MainActivity extends Activity {
             public int getOpacity() {
                 return PixelFormat.TRANSLUCENT;
             }
+        };
+    }
+
+    private Drawable liquidStateIndicatorDrawable(boolean active) {
+        return new Drawable() {
+            private final LiquidGlassDrawable glass = new LiquidGlassDrawable(dp(18), active ? 52 : 38);
+            private final Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            public void draw(Canvas canvas) {
+                Rect bounds = getBounds();
+                glass.setBounds(bounds);
+                glass.draw(canvas);
+                float radius = Math.min(bounds.width(), bounds.height()) * (active ? 0.18f : 0.12f);
+                dot.setColor(active ? Color.rgb(0, 86, 178) : Color.argb(115, 54, 82, 105));
+                dot.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(bounds.exactCenterX(), bounds.exactCenterY(), radius, dot);
+            }
+
+            @Override public void setAlpha(int alpha) { glass.setAlpha(alpha); dot.setAlpha(alpha); }
+            @Override public void setColorFilter(ColorFilter colorFilter) {
+                glass.setColorFilter(colorFilter);
+                dot.setColorFilter(colorFilter);
+            }
+            @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+        };
+    }
+
+    private Drawable liquidDeleteSymbolDrawable(boolean enabled) {
+        return new Drawable() {
+            private final LiquidGlassDrawable glass = new LiquidGlassDrawable(dp(18), enabled ? 48 : 30);
+            private final Paint cross = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            public void draw(Canvas canvas) {
+                Rect bounds = getBounds();
+                glass.setBounds(bounds);
+                if (!enabled) {
+                    glass.setAlpha(150);
+                }
+                glass.draw(canvas);
+                float arm = Math.min(bounds.width(), bounds.height()) * 0.16f;
+                float cx = bounds.exactCenterX();
+                float cy = bounds.exactCenterY();
+                cross.setStyle(Paint.Style.STROKE);
+                cross.setStrokeCap(Paint.Cap.ROUND);
+                cross.setStrokeWidth(dpf(1.35f));
+                cross.setColor(enabled ? Color.rgb(190, 72, 82) : Color.argb(100, 120, 88, 96));
+                canvas.drawLine(cx - arm, cy - arm, cx + arm, cy + arm, cross);
+                canvas.drawLine(cx - arm, cy + arm, cx + arm, cy - arm, cross);
+            }
+
+            @Override public void setAlpha(int alpha) { glass.setAlpha(alpha); cross.setAlpha(alpha); }
+            @Override public void setColorFilter(ColorFilter colorFilter) {
+                glass.setColorFilter(colorFilter);
+                cross.setColorFilter(colorFilter);
+            }
+            @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
         };
     }
 
@@ -11150,6 +11214,9 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable numberCellBackground(String watermark, boolean active) {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(10), active ? 52 : 36);
+        }
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Path clipPath = new Path();
@@ -11201,6 +11268,9 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable typeCellBackground(FilterType filterType, boolean active) {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(10), active ? 52 : 38);
+        }
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Path path = new Path();
