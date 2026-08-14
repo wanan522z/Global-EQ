@@ -518,8 +518,8 @@ final class EqCurveView extends View {
             float sweepPatternWidth = liquidGlassTheme ? totalWidth / 3f : totalWidth;
             if (sweepGradient == null || Math.abs(sweepGradientWidth - sweepPatternWidth) > 0.5f) {
                 sweepGradientWidth = sweepPatternWidth;
-                // 暗部范围扩大到约 60%，流光集中在 0.4~0.8 的窄带内，
-                // 让没流光覆盖的曲线区域更暗，增强流光经过时的对比度。
+                // Liquid uses a densely repeating cyan-blue pulse; classic retains its
+                // original full-width multicolor sweep.
                 sweepGradient = liquidGlassTheme
                         ? new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
