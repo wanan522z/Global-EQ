@@ -1556,12 +1556,12 @@ public final class MainActivity extends Activity {
             fadeMaskPaint.setShader(new LinearGradient(
                     0f, 0f, 0f, height,
                     new int[]{
-                            Color.argb(252, 0, 0, 0),
-                            Color.argb(238, 0, 0, 0),
-                            Color.argb(178, 0, 0, 0),
+                            Color.argb(255, 0, 0, 0),
+                            Color.argb(253, 0, 0, 0),
+                            Color.argb(232, 0, 0, 0),
                             Color.TRANSPARENT
                     },
-                    new float[]{0f, 0.42f, 0.76f, 1f},
+                    new float[]{0f, 0.55f, 0.88f, 1f},
                     Shader.TileMode.CLAMP));
         }
 
