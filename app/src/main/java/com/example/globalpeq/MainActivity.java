@@ -2034,7 +2034,11 @@ public final class MainActivity extends Activity {
         ImageView sunIcon = createAppearanceIcon(
                 liquidGlassTheme ? R.drawable.appearance_sun_on : R.drawable.appearance_sun_off,
                 tr("Liquid glass appearance", "液态玻璃外观"));
-        sunIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(false));
+        sunIcon.setOnClickListener(v -> {
+            if (!appearanceTransitionRunning) {
+                liquidGlassSwitch.setChecked(false);
+            }
+        });
         LinearLayout.LayoutParams sunParams = new LinearLayout.LayoutParams(dp(20), dp(20));
         sunParams.leftMargin = dp(8);
         sunParams.rightMargin = dp(5);
@@ -2046,7 +2050,11 @@ public final class MainActivity extends Activity {
         ImageView moonIcon = createAppearanceIcon(
                 liquidGlassTheme ? R.drawable.appearance_moon_off : R.drawable.appearance_moon_on,
                 tr("Classic appearance", "经典外观"));
-        moonIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(true));
+        moonIcon.setOnClickListener(v -> {
+            if (!appearanceTransitionRunning) {
+                liquidGlassSwitch.setChecked(true);
+            }
+        });
         LinearLayout.LayoutParams moonParams = new LinearLayout.LayoutParams(dp(20), dp(20));
         moonParams.leftMargin = dp(5);
         appearanceRow.addView(moonIcon, moonParams);
@@ -2129,19 +2137,27 @@ public final class MainActivity extends Activity {
                     View newScene = rebuiltContent == null || rebuiltContent.getChildCount() == 0
                             ? null
                             : rebuiltContent.getChildAt(rebuiltContent.getChildCount() - 1);
-                    if (newScene == null) {
-                        appearanceTransitionRunning = false;
-                        return;
-                    }
-                    newScene.setAlpha(0f);
-                    newScene.animate().cancel();
-                    newScene.animate()
+                if (newScene == null) {
+                    appearanceTransitionRunning = false;
+                    return;
+                }
+                if (liquidGlassSwitch != null) {
+                    liquidGlassSwitch.setEnabled(false);
+                }
+                newScene.setAlpha(0f);
+                newScene.animate().cancel();
+                newScene.animate()
                             .alpha(1f)
-                            .setDuration(APPEARANCE_FADE_IN_MS)
-                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                            .withLayer()
-                            .withEndAction(() -> appearanceTransitionRunning = false)
-                            .start();
+                        .setDuration(APPEARANCE_FADE_IN_MS)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .withLayer()
+                        .withEndAction(() -> {
+                            appearanceTransitionRunning = false;
+                            if (liquidGlassSwitch != null) {
+                                liquidGlassSwitch.setEnabled(true);
+                            }
+                        })
+                        .start();
                 })
                 .start();
     }
