@@ -1394,7 +1394,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams curveParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
-                1.1f
+                1.0f
         );
         curveParams.topMargin = dp(12);
         eqPage.addView(curveFrame, curveParams);
@@ -1413,7 +1413,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams listCardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
-                2f
+                2.18f
         );
         listCardParams.topMargin = dp(10);
         eqPage.addView(listCardHolder, listCardParams);
@@ -1441,7 +1441,8 @@ public final class MainActivity extends Activity {
         scrollView.addView(rows);
         listCard.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
+                0,
+                1f
         ));
 
         LinearLayout.LayoutParams bottomNavParams = new LinearLayout.LayoutParams(
@@ -1473,17 +1474,18 @@ public final class MainActivity extends Activity {
         private final float[] flowVy = {0.067f, -0.082f, -0.061f, 0.074f, 0.088f, -0.076f};
         private final float[] flowRadius = {0.44f, 0.40f, 0.52f, 0.58f, 0.54f, 0.46f};
         private final int[] flowColor = {
-                Color.argb(148, 0, 44, 176),
-                Color.argb(126, 31, 92, 194),
-                Color.argb(156, 92, 176, 226),
-                Color.argb(180, 102, 212, 200),
-                Color.argb(142, 181, 233, 230),
-                Color.argb(88, 255, 255, 255)
+                Color.argb(166, 0, 35, 142),
+                Color.argb(148, 24, 76, 164),
+                Color.argb(162, 70, 151, 199),
+                Color.argb(174, 76, 184, 174),
+                Color.argb(132, 145, 207, 205),
+                Color.argb(54, 225, 239, 238)
         };
         private android.graphics.Bitmap frameBitmap;
         private Canvas frameCanvas;
         private boolean flowRunning;
         private long lastFlowFrameMs;
+        private int flowFrameIndex;
         private double flowSeconds;
         private final double flowSeed = (android.os.SystemClock.uptimeMillis() % 1000003L) * 0.000031d;
         private final Runnable flowTicker = new Runnable() {
@@ -1499,9 +1501,10 @@ public final class MainActivity extends Activity {
                 lastFlowFrameMs = now;
                 flowSeconds += deltaSeconds;
                 advanceFlowField(deltaSeconds);
+                flowFrameIndex++;
                 invalidate();
                 invalidateLiquidGlassDrawables();
-                postDelayed(this, 33L);
+                postDelayed(this, 50L);
             }
         };
 
@@ -1513,22 +1516,27 @@ public final class MainActivity extends Activity {
                     continue;
                 }
                 Drawable.Callback callback = drawable.getCallback();
-                if (!(callback instanceof View) || ((View) callback).isShown()) {
-                    drawable.invalidateSelf();
+                if (callback instanceof View) {
+                    View host = (View) callback;
+                    if (!host.isShown() || !host.getLocalVisibleRect(backdropLocationScratch)) {
+                        continue;
+                    }
+                    if (!drawable.outerLayer && (flowFrameIndex & 1) != 0) {
+                        continue;
+                    }
                 }
+                drawable.invalidateSelf();
             }
         }
+
+        private final Rect backdropLocationScratch = new Rect();
 
         LiquidBackdropView(Context context, boolean liquid) {
             super(context);
             this.liquid = liquid;
             setWillNotDraw(false);
-            if (liquid) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
-                            dpf(10f), dpf(10f), Shader.TileMode.CLAMP));
-                }
-            }
+            // The half-resolution filtered bitmap already supplies a slight softness.
+            // Avoiding a full-screen RenderEffect keeps scrolling responsive.
         }
 
         @Override
@@ -1633,10 +1641,10 @@ public final class MainActivity extends Activity {
             paint.setShader(new LinearGradient(
                     -baseDrift, 0f, w + baseDrift, h,
                     new int[]{
-                            Color.rgb(224, 239, 245),
-                            Color.rgb(169, 224, 221),
-                            Color.rgb(188, 224, 243),
-                            Color.rgb(211, 241, 237)
+                            Color.rgb(184, 207, 216),
+                            Color.rgb(128, 188, 188),
+                            Color.rgb(145, 187, 211),
+                            Color.rgb(166, 207, 201)
                     },
                     new float[]{0f, 0.36f, 0.72f, 1f},
                     Shader.TileMode.CLAMP));
@@ -10774,14 +10782,20 @@ public final class MainActivity extends Activity {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private final Paint lensPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final android.graphics.RectF outerRect = new android.graphics.RectF();
-        private final android.graphics.RectF innerRect = new android.graphics.RectF();
-        private final Path opticalRimPath = new Path();
         private final android.graphics.Matrix lensMatrix = new android.graphics.Matrix();
         private final float[] lensMatrixValues = new float[9];
         private final int[] glassLocation = new int[2];
         private final int[] backdropLocation = new int[2];
         private android.graphics.Bitmap lensBitmap;
         private android.graphics.BitmapShader lensShader;
+        private Shader glassFillShader;
+        private Shader surfaceSheenShader;
+        private int shaderLeft = Integer.MIN_VALUE;
+        private int shaderTop = Integer.MIN_VALUE;
+        private int shaderRight = Integer.MIN_VALUE;
+        private int shaderBottom = Integer.MIN_VALUE;
+        private int shaderTopAlpha = -1;
+        private int shaderBottomAlpha = -1;
         private final float radius;
         private final int density;
         private final boolean outerLayer;
@@ -10831,8 +10845,38 @@ public final class MainActivity extends Activity {
                 topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
                 bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
             }
+            topAlpha = ((topAlpha + 2) / 4) * 4;
+            bottomAlpha = ((bottomAlpha + 2) / 4) * 4;
+            ensureSurfaceShaders(topAlpha, bottomAlpha);
             paint.setStyle(Paint.Style.FILL);
-            paint.setShader(new LinearGradient(
+            paint.setShader(glassFillShader);
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
+
+            // Full-surface luminosity transition, with no perimeter stroke or rim band.
+            paint.setShader(surfaceSheenShader);
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.FILL);
+        }
+
+        private void ensureSurfaceShaders(int topAlpha, int bottomAlpha) {
+            int left = Math.round(outerRect.left);
+            int top = Math.round(outerRect.top);
+            int right = Math.round(outerRect.right);
+            int bottom = Math.round(outerRect.bottom);
+            if (glassFillShader != null && surfaceSheenShader != null
+                    && shaderLeft == left && shaderTop == top
+                    && shaderRight == right && shaderBottom == bottom
+                    && shaderTopAlpha == topAlpha && shaderBottomAlpha == bottomAlpha) {
+                return;
+            }
+            shaderLeft = left;
+            shaderTop = top;
+            shaderRight = right;
+            shaderBottom = bottom;
+            shaderTopAlpha = topAlpha;
+            shaderBottomAlpha = bottomAlpha;
+            glassFillShader = new LinearGradient(
                     outerRect.left, outerRect.top, outerRect.right, outerRect.bottom,
                     new int[]{
                             Color.argb(topAlpha, 255, 255, 255),
@@ -10840,51 +10884,19 @@ public final class MainActivity extends Activity {
                             Color.argb(bottomAlpha, 224, 237, 245)
                     },
                     new float[]{0f, 0.55f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
-
-            // A broad, static surface sheen gives the glass volume without tracing its
-            // perimeter or introducing another animated highlight.
-            float sheenRadius = Math.max(outerRect.width(), outerRect.height()) * 0.88f;
-            paint.setShader(new RadialGradient(
+                    Shader.TileMode.CLAMP);
+            float sheenRadius = Math.max(outerRect.width(), outerRect.height()) * 0.92f;
+            surfaceSheenShader = new RadialGradient(
                     outerRect.left + outerRect.width() * 0.18f,
                     outerRect.top + outerRect.height() * 0.04f,
                     Math.max(dpf(1f), sheenRadius),
                     new int[]{
-                            Color.argb(outerLayer ? 29 : 44, 255, 255, 255),
-                            Color.argb(outerLayer ? 11 : 18, 248, 253, 255),
+                            Color.argb(outerLayer ? 22 : 32, 255, 255, 255),
+                            Color.argb(outerLayer ? 8 : 13, 248, 253, 255),
                             Color.TRANSPARENT
                     },
-                    new float[]{0f, 0.42f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
-
-            // The boundary is one continuous optical band: resample the actual moving
-            // background at a slightly different magnification, then modulate it softly.
-            // There are deliberately no Paint.Style.STROKE layers here.
-            innerRect.set(outerRect);
-            float innerInset = dpf(outerLayer ? 1.3f : 1.55f);
-            innerRect.inset(innerInset, innerInset);
-            float innerRadius = Math.max(0f, outerRadius - innerInset);
-            opticalRimPath.reset();
-            opticalRimPath.setFillType(Path.FillType.EVEN_ODD);
-            opticalRimPath.addRoundRect(outerRect, outerRadius, outerRadius, Path.Direction.CW);
-            opticalRimPath.addRoundRect(innerRect, innerRadius, innerRadius, Path.Direction.CW);
-            drawBackdropRimRefraction(canvas, outerLayer ? 1.026f : 1.034f);
-
-            paint.setStyle(Paint.Style.FILL);
-            paint.setShader(new LinearGradient(
-                    outerRect.left, outerRect.top, outerRect.left, outerRect.bottom,
-                    new int[]{
-                            Color.argb(outerLayer ? 48 : 62, 255, 255, 255),
-                            Color.argb(outerLayer ? 9 : 14, 248, 253, 255),
-                            Color.argb(outerLayer ? 16 : 23, 43, 60, 78)
-                    },
-                    new float[]{0f, 0.58f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawPath(opticalRimPath, paint);
-            paint.setShader(null);
-            paint.setStyle(Paint.Style.FILL);
+                    new float[]{0f, 0.46f, 1f},
+                    Shader.TileMode.CLAMP);
         }
 
         private float drawBackdropLens(Canvas canvas, float outerRadius) {
@@ -10929,27 +10941,6 @@ public final class MainActivity extends Activity {
             int pixelY = clamp(Math.round(centreY / liquidBackdropView.getHeight() * bitmap.getHeight()),
                     0, bitmap.getHeight() - 1);
             return (float) Color.luminance(bitmap.getPixel(pixelX, pixelY));
-        }
-
-        private void drawBackdropRimRefraction(Canvas canvas, float extraZoom) {
-            if (lensShader == null || liquidBackdropView == null
-                    || !(getCallback() instanceof View) || lensBitmap == null) {
-                return;
-            }
-            float screenPerPixelX = liquidBackdropView.getWidth() / (float) lensBitmap.getWidth();
-            float screenPerPixelY = liquidBackdropView.getHeight() / (float) lensBitmap.getHeight();
-            float relativeX = glassLocation[0] - backdropLocation[0];
-            float relativeY = glassLocation[1] - backdropLocation[1];
-            float rimZoom = (outerLayer ? 1.016f : 1.024f)
-                    + density * (outerLayer ? 0.00018f : 0.00028f)
-                    + extraZoom - 1f
-                    + (pressed ? 0.018f : 0f);
-            configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, rimZoom);
-            lensPaint.setShader(lensShader);
-            lensPaint.setStyle(Paint.Style.FILL);
-            lensPaint.setAlpha(Math.round((outerLayer ? 138f : 162f) * drawableAlpha / 255f));
-            canvas.drawPath(opticalRimPath, lensPaint);
-            lensPaint.setShader(null);
         }
 
         private void configureLensShader(float screenPerPixelX, float screenPerPixelY,

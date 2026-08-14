@@ -126,7 +126,7 @@ final class EqCurveView extends View {
         glowPaint0.setStrokeJoin(Paint.Join.ROUND);
         glowPaint0.setStrokeWidth(28f);
         glowPaint0.setColor(liquidGlassTheme
-                ? Color.argb(14, 76, 196, 211)
+                ? Color.argb(18, 65, 218, 226)
                 : Color.argb(9, 170, 210, 255));
         glowPaint0.setAntiAlias(true);
         glowPaint0.setFilterBitmap(true);
@@ -137,7 +137,7 @@ final class EqCurveView extends View {
         glowPaint0b.setStrokeJoin(Paint.Join.ROUND);
         glowPaint0b.setStrokeWidth(24f);
         glowPaint0b.setColor(liquidGlassTheme
-                ? Color.argb(17, 84, 202, 216)
+                ? Color.argb(22, 83, 228, 233)
                 : Color.argb(11, 150, 212, 255));
         glowPaint0b.setAntiAlias(true);
         glowPaint0b.setFilterBitmap(true);
@@ -149,7 +149,7 @@ final class EqCurveView extends View {
         glowPaint1.setStrokeJoin(Paint.Join.ROUND);
         glowPaint1.setStrokeWidth(20f);
         glowPaint1.setColor(liquidGlassTheme
-                ? Color.argb(21, 80, 207, 216)
+                ? Color.argb(27, 91, 233, 235)
                 : Color.argb(13, 130, 215, 255));
         glowPaint1.setAntiAlias(true);
         glowPaint1.setFilterBitmap(true);
@@ -160,7 +160,7 @@ final class EqCurveView extends View {
         glowPaint1b.setStrokeJoin(Paint.Join.ROUND);
         glowPaint1b.setStrokeWidth(16.5f);
         glowPaint1b.setColor(liquidGlassTheme
-                ? Color.argb(24, 100, 210, 220)
+                ? Color.argb(31, 112, 238, 239)
                 : Color.argb(15, 142, 218, 255));
         glowPaint1b.setAntiAlias(true);
         glowPaint1b.setFilterBitmap(true);
@@ -172,7 +172,7 @@ final class EqCurveView extends View {
         glowPaint2.setStrokeJoin(Paint.Join.ROUND);
         glowPaint2.setStrokeWidth(13f);
         glowPaint2.setColor(liquidGlassTheme
-                ? Color.argb(28, 116, 212, 220)
+                ? Color.argb(35, 127, 241, 241)
                 : Color.argb(17, 150, 220, 255));
         glowPaint2.setAntiAlias(true);
         glowPaint2.setFilterBitmap(true);
@@ -183,7 +183,7 @@ final class EqCurveView extends View {
         glowPaint2b.setStrokeJoin(Paint.Join.ROUND);
         glowPaint2b.setStrokeWidth(10.5f);
         glowPaint2b.setColor(liquidGlassTheme
-                ? Color.argb(30, 126, 207, 218)
+                ? Color.argb(39, 143, 242, 242)
                 : Color.argb(18, 168, 224, 255));
         glowPaint2b.setAntiAlias(true);
         glowPaint2b.setFilterBitmap(true);
@@ -195,7 +195,7 @@ final class EqCurveView extends View {
         glowPaint3.setStrokeJoin(Paint.Join.ROUND);
         glowPaint3.setStrokeWidth(8.5f);
         glowPaint3.setColor(liquidGlassTheme
-                ? Color.argb(34, 139, 205, 220)
+                ? Color.argb(44, 158, 244, 243)
                 : Color.argb(20, 190, 230, 255));
         glowPaint3.setAntiAlias(true);
         glowPaint3.setFilterBitmap(true);
@@ -414,7 +414,7 @@ final class EqCurveView extends View {
         float enabledAmount = clamp01(visualLevel);
         if (!targetCurve.isDefault()) {
             referencePaint.setColor(liquidGlassTheme
-                    ? Color.argb(205, 180, 126, 207)
+                    ? Color.argb(220, 202, 158, 228)
                     : Color.argb(180, 190, 128, 255));
             referencePaint.setPathEffect(dashPathEffect);
             canvas.drawPath(refCurvePath, referencePaint);
@@ -444,15 +444,15 @@ final class EqCurveView extends View {
                         ? new LinearGradient(
                                 0, 0, right - left, 0,
                                 new int[]{
-                                        Color.argb(0, 72, 190, 204),
-                                        Color.argb(0, 72, 190, 204),
-                                        Color.argb(155, 82, 207, 211),
-                                        Color.argb(255, 149, 229, 230),
-                                        Color.argb(248, 202, 244, 242),
-                                        Color.argb(225, 112, 216, 222),
-                                        Color.argb(138, 151, 207, 224),
-                                        Color.argb(0, 72, 190, 204),
-                                        Color.argb(0, 72, 190, 204)
+                                        Color.argb(0, 45, 220, 230),
+                                        Color.argb(0, 45, 220, 230),
+                                        Color.argb(178, 69, 231, 231),
+                                        Color.argb(255, 154, 250, 246),
+                                        Color.argb(255, 239, 255, 253),
+                                        Color.argb(244, 112, 241, 238),
+                                        Color.argb(164, 139, 224, 246),
+                                        Color.argb(0, 45, 220, 230),
+                                        Color.argb(0, 45, 220, 230)
                                 },
                                 new float[]{0.0f, 0.38f, 0.44f, 0.49f, 0.55f, 0.63f, 0.73f, 0.81f, 1.0f},
                                 Shader.TileMode.REPEAT)
@@ -492,7 +492,7 @@ final class EqCurveView extends View {
         curvePaint.setColor(lerpColor(
                 Color.argb(18, 130, 140, 150),
                 liquidGlassTheme
-                        ? Color.argb(188, 70, 187, 202)
+                        ? Color.argb(205, 53, 218, 227)
                         : Color.argb(35, 0, 255, 255),
                 enabledAmount));
         canvas.drawPath(curvePath, curvePaint);
@@ -500,7 +500,7 @@ final class EqCurveView extends View {
         edgePaint.setColor(lerpColor(
                 Color.argb(58, 150, 160, 172),
                 liquidGlassTheme
-                        ? Color.argb(224, 137, 218, 224)
+                        ? Color.argb(238, 166, 249, 247)
                         : Color.argb(105, 130, 245, 255),
                 enabledAmount));
         canvas.drawPath(curvePath, edgePaint);
@@ -509,7 +509,7 @@ final class EqCurveView extends View {
         curvePaint.setColor(lerpColor(
                 Color.rgb(130, 140, 150),
                 liquidGlassTheme
-                        ? Color.rgb(65, 184, 198)
+                        ? Color.rgb(42, 226, 234)
                         : Color.rgb(0, 255, 255),
                 enabledAmount));
         canvas.drawPath(curvePath, curvePaint);
@@ -571,12 +571,12 @@ final class EqCurveView extends View {
         curvePaint.setStrokeWidth(5f);
         curvePaint.setDither(true);
         curvePaint.setColor(liquidGlassTheme
-                ? Color.argb(188, 70, 187, 202)
+                ? Color.argb(205, 53, 218, 227)
                 : Color.argb(35, 0, 255, 255));
         glowCacheCanvas.drawPath(curvePath, curvePaint);
 
         edgePaint.setColor(liquidGlassTheme
-                ? Color.argb(224, 137, 218, 224)
+                ? Color.argb(238, 166, 249, 247)
                 : Color.argb(105, 130, 245, 255));
         glowCacheCanvas.drawPath(curvePath, edgePaint);
 
