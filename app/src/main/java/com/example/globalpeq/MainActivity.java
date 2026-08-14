@@ -1665,10 +1665,11 @@ public final class MainActivity extends Activity {
         }
 
         private void ensureFrameBitmap(int width, int height) {
-            // A 3/8-resolution field is naturally softened by filtered enlargement and
-            // nearly halves the pixel work of the old half-resolution frame buffer.
-            int bitmapWidth = Math.max(1, Math.round(width * 0.375f));
-            int bitmapHeight = Math.max(1, Math.round(height * 0.375f));
+            // A 30%-resolution field is naturally softened by filtered enlargement.
+            // At 60 FPS its pixel throughput stays close to the former 20 FPS half-size
+            // buffer, so smoother glass motion does not triple the CPU raster workload.
+            int bitmapWidth = Math.max(1, Math.round(width * 0.30f));
+            int bitmapHeight = Math.max(1, Math.round(height * 0.30f));
             if (frameBitmap != null
                     && frameBitmap.getWidth() == bitmapWidth
                     && frameBitmap.getHeight() == bitmapHeight) {
