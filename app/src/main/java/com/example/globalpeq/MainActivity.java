@@ -1686,6 +1686,7 @@ public final class MainActivity extends Activity {
         engineStatusValueView.setTextSize(14);
         engineStatusValueView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         engineStatusValueView.setPadding(dp(10), dp(4), dp(10), dp(4));
+        engineStatusValueView.setBackground(createFieldBackground(16, 40, 8));
         engineStatusValueView.setOnClickListener(this::showProcessingModeChoiceMenu);
         statusRow.addView(engineStatusValueView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         processingModeButton = engineStatusValueView;
@@ -4130,9 +4131,7 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(dp(8), dp(6), dp(8), dp(6));
-        row.setBackground(active
-                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
-                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
+        row.setBackground(selectableRowBackground(active, 10));
 
         ImageView icon = new ImageView(this);
         icon.setImageDrawable(iconDrawable);
@@ -6749,9 +6748,7 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(dp(8), dp(5), dp(8), dp(5));
-        row.setBackground(active
-                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
-                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
+        row.setBackground(selectableRowBackground(active, 10));
 
         TextView title = new TextView(this);
         title.setText(name);
@@ -7343,9 +7340,7 @@ public final class MainActivity extends Activity {
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(dp(8), dp(6), dp(8), dp(6));
 
-        row.setBackground(active
-                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
-                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
+        row.setBackground(selectableRowBackground(active, 10));
 
         TextView title = new TextView(this);
         title.setText(name);
@@ -7387,9 +7382,7 @@ public final class MainActivity extends Activity {
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(dp(8), dp(6), dp(8), dp(6));
 
-        row.setBackground(active
-                ? strokeGlowRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(170, 0, 245, 212), dp(10), dp(3), Color.argb(95, 0, 245, 212))
-                : plainRoundRectDrawable(Color.argb(24, 255, 255, 255), Color.argb(38, 255, 255, 255), dp(10)));
+        row.setBackground(selectableRowBackground(active, 10));
 
         TextView title = new TextView(this);
         title.setText(name);
@@ -12410,6 +12403,23 @@ public final class MainActivity extends Activity {
         background.setStroke(dp(1), strokeColor);
         background.setCornerRadius(radiusPx);
         return background;
+    }
+
+    private Drawable selectableRowBackground(boolean active, int radiusDp) {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(radiusDp + 4), active ? 56 : 36);
+        }
+        return active
+                ? strokeGlowRoundRectDrawable(
+                        Color.argb(24, 255, 255, 255),
+                        Color.argb(170, 0, 245, 212),
+                        dp(radiusDp),
+                        dp(3),
+                        Color.argb(95, 0, 245, 212))
+                : plainRoundRectDrawable(
+                        Color.argb(24, 255, 255, 255),
+                        Color.argb(38, 255, 255, 255),
+                        dp(radiusDp));
     }
 
     /**
