@@ -252,6 +252,7 @@ public final class MainActivity extends Activity {
     private ImageView monitoredAppIconView;
     private View bottomNavView;
     private LiquidBackdropView liquidBackdropView;
+    private TopStatusMistView topStatusMistView;
     private Spinner deviceSpinner;
     private Spinner savedPresetSpinner;
     private TextView modeSpinner;
@@ -1035,6 +1036,7 @@ public final class MainActivity extends Activity {
         FrameLayout sceneRoot = new FrameLayout(this);
         sceneRoot.setClipChildren(false);
         sceneRoot.setClipToPadding(false);
+        topStatusMistView = null;
         liquidBackdropView = new LiquidBackdropView(this, liquidGlassTheme);
         sceneRoot.addView(liquidBackdropView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1502,15 +1504,16 @@ public final class MainActivity extends Activity {
     }
 
     private void addTopStatusMist(FrameLayout sceneRoot) {
-        View mist = new TopStatusMistView(this);
+        TopStatusMistView mist = new TopStatusMistView(this);
+        topStatusMistView = mist;
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                dp(68),
+                dp(26),
                 Gravity.TOP);
         sceneRoot.addView(mist, params);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             mist.setOnApplyWindowInsetsListener((view, insets) -> {
-                int desiredHeight = insets.getSystemWindowInsetTop() + dp(38);
+                int desiredHeight = Math.max(dp(1), insets.getSystemWindowInsetTop());
                 ViewGroup.LayoutParams currentParams = view.getLayoutParams();
                 if (currentParams.height != desiredHeight) {
                     currentParams.height = desiredHeight;
@@ -1522,12 +1525,21 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** Softly obscures scrolling content before it reaches the transparent status bar. */
+    /** Repaints the live backdrop over content entering the status bar, without tinting it. */
     private final class TopStatusMistView extends View {
-        private final Paint mistPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final Paint backdropPaint = new Paint(
+                Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint fadeMaskPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final Matrix backdropMatrix = new Matrix();
+        private final float[] backdropMatrixValues = new float[9];
+        private final int[] mistLocation = new int[2];
+        private final int[] sourceLocation = new int[2];
+        private android.graphics.Bitmap sampledBackdrop;
+        private android.graphics.BitmapShader backdropShader;
 
         TopStatusMistView(Context context) {
             super(context);
+            fadeMaskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
             setClickable(false);
             setFocusable(false);
             setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -1539,22 +1551,54 @@ public final class MainActivity extends Activity {
             if (height <= 0) {
                 return;
             }
-            mistPaint.setShader(new LinearGradient(
+            fadeMaskPaint.setShader(new LinearGradient(
                     0f, 0f, 0f, height,
                     new int[]{
-                            Color.argb(240, 145, 207, 207),
-                            Color.argb(202, 151, 211, 211),
-                            Color.argb(104, 157, 216, 215),
+                            Color.argb(252, 0, 0, 0),
+                            Color.argb(238, 0, 0, 0),
+                            Color.argb(178, 0, 0, 0),
                             Color.TRANSPARENT
                     },
-                    new float[]{0f, 0.38f, 0.72f, 1f},
+                    new float[]{0f, 0.42f, 0.76f, 1f},
                     Shader.TileMode.CLAMP));
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
-            canvas.drawRect(0f, 0f, getWidth(), getHeight(), mistPaint);
+            LiquidBackdropView source = liquidBackdropView;
+            android.graphics.Bitmap bitmap = source == null ? null : source.frameBitmap();
+            if (bitmap == null || bitmap.isRecycled()
+                    || source.getWidth() <= 0 || source.getHeight() <= 0) {
+                return;
+            }
+            if (sampledBackdrop != bitmap || backdropShader == null) {
+                sampledBackdrop = bitmap;
+                backdropShader = new android.graphics.BitmapShader(
+                        bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            }
+
+            getLocationOnScreen(mistLocation);
+            source.getLocationOnScreen(sourceLocation);
+            float screenPerPixelX = source.getWidth() / (float) bitmap.getWidth();
+            float screenPerPixelY = source.getHeight() / (float) bitmap.getHeight();
+            backdropMatrixValues[Matrix.MSCALE_X] = screenPerPixelX;
+            backdropMatrixValues[Matrix.MSKEW_X] = 0f;
+            backdropMatrixValues[Matrix.MTRANS_X] = sourceLocation[0] - mistLocation[0];
+            backdropMatrixValues[Matrix.MSKEW_Y] = 0f;
+            backdropMatrixValues[Matrix.MSCALE_Y] = screenPerPixelY;
+            backdropMatrixValues[Matrix.MTRANS_Y] = sourceLocation[1] - mistLocation[1];
+            backdropMatrixValues[Matrix.MPERSP_0] = 0f;
+            backdropMatrixValues[Matrix.MPERSP_1] = 0f;
+            backdropMatrixValues[Matrix.MPERSP_2] = 1f;
+            backdropMatrix.setValues(backdropMatrixValues);
+            backdropShader.setLocalMatrix(backdropMatrix);
+            backdropPaint.setShader(backdropShader);
+
+            int layer = canvas.saveLayer(0f, 0f, getWidth(), getHeight(), null);
+            canvas.drawRect(0f, 0f, getWidth(), getHeight(), backdropPaint);
+            canvas.drawRect(0f, 0f, getWidth(), getHeight(), fadeMaskPaint);
+            canvas.restoreToCount(layer);
         }
     }
 
@@ -1612,6 +1656,9 @@ public final class MainActivity extends Activity {
                         nextRenderedFrameNanos += TARGET_FRAME_INTERVAL_NANOS;
                     } while (nextRenderedFrameNanos <= frameTimeNanos);
                     invalidate();
+                    if (topStatusMistView != null) {
+                        topStatusMistView.invalidate();
+                    }
                 }
                 // During direct manipulation and kinetic scrolling, re-record the
                 // screen-space lens every display frame. The backdrop itself remains a
