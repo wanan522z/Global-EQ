@@ -9393,6 +9393,26 @@ public final class MainActivity extends Activity {
         return String.format(Locale.US, "%.2f", value);
     }
 
+    private int themeTextPrimary() {
+        return UiTheme.textPrimary(liquidGlassTheme);
+    }
+
+    private int themeTextSecondary() {
+        return UiTheme.textSecondary(liquidGlassTheme);
+    }
+
+    private int themeTextMuted() {
+        return UiTheme.textMuted(liquidGlassTheme);
+    }
+
+    private int themeTextFaint() {
+        return UiTheme.textFaint(liquidGlassTheme);
+    }
+
+    private int themeHintColor() {
+        return UiTheme.hint(liquidGlassTheme);
+    }
+
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
