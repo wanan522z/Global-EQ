@@ -2022,13 +2022,15 @@ public final class MainActivity extends Activity {
         liquidGlassSwitch = new Switch(this);
         liquidGlassSwitch.setText("");
         liquidGlassSwitch.setShowText(false);
-        liquidGlassSwitch.setChecked(liquidGlassTheme);
+        // Android places the checked thumb on the right. Appearance semantics are
+        // deliberately reversed: left/sun is liquid, right/moon is classic.
+        liquidGlassSwitch.setChecked(!liquidGlassTheme);
         styleAppearanceSwitch(liquidGlassSwitch);
 
         ImageView sunIcon = createAppearanceIcon(
                 liquidGlassTheme ? R.drawable.appearance_sun_on : R.drawable.appearance_sun_off,
                 tr("Liquid glass appearance", "液态玻璃外观"));
-        sunIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(true));
+        sunIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(false));
         LinearLayout.LayoutParams sunParams = new LinearLayout.LayoutParams(dp(20), dp(20));
         sunParams.leftMargin = dp(8);
         sunParams.rightMargin = dp(5);
@@ -2040,18 +2042,19 @@ public final class MainActivity extends Activity {
         ImageView moonIcon = createAppearanceIcon(
                 liquidGlassTheme ? R.drawable.appearance_moon_off : R.drawable.appearance_moon_on,
                 tr("Classic appearance", "经典外观"));
-        moonIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(false));
+        moonIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(true));
         LinearLayout.LayoutParams moonParams = new LinearLayout.LayoutParams(dp(20), dp(20));
         moonParams.leftMargin = dp(5);
         appearanceRow.addView(moonIcon, moonParams);
 
         liquidGlassSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (updatingUi || checked == liquidGlassTheme) {
+            boolean nextLiquidTheme = !checked;
+            if (updatingUi || nextLiquidTheme == liquidGlassTheme) {
                 return;
             }
             int settingsScrollY = settingsScrollView == null ? 0 : settingsScrollView.getScrollY();
-            UiTheme.setLiquidGlass(this, checked);
-            liquidGlassTheme = checked;
+            UiTheme.setLiquidGlass(this, nextLiquidTheme);
+            liquidGlassTheme = nextLiquidTheme;
             UiTheme.applyWindowAppearance(this, liquidGlassTheme);
             rebuildContentForAppearance(activeMainPageIndex, settingsScrollY);
         });
