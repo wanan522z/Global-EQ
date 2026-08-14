@@ -10905,12 +10905,12 @@ public final class MainActivity extends Activity {
             paint.setShader(glassFillShader);
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // Full-surface luminosity transition, with no perimeter stroke or rim band.
+            // Symmetric full-surface luminosity transition; the adaptive rim is drawn next.
             paint.setShader(surfaceSheenShader);
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
             // A continuous neutral rim guarantees separation over both pale and dark
-            // backdrop regions. The chromatic pass above it wraps the entire silhouette,
+            // backdrop regions. The chromatic pass after it wraps the entire silhouette,
             // approximating the subtle edge dispersion/refraction of thick glass.
             paint.setShader(null);
             paint.setStyle(Paint.Style.STROKE);
