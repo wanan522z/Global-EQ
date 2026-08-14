@@ -10787,6 +10787,7 @@ public final class MainActivity extends Activity {
         private final float radius;
         private final int density;
         private boolean pressed;
+        private int drawableAlpha = 255;
 
         LiquidGlassDrawable(float radius, int density) {
             this.radius = radius;
@@ -10800,6 +10801,7 @@ public final class MainActivity extends Activity {
             if (bounds.isEmpty()) {
                 return;
             }
+            paint.setAlpha(drawableAlpha);
 
             // The reference uses a thin optical boundary, not a thick coloured frame.
             // All layers share the same centred silhouette to avoid detached edges.
@@ -10912,7 +10914,7 @@ public final class MainActivity extends Activity {
             lensMatrix.setValues(lensMatrixValues);
             lensShader.setLocalMatrix(lensMatrix);
             lensPaint.setShader(lensShader);
-            lensPaint.setAlpha(pressed ? 238 : 218);
+            lensPaint.setAlpha(Math.round((pressed ? 238f : 218f) * drawableAlpha / 255f));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
             lensPaint.setShader(null);
 
@@ -10956,12 +10958,22 @@ public final class MainActivity extends Activity {
 
         @Override
         public void setAlpha(int alpha) {
-            paint.setAlpha(alpha);
+            drawableAlpha = clamp(alpha, 0, 255);
+            paint.setAlpha(drawableAlpha);
+            lensPaint.setAlpha(drawableAlpha);
+            invalidateSelf();
+        }
+
+        @Override
+        public int getAlpha() {
+            return drawableAlpha;
         }
 
         @Override
         public void setColorFilter(ColorFilter colorFilter) {
             paint.setColorFilter(colorFilter);
+            lensPaint.setColorFilter(colorFilter);
+            invalidateSelf();
         }
 
         @Override
