@@ -2216,6 +2216,7 @@ public final class MainActivity extends Activity {
                 R.drawable.appearance_moon_aligned,
                 liquidGlassTheme ? 0xFF687B83 : 0xFF00F4D3,
                 tr("Classic appearance", "经典外观"));
+        moonIcon.setPadding(dp(1), dp(1), dp(1), dp(1));
         moonIcon.setOnClickListener(v -> {
             if (!appearanceTransitionRunning) {
                 liquidGlassSwitch.setChecked(true);
