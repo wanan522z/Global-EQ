@@ -21,6 +21,7 @@ import android.graphics.LinearGradient;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
+import android.graphics.SweepGradient;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -1402,10 +1403,12 @@ public final class MainActivity extends Activity {
         FrameLayout listCardHolder = new FrameLayout(this);
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
-        listCardHolder.setClipChildren(false);
-        listCardHolder.setClipToPadding(false);
-        listCard.setClipChildren(false);
-        listCard.setClipToPadding(false);
+        // The list is a viewport. Keeping clipping enabled here prevents the first/last
+        // band glow and the add button from painting over the graph or bottom navigation.
+        listCardHolder.setClipChildren(true);
+        listCardHolder.setClipToPadding(true);
+        listCard.setClipChildren(true);
+        listCard.setClipToPadding(true);
         listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
         listCard.setBackground(createGlassCard(30));
         applyGlassElevation(listCard, 8f);
@@ -1431,9 +1434,12 @@ public final class MainActivity extends Activity {
         listCard.addView(header);
 
         ScrollView scrollView = new ScrollView(this);
+        configureGlassScroll(scrollView);
         scrollView.setClipChildren(true);
         scrollView.setClipToPadding(true);
-        scrollView.setPadding(0, 0, 0, 0);
+        // Reserve a small optical gutter for the row bloom while still clipping it to
+        // the card. This keeps the first and last EQ controls clear of both edges.
+        scrollView.setPadding(0, dp(8), 0, dp(10));
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         rows.setClipChildren(false);
@@ -1484,6 +1490,7 @@ public final class MainActivity extends Activity {
         private android.graphics.Bitmap frameBitmap;
         private Canvas frameCanvas;
         private boolean flowRunning;
+        private boolean scrollingPaused;
         private long lastFlowFrameMs;
         private int flowFrameIndex;
         private double flowSeconds;
@@ -1505,6 +1512,16 @@ public final class MainActivity extends Activity {
                 invalidate();
                 invalidateLiquidGlassDrawables();
                 postDelayed(this, 50L);
+            }
+        };
+        private final Runnable resumeAfterScroll = () -> {
+            scrollingPaused = false;
+            lastFlowFrameMs = android.os.SystemClock.uptimeMillis();
+            if (flowRunning && isAttachedToWindow()) {
+                removeCallbacks(flowTicker);
+                post(flowTicker);
+                invalidate();
+                invalidateLiquidGlassDrawables();
             }
         };
 
@@ -1553,9 +1570,23 @@ public final class MainActivity extends Activity {
         @Override
         protected void onDetachedFromWindow() {
             flowRunning = false;
+            scrollingPaused = false;
             lastFlowFrameMs = 0L;
             removeCallbacks(flowTicker);
+            removeCallbacks(resumeAfterScroll);
             super.onDetachedFromWindow();
+        }
+
+        void pauseWhileScrolling() {
+            if (!liquid || !flowRunning) {
+                return;
+            }
+            scrollingPaused = true;
+            removeCallbacks(flowTicker);
+            removeCallbacks(resumeAfterScroll);
+            // Keep one fully rendered backdrop frame stable during kinetic scrolling;
+            // restart shortly after the latest scroll callback.
+            postDelayed(resumeAfterScroll, 140L);
         }
 
         private void advanceFlowField(float deltaSeconds) {
@@ -1695,6 +1726,7 @@ public final class MainActivity extends Activity {
 
     private void buildSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
+        configureGlassScroll(scroll);
         scroll.setFillViewport(true);
         scroll.setClipChildren(false);
         scroll.setClipToPadding(false);
@@ -2014,6 +2046,7 @@ public final class MainActivity extends Activity {
 
     private void buildMonitorSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
+        configureGlassScroll(scroll);
         scroll.setFillViewport(true);
         scroll.setClipChildren(false);
         scroll.setClipToPadding(false);
@@ -2090,6 +2123,7 @@ public final class MainActivity extends Activity {
 
     private void buildLimiterSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
+        configureGlassScroll(scroll);
         scroll.setFillViewport(true);
         scroll.setClipChildren(false);
         scroll.setClipToPadding(false);
@@ -3308,6 +3342,7 @@ public final class MainActivity extends Activity {
             list.setPadding(dp(12), dp(10), dp(12), dp(12));
 
             ScrollView scroll = new ScrollView(this);
+            configureGlassScroll(scroll);
             scroll.setClipToPadding(false);
             scroll.addView(list);
             FrameLayout.LayoutParams scrollParams = new FrameLayout.LayoutParams(
@@ -3576,6 +3611,7 @@ public final class MainActivity extends Activity {
         list.setPadding(dp(12), dp(10), dp(12), dp(12));
 
         ScrollView scroll = new ScrollView(this);
+        configureGlassScroll(scroll);
         scroll.setClipToPadding(false);
         scroll.addView(list);
         FrameLayout.LayoutParams scrollParams = new FrameLayout.LayoutParams(
@@ -6797,6 +6833,7 @@ public final class MainActivity extends Activity {
         }
 
         ScrollView scroll = new ScrollView(this);
+        configureGlassScroll(scroll);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(title))
@@ -7020,6 +7057,7 @@ public final class MainActivity extends Activity {
         }
 
         ScrollView scroll = new ScrollView(this);
+        configureGlassScroll(scroll);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Export preset", "导出预设")))
@@ -7387,6 +7425,7 @@ public final class MainActivity extends Activity {
         }
 
         ScrollView scroll = new ScrollView(this);
+        configureGlassScroll(scroll);
         scroll.addView(list);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setCustomTitle(dialogTitleView(tr("Select preset", "选择预设")))
@@ -8987,6 +9026,19 @@ public final class MainActivity extends Activity {
         );
         params.topMargin = dp(topMarginDp);
         return params;
+    }
+
+    private void configureGlassScroll(ScrollView scrollView) {
+        if (scrollView == null) {
+            return;
+        }
+        scrollView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scrollView.setVerticalFadingEdgeEnabled(false);
+        scrollView.setOnScrollChangeListener((view, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+            if (scrollY != oldScrollY && liquidBackdropView != null) {
+                liquidBackdropView.pauseWhileScrolling();
+            }
+        });
     }
 
     private LinearLayout createExtraKnobRow(LinearLayout panel) {
