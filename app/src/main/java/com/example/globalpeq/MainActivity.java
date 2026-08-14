@@ -9136,10 +9136,10 @@ public final class MainActivity extends Activity {
 
     private Drawable curveControlBackground() {
         return verticalGradientStrokeGlowDrawable(
-                Color.argb(232, 21, 34, 43),
-                Color.argb(232, 12, 18, 28),
+                liquidGlassTheme ? Color.argb(242, 255, 255, 255) : Color.argb(232, 21, 34, 43),
+                liquidGlassTheme ? Color.argb(218, 231, 241, 250) : Color.argb(232, 12, 18, 28),
                 Color.argb(150, 76, 220, 205),
-                dp(7),
+                dp(liquidGlassTheme ? 11 : 7),
                 dp(2),
                 Color.argb(70, 0, 245, 212)
         );
