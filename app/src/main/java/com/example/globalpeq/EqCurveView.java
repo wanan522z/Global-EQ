@@ -495,7 +495,7 @@ final class EqCurveView extends View {
 
         if (liquidGlassTheme) {
             // Liquid Glass gets one clean cyan-blue stroke with no keyline/outline.
-            curvePaint.setStrokeWidth(2.0f);
+            curvePaint.setStrokeWidth(5.0f);
             curvePaint.setDither(true);
             curvePaint.setColor(lerpColor(
                     Color.argb(18, 130, 140, 150),

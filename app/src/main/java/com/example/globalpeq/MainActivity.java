@@ -37,6 +37,7 @@ import android.text.Layout;
 import android.text.TextPaint;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
+import android.view.Choreographer;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -1027,8 +1028,9 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             root.setOnApplyWindowInsetsListener((view, insets) -> {
                 int top = insets.getSystemWindowInsetTop();
-                int bottom = liquidGlassTheme ? insets.getSystemWindowInsetBottom() : 0;
-                view.setPadding(dp(12), top + dp(10), dp(12), bottom + dp(6));
+                // Use the classic theme's bottom baseline for both themes. The bottom
+                // navigation already carries its own gesture-bar clearance.
+                view.setPadding(dp(12), top + dp(10), dp(12), dp(6));
                 return insets;
             });
             root.post(root::requestApplyInsets);
@@ -1495,29 +1497,42 @@ public final class MainActivity extends Activity {
         private int fieldShaderWidth = -1;
         private int fieldShaderHeight = -1;
         private boolean flowRunning;
-        private long lastFlowFrameMs;
-        private int flowFrameIndex;
+        private long lastFlowFrameNanos;
+        private long nextRenderedFrameNanos;
         private double flowSeconds;
         private final double flowSeed = (android.os.SystemClock.uptimeMillis() % 1000003L) * 0.000031d;
-        private final Runnable flowTicker = new Runnable() {
+        private static final long TARGET_FRAME_INTERVAL_NANOS = 16_666_667L;
+        private final Choreographer.FrameCallback flowFrameCallback = new Choreographer.FrameCallback() {
             @Override
-            public void run() {
+            public void doFrame(long frameTimeNanos) {
                 if (!flowRunning || !isAttachedToWindow()) {
                     return;
                 }
-                long now = android.os.SystemClock.uptimeMillis();
-                float deltaSeconds = lastFlowFrameMs == 0L
+                float deltaSeconds = lastFlowFrameNanos == 0L
                         ? 0f
-                        : Math.min(0.05f, (now - lastFlowFrameMs) / 1000f);
-                lastFlowFrameMs = now;
+                        : Math.min(0.05f,
+                                (frameTimeNanos - lastFlowFrameNanos) / 1_000_000_000f);
+                lastFlowFrameNanos = frameTimeNanos;
                 flowSeconds += deltaSeconds;
                 advanceFlowField(deltaSeconds);
-                flowFrameIndex++;
-                invalidate();
-                invalidateLiquidGlassDrawables();
-                postDelayed(this, 50L);
+
+                // Align the expensive bitmap and lens refresh with display VSYNC while
+                // capping it near 60 FPS on high-refresh panels. Advancing a fixed
+                // deadline avoids the uneven 45 FPS cadence produced by simple delays.
+                if (nextRenderedFrameNanos == 0L || frameTimeNanos >= nextRenderedFrameNanos) {
+                    if (nextRenderedFrameNanos == 0L) {
+                        nextRenderedFrameNanos = frameTimeNanos;
+                    }
+                    do {
+                        nextRenderedFrameNanos += TARGET_FRAME_INTERVAL_NANOS;
+                    } while (nextRenderedFrameNanos <= frameTimeNanos);
+                    invalidate();
+                    invalidateLiquidGlassDrawables();
+                }
+                Choreographer.getInstance().postFrameCallback(this);
             }
         };
+
         private void invalidateLiquidGlassDrawables() {
             for (int i = liquidGlassDrawables.size() - 1; i >= 0; i--) {
                 LiquidGlassDrawable drawable = liquidGlassDrawables.get(i).get();
@@ -1529,9 +1544,6 @@ public final class MainActivity extends Activity {
                 if (callback instanceof View) {
                     View host = (View) callback;
                     if (!host.isShown() || !host.getLocalVisibleRect(backdropLocationScratch)) {
-                        continue;
-                    }
-                    if (!drawable.outerLayer && (flowFrameIndex & 1) != 0) {
                         continue;
                     }
                 }
@@ -1556,15 +1568,17 @@ public final class MainActivity extends Activity {
                 return;
             }
             flowRunning = true;
-            lastFlowFrameMs = android.os.SystemClock.uptimeMillis();
-            post(flowTicker);
+            lastFlowFrameNanos = 0L;
+            nextRenderedFrameNanos = 0L;
+            Choreographer.getInstance().postFrameCallback(flowFrameCallback);
         }
 
         @Override
         protected void onDetachedFromWindow() {
             flowRunning = false;
-            lastFlowFrameMs = 0L;
-            removeCallbacks(flowTicker);
+            lastFlowFrameNanos = 0L;
+            nextRenderedFrameNanos = 0L;
+            Choreographer.getInstance().removeFrameCallback(flowFrameCallback);
             super.onDetachedFromWindow();
         }
 
@@ -1628,8 +1642,10 @@ public final class MainActivity extends Activity {
         }
 
         private void ensureFrameBitmap(int width, int height) {
-            int bitmapWidth = Math.max(1, Math.round(width * 0.5f));
-            int bitmapHeight = Math.max(1, Math.round(height * 0.5f));
+            // A 3/8-resolution field is naturally softened by filtered enlargement and
+            // nearly halves the pixel work of the old half-resolution frame buffer.
+            int bitmapWidth = Math.max(1, Math.round(width * 0.375f));
+            int bitmapHeight = Math.max(1, Math.round(height * 0.375f));
             if (frameBitmap != null
                     && frameBitmap.getWidth() == bitmapWidth
                     && frameBitmap.getHeight() == bitmapHeight) {
