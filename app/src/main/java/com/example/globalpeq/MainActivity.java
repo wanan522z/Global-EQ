@@ -1796,8 +1796,8 @@ public final class MainActivity extends Activity {
 
         TextView appearanceDetail = new TextView(this);
         bindText(appearanceDetail, () -> tr(
-                "Choose the new white liquid-glass interface or the original black neon interface. Animated fluorescent titles remain enabled in both.",
-                "选择新的白色液态玻璃界面，或原有的黑色荧光界面。两种外观都会保留标题滚动荧光。"));
+                "Choose the flowing liquid-glass interface or the original black neon interface. Animated title shimmer remains enabled in both.",
+                "选择流动液态玻璃界面，或原有的黑色荧光界面。两种外观都会保留标题滚动流光。"));
         appearanceDetail.setTextSize(12);
         appearanceDetail.setTextColor(themeTextSecondary());
         appearanceDetail.setLineSpacing(dp(2), 1f);
