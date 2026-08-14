@@ -28,6 +28,7 @@ final class EqCurveView extends View {
     private static final float REF_SAMPLE_STEP_PX = 1.0f;
     private static final long ANIMATION_FRAME_DELAY_MS = 33L;
     private static final long VISUAL_FADE_DURATION_MS = 280L;
+    private static final float LIQUID_SWEEP_SPEED = 0.18f;
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint minorGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -507,34 +508,34 @@ final class EqCurveView extends View {
             long now = System.currentTimeMillis();
             if (!animationSuppressed && lastTime > 0) {
                 float elapsed = (now - lastTime) / 1000f;
-                sweepPhase += elapsed * (liquidGlassTheme ? 0.48f : 0.25f);
+                sweepPhase += elapsed * (liquidGlassTheme ? LIQUID_SWEEP_SPEED : 0.25f);
                 sweepPhase -= (float) Math.floor(sweepPhase);
             }
             lastTime = (animationSuppressed || enabledAmount <= 0.001f) ? 0L : now;
 
             float totalWidth = right - left;
-            // Keep three liquid highlights on the curve at once. Moving the shader by
-            // exactly one repeating period makes the wrap point visually identical.
-            float sweepPatternWidth = liquidGlassTheme ? totalWidth / 3f : totalWidth;
+            // One full-width period produces a single long light band. During wrapping it
+            // can split across the two edges, so at most two bands are visible at once.
+            float sweepPatternWidth = totalWidth;
             if (sweepGradient == null || Math.abs(sweepGradientWidth - sweepPatternWidth) > 0.5f) {
                 sweepGradientWidth = sweepPatternWidth;
-                // Liquid uses a densely repeating cyan-blue pulse; classic retains its
+                // Liquid uses a broad, slowly moving cyan band; classic retains its
                 // original full-width multicolor sweep.
                 sweepGradient = liquidGlassTheme
                         ? new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
                                 new int[]{
                                         Color.argb(0, 0, 216, 255),
-                                        Color.argb(34, 0, 216, 255),
-                                        Color.argb(125, 0, 216, 255),
-                                        Color.argb(238, 20, 224, 255),
+                                        Color.argb(18, 0, 216, 255),
+                                        Color.argb(82, 0, 216, 255),
+                                        Color.argb(188, 20, 224, 255),
                                         Color.argb(255, 174, 242, 255),
-                                        Color.argb(238, 20, 224, 255),
-                                        Color.argb(125, 0, 216, 255),
-                                        Color.argb(34, 0, 216, 255),
+                                        Color.argb(188, 20, 224, 255),
+                                        Color.argb(82, 0, 216, 255),
+                                        Color.argb(18, 0, 216, 255),
                                         Color.argb(0, 0, 216, 255)
                                 },
-                                new float[]{0f, 0.14f, 0.28f, 0.42f, 0.50f, 0.58f, 0.72f, 0.86f, 1f},
+                                new float[]{0f, 0.08f, 0.22f, 0.38f, 0.50f, 0.62f, 0.78f, 0.92f, 1f},
                                 Shader.TileMode.REPEAT)
                         : new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
