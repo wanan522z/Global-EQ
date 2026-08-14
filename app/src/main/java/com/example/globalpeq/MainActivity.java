@@ -4767,16 +4767,20 @@ public final class MainActivity extends Activity {
         shell.setPadding(0, 0, 0, 0);
         GradientDrawable shellBg = new GradientDrawable();
         shellBg.setShape(GradientDrawable.RECTANGLE);
-        shellBg.setColor(Color.rgb(18, 22, 34));
-        shellBg.setStroke(dp(1), Color.argb(54, 255, 255, 255));
-        shellBg.setCornerRadius(dp(16));
+        shellBg.setColor(UiTheme.popupSurface(liquidGlassTheme));
+        shellBg.setStroke(dp(1), liquidGlassTheme
+                ? Color.argb(185, 175, 197, 225)
+                : Color.argb(54, 255, 255, 255));
+        shellBg.setCornerRadius(dp(liquidGlassTheme ? 22 : 16));
         shell.setBackground(shellBg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             shell.setClipToOutline(true);
         }
 
         ListView list = new ListView(this);
-        list.setDivider(solidColorDrawable(Color.argb(26, 255, 255, 255)));
+        list.setDivider(solidColorDrawable(liquidGlassTheme
+                ? Color.argb(32, 42, 61, 88)
+                : Color.argb(26, 255, 255, 255)));
         list.setDividerHeight(dp(1));
         list.setCacheColorHint(Color.TRANSPARENT);
         list.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
