@@ -4993,7 +4993,8 @@ public final class MainActivity extends Activity {
 
         String signature = joinStrings(labels);
         String selectedKey = currentDevice.key == null ? "" : currentDevice.key;
-        if (!signature.equals(lastDeviceSpinnerSignature)) {
+        boolean needsThemeAdapter = !(deviceSpinner.getAdapter() instanceof SmallSpinnerAdapter);
+        if (needsThemeAdapter || !signature.equals(lastDeviceSpinnerSignature)) {
             SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             adapter.setSelectedPosition(selected);
@@ -8533,7 +8534,8 @@ public final class MainActivity extends Activity {
         int selected = Math.max(0, names.indexOf(activeName));
         String[] labels = names.toArray(new String[0]);
         String signature = joinStrings(labels);
-        if (!signature.equals(lastSavedPresetSpinnerSignature)) {
+        boolean needsThemeAdapter = !(savedPresetSpinner.getAdapter() instanceof SmallSpinnerAdapter);
+        if (needsThemeAdapter || !signature.equals(lastSavedPresetSpinnerSignature)) {
             SmallSpinnerAdapter adapter = new SmallSpinnerAdapter(labels);
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             adapter.setSelectedPosition(selected);
