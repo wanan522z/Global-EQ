@@ -9247,12 +9247,12 @@ public final class MainActivity extends Activity {
 
     private Drawable curveControlBackground() {
         return verticalGradientStrokeGlowDrawable(
-                liquidGlassTheme ? Color.argb(242, 255, 255, 255) : Color.argb(232, 21, 34, 43),
-                liquidGlassTheme ? Color.argb(218, 231, 241, 250) : Color.argb(232, 12, 18, 28),
-                Color.argb(150, 76, 220, 205),
+                liquidGlassTheme ? Color.argb(182, 255, 255, 255) : Color.argb(232, 21, 34, 43),
+                liquidGlassTheme ? Color.argb(138, 220, 245, 242) : Color.argb(232, 12, 18, 28),
+                liquidGlassTheme ? Color.argb(185, 102, 212, 200) : Color.argb(150, 76, 220, 205),
                 dp(liquidGlassTheme ? 11 : 7),
-                dp(2),
-                Color.argb(70, 0, 245, 212)
+                dp(liquidGlassTheme ? 1 : 2),
+                liquidGlassTheme ? Color.argb(28, 0, 44, 176) : Color.argb(70, 0, 245, 212)
         );
     }
 
@@ -12111,13 +12111,17 @@ public final class MainActivity extends Activity {
         }
         android.view.Window window = dialog.getWindow();
         if (window != null) {
-            GradientDrawable bg = new GradientDrawable();
-            bg.setShape(GradientDrawable.RECTANGLE);
-            bg.setColor(liquidGlassTheme ? Color.rgb(250, 252, 255) : Color.rgb(18, 22, 34));
-            bg.setStroke(dp(1), liquidGlassTheme
-                    ? Color.argb(190, 170, 194, 224)
-                    : Color.argb(50, 255, 255, 255));
-            bg.setCornerRadius(dp(liquidGlassTheme ? 26 : 20));
+            Drawable bg;
+            if (liquidGlassTheme) {
+                bg = new LiquidGlassDrawable(dp(26), 78);
+            } else {
+                GradientDrawable classicBg = new GradientDrawable();
+                classicBg.setShape(GradientDrawable.RECTANGLE);
+                classicBg.setColor(Color.rgb(18, 22, 34));
+                classicBg.setStroke(dp(1), Color.argb(50, 255, 255, 255));
+                classicBg.setCornerRadius(dp(20));
+                bg = classicBg;
+            }
             window.setBackgroundDrawable(bg);
             window.setGravity(android.view.Gravity.CENTER);
             android.view.WindowManager.LayoutParams params = new android.view.WindowManager.LayoutParams();
