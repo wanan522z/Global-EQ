@@ -204,7 +204,7 @@ final class EqCurveView extends View {
         sweepPaint.setStyle(Paint.Style.STROKE);
         sweepPaint.setStrokeCap(Paint.Cap.ROUND);
         sweepPaint.setStrokeJoin(Paint.Join.ROUND);
-        sweepPaint.setStrokeWidth(5.0f); // Sleeker sweep line to reduce aliasing and make it look sharper
+        sweepPaint.setStrokeWidth(liquidGlassTheme ? 2.2f : 5.0f);
         sweepPaint.setAntiAlias(true);
         sweepPaint.setFilterBitmap(true);
         sweepPaint.setDither(true);
@@ -474,7 +474,7 @@ final class EqCurveView extends View {
                 sweepPaint.setShader(sweepGradient);
             }
 
-            if (!animationSuppressed) {
+            if (!animationSuppressed && !liquidGlassTheme) {
                 sweepMatrix.reset();
                 float totalWidth = right - left;
                 sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
@@ -487,33 +487,15 @@ final class EqCurveView extends View {
             lastInvalidateAt = 0L;
         }
 
-        // Three contrast bands keep the response readable over both the pale cyan and
-        // deep blue areas of the animated backdrop: dark keyline, light separator,
-        // then a saturated cyan core.
-        curvePaint.setStrokeWidth(7.4f);
+        // One clean, saturated blue stroke; the soft cached bloom supplies separation
+        // without adding a dark or white outline.
+        curvePaint.setStrokeWidth(3.4f);
         curvePaint.setDither(true);
         curvePaint.setColor(lerpColor(
                 Color.argb(18, 130, 140, 150),
                 liquidGlassTheme
-                        ? Color.argb(242, 4, 54, 102)
+                        ? Color.argb(255, 0, 157, 255)
                         : Color.argb(35, 0, 255, 255),
-                enabledAmount));
-        canvas.drawPath(curvePath, curvePaint);
-
-        edgePaint.setColor(lerpColor(
-                Color.argb(58, 150, 160, 172),
-                liquidGlassTheme
-                        ? Color.argb(248, 242, 255, 255)
-                        : Color.argb(105, 130, 245, 255),
-                enabledAmount));
-        canvas.drawPath(curvePath, edgePaint);
-
-        curvePaint.setStrokeWidth(2.7f);
-        curvePaint.setColor(lerpColor(
-                Color.rgb(130, 140, 150),
-                liquidGlassTheme
-                        ? Color.rgb(0, 166, 202)
-                        : Color.rgb(0, 255, 255),
                 enabledAmount));
         canvas.drawPath(curvePath, curvePaint);
     }
@@ -571,17 +553,12 @@ final class EqCurveView extends View {
         }
         glowCacheBitmap.eraseColor(Color.TRANSPARENT);
 
-        curvePaint.setStrokeWidth(7.4f);
+        curvePaint.setStrokeWidth(3.4f);
         curvePaint.setDither(true);
         curvePaint.setColor(liquidGlassTheme
-                ? Color.argb(242, 4, 54, 102)
+                ? Color.argb(255, 0, 157, 255)
                 : Color.argb(35, 0, 255, 255));
         glowCacheCanvas.drawPath(curvePath, curvePaint);
-
-        edgePaint.setColor(liquidGlassTheme
-                ? Color.argb(248, 242, 255, 255)
-                : Color.argb(105, 130, 245, 255));
-        glowCacheCanvas.drawPath(curvePath, edgePaint);
 
         glowCacheCanvas.drawPath(curvePath, glowPaint0);
         glowCacheCanvas.drawPath(curvePath, glowPaint0b);
