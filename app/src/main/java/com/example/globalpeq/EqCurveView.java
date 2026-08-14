@@ -215,7 +215,7 @@ final class EqCurveView extends View {
         sweepPaint.setStyle(Paint.Style.STROKE);
         sweepPaint.setStrokeCap(Paint.Cap.ROUND);
         sweepPaint.setStrokeJoin(Paint.Join.ROUND);
-        sweepPaint.setStrokeWidth(liquidGlassTheme ? 2.2f : 5.0f);
+        sweepPaint.setStrokeWidth(liquidGlassTheme ? 3.0f : 5.0f);
         sweepPaint.setAntiAlias(true);
         sweepPaint.setFilterBitmap(true);
         sweepPaint.setDither(true);
@@ -321,19 +321,15 @@ final class EqCurveView extends View {
             return;
         }
 
-        int contentLayer = -1;
-        if (liquidGlassTheme) {
-            // Match the curve frame's inner rounded silhouette. The parent also clips
-            // its children, while this local layer lets the content soften just inside
-            // the hard boundary without affecting the glass frame underneath.
-            contentLayer = canvas.saveLayer(0f, 0f, width, height, null);
-            float frameInsetRadius = getResources().getDisplayMetrics().density * 20f;
-            contentClipRect.set(0f, 0f, width, height);
-            contentClipPath.reset();
-            contentClipPath.addRoundRect(contentClipRect,
-                    frameInsetRadius, frameInsetRadius, Path.Direction.CW);
-            canvas.clipPath(contentClipPath);
-        }
+        // Both themes share the same 22dp curve-frame radius. Clip the graph to its
+        // inner 20dp silhouette, then feather the side content before compositing it.
+        int contentLayer = canvas.saveLayer(0f, 0f, width, height, null);
+        float frameInsetRadius = getResources().getDisplayMetrics().density * 20f;
+        contentClipRect.set(0f, 0f, width, height);
+        contentClipPath.reset();
+        contentClipPath.addRoundRect(contentClipRect,
+                frameInsetRadius, frameInsetRadius, Path.Direction.CW);
+        canvas.clipPath(contentClipPath);
 
         float left = 12f;
         float right = width - 12f;
@@ -383,20 +379,17 @@ final class EqCurveView extends View {
         canvas.drawText("0 dB", left, mid - 6f, textPaint);
         canvas.drawText("-" + maxDb, left, bottom - 6f, textPaint);
 
-        if (liquidGlassTheme) {
-            drawHorizontalEdgeFade(canvas, width, height);
-            canvas.restoreToCount(contentLayer);
-        }
+        drawHorizontalEdgeFade(canvas, width, height);
+        canvas.restoreToCount(contentLayer);
 
-        // Liquid Glass uses a stable blue curve; only the short enabled-state fade needs
-        // redraws. The classic theme keeps its continuous sweep animation.
-        boolean continuousSweep = !liquidGlassTheme && visualLevel > 0.001f;
+        boolean continuousSweep = visualLevel > 0.001f;
         if ((continuousSweep || isVisualTransitionRunning()) && !animationSuppressed) {
-            if (now - lastInvalidateAt >= ANIMATION_FRAME_DELAY_MS) {
+            long frameDelay = liquidGlassTheme ? 16L : ANIMATION_FRAME_DELAY_MS;
+            if (now - lastInvalidateAt >= frameDelay) {
                 lastInvalidateAt = now;
                 postInvalidateOnAnimation();
             } else {
-                postInvalidateDelayed(ANIMATION_FRAME_DELAY_MS - (now - lastInvalidateAt));
+                postInvalidateDelayed(frameDelay - (now - lastInvalidateAt));
             }
         }
     }
@@ -404,15 +397,29 @@ final class EqCurveView extends View {
     private void drawHorizontalEdgeFade(Canvas canvas, int width, int height) {
         if (edgeFadeShaderWidth != width || leftEdgeFade == null || rightEdgeFade == null) {
             edgeFadeShaderWidth = width;
-            edgeFadeWidth = Math.min(width * 0.16f,
-                    getResources().getDisplayMetrics().density * 12f);
+            edgeFadeWidth = Math.min(width * 0.22f,
+                    getResources().getDisplayMetrics().density * 20f);
             leftEdgeFade = new LinearGradient(
                     0f, 0f, edgeFadeWidth, 0f,
-                    Color.argb(210, 0, 0, 0), Color.TRANSPARENT,
+                    new int[]{
+                            Color.argb(255, 0, 0, 0),
+                            Color.argb(230, 0, 0, 0),
+                            Color.argb(150, 0, 0, 0),
+                            Color.argb(55, 0, 0, 0),
+                            Color.TRANSPARENT
+                    },
+                    new float[]{0f, 0.18f, 0.44f, 0.74f, 1f},
                     Shader.TileMode.CLAMP);
             rightEdgeFade = new LinearGradient(
                     width - edgeFadeWidth, 0f, width, 0f,
-                    Color.TRANSPARENT, Color.argb(210, 0, 0, 0),
+                    new int[]{
+                            Color.TRANSPARENT,
+                            Color.argb(55, 0, 0, 0),
+                            Color.argb(150, 0, 0, 0),
+                            Color.argb(230, 0, 0, 0),
+                            Color.argb(255, 0, 0, 0)
+                    },
+                    new float[]{0f, 0.26f, 0.56f, 0.82f, 1f},
                     Shader.TileMode.CLAMP);
         }
         edgeFadePaint.setShader(leftEdgeFade);
@@ -474,6 +481,18 @@ final class EqCurveView extends View {
             referencePaint.setPathEffect(null);
         }
 
+        if (liquidGlassTheme) {
+            // Match enabled EQ typography: a restrained deep blue body provides the
+            // stable identity, while the moving cyan pass below supplies the highlight.
+            curvePaint.setStrokeWidth(5.0f);
+            curvePaint.setDither(true);
+            curvePaint.setColor(lerpColor(
+                    Color.argb(18, 130, 140, 150),
+                    Color.rgb(0, 70, 142),
+                    enabledAmount));
+            canvas.drawPath(curvePath, curvePaint);
+        }
+
         if (enabledAmount > 0.001f) {
             // The liquid theme uses a clean single stroke. Its former glow cache made
             // the curve read like a wide outline; classic keeps the original glow stack.
@@ -501,15 +520,15 @@ final class EqCurveView extends View {
                         ? new LinearGradient(
                                 0, 0, right - left, 0,
                                 new int[]{
-                                        Color.argb(0, 45, 220, 230),
-                                        Color.argb(0, 45, 220, 230),
-                                        Color.argb(178, 69, 231, 231),
-                                        Color.argb(255, 154, 250, 246),
-                                        Color.argb(255, 239, 255, 253),
-                                        Color.argb(244, 112, 241, 238),
-                                        Color.argb(164, 139, 224, 246),
-                                        Color.argb(0, 45, 220, 230),
-                                        Color.argb(0, 45, 220, 230)
+                                        Color.argb(0, 0, 216, 255),
+                                        Color.argb(0, 0, 216, 255),
+                                        Color.argb(120, 0, 216, 255),
+                                        Color.argb(238, 20, 224, 255),
+                                        Color.argb(255, 174, 242, 255),
+                                        Color.argb(242, 40, 226, 255),
+                                        Color.argb(105, 0, 216, 255),
+                                        Color.argb(0, 0, 216, 255),
+                                        Color.argb(0, 0, 216, 255)
                                 },
                                 new float[]{0.0f, 0.38f, 0.44f, 0.49f, 0.55f, 0.63f, 0.73f, 0.81f, 1.0f},
                                 Shader.TileMode.REPEAT)
@@ -531,7 +550,7 @@ final class EqCurveView extends View {
                 sweepPaint.setShader(sweepGradient);
             }
 
-            if (!animationSuppressed && !liquidGlassTheme) {
+            if (!animationSuppressed) {
                 sweepMatrix.reset();
                 float totalWidth = right - left;
                 sweepMatrix.postTranslate(sweepPhase * totalWidth, 0);
@@ -544,16 +563,7 @@ final class EqCurveView extends View {
             lastInvalidateAt = 0L;
         }
 
-        if (liquidGlassTheme) {
-            // Liquid Glass gets one clean cyan-blue stroke with no keyline/outline.
-            curvePaint.setStrokeWidth(5.0f);
-            curvePaint.setDither(true);
-            curvePaint.setColor(lerpColor(
-                    Color.argb(18, 130, 140, 150),
-                    Color.rgb(0, 216, 255),
-                    enabledAmount));
-            canvas.drawPath(curvePath, curvePaint);
-        } else {
+        if (!liquidGlassTheme) {
             // Preserve the classic UI curve stack exactly; new-theme tuning must not
             // alter its original cyan core, light edge or animated sweep.
             curvePaint.setStrokeWidth(5f);
