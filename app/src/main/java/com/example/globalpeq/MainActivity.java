@@ -1120,6 +1120,7 @@ public final class MainActivity extends Activity {
         controlCard.setOrientation(LinearLayout.VERTICAL);
         controlCard.setPadding(dp(12), dp(12), dp(12), dp(12));
         controlCard.setBackground(createGlassCard(35));
+        applyGlassElevation(controlCard, 8f);
         eqPage.addView(controlCard, blockParams(0));
 
         FrameLayout top = new FrameLayout(this);
@@ -1341,6 +1342,7 @@ public final class MainActivity extends Activity {
         curveFrameView = curveFrame;
         curveFrame.setPadding(dp(2), dp(2), dp(2), dp(2));
         curveFrame.setBackground(createCurveFrameBackground());
+        applyGlassElevation(curveFrame, 6f);
         
         curveView = new EqCurveView(this);
         curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
@@ -1437,6 +1439,7 @@ public final class MainActivity extends Activity {
         listCard.setClipToPadding(true);
         listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
         listCard.setBackground(createGlassCard(30));
+        applyGlassElevation(listCard, 8f);
 
         LinearLayout.LayoutParams listCardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -1756,6 +1759,7 @@ public final class MainActivity extends Activity {
         panel.setClipToPadding(false);
         panel.setPadding(dp(16), dp(16), dp(16), dp(16));
         panel.setBackground(createGlassCard(alphaPercent));
+        applyGlassElevation(panel, 8f);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -8505,6 +8509,7 @@ public final class MainActivity extends Activity {
                 : Color.argb(35, 255, 255, 255));
         navBg.setCornerRadius(dp(liquidGlassTheme ? 22 : 16));
         nav.setBackground(navBg);
+        applyGlassElevation(nav, 10f);
 
         bottomTabIndicator = new View(this);
         bottomTabIndicator.setBackground(strokeGlowRoundRectDrawable(
@@ -8696,6 +8701,7 @@ public final class MainActivity extends Activity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(16), dp(14), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
+        applyGlassElevation(panel, 8f);
         panel.setClipChildren(false);
         panel.setClipToPadding(false);
         return panel;
