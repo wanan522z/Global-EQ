@@ -10900,6 +10900,37 @@ public final class MainActivity extends Activity {
                 lensShader = new android.graphics.BitmapShader(
                         bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             }
+            configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, zoom);
+            lensPaint.setShader(lensShader);
+            lensPaint.setStyle(Paint.Style.FILL);
+            lensPaint.setAlpha(Math.round((pressed ? 238f : 218f) * drawableAlpha / 255f));
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+
+            // Refraction is strongest close to the silhouette. A second, more strongly
+            // magnified sample is restricted to a narrow edge band; this bends the
+            // underlying colour itself instead of faking the effect with a thick border.
+            configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, zoom + 0.038f);
+            lensPaint.setStyle(Paint.Style.STROKE);
+            lensPaint.setStrokeWidth(dpf(2.0f));
+            lensPaint.setAlpha(Math.round((pressed ? 246f : 228f) * drawableAlpha / 255f));
+            innerRect.set(outerRect);
+            innerRect.inset(dpf(1.05f), dpf(1.05f));
+            float edgeRadius = Math.max(0f, outerRadius - dpf(1.05f));
+            canvas.drawRoundRect(innerRect, edgeRadius, edgeRadius, lensPaint);
+            lensPaint.setShader(null);
+            lensPaint.setStyle(Paint.Style.FILL);
+
+            float centreX = relativeX + outerRect.centerX();
+            float centreY = relativeY + outerRect.centerY();
+            int pixelX = clamp(Math.round(centreX / liquidBackdropView.getWidth() * bitmap.getWidth()),
+                    0, bitmap.getWidth() - 1);
+            int pixelY = clamp(Math.round(centreY / liquidBackdropView.getHeight() * bitmap.getHeight()),
+                    0, bitmap.getHeight() - 1);
+            return (float) Color.luminance(bitmap.getPixel(pixelX, pixelY));
+        }
+
+        private void configureLensShader(float screenPerPixelX, float screenPerPixelY,
+                                         float relativeX, float relativeY, float zoom) {
             lensMatrixValues[android.graphics.Matrix.MSCALE_X] = screenPerPixelX * zoom;
             lensMatrixValues[android.graphics.Matrix.MSKEW_X] = 0f;
             lensMatrixValues[android.graphics.Matrix.MTRANS_X] =
@@ -10913,18 +10944,6 @@ public final class MainActivity extends Activity {
             lensMatrixValues[android.graphics.Matrix.MPERSP_2] = 1f;
             lensMatrix.setValues(lensMatrixValues);
             lensShader.setLocalMatrix(lensMatrix);
-            lensPaint.setShader(lensShader);
-            lensPaint.setAlpha(Math.round((pressed ? 238f : 218f) * drawableAlpha / 255f));
-            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
-            lensPaint.setShader(null);
-
-            float centreX = relativeX + outerRect.centerX();
-            float centreY = relativeY + outerRect.centerY();
-            int pixelX = clamp(Math.round(centreX / liquidBackdropView.getWidth() * bitmap.getWidth()),
-                    0, bitmap.getWidth() - 1);
-            int pixelY = clamp(Math.round(centreY / liquidBackdropView.getHeight() * bitmap.getHeight()),
-                    0, bitmap.getHeight() - 1);
-            return (float) Color.luminance(bitmap.getPixel(pixelX, pixelY));
         }
 
         @Override
