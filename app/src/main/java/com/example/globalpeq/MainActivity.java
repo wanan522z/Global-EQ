@@ -8481,18 +8481,22 @@ public final class MainActivity extends Activity {
 
         GradientDrawable navBg = new GradientDrawable();
         navBg.setShape(GradientDrawable.RECTANGLE);
-        navBg.setColor(Color.argb(45, 20, 24, 38));
-        navBg.setStroke(dp(1), Color.argb(35, 255, 255, 255));
-        navBg.setCornerRadius(dp(16));
+        navBg.setColor(liquidGlassTheme
+                ? Color.argb(218, 255, 255, 255)
+                : Color.argb(45, 20, 24, 38));
+        navBg.setStroke(dp(1), liquidGlassTheme
+                ? Color.argb(176, 190, 208, 232)
+                : Color.argb(35, 255, 255, 255));
+        navBg.setCornerRadius(dp(liquidGlassTheme ? 22 : 16));
         nav.setBackground(navBg);
 
         bottomTabIndicator = new View(this);
         bottomTabIndicator.setBackground(strokeGlowRoundRectDrawable(
-                Color.argb(24, 255, 255, 255),
-                Color.argb(160, 0, 245, 212),
-                dp(12),
+                liquidGlassTheme ? Color.argb(210, 255, 255, 255) : Color.argb(24, 255, 255, 255),
+                liquidGlassTheme ? Color.argb(195, 70, 190, 225) : Color.argb(160, 0, 245, 212),
+                dp(liquidGlassTheme ? 17 : 12),
                 dp(3),
-                Color.argb(85, 0, 245, 212)
+                liquidGlassTheme ? Color.argb(70, 70, 180, 235) : Color.argb(85, 0, 245, 212)
         ));
         nav.addView(bottomTabIndicator, new FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT));
 
@@ -10434,35 +10438,56 @@ public final class MainActivity extends Activity {
     private GradientDrawable createGlassCard(int alphaPercent) {
         GradientDrawable gd = new GradientDrawable();
         gd.setShape(GradientDrawable.RECTANGLE);
-        gd.setColor(Color.argb((int)(alphaPercent * 2.55f), 18, 22, 34));
-        gd.setStroke(dp(1), Color.argb(35, 255, 255, 255));
-        gd.setCornerRadius(dp(14));
+        if (liquidGlassTheme) {
+            int glassAlpha = Math.min(232, 172 + Math.round(alphaPercent * 1.25f));
+            gd.setColor(Color.argb(glassAlpha, 255, 255, 255));
+            gd.setStroke(dp(1), Color.argb(185, 190, 208, 232));
+            gd.setCornerRadius(dp(22));
+        } else {
+            gd.setColor(Color.argb((int)(alphaPercent * 2.55f), 18, 22, 34));
+            gd.setStroke(dp(1), Color.argb(35, 255, 255, 255));
+            gd.setCornerRadius(dp(14));
+        }
         return gd;
     }
 
     private GradientDrawable createFieldBackground(int fillAlpha, int strokeAlpha, int radiusDp) {
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setColor(Color.argb(fillAlpha, 255, 255, 255));
-        bg.setStroke(dp(1), Color.argb(strokeAlpha, 255, 255, 255));
-        bg.setCornerRadius(dp(radiusDp));
+        bg.setColor(liquidGlassTheme
+                ? Color.argb(Math.min(238, 170 + fillAlpha * 2), 255, 255, 255)
+                : Color.argb(fillAlpha, 255, 255, 255));
+        bg.setStroke(dp(1), liquidGlassTheme
+                ? Color.argb(Math.min(210, 120 + strokeAlpha), 172, 193, 221)
+                : Color.argb(strokeAlpha, 255, 255, 255));
+        bg.setCornerRadius(dp(radiusDp + (liquidGlassTheme ? 4 : 0)));
         return bg;
     }
 
     private GradientDrawable createEqControlBackground() {
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setColor(Color.argb(24, 255, 255, 255));
-        bg.setStroke(dp(1), Color.argb(52, 255, 255, 255));
-        bg.setCornerRadius(dp(10));
+        bg.setColor(UiTheme.fieldFill(liquidGlassTheme));
+        bg.setStroke(dp(1), UiTheme.fieldStroke(liquidGlassTheme));
+        bg.setCornerRadius(dp(liquidGlassTheme ? 14 : 10));
         return bg;
+    }
+
+    private Drawable createCurveFrameBackground() {
+        return strokeGlowRoundRectDrawable(
+                liquidGlassTheme ? Color.argb(190, 255, 255, 255) : Color.argb((int)(20 * 2.55f), 18, 22, 34),
+                liquidGlassTheme ? Color.argb(150, 64, 190, 222) : Color.argb(120, 0, 245, 212),
+                dp(liquidGlassTheme ? 22 : 14),
+                dp(3),
+                liquidGlassTheme ? Color.argb(54, 85, 170, 230) : Color.argb(80, 0, 245, 212)
+        );
     }
 
     private Drawable createOverlayInputBackground() {
         return strokeGlowRoundRectDrawable(
-                Color.argb(235, 23, 37, 42),
+                liquidGlassTheme ? Color.argb(242, 255, 255, 255) : Color.argb(235, 23, 37, 42),
                 Color.argb(170, 0, 245, 212),
-                dp(8),
+                dp(liquidGlassTheme ? 14 : 8),
                 dp(2),
                 Color.argb(70, 0, 245, 212)
         );
@@ -10484,14 +10509,18 @@ public final class MainActivity extends Activity {
         }
         // thumb 颜色：关闭时浅灰偏冷，开启时青色亮光（带柔光）
         switchView.setThumbDrawable(switchThumbDrawable(
-                autoSwitch ? Color.rgb(150, 168, 198) : Color.rgb(162, 180, 208),
+                liquidGlassTheme
+                        ? Color.rgb(245, 249, 255)
+                        : (autoSwitch ? Color.rgb(150, 168, 198) : Color.rgb(162, 180, 208)),
                 Color.rgb(76, 210, 228)
         ));
         // track 颜色：关闭时半透明白，开启时半透明青蓝（与标题流光同色系）
         switchView.setTrackDrawable(labeledSwitchTrackDrawable(
                 autoSwitch ? "AUTO" : "OFF",
                 autoSwitch ? "AUTO" : "ON",
-                autoSwitch ? Color.argb(52, 126, 152, 196) : Color.argb(60, 118, 144, 188),
+                liquidGlassTheme
+                        ? Color.argb(205, 198, 210, 226)
+                        : (autoSwitch ? Color.argb(52, 126, 152, 196) : Color.argb(60, 118, 144, 188)),
                 autoSwitch ? Color.argb(112, 52, 168, 196) : Color.argb(124, 48, 176, 208)
         ));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
