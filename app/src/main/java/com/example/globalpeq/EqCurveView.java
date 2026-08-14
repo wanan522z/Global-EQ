@@ -535,7 +535,7 @@ final class EqCurveView extends View {
                                         Color.argb(0, 0, 226, 255),
                                         Color.argb(0, 0, 226, 255)
                                 },
-                                new float[]{0f, 0.08f, 0.20f, 0.38f, 0.50f, 0.62f, 0.80f, 0.92f, 1f},
+                                new float[]{0f, 0.07f, 0.14f, 0.28f, 0.50f, 0.72f, 0.86f, 0.93f, 1f},
                                 Shader.TileMode.REPEAT)
                         : new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
