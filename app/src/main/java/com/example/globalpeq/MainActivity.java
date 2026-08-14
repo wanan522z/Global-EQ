@@ -8610,17 +8610,20 @@ public final class MainActivity extends Activity {
                 ? Color.argb(176, 190, 208, 232)
                 : Color.argb(35, 255, 255, 255));
         navBg.setCornerRadius(dp(liquidGlassTheme ? 22 : 16));
-        nav.setBackground(navBg);
+        nav.setBackground(liquidGlassTheme
+                ? new LiquidGlassDrawable(dp(22), 30)
+                : navBg);
         applyGlassElevation(nav, 10f);
 
         bottomTabIndicator = new View(this);
-        bottomTabIndicator.setBackground(strokeGlowRoundRectDrawable(
-                liquidGlassTheme ? Color.argb(210, 255, 255, 255) : Color.argb(24, 255, 255, 255),
-                liquidGlassTheme ? Color.argb(195, 70, 190, 225) : Color.argb(160, 0, 245, 212),
-                dp(liquidGlassTheme ? 17 : 12),
-                dp(3),
-                liquidGlassTheme ? Color.argb(70, 70, 180, 235) : Color.argb(85, 0, 245, 212)
-        ));
+        bottomTabIndicator.setBackground(liquidGlassTheme
+                ? new LiquidGlassDrawable(dp(17), 52)
+                : strokeGlowRoundRectDrawable(
+                        Color.argb(24, 255, 255, 255),
+                        Color.argb(160, 0, 245, 212),
+                        dp(12),
+                        dp(3),
+                        Color.argb(85, 0, 245, 212)));
         nav.addView(bottomTabIndicator, new FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT));
 
         bottomTabStrip = new LinearLayout(this);
@@ -10693,10 +10696,10 @@ public final class MainActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
         bg.setColor(liquidGlassTheme
-                ? Color.argb(Math.min(238, 170 + fillAlpha * 2), 255, 255, 255)
+                ? Color.argb(Math.min(188, 104 + fillAlpha * 2), 246, 255, 254)
                 : Color.argb(fillAlpha, 255, 255, 255));
         bg.setStroke(dp(1), liquidGlassTheme
-                ? Color.argb(Math.min(210, 120 + strokeAlpha), 172, 193, 221)
+                ? Color.argb(Math.min(210, 128 + strokeAlpha), 151, 222, 216)
                 : Color.argb(strokeAlpha, 255, 255, 255));
         bg.setCornerRadius(dp(radiusDp + (liquidGlassTheme ? 4 : 0)));
         return bg;
@@ -10712,20 +10715,26 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable createCurveFrameBackground() {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(22), 48);
+        }
         return strokeGlowRoundRectDrawable(
-                liquidGlassTheme ? Color.argb(190, 255, 255, 255) : Color.argb((int)(20 * 2.55f), 18, 22, 34),
-                liquidGlassTheme ? Color.argb(150, 64, 190, 222) : Color.argb(120, 0, 245, 212),
-                dp(liquidGlassTheme ? 22 : 14),
+                Color.argb((int)(20 * 2.55f), 18, 22, 34),
+                Color.argb(120, 0, 245, 212),
+                dp(14),
                 dp(3),
-                liquidGlassTheme ? Color.argb(54, 85, 170, 230) : Color.argb(80, 0, 245, 212)
+                Color.argb(80, 0, 245, 212)
         );
     }
 
     private Drawable createOverlayInputBackground() {
+        if (liquidGlassTheme) {
+            return new LiquidGlassDrawable(dp(14), 72);
+        }
         return strokeGlowRoundRectDrawable(
-                liquidGlassTheme ? Color.argb(242, 255, 255, 255) : Color.argb(235, 23, 37, 42),
+                Color.argb(235, 23, 37, 42),
                 Color.argb(170, 0, 245, 212),
-                dp(liquidGlassTheme ? 14 : 8),
+                dp(8),
                 dp(2),
                 Color.argb(70, 0, 245, 212)
         );
