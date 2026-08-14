@@ -1459,6 +1459,140 @@ public final class MainActivity extends Activity {
         return sceneRoot;
     }
 
+    /** Animated, pre-blurred color field visible through every translucent glass surface. */
+    private final class LiquidBackdropView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final boolean liquid;
+        private android.animation.ValueAnimator flowAnimator;
+        private float phase;
+        private long lastFrameMs;
+
+        LiquidBackdropView(Context context, boolean liquid) {
+            super(context);
+            this.liquid = liquid;
+            setWillNotDraw(false);
+            if (liquid) {
+                setScaleX(1.08f);
+                setScaleY(1.08f);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
+                            dpf(30f), dpf(30f), Shader.TileMode.CLAMP));
+                }
+            }
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            if (!liquid || flowAnimator != null) {
+                return;
+            }
+            flowAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            flowAnimator.setDuration(22000L);
+            flowAnimator.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            flowAnimator.setRepeatMode(android.animation.ValueAnimator.RESTART);
+            flowAnimator.setInterpolator(new android.view.animation.LinearInterpolator());
+            flowAnimator.addUpdateListener(animation -> {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - lastFrameMs < 50L) {
+                    return;
+                }
+                lastFrameMs = now;
+                phase = (float) animation.getAnimatedValue();
+                invalidate();
+            });
+            flowAnimator.start();
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            if (flowAnimator != null) {
+                flowAnimator.cancel();
+                flowAnimator = null;
+            }
+            super.onDetachedFromWindow();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) {
+                return;
+            }
+            if (!liquid) {
+                drawClassicBackdrop(canvas, w, h);
+                return;
+            }
+
+            paint.setShader(new LinearGradient(
+                    0f, 0f, w, h,
+                    new int[]{
+                            Color.rgb(235, 250, 248),
+                            Color.rgb(168, 230, 224),
+                            Color.rgb(205, 235, 250),
+                            Color.rgb(218, 247, 243)
+                    },
+                    new float[]{0f, 0.34f, 0.70f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawRect(0f, 0f, w, h, paint);
+
+            float a = phase * (float) (Math.PI * 2.0);
+            drawFlowBlob(canvas,
+                    w * (0.50f + 0.32f * (float) Math.sin(a)),
+                    h * (0.22f + 0.09f * (float) Math.cos(a * 0.72f)),
+                    Math.max(w, h) * 0.48f,
+                    Color.argb(190, 102, 212, 200));
+            drawFlowBlob(canvas,
+                    w * (0.18f + 0.22f * (float) Math.cos(a * 0.61f)),
+                    h * (0.72f + 0.12f * (float) Math.sin(a * 0.83f)),
+                    Math.max(w, h) * 0.40f,
+                    Color.argb(132, 121, 205, 238));
+            drawFlowBlob(canvas,
+                    w * (0.86f + 0.10f * (float) Math.sin(a * 0.47f)),
+                    h * (0.60f + 0.18f * (float) Math.cos(a * 0.58f)),
+                    Math.max(w, h) * 0.34f,
+                    Color.argb(116, 178, 240, 232));
+
+            // Klein blue is intentionally a small accent, never the dominant field.
+            drawFlowBlob(canvas,
+                    w * (0.90f + 0.07f * (float) Math.cos(a * 0.44f)),
+                    h * (0.06f + 0.08f * (float) Math.sin(a * 0.52f)),
+                    Math.min(w, h) * 0.52f,
+                    Color.argb(82, 0, 44, 176));
+            drawFlowBlob(canvas,
+                    w * (0.04f + 0.06f * (float) Math.sin(a * 0.39f)),
+                    h * (0.94f + 0.06f * (float) Math.cos(a * 0.48f)),
+                    Math.min(w, h) * 0.42f,
+                    Color.argb(42, 0, 44, 176));
+
+            drawFlowBlob(canvas,
+                    w * (0.48f + 0.18f * (float) Math.cos(a * 0.70f)),
+                    h * (0.48f + 0.22f * (float) Math.sin(a * 0.64f)),
+                    Math.max(w, h) * 0.24f,
+                    Color.argb(92, 255, 255, 255));
+            paint.setShader(null);
+        }
+
+        private void drawClassicBackdrop(Canvas canvas, int w, int h) {
+            canvas.drawColor(Color.rgb(18, 18, 25));
+            drawFlowBlob(canvas, w * 0.8f, h * 0.15f,
+                    Math.min(w, h) * 0.75f, Color.argb(85, 0, 255, 255));
+            drawFlowBlob(canvas, w * 0.15f, h * 0.75f,
+                    Math.min(w, h) * 0.85f, Color.argb(70, 160, 100, 255));
+            paint.setShader(null);
+            paint.setColor(Color.argb(70, 18, 18, 25));
+            canvas.drawRect(0f, 0f, w, h, paint);
+        }
+
+        private void drawFlowBlob(Canvas canvas, float x, float y, float radius, int color) {
+            paint.setShader(new RadialGradient(
+                    x, y, radius, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            canvas.drawCircle(x, y, radius, paint);
+        }
+    }
+
     private FrameLayout.LayoutParams pageHostParams() {
         return new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
