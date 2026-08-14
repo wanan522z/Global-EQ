@@ -86,15 +86,15 @@ final class EqCurveView extends View {
         liquidGlassTheme = UiTheme.isLiquidGlass(context);
         setBackgroundColor(Color.TRANSPARENT);
         gridPaint.setColor(liquidGlassTheme
-                ? Color.argb(34, 38, 58, 84)
+                ? Color.argb(58, 30, 54, 82)
                 : Color.argb(20, 255, 255, 255));
         gridPaint.setStrokeWidth(1.5f);
         minorGridPaint.setColor(liquidGlassTheme
-                ? Color.argb(18, 38, 58, 84)
+                ? Color.argb(30, 30, 54, 82)
                 : Color.argb(11, 255, 255, 255));
         minorGridPaint.setStrokeWidth(1f);
         zeroPaint.setColor(liquidGlassTheme
-                ? Color.argb(78, 38, 58, 84)
+                ? Color.argb(122, 22, 48, 78)
                 : Color.argb(55, 255, 255, 255));
         zeroPaint.setStrokeWidth(2f);
         curvePaint.setStyle(Paint.Style.STROKE);
@@ -110,11 +110,11 @@ final class EqCurveView extends View {
         referencePaint.setDither(true);
         dashPathEffect = new DashPathEffect(new float[]{12f, 10f}, 0f);
         textPaint.setColor(liquidGlassTheme
-                ? Color.argb(190, 45, 60, 82)
+                ? Color.argb(238, 22, 48, 78)
                 : Color.argb(160, 255, 255, 255));
         textPaint.setTextSize(22f);
         frequencyTextPaint.setColor(liquidGlassTheme
-                ? Color.argb(145, 64, 80, 104)
+                ? Color.argb(205, 35, 61, 91)
                 : Color.argb(105, 220, 230, 245));
         frequencyTextPaint.setTextSize(17f);
         frequencyTextPaint.setTextAlign(Paint.Align.CENTER);
@@ -212,7 +212,7 @@ final class EqCurveView extends View {
         edgePaint.setStyle(Paint.Style.STROKE);
         edgePaint.setStrokeCap(Paint.Cap.ROUND);
         edgePaint.setStrokeJoin(Paint.Join.ROUND);
-        edgePaint.setStrokeWidth(4.2f);
+        edgePaint.setStrokeWidth(4.6f);
         edgePaint.setAntiAlias(true);
         edgePaint.setDither(true);
     }
@@ -487,12 +487,15 @@ final class EqCurveView extends View {
             lastInvalidateAt = 0L;
         }
 
-        curvePaint.setStrokeWidth(5f);
+        // Three contrast bands keep the response readable over both the pale cyan and
+        // deep blue areas of the animated backdrop: dark keyline, light separator,
+        // then a saturated cyan core.
+        curvePaint.setStrokeWidth(7.4f);
         curvePaint.setDither(true);
         curvePaint.setColor(lerpColor(
                 Color.argb(18, 130, 140, 150),
                 liquidGlassTheme
-                        ? Color.argb(205, 53, 218, 227)
+                        ? Color.argb(242, 4, 54, 102)
                         : Color.argb(35, 0, 255, 255),
                 enabledAmount));
         canvas.drawPath(curvePath, curvePaint);
@@ -500,16 +503,16 @@ final class EqCurveView extends View {
         edgePaint.setColor(lerpColor(
                 Color.argb(58, 150, 160, 172),
                 liquidGlassTheme
-                        ? Color.argb(238, 166, 249, 247)
+                        ? Color.argb(248, 242, 255, 255)
                         : Color.argb(105, 130, 245, 255),
                 enabledAmount));
         canvas.drawPath(curvePath, edgePaint);
 
-        curvePaint.setStrokeWidth(3.2f);
+        curvePaint.setStrokeWidth(2.7f);
         curvePaint.setColor(lerpColor(
                 Color.rgb(130, 140, 150),
                 liquidGlassTheme
-                        ? Color.rgb(42, 226, 234)
+                        ? Color.rgb(0, 166, 202)
                         : Color.rgb(0, 255, 255),
                 enabledAmount));
         canvas.drawPath(curvePath, curvePaint);
@@ -568,15 +571,15 @@ final class EqCurveView extends View {
         }
         glowCacheBitmap.eraseColor(Color.TRANSPARENT);
 
-        curvePaint.setStrokeWidth(5f);
+        curvePaint.setStrokeWidth(7.4f);
         curvePaint.setDither(true);
         curvePaint.setColor(liquidGlassTheme
-                ? Color.argb(205, 53, 218, 227)
+                ? Color.argb(242, 4, 54, 102)
                 : Color.argb(35, 0, 255, 255));
         glowCacheCanvas.drawPath(curvePath, curvePaint);
 
         edgePaint.setColor(liquidGlassTheme
-                ? Color.argb(238, 166, 249, 247)
+                ? Color.argb(248, 242, 255, 255)
                 : Color.argb(105, 130, 245, 255));
         glowCacheCanvas.drawPath(curvePath, edgePaint);
 

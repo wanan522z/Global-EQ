@@ -1403,10 +1403,10 @@ public final class MainActivity extends Activity {
         FrameLayout listCardHolder = new FrameLayout(this);
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
-        // The list is a viewport. Keeping clipping enabled here prevents the first/last
-        // band glow and the add button from painting over the graph or bottom navigation.
-        listCardHolder.setClipChildren(true);
-        listCardHolder.setClipToPadding(true);
+        // The card itself is the viewport: its children are clipped, while the holder
+        // still leaves room for the card's own glass rim and elevation shadow.
+        listCardHolder.setClipChildren(false);
+        listCardHolder.setClipToPadding(false);
         listCard.setClipChildren(true);
         listCard.setClipToPadding(true);
         listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
@@ -1498,7 +1498,7 @@ public final class MainActivity extends Activity {
         private final Runnable flowTicker = new Runnable() {
             @Override
             public void run() {
-                if (!flowRunning || !isAttachedToWindow()) {
+                if (!flowRunning || scrollingPaused || !isAttachedToWindow()) {
                     return;
                 }
                 long now = android.os.SystemClock.uptimeMillis();
