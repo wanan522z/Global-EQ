@@ -786,10 +786,15 @@ public final class MainActivity extends Activity {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        if (event != null && event.getAction() == MotionEvent.ACTION_DOWN) {
-            View focused = getCurrentFocus();
-            if (shouldDismissKeyboardOnTouch(focused, event)) {
-                closeKeyboard(focused);
+        if (event != null) {
+            if (liquidBackdropView != null) {
+                liquidBackdropView.boostGlassRefresh();
+            }
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                View focused = getCurrentFocus();
+                if (shouldDismissKeyboardOnTouch(focused, event)) {
+                    closeKeyboard(focused);
+                }
             }
         }
         return super.dispatchTouchEvent(event);
@@ -1035,6 +1040,11 @@ public final class MainActivity extends Activity {
             });
             root.post(root::requestApplyInsets);
         }
+        sceneRoot.getViewTreeObserver().addOnScrollChangedListener(() -> {
+            if (liquidBackdropView != null) {
+                liquidBackdropView.boostGlassRefresh();
+            }
+        });
 
         mainPageHost = new MainPageHost(this);
         root.addView(mainPageHost, new LinearLayout.LayoutParams(
@@ -1499,6 +1509,7 @@ public final class MainActivity extends Activity {
         private boolean flowRunning;
         private long lastFlowFrameNanos;
         private long nextRenderedFrameNanos;
+        private long glassRefreshBoostUntilNanos;
         private double flowSeconds;
         private final double flowSeed = (android.os.SystemClock.uptimeMillis() % 1000003L) * 0.000031d;
         private static final long TARGET_FRAME_INTERVAL_NANOS = 16_000_000L;
@@ -1519,7 +1530,9 @@ public final class MainActivity extends Activity {
                 // Align the expensive bitmap and lens refresh with display VSYNC while
                 // capping it near 60 FPS on high-refresh panels. Advancing a fixed
                 // deadline avoids the uneven 45 FPS cadence produced by simple delays.
-                if (nextRenderedFrameNanos == 0L || frameTimeNanos >= nextRenderedFrameNanos) {
+                boolean renderedBackdrop = nextRenderedFrameNanos == 0L
+                        || frameTimeNanos >= nextRenderedFrameNanos;
+                if (renderedBackdrop) {
                     if (nextRenderedFrameNanos == 0L) {
                         nextRenderedFrameNanos = frameTimeNanos;
                     }
@@ -1527,6 +1540,11 @@ public final class MainActivity extends Activity {
                         nextRenderedFrameNanos += TARGET_FRAME_INTERVAL_NANOS;
                     } while (nextRenderedFrameNanos <= frameTimeNanos);
                     invalidate();
+                }
+                // During direct manipulation and kinetic scrolling, re-record the
+                // screen-space lens every display frame. The backdrop itself remains a
+                // continuous ~60 FPS animation, but its sampling position never lags.
+                if (renderedBackdrop || frameTimeNanos < glassRefreshBoostUntilNanos) {
                     invalidateLiquidGlassDrawables();
                 }
                 Choreographer.getInstance().postFrameCallback(this);
@@ -1553,6 +1571,10 @@ public final class MainActivity extends Activity {
 
         private final Rect backdropLocationScratch = new Rect();
 
+        void boostGlassRefresh() {
+            glassRefreshBoostUntilNanos = System.nanoTime() + 220_000_000L;
+        }
+
         LiquidBackdropView(Context context, boolean liquid) {
             super(context);
             this.liquid = liquid;
@@ -1578,6 +1600,7 @@ public final class MainActivity extends Activity {
             flowRunning = false;
             lastFlowFrameNanos = 0L;
             nextRenderedFrameNanos = 0L;
+            glassRefreshBoostUntilNanos = 0L;
             Choreographer.getInstance().removeFrameCallback(flowFrameCallback);
             super.onDetachedFromWindow();
         }
