@@ -1013,46 +1013,15 @@ public final class MainActivity extends Activity {
         applyRunningPreset(shouldForceFullResetForCurrentMode());
     }
 
-    private LinearLayout buildContent() {
-        LinearLayout root = new LinearLayout(this) {
-            private final Paint blobPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private View buildContent() {
+        FrameLayout sceneRoot = new FrameLayout(this);
+        sceneRoot.setClipChildren(false);
+        sceneRoot.addView(new LiquidBackdropView(this, liquidGlassTheme), new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
-            @Override
-            protected void dispatchDraw(Canvas canvas) {
-                int w = getWidth();
-                int h = getHeight();
-                if (w > 0 && h > 0) {
-                    if (liquidGlassTheme) {
-                        canvas.drawColor(Color.rgb(246, 249, 255));
-                        drawBackdropBlob(canvas, w * 0.82f, h * 0.10f,
-                                Math.min(w, h) * 0.92f, Color.argb(108, 105, 220, 255));
-                        drawBackdropBlob(canvas, w * 0.08f, h * 0.58f,
-                                Math.min(w, h) * 0.96f, Color.argb(74, 177, 134, 255));
-                        drawBackdropBlob(canvas, w * 0.84f, h * 0.88f,
-                                Math.min(w, h) * 0.86f, Color.argb(76, 188, 132, 255));
-                        blobPaint.setShader(null);
-                        blobPaint.setColor(Color.argb(58, 255, 255, 255));
-                        canvas.drawRect(0, 0, w, h, blobPaint);
-                    } else {
-                        canvas.drawColor(Color.rgb(18, 18, 25));
-                        drawBackdropBlob(canvas, w * 0.8f, h * 0.15f,
-                                Math.min(w, h) * 0.75f, Color.argb(85, 0, 255, 255));
-                        drawBackdropBlob(canvas, w * 0.15f, h * 0.75f,
-                                Math.min(w, h) * 0.85f, Color.argb(70, 160, 100, 255));
-                        blobPaint.setShader(null);
-                        blobPaint.setColor(Color.argb(70, 18, 18, 25));
-                        canvas.drawRect(0, 0, w, h, blobPaint);
-                    }
-                }
-                super.dispatchDraw(canvas);
-            }
-
-            private void drawBackdropBlob(Canvas canvas, float x, float y, float radius, int color) {
-                blobPaint.setShader(new RadialGradient(
-                        x, y, radius, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
-                canvas.drawCircle(x, y, radius, blobPaint);
-            }
-        };
+        LinearLayout root = new LinearLayout(this);
+        root.setBackgroundColor(Color.TRANSPARENT);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12), dp(12), dp(12), dp(6));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
@@ -1484,7 +1453,10 @@ public final class MainActivity extends Activity {
         bottomNavView = buildBottomNav();
         root.addView(bottomNavView, bottomNavParams);
 
-        return root;
+        sceneRoot.addView(root, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+        return sceneRoot;
     }
 
     private FrameLayout.LayoutParams pageHostParams() {
