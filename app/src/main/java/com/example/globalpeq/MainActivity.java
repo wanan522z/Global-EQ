@@ -9136,18 +9136,9 @@ public final class MainActivity extends Activity {
         nav.setClipToPadding(false);
         nav.setClipToOutline(false);
 
-        GradientDrawable navBg = new GradientDrawable();
-        navBg.setShape(GradientDrawable.RECTANGLE);
-        navBg.setColor(liquidGlassTheme
-                ? Color.argb(218, 255, 255, 255)
-                : Color.rgb(18, 22, 34));
-        navBg.setStroke(dp(1), liquidGlassTheme
-                ? Color.argb(176, 190, 208, 232)
-                : Color.argb(35, 255, 255, 255));
-        navBg.setCornerRadius(dp(22));
         nav.setBackground(liquidGlassTheme
                 ? new LiquidGlassDrawable(dp(22), 30, true)
-                : navBg);
+                : new LiquidGlassDrawable(dp(22), 78, true, true));
         applyGlassElevation(nav, 8f);
 
         bottomTabIndicator = new View(this);
@@ -11237,18 +11228,24 @@ public final class MainActivity extends Activity {
         private final float radius;
         private final int density;
         private final boolean outerLayer;
+        private final boolean darkSurface;
         private boolean pressed;
         private float stableBackdropLuminance = Float.NaN;
         private int drawableAlpha = 255;
 
         LiquidGlassDrawable(float radius, int density) {
-            this(radius, density, false);
+            this(radius, density, false, false);
         }
 
         LiquidGlassDrawable(float radius, int density, boolean outerLayer) {
+            this(radius, density, outerLayer, false);
+        }
+
+        LiquidGlassDrawable(float radius, int density, boolean outerLayer, boolean darkSurface) {
             this.radius = radius;
             this.density = clamp(density, 0, 100);
             this.outerLayer = outerLayer;
+            this.darkSurface = darkSurface;
             liquidGlassDrawables.add(new java.lang.ref.WeakReference<>(this));
         }
 
@@ -11283,13 +11280,23 @@ public final class MainActivity extends Activity {
 
             // Regular glass adapts its luminosity to the content underneath. Darker
             // regions receive a stronger milky lift so foreground text remains legible.
-            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 18f : 28f));
-            int topAlpha = outerLayer
-                    ? clamp(28 + Math.round(density * 0.22f) + adaptiveLift, 36, 72)
-                    : clamp(50 + Math.round(density * 0.28f) + adaptiveLift, 62, 112);
-            int bottomAlpha = outerLayer
-                    ? clamp(topAlpha - 5, 30, 68)
-                    : clamp(topAlpha - 5, 56, 106);
+            int topAlpha;
+            int bottomAlpha;
+            if (darkSurface) {
+                int darkeningLift = Math.round(backdropLuminance * 28f);
+                topAlpha = clamp(118 + Math.round(density * 0.58f) + darkeningLift,
+                        152, 210);
+                bottomAlpha = clamp(topAlpha - 14, 138, 196);
+            } else {
+                int adaptiveLift = Math.round((1f - backdropLuminance)
+                        * (outerLayer ? 18f : 28f));
+                topAlpha = outerLayer
+                        ? clamp(28 + Math.round(density * 0.22f) + adaptiveLift, 36, 72)
+                        : clamp(50 + Math.round(density * 0.28f) + adaptiveLift, 62, 112);
+                bottomAlpha = outerLayer
+                        ? clamp(topAlpha - 5, 30, 68)
+                        : clamp(topAlpha - 5, 56, 106);
+            }
             if (pressed) {
                 topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
                 bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
@@ -11343,28 +11350,42 @@ public final class MainActivity extends Activity {
             shaderBottom = bottom;
             shaderTopAlpha = topAlpha;
             shaderBottomAlpha = bottomAlpha;
-            glassFillShader = new LinearGradient(
-                    outerRect.centerX(), outerRect.top, outerRect.centerX(), outerRect.bottom,
-                    new int[]{
+            int[] fillColors = darkSurface
+                    ? new int[]{
+                            Color.argb(topAlpha, 15, 21, 34),
+                            Color.argb(Math.max(138, topAlpha - 8), 18, 25, 40),
+                            Color.argb(bottomAlpha, 10, 15, 28)
+                    }
+                    : new int[]{
                             Color.argb(topAlpha, 255, 255, 255),
                             Color.argb(Math.max(outerLayer ? 30 : 56, topAlpha - 4), 242, 250, 252),
                             Color.argb(bottomAlpha, 224, 237, 245)
-                    },
+                    };
+            glassFillShader = new LinearGradient(
+                    outerRect.centerX(), outerRect.top, outerRect.centerX(), outerRect.bottom,
+                    fillColors,
                     new float[]{0f, 0.48f, 1f},
                     Shader.TileMode.CLAMP);
             if (!geometryChanged) {
                 return;
             }
             float sheenRadius = Math.max(outerRect.width(), outerRect.height()) * 0.88f;
+            int[] sheenColors = darkSurface
+                    ? new int[]{
+                            Color.argb(22, 82, 188, 220),
+                            Color.argb(8, 112, 102, 198),
+                            Color.TRANSPARENT
+                    }
+                    : new int[]{
+                            Color.argb(outerLayer ? 10 : 18, 255, 255, 255),
+                            Color.argb(outerLayer ? 4 : 7, 248, 253, 255),
+                            Color.TRANSPARENT
+                    };
             surfaceSheenShader = new RadialGradient(
                     outerRect.centerX(),
                     outerRect.top + outerRect.height() * 0.06f,
                     Math.max(dpf(1f), sheenRadius),
-                    new int[]{
-                            Color.argb(outerLayer ? 10 : 18, 255, 255, 255),
-                            Color.argb(outerLayer ? 4 : 7, 248, 253, 255),
-                            Color.TRANSPARENT
-                    },
+                    sheenColors,
                     new float[]{0f, 0.46f, 1f},
                     Shader.TileMode.CLAMP);
             edgeDispersionShader = new SweepGradient(
