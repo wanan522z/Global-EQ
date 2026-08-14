@@ -1673,6 +1673,40 @@ public final class MainActivity extends Activity {
         exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
         importExportPanel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
 
+        LinearLayout appearancePanel = createSettingsSectionPanel(34, 16);
+        settingsRootContent.addView(appearancePanel);
+
+        addSettingsSectionTitle(appearancePanel, () -> tr("Appearance", "外观"), 18);
+
+        TextView appearanceDetail = new TextView(this);
+        bindText(appearanceDetail, () -> tr(
+                "Choose the new white liquid-glass interface or the original black neon interface. Animated fluorescent titles remain enabled in both.",
+                "选择新的白色液态玻璃界面，或原有的黑色荧光界面。两种外观都会保留标题滚动荧光。"));
+        appearanceDetail.setTextSize(12);
+        appearanceDetail.setTextColor(themeTextSecondary());
+        appearanceDetail.setLineSpacing(dp(2), 1f);
+        appearancePanel.addView(appearanceDetail, blockParams(2));
+
+        liquidGlassSwitch = new Switch(this);
+        liquidGlassSwitch.setText("");
+        liquidGlassSwitch.setShowText(false);
+        liquidGlassSwitch.setChecked(liquidGlassTheme);
+        styleTopSwitch(liquidGlassSwitch, false);
+        liquidGlassSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (updatingUi || checked == liquidGlassTheme) {
+                return;
+            }
+            UiTheme.setLiquidGlass(this, checked);
+            liquidGlassTheme = checked;
+            UiTheme.applyWindowAppearance(this, liquidGlassTheme);
+            recreate();
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        });
+        appearancePanel.addView(labeledSettingsRow(
+                () -> tr("Liquid glass interface", "液态玻璃界面"),
+                liquidGlassSwitch,
+                null), blockParams(14));
+
         LinearLayout aboutPanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(aboutPanel);
 
