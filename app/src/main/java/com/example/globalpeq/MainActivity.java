@@ -11993,7 +11993,7 @@ public final class MainActivity extends Activity {
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
         // 缩小一圈，但保留完整衰减空间
-        view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
+        clearGlowFromTextView(view);
         view.invalidate();
         if (view.getWidth() <= 0) {
             view.post(() -> {
@@ -12003,20 +12003,9 @@ public final class MainActivity extends Activity {
                 applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                         Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
                 view.setTextColor(Color.WHITE);
-                view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
+                clearGlowFromTextView(view);
                 view.invalidate();
             });
-        }
-        if (usesCustomGlow) {
-            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
-            if (view.getWidth() <= 0) {
-                view.post(() -> {
-                    if (!isCurrentTextStyleVersion(view, styleVersion)) {
-                        return;
-                    }
-                    applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
-                });
-            }
         }
     }
 
@@ -12027,10 +12016,7 @@ public final class MainActivity extends Activity {
                 && !(view instanceof GlowTitleTextView)) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
-        view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
-        if (view instanceof GlowTitleTextView) {
-            applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
-        }
+        clearGlowFromTextView(view);
         view.invalidate();
     }
 
