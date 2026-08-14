@@ -9,6 +9,9 @@ import android.graphics.Path;
 import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.view.View;
 
@@ -37,8 +40,15 @@ final class EqCurveView extends View {
     // Reusable path, shader and effect structures to avoid garbage collection overhead
     private final Path curvePath = new Path();
     private final Path refCurvePath = new Path();
+    private final Path contentClipPath = new Path();
+    private final RectF contentClipRect = new RectF();
+    private final Paint edgeFadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private DashPathEffect dashPathEffect;
     private LinearGradient sweepGradient;
+    private LinearGradient leftEdgeFade;
+    private LinearGradient rightEdgeFade;
+    private int edgeFadeShaderWidth = -1;
+    private float edgeFadeWidth;
 
     // Dynamic sweeping light and advanced halo paints
     private final Paint glowPaint0 = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -118,6 +128,7 @@ final class EqCurveView extends View {
                 : Color.argb(105, 220, 230, 245));
         frequencyTextPaint.setTextSize(17f);
         frequencyTextPaint.setTextAlign(Paint.Align.CENTER);
+        edgeFadePaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
 
         // Configure advanced glow layers as a wide, soft bloom:
         // low brightness, large spread, and a gradual fade instead of neon edges.
@@ -310,6 +321,20 @@ final class EqCurveView extends View {
             return;
         }
 
+        int contentLayer = -1;
+        if (liquidGlassTheme) {
+            // Match the curve frame's inner rounded silhouette. The parent also clips
+            // its children, while this local layer lets the content soften just inside
+            // the hard boundary without affecting the glass frame underneath.
+            contentLayer = canvas.saveLayer(0f, 0f, width, height, null);
+            float frameInsetRadius = getResources().getDisplayMetrics().density * 20f;
+            contentClipRect.set(0f, 0f, width, height);
+            contentClipPath.reset();
+            contentClipPath.addRoundRect(contentClipRect,
+                    frameInsetRadius, frameInsetRadius, Path.Direction.CW);
+            canvas.clipPath(contentClipPath);
+        }
+
         float left = 12f;
         float right = width - 12f;
         float top = 12f;
@@ -358,6 +383,11 @@ final class EqCurveView extends View {
         canvas.drawText("0 dB", left, mid - 6f, textPaint);
         canvas.drawText("-" + maxDb, left, bottom - 6f, textPaint);
 
+        if (liquidGlassTheme) {
+            drawHorizontalEdgeFade(canvas, width, height);
+            canvas.restoreToCount(contentLayer);
+        }
+
         // Liquid Glass uses a stable blue curve; only the short enabled-state fade needs
         // redraws. The classic theme keeps its continuous sweep animation.
         boolean continuousSweep = !liquidGlassTheme && visualLevel > 0.001f;
@@ -369,6 +399,27 @@ final class EqCurveView extends View {
                 postInvalidateDelayed(ANIMATION_FRAME_DELAY_MS - (now - lastInvalidateAt));
             }
         }
+    }
+
+    private void drawHorizontalEdgeFade(Canvas canvas, int width, int height) {
+        if (edgeFadeShaderWidth != width || leftEdgeFade == null || rightEdgeFade == null) {
+            edgeFadeShaderWidth = width;
+            edgeFadeWidth = Math.min(width * 0.16f,
+                    getResources().getDisplayMetrics().density * 12f);
+            leftEdgeFade = new LinearGradient(
+                    0f, 0f, edgeFadeWidth, 0f,
+                    Color.argb(210, 0, 0, 0), Color.TRANSPARENT,
+                    Shader.TileMode.CLAMP);
+            rightEdgeFade = new LinearGradient(
+                    width - edgeFadeWidth, 0f, width, 0f,
+                    Color.TRANSPARENT, Color.argb(210, 0, 0, 0),
+                    Shader.TileMode.CLAMP);
+        }
+        edgeFadePaint.setShader(leftEdgeFade);
+        canvas.drawRect(0f, 0f, edgeFadeWidth, height, edgeFadePaint);
+        edgeFadePaint.setShader(rightEdgeFade);
+        canvas.drawRect(width - edgeFadeWidth, 0f, width, height, edgeFadePaint);
+        edgeFadePaint.setShader(null);
     }
 
     private float freqToX(int hz, float left, float right) {

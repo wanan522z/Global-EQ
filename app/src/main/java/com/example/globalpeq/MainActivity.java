@@ -1325,6 +1325,9 @@ public final class MainActivity extends Activity {
         curveFrameView = curveFrame;
         curveFrame.setPadding(dp(2), dp(2), dp(2), dp(2));
         curveFrame.setBackground(createCurveFrameBackground());
+        if (liquidGlassTheme && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            curveFrame.setClipToOutline(true);
+        }
         applyGlassElevation(curveFrame, 6f);
         
         curveView = new EqCurveView(this);
