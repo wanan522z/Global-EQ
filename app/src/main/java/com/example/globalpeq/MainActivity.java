@@ -1454,10 +1454,22 @@ public final class MainActivity extends Activity {
     private final class LiquidBackdropView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private final boolean liquid;
-        private final Path flowPath = new Path();
-        private float phase;
+        private final float[] flowX = {0.78f, 0.08f, 0.82f, 0.18f, 0.52f, 0.46f};
+        private final float[] flowY = {0.18f, 0.58f, 0.78f, 0.16f, 0.52f, 0.92f};
+        private final float[] flowVx = {-0.020f, 0.016f, -0.013f, 0.021f, -0.009f, 0.011f};
+        private final float[] flowVy = {0.013f, -0.018f, -0.011f, 0.015f, 0.019f, -0.014f};
+        private final float[] flowRadius = {0.54f, 0.48f, 0.70f, 0.76f, 0.68f, 0.58f};
+        private final int[] flowColor = {
+                Color.argb(112, 0, 44, 176),
+                Color.argb(92, 25, 91, 190),
+                Color.argb(132, 96, 182, 228),
+                Color.argb(158, 102, 212, 200),
+                Color.argb(116, 186, 235, 232),
+                Color.argb(78, 255, 255, 255)
+        };
         private boolean flowRunning;
-        private long flowStartMs;
+        private long lastFlowFrameMs;
+        private double flowSeconds;
         private final Runnable flowTicker = new Runnable() {
             @Override
             public void run() {
@@ -1465,7 +1477,12 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 long now = android.os.SystemClock.uptimeMillis();
-                phase = ((now - flowStartMs) % 9000L) / 9000f;
+                float deltaSeconds = lastFlowFrameMs == 0L
+                        ? 0f
+                        : Math.min(0.05f, (now - lastFlowFrameMs) / 1000f);
+                lastFlowFrameMs = now;
+                flowSeconds += deltaSeconds;
+                advanceFlowField(deltaSeconds);
                 invalidate();
                 postDelayed(this, 33L);
             }
@@ -1480,7 +1497,7 @@ public final class MainActivity extends Activity {
                 setScaleY(1.08f);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
-                            dpf(24f), dpf(24f), Shader.TileMode.CLAMP));
+                            dpf(22f), dpf(22f), Shader.TileMode.CLAMP));
                 }
             }
         }
@@ -1492,15 +1509,51 @@ public final class MainActivity extends Activity {
                 return;
             }
             flowRunning = true;
-            flowStartMs = android.os.SystemClock.uptimeMillis();
+            lastFlowFrameMs = android.os.SystemClock.uptimeMillis();
             post(flowTicker);
         }
 
         @Override
         protected void onDetachedFromWindow() {
             flowRunning = false;
+            lastFlowFrameMs = 0L;
             removeCallbacks(flowTicker);
             super.onDetachedFromWindow();
+        }
+
+        private void advanceFlowField(float deltaSeconds) {
+            if (deltaSeconds <= 0f) {
+                return;
+            }
+            // Stateful drift instead of a finite keyframe timeline: each field has an
+            // independent velocity and two slow steering frequencies. There is no reset
+            // point, so the composition keeps evolving rather than replaying a clip.
+            for (int i = 0; i < flowX.length; i++) {
+                double offset = 1.37d + i * 1.91d;
+                float steerX = (float) (
+                        Math.sin(flowSeconds * (0.113d + i * 0.013d) + offset) * 0.010d
+                                + Math.cos(flowSeconds * (0.047d + i * 0.009d) - offset) * 0.006d);
+                float steerY = (float) (
+                        Math.cos(flowSeconds * (0.097d + i * 0.017d) - offset) * 0.009d
+                                + Math.sin(flowSeconds * (0.061d + i * 0.011d) + offset) * 0.006d);
+                flowX[i] += (flowVx[i] + steerX) * deltaSeconds;
+                flowY[i] += (flowVy[i] + steerY) * deltaSeconds;
+
+                if (flowX[i] < -0.34f) {
+                    flowX[i] = -0.34f;
+                    flowVx[i] = Math.abs(flowVx[i]);
+                } else if (flowX[i] > 1.34f) {
+                    flowX[i] = 1.34f;
+                    flowVx[i] = -Math.abs(flowVx[i]);
+                }
+                if (flowY[i] < -0.28f) {
+                    flowY[i] = -0.28f;
+                    flowVy[i] = Math.abs(flowVy[i]);
+                } else if (flowY[i] > 1.28f) {
+                    flowY[i] = 1.28f;
+                    flowVy[i] = -Math.abs(flowVy[i]);
+                }
+            }
         }
 
         @Override
@@ -1516,54 +1569,27 @@ public final class MainActivity extends Activity {
                 return;
             }
 
+            float baseDrift = (float) Math.sin(flowSeconds * 0.071d) * w * 0.14f;
             paint.setShader(new LinearGradient(
-                    0f, 0f, w, h,
+                    -baseDrift, 0f, w + baseDrift, h,
                     new int[]{
-                            Color.rgb(220, 238, 244),
-                            Color.rgb(151, 222, 218),
-                            Color.rgb(183, 221, 244),
-                            Color.rgb(204, 240, 235)
+                            Color.rgb(224, 239, 245),
+                            Color.rgb(169, 224, 221),
+                            Color.rgb(188, 224, 243),
+                            Color.rgb(211, 241, 237)
                     },
-                    new float[]{0f, 0.34f, 0.70f, 1f},
+                    new float[]{0f, 0.36f, 0.72f, 1f},
                     Shader.TileMode.CLAMP));
             canvas.drawRect(0f, 0f, w, h, paint);
 
-            float a = phase * (float) (Math.PI * 2.0);
-            drawFlowBlob(canvas,
-                    w * (0.50f + 0.32f * (float) Math.sin(a)),
-                    h * (0.22f + 0.09f * (float) Math.cos(a * 0.72f)),
-                    Math.max(w, h) * 0.42f,
-                    Color.argb(205, 102, 212, 200));
-            drawFlowBlob(canvas,
-                    w * (0.18f + 0.22f * (float) Math.cos(a * 0.61f)),
-                    h * (0.72f + 0.12f * (float) Math.sin(a * 0.83f)),
-                    Math.max(w, h) * 0.40f,
-                    Color.argb(154, 92, 177, 232));
-            drawFlowBlob(canvas,
-                    w * (0.86f + 0.10f * (float) Math.sin(a * 0.47f)),
-                    h * (0.60f + 0.18f * (float) Math.cos(a * 0.58f)),
-                    Math.max(w, h) * 0.34f,
-                    Color.argb(138, 154, 229, 224));
-
-            drawFlowRibbons(canvas, w, h, a);
-
-            // Klein blue remains secondary, but is strong enough to reveal the glass blur.
-            drawFlowBlob(canvas,
-                    w * (0.90f + 0.07f * (float) Math.cos(a * 0.44f)),
-                    h * (0.06f + 0.08f * (float) Math.sin(a * 0.52f)),
-                    Math.min(w, h) * 0.52f,
-                    Color.argb(130, 0, 44, 176));
-            drawFlowBlob(canvas,
-                    w * (0.04f + 0.06f * (float) Math.sin(a * 0.39f)),
-                    h * (0.94f + 0.06f * (float) Math.cos(a * 0.48f)),
-                    Math.min(w, h) * 0.42f,
-                    Color.argb(76, 0, 44, 176));
-
-            drawFlowBlob(canvas,
-                    w * (0.48f + 0.18f * (float) Math.cos(a * 0.70f)),
-                    h * (0.48f + 0.22f * (float) Math.sin(a * 0.64f)),
-                    Math.max(w, h) * 0.24f,
-                    Color.argb(92, 255, 255, 255));
+            float canvasSpan = Math.max(w, h);
+            for (int i = 0; i < flowX.length; i++) {
+                drawFlowBlob(canvas,
+                        w * flowX[i],
+                        h * flowY[i],
+                        canvasSpan * flowRadius[i],
+                        flowColor[i]);
+            }
             paint.setShader(null);
         }
 
@@ -1586,50 +1612,6 @@ public final class MainActivity extends Activity {
             canvas.drawCircle(x, y, radius, paint);
         }
 
-        private void drawFlowRibbons(Canvas canvas, int w, int h, float a) {
-            float wave = (float) Math.sin(a);
-            float wave2 = (float) Math.cos(a * 1.17f);
-
-            flowPath.reset();
-            flowPath.moveTo(-w * 0.22f, h * (0.22f + 0.10f * wave));
-            flowPath.cubicTo(
-                    w * 0.08f, h * (0.02f + 0.12f * wave2),
-                    w * 0.28f, h * (0.54f + 0.10f * wave),
-                    w * 0.53f, h * (0.33f - 0.08f * wave2));
-            flowPath.cubicTo(
-                    w * 0.74f, h * (0.14f - 0.08f * wave),
-                    w * 0.86f, h * (0.72f + 0.09f * wave2),
-                    w * 1.22f, h * (0.52f - 0.08f * wave));
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setStrokeJoin(Paint.Join.ROUND);
-            paint.setStrokeWidth(Math.max(dpf(26f), w * 0.075f));
-            paint.setShader(new LinearGradient(
-                    0f, 0f, w, h,
-                    new int[]{
-                            Color.argb(122, 0, 44, 176),
-                            Color.argb(88, 41, 112, 207),
-                            Color.argb(112, 0, 44, 176)
-                    }, null, Shader.TileMode.CLAMP));
-            canvas.drawPath(flowPath, paint);
-
-            paint.setShader(null);
-            paint.setStrokeWidth(Math.max(dpf(6f), w * 0.018f));
-            paint.setColor(Color.argb(150, 0, 37, 152));
-            canvas.drawPath(flowPath, paint);
-
-            flowPath.reset();
-            flowPath.moveTo(w * (0.72f + 0.08f * wave2), -h * 0.16f);
-            flowPath.cubicTo(
-                    w * (0.64f + 0.08f * wave), h * 0.26f,
-                    w * (0.94f - 0.08f * wave2), h * 0.52f,
-                    w * (0.78f + 0.06f * wave), h * 1.18f);
-            paint.setStrokeWidth(Math.max(dpf(18f), w * 0.048f));
-            paint.setColor(Color.argb(90, 0, 62, 184));
-            canvas.drawPath(flowPath, paint);
-            paint.setStyle(Paint.Style.FILL);
-            paint.setStrokeWidth(0f);
-        }
     }
 
     private FrameLayout.LayoutParams pageHostParams() {
