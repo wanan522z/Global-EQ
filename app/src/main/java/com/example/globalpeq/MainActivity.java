@@ -8702,7 +8702,7 @@ public final class MainActivity extends Activity {
                 : Color.argb(35, 255, 255, 255));
         navBg.setCornerRadius(dp(liquidGlassTheme ? 22 : 16));
         nav.setBackground(liquidGlassTheme
-                ? new LiquidGlassDrawable(dp(22), 30)
+                ? new LiquidGlassDrawable(dp(22), 30, true)
                 : navBg);
         applyGlassElevation(nav, 8f);
 
@@ -10758,7 +10758,8 @@ public final class MainActivity extends Activity {
 
     private Drawable createGlassCard(int alphaPercent) {
         if (liquidGlassTheme) {
-            return new LiquidGlassDrawable(dp(22), alphaPercent);
+            int density = clamp(18 + Math.round(alphaPercent * 0.42f), 28, 56);
+            return new LiquidGlassDrawable(dp(22), density, true);
         }
         GradientDrawable gd = new GradientDrawable();
         gd.setShape(GradientDrawable.RECTANGLE);
@@ -10768,12 +10769,13 @@ public final class MainActivity extends Activity {
         return gd;
     }
 
-    /** Frosted body + refractive edge highlight; the moving backdrop supplies the blur content. */
+    /** Live backdrop lens with a continuous refractive rim and depth-aware translucency. */
     private final class LiquidGlassDrawable extends Drawable {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private final Paint lensPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final android.graphics.RectF outerRect = new android.graphics.RectF();
         private final android.graphics.RectF innerRect = new android.graphics.RectF();
+        private final Path opticalRimPath = new Path();
         private final android.graphics.Matrix lensMatrix = new android.graphics.Matrix();
         private final float[] lensMatrixValues = new float[9];
         private final int[] glassLocation = new int[2];
@@ -10782,12 +10784,18 @@ public final class MainActivity extends Activity {
         private android.graphics.BitmapShader lensShader;
         private final float radius;
         private final int density;
+        private final boolean outerLayer;
         private boolean pressed;
         private int drawableAlpha = 255;
 
         LiquidGlassDrawable(float radius, int density) {
+            this(radius, density, false);
+        }
+
+        LiquidGlassDrawable(float radius, int density, boolean outerLayer) {
             this.radius = radius;
             this.density = clamp(density, 0, 100);
+            this.outerLayer = outerLayer;
             liquidGlassDrawables.add(new java.lang.ref.WeakReference<>(this));
         }
 
@@ -10799,9 +10807,9 @@ public final class MainActivity extends Activity {
             }
             paint.setAlpha(drawableAlpha);
 
-            // The reference uses a thin optical boundary, not a thick coloured frame.
-            // All layers share the same centred silhouette to avoid detached edges.
-            float outerInset = dpf(0.8f);
+            // Keep every optical layer on one silhouette. The rim below is a filled
+            // refraction mask rather than a stack of decorative stroke outlines.
+            float outerInset = dpf(0.65f);
             outerRect.set(bounds.left + outerInset, bounds.top + outerInset,
                     bounds.right - outerInset, bounds.bottom - outerInset);
             float outerRadius = Math.max(0f, radius - outerInset);
@@ -10812,48 +10820,69 @@ public final class MainActivity extends Activity {
 
             // Regular glass adapts its luminosity to the content underneath. Darker
             // regions receive a stronger milky lift so foreground text remains legible.
-            int adaptiveLift = Math.round((1f - backdropLuminance) * 58f);
-            int topAlpha = clamp(72 + Math.round(density * 0.48f) + adaptiveLift, 88, 168);
-            int bottomAlpha = clamp(topAlpha - 30, 58, 138);
+            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 27f : 48f));
+            int topAlpha = outerLayer
+                    ? clamp(38 + Math.round(density * 0.34f) + adaptiveLift, 48, 94)
+                    : clamp(68 + Math.round(density * 0.58f) + adaptiveLift, 88, 166);
+            int bottomAlpha = outerLayer
+                    ? clamp(topAlpha - 27, 22, 66)
+                    : clamp(topAlpha - 28, 62, 138);
             if (pressed) {
-                topAlpha = Math.min(184, topAlpha + 18);
-                bottomAlpha = Math.min(154, bottomAlpha + 14);
+                topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
+                bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
             }
             paint.setStyle(Paint.Style.FILL);
             paint.setShader(new LinearGradient(
                     outerRect.left, outerRect.top, outerRect.right, outerRect.bottom,
                     new int[]{
                             Color.argb(topAlpha, 255, 255, 255),
-                            Color.argb(Math.max(64, topAlpha - 24), 242, 250, 250),
+                            Color.argb(Math.max(outerLayer ? 22 : 58, topAlpha - 24), 242, 250, 250),
                             Color.argb(bottomAlpha, 224, 237, 245)
                     },
                     new float[]{0f, 0.55f, 1f},
                     Shader.TileMode.CLAMP));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // Apple-style resting glass keeps its boundary visually quiet. Use only a
-            // sub-pixel-class neutral edge; lensing, not a decorative outline, defines it.
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dpf(0.62f));
-            paint.setShader(new LinearGradient(
-                    outerRect.left, outerRect.top, outerRect.left, outerRect.bottom,
-                    Color.argb(pressed ? 190 : 158, 255, 255, 255),
-                    Color.argb(34, 35, 52, 72),
+            // A broad, static surface sheen gives the glass volume without tracing its
+            // perimeter or introducing another animated highlight.
+            float sheenRadius = Math.max(outerRect.width(), outerRect.height()) * 0.88f;
+            paint.setShader(new RadialGradient(
+                    outerRect.left + outerRect.width() * 0.18f,
+                    outerRect.top + outerRect.height() * 0.04f,
+                    Math.max(dpf(1f), sheenRadius),
+                    new int[]{
+                            Color.argb(outerLayer ? 29 : 44, 255, 255, 255),
+                            Color.argb(outerLayer ? 11 : 18, 248, 253, 255),
+                            Color.TRANSPARENT
+                    },
+                    new float[]{0f, 0.42f, 1f},
                     Shader.TileMode.CLAMP));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // A nearly imperceptible inner separation preserves the rounded lens profile.
+            // The boundary is one continuous optical band: resample the actual moving
+            // background at a slightly different magnification, then modulate it softly.
+            // There are deliberately no Paint.Style.STROKE layers here.
             innerRect.set(outerRect);
-            float innerInset = dpf(0.95f);
+            float innerInset = dpf(outerLayer ? 1.3f : 1.55f);
             innerRect.inset(innerInset, innerInset);
-            paint.setStrokeWidth(dpf(0.42f));
-            paint.setShader(new LinearGradient(
-                    innerRect.left, innerRect.top, innerRect.left, innerRect.bottom,
-                    Color.argb(96, 255, 255, 255),
-                    Color.argb(18, 39, 58, 82),
-                    Shader.TileMode.CLAMP));
             float innerRadius = Math.max(0f, outerRadius - innerInset);
-            canvas.drawRoundRect(innerRect, innerRadius, innerRadius, paint);
+            opticalRimPath.reset();
+            opticalRimPath.setFillType(Path.FillType.EVEN_ODD);
+            opticalRimPath.addRoundRect(outerRect, outerRadius, outerRadius, Path.Direction.CW);
+            opticalRimPath.addRoundRect(innerRect, innerRadius, innerRadius, Path.Direction.CW);
+            drawBackdropRimRefraction(canvas, outerLayer ? 1.026f : 1.034f);
+
+            paint.setStyle(Paint.Style.FILL);
+            paint.setShader(new LinearGradient(
+                    outerRect.left, outerRect.top, outerRect.left, outerRect.bottom,
+                    new int[]{
+                            Color.argb(outerLayer ? 48 : 62, 255, 255, 255),
+                            Color.argb(outerLayer ? 9 : 14, 248, 253, 255),
+                            Color.argb(outerLayer ? 16 : 23, 43, 60, 78)
+                    },
+                    new float[]{0f, 0.58f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawPath(opticalRimPath, paint);
             paint.setShader(null);
             paint.setStyle(Paint.Style.FILL);
         }
@@ -10875,7 +10904,9 @@ public final class MainActivity extends Activity {
             float relativeY = glassLocation[1] - backdropLocation[1];
             float screenPerPixelX = liquidBackdropView.getWidth() / (float) bitmap.getWidth();
             float screenPerPixelY = liquidBackdropView.getHeight() / (float) bitmap.getHeight();
-            float zoom = 1.032f + density * 0.00034f + (pressed ? 0.022f : 0f);
+            float zoom = (outerLayer ? 1.016f : 1.024f)
+                    + density * (outerLayer ? 0.00018f : 0.00028f)
+                    + (pressed ? 0.018f : 0f);
 
             if (lensBitmap != bitmap || lensShader == null) {
                 lensBitmap = bitmap;
@@ -10898,6 +10929,27 @@ public final class MainActivity extends Activity {
             int pixelY = clamp(Math.round(centreY / liquidBackdropView.getHeight() * bitmap.getHeight()),
                     0, bitmap.getHeight() - 1);
             return (float) Color.luminance(bitmap.getPixel(pixelX, pixelY));
+        }
+
+        private void drawBackdropRimRefraction(Canvas canvas, float extraZoom) {
+            if (lensShader == null || liquidBackdropView == null
+                    || !(getCallback() instanceof View) || lensBitmap == null) {
+                return;
+            }
+            float screenPerPixelX = liquidBackdropView.getWidth() / (float) lensBitmap.getWidth();
+            float screenPerPixelY = liquidBackdropView.getHeight() / (float) lensBitmap.getHeight();
+            float relativeX = glassLocation[0] - backdropLocation[0];
+            float relativeY = glassLocation[1] - backdropLocation[1];
+            float rimZoom = (outerLayer ? 1.016f : 1.024f)
+                    + density * (outerLayer ? 0.00018f : 0.00028f)
+                    + extraZoom - 1f
+                    + (pressed ? 0.018f : 0f);
+            configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, rimZoom);
+            lensPaint.setShader(lensShader);
+            lensPaint.setStyle(Paint.Style.FILL);
+            lensPaint.setAlpha(Math.round((outerLayer ? 138f : 162f) * drawableAlpha / 255f));
+            canvas.drawPath(opticalRimPath, lensPaint);
+            lensPaint.setShader(null);
         }
 
         private void configureLensShader(float screenPerPixelX, float screenPerPixelY,
@@ -10999,7 +11051,7 @@ public final class MainActivity extends Activity {
 
     private Drawable createCurveFrameBackground() {
         if (liquidGlassTheme) {
-            return new LiquidGlassDrawable(dp(22), 48);
+            return new LiquidGlassDrawable(dp(22), 34, true);
         }
         return strokeGlowRoundRectDrawable(
                 Color.argb((int)(20 * 2.55f), 18, 22, 34),
@@ -12402,7 +12454,7 @@ public final class MainActivity extends Activity {
         if (window != null) {
             Drawable bg;
             if (liquidGlassTheme) {
-                bg = new LiquidGlassDrawable(dp(26), 78);
+                bg = new LiquidGlassDrawable(dp(26), 52, true);
             } else {
                 GradientDrawable classicBg = new GradientDrawable();
                 classicBg.setShape(GradientDrawable.RECTANGLE);
