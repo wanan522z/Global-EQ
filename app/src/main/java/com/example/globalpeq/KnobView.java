@@ -19,6 +19,7 @@ final class KnobView extends View {
     private final Paint basePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final boolean liquidGlassTheme;
     private int min;
     private int max;
     private int value;
@@ -36,11 +37,14 @@ final class KnobView extends View {
 
     KnobView(Context context) {
         super(context);
+        liquidGlassTheme = UiTheme.isLiquidGlass(context);
         // 不使用 LAYER_TYPE_SOFTWARE：硬件加速下 shadowLayer 抗锯齿更好，
         // 避免软件层在高清屏产生 bitmap 缩放锯齿伪影
         basePaint.setStyle(Paint.Style.STROKE);
         basePaint.setStrokeCap(Paint.Cap.ROUND);
-        basePaint.setColor(Color.argb(35, 255, 255, 255));
+        basePaint.setColor(liquidGlassTheme
+                ? Color.argb(60, 56, 76, 104)
+                : Color.argb(35, 255, 255, 255));
         fillPaint.setStyle(Paint.Style.STROKE);
         fillPaint.setStrokeCap(Paint.Cap.ROUND);
         textPaint.setTextAlign(Paint.Align.CENTER);
@@ -135,10 +139,14 @@ final class KnobView extends View {
             textPaint.setColor(Color.rgb(0, 245, 212));
             textPaint.setShadowLayer(dp(4), 0, 0, Color.argb(150, 0, 245, 212));
         } else if (enabled) {
-            textPaint.setColor(Color.argb(185, 255, 255, 255));
+            textPaint.setColor(liquidGlassTheme
+                    ? Color.argb(220, 32, 46, 68)
+                    : Color.argb(185, 255, 255, 255));
             textPaint.clearShadowLayer();
         } else {
-            textPaint.setColor(Color.argb(120, 190, 198, 210));
+            textPaint.setColor(liquidGlassTheme
+                    ? Color.argb(125, 72, 88, 110)
+                    : Color.argb(120, 190, 198, 210));
             textPaint.clearShadowLayer();
         }
         Paint.FontMetrics fm = textPaint.getFontMetrics();
