@@ -1505,7 +1505,7 @@ public final class MainActivity extends Activity {
         View mist = new TopStatusMistView(this);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                dp(48),
+                dp(68),
                 Gravity.TOP);
         sceneRoot.addView(mist, params);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
