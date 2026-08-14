@@ -699,11 +699,7 @@ public final class MainActivity extends Activity {
         requestRuntimePermissions();
         setContentView(buildContent());
         installKeyboardVisibilityListener();
-        languageController.bindRefresh(() -> {
-            if (mainPageHost != null && editingPreset != null) {
-                renderAll();
-            }
-        });
+        bindRootLanguageRefresh();
         renderAll();
         if (loadedWasLimited && runningPreset.enabled) {
             if (!processingMode.usesSystemEqBackend()) {
@@ -712,6 +708,14 @@ public final class MainActivity extends Activity {
                 applyRunningPreset();
             }
         }
+    }
+
+    private void bindRootLanguageRefresh() {
+        languageController.bindRefresh(() -> {
+            if (mainPageHost != null && editingPreset != null) {
+                renderAll();
+            }
+        });
     }
 
     @Override
@@ -1809,6 +1813,7 @@ public final class MainActivity extends Activity {
 
     private void buildSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
+        settingsScrollView = scroll;
         attachSettingsScroll(page, scroll, 16, 18);
 
         LinearLayout body = new LinearLayout(this);
