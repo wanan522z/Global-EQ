@@ -10929,8 +10929,6 @@ public final class MainActivity extends Activity {
                 topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
                 bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
             }
-            topAlpha = ((topAlpha + 2) / 4) * 4;
-            bottomAlpha = ((bottomAlpha + 2) / 4) * 4;
             ensureSurfaceShaders(topAlpha, bottomAlpha);
             paint.setStyle(Paint.Style.FILL);
             paint.setShader(glassFillShader);
