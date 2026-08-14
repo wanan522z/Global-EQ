@@ -1642,7 +1642,7 @@ public final class MainActivity extends Activity {
                     Shader.TileMode.CLAMP));
             canvas.drawRect(0f, 0f, w, h, paint);
 
-            float canvasSpan = Math.max(w, h);
+            float canvasSpan = (float) Math.sqrt(w * (double) h);
             for (int i = 0; i < flowX.length; i++) {
                 drawFlowBlob(canvas,
                         w * flowX[i],
