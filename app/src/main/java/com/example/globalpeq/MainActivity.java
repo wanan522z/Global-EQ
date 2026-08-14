@@ -1409,14 +1409,14 @@ public final class MainActivity extends Activity {
         listCardHolder.setClipToPadding(false);
         listCard.setClipChildren(true);
         listCard.setClipToPadding(true);
-        listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
+        listCard.setPadding(dp(10), dp(6), dp(10), dp(6));
         listCard.setBackground(createGlassCard(30));
         applyGlassElevation(listCard, 8f);
 
         LinearLayout.LayoutParams listCardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
-                2.18f
+                3.15f
         );
         listCardParams.topMargin = dp(10);
         eqPage.addView(listCardHolder, listCardParams);
@@ -1425,7 +1425,7 @@ public final class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         );
-        listCardInnerParams.bottomMargin = dp(8);
+        listCardInnerParams.bottomMargin = dp(4);
         listCardHolder.addView(listCard, listCardInnerParams);
 
         header = new LinearLayout(this);
@@ -1436,9 +1436,13 @@ public final class MainActivity extends Activity {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setClipChildren(true);
         scrollView.setClipToPadding(true);
-        // Reserve a small optical gutter for the row bloom while still clipping it to
-        // the card. This keeps the first and last EQ controls clear of both edges.
-        scrollView.setPadding(0, dp(8), 0, dp(10));
+        scrollView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scrollView.setVerticalFadingEdgeEnabled(true);
+        scrollView.setFadingEdgeLength(dp(24));
+        scrollView.setRequiresFadingEdge(View.FADING_EDGE_VERTICAL);
+        // The default five bands plus Add fit without clipping. Larger presets fade
+        // softly into the viewport edges instead of ending on a hard cut line.
+        scrollView.setPadding(0, dp(6), 0, dp(8));
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         rows.setClipChildren(false);
