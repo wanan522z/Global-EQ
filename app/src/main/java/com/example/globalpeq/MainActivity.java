@@ -9771,9 +9771,9 @@ public final class MainActivity extends Activity {
             paint.setFakeBoldText(false);
             paint.setTextSize(dpf(11f));
             if (hasActiveGain) {
-                paint.setColor(Color.rgb(0, 245, 212));
+                paint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
                 paint.setFakeBoldText(true);
-                paint.setShadowLayer(dpf(5f), 0, 0, Color.argb(150, 0, 245, 212));
+                paint.clearShadowLayer();
             } else {
                 paint.setColor(liquidGlassTheme ? Color.argb(170, 70, 84, 106) : Color.argb(130, 255, 255, 255));
             }
@@ -10091,8 +10091,8 @@ public final class MainActivity extends Activity {
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setTextSize(dpf(12f));
             if (active) {
-                paint.setColor(Color.rgb(0, 245, 212));
-                paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(150, 0, 245, 212));
+                paint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
+                paint.clearShadowLayer();
             } else {
                 paint.setColor(liquidGlassTheme ? Color.argb(190, 42, 58, 82) : Color.argb(150, 255, 255, 255));
             }
@@ -10410,8 +10410,8 @@ public final class MainActivity extends Activity {
             paint.setFakeBoldText(false);
             paint.setTextSize(dpf(13f));
             if (active) {
-                paint.setColor(Color.rgb(0, 245, 212));
-                paint.setShadowLayer(dpf(4f), 0, 0, Color.argb(150, 0, 245, 212));
+                paint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
+                paint.clearShadowLayer();
             } else {
                 paint.setColor(liquidGlassTheme ? Color.argb(190, 42, 58, 82) : Color.argb(150, 255, 255, 255));
             }

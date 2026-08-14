@@ -136,8 +136,8 @@ final class KnobView extends View {
         textPaint.setTextSize(sp(12));
         textPaint.setFakeBoldText(true);
         if (active) {
-            textPaint.setColor(Color.rgb(0, 245, 212));
-            textPaint.setShadowLayer(dp(4), 0, 0, Color.argb(150, 0, 245, 212));
+            textPaint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
+            textPaint.clearShadowLayer();
         } else if (enabled) {
             textPaint.setColor(liquidGlassTheme
                     ? Color.argb(220, 32, 46, 68)
