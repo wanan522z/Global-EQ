@@ -13,6 +13,7 @@ import android.graphics.Shader;
 import android.view.View;
 
 final class EqCurveView extends View {
+    private final boolean liquidGlassTheme;
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
     private static final double LOG_MIN_HZ = Math.log(MIN_HZ);
@@ -82,12 +83,19 @@ final class EqCurveView extends View {
 
     EqCurveView(Context context) {
         super(context);
+        liquidGlassTheme = UiTheme.isLiquidGlass(context);
         setBackgroundColor(Color.TRANSPARENT);
-        gridPaint.setColor(Color.argb(20, 255, 255, 255));
+        gridPaint.setColor(liquidGlassTheme
+                ? Color.argb(34, 38, 58, 84)
+                : Color.argb(20, 255, 255, 255));
         gridPaint.setStrokeWidth(1.5f);
-        minorGridPaint.setColor(Color.argb(11, 255, 255, 255));
+        minorGridPaint.setColor(liquidGlassTheme
+                ? Color.argb(18, 38, 58, 84)
+                : Color.argb(11, 255, 255, 255));
         minorGridPaint.setStrokeWidth(1f);
-        zeroPaint.setColor(Color.argb(55, 255, 255, 255));
+        zeroPaint.setColor(liquidGlassTheme
+                ? Color.argb(78, 38, 58, 84)
+                : Color.argb(55, 255, 255, 255));
         zeroPaint.setStrokeWidth(2f);
         curvePaint.setStyle(Paint.Style.STROKE);
         curvePaint.setStrokeCap(Paint.Cap.ROUND);
@@ -101,9 +109,13 @@ final class EqCurveView extends View {
         referencePaint.setFilterBitmap(true);
         referencePaint.setDither(true);
         dashPathEffect = new DashPathEffect(new float[]{12f, 10f}, 0f);
-        textPaint.setColor(Color.argb(160, 255, 255, 255));
+        textPaint.setColor(liquidGlassTheme
+                ? Color.argb(190, 45, 60, 82)
+                : Color.argb(160, 255, 255, 255));
         textPaint.setTextSize(22f);
-        frequencyTextPaint.setColor(Color.argb(105, 220, 230, 245));
+        frequencyTextPaint.setColor(liquidGlassTheme
+                ? Color.argb(145, 64, 80, 104)
+                : Color.argb(105, 220, 230, 245));
         frequencyTextPaint.setTextSize(17f);
         frequencyTextPaint.setTextAlign(Paint.Align.CENTER);
 

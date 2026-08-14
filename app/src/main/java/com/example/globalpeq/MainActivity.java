@@ -1839,6 +1839,7 @@ public final class MainActivity extends Activity {
         panel.setClipToPadding(false);
         panel.setPadding(dp(16), dp(16), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
+        applyGlassElevation(panel, 8f);
         body.addView(panel, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1912,6 +1913,7 @@ public final class MainActivity extends Activity {
         panel.setClipToPadding(false);
         panel.setPadding(dp(16), dp(16), dp(16), dp(16));
         panel.setBackground(createGlassCard(35));
+        applyGlassElevation(panel, 8f);
         body.addView(panel, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
