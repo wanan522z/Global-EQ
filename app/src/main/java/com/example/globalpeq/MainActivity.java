@@ -2137,27 +2137,27 @@ public final class MainActivity extends Activity {
                     View newScene = rebuiltContent == null || rebuiltContent.getChildCount() == 0
                             ? null
                             : rebuiltContent.getChildAt(rebuiltContent.getChildCount() - 1);
-                if (newScene == null) {
-                    appearanceTransitionRunning = false;
-                    return;
-                }
-                if (liquidGlassSwitch != null) {
-                    liquidGlassSwitch.setEnabled(false);
-                }
-                newScene.setAlpha(0f);
-                newScene.animate().cancel();
-                newScene.animate()
+                    if (newScene == null) {
+                        appearanceTransitionRunning = false;
+                        return;
+                    }
+                    if (liquidGlassSwitch != null) {
+                        liquidGlassSwitch.setEnabled(false);
+                    }
+                    newScene.setAlpha(0f);
+                    newScene.animate().cancel();
+                    newScene.animate()
                             .alpha(1f)
-                        .setDuration(APPEARANCE_FADE_IN_MS)
-                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                        .withLayer()
-                        .withEndAction(() -> {
-                            appearanceTransitionRunning = false;
-                            if (liquidGlassSwitch != null) {
-                                liquidGlassSwitch.setEnabled(true);
-                            }
-                        })
-                        .start();
+                            .setDuration(APPEARANCE_FADE_IN_MS)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                            .withLayer()
+                            .withEndAction(() -> {
+                                appearanceTransitionRunning = false;
+                                if (liquidGlassSwitch != null) {
+                                    liquidGlassSwitch.setEnabled(true);
+                                }
+                            })
+                            .start();
                 })
                 .start();
     }
