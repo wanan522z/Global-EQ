@@ -13236,6 +13236,13 @@ public final class MainActivity extends Activity {
     private void styleEqBandText(TextView view, boolean active) {
         if (active) {
             styleCyanGlowText(view);
+            // Dense PEQ rows stay crisp in both themes. Classic keeps its cyan text,
+            // while the larger title/status/tab typography retains the restored bloom.
+            clearGlowFromTextView(view);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                view.setLayerType(View.LAYER_TYPE_NONE, null);
+            }
+            view.invalidate();
         } else {
             styleDimPlainText(view);
         }
