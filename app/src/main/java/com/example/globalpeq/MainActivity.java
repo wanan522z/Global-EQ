@@ -1508,12 +1508,13 @@ public final class MainActivity extends Activity {
         topStatusMistView = mist;
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                dp(26),
+                dp(34),
                 Gravity.TOP);
         sceneRoot.addView(mist, params);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             mist.setOnApplyWindowInsetsListener((view, insets) -> {
-                int desiredHeight = Math.max(dp(1), insets.getSystemWindowInsetTop());
+                int desiredHeight = Math.max(dp(9),
+                        insets.getSystemWindowInsetTop() + dp(8));
                 ViewGroup.LayoutParams currentParams = view.getLayoutParams();
                 if (currentParams.height != desiredHeight) {
                     currentParams.height = desiredHeight;
