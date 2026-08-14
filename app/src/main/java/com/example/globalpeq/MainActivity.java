@@ -1325,7 +1325,7 @@ public final class MainActivity extends Activity {
         curveFrameView = curveFrame;
         curveFrame.setPadding(dp(2), dp(2), dp(2), dp(2));
         curveFrame.setBackground(createCurveFrameBackground());
-        if (liquidGlassTheme && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             curveFrame.setClipToOutline(true);
         }
         applyGlassElevation(curveFrame, 6f);
@@ -5066,7 +5066,7 @@ public final class MainActivity extends Activity {
             shellBg.setShape(GradientDrawable.RECTANGLE);
             shellBg.setColor(UiTheme.popupSurface(false));
             shellBg.setStroke(dp(1), Color.argb(54, 255, 255, 255));
-            shellBg.setCornerRadius(dp(16));
+            shellBg.setCornerRadius(dp(22));
             shell.setBackground(shellBg);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -8806,7 +8806,7 @@ public final class MainActivity extends Activity {
         navBg.setStroke(dp(1), liquidGlassTheme
                 ? Color.argb(176, 190, 208, 232)
                 : Color.argb(35, 255, 255, 255));
-        navBg.setCornerRadius(dp(liquidGlassTheme ? 22 : 16));
+        navBg.setCornerRadius(dp(22));
         nav.setBackground(liquidGlassTheme
                 ? new LiquidGlassDrawable(dp(22), 30, true)
                 : navBg);
@@ -8818,7 +8818,7 @@ public final class MainActivity extends Activity {
                 : strokeGlowRoundRectDrawable(
                         Color.argb(24, 255, 255, 255),
                         Color.argb(160, 0, 245, 212),
-                        dp(12),
+                        dp(17),
                         dp(3),
                         Color.argb(85, 0, 245, 212)));
         nav.addView(bottomTabIndicator, new FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT));
