@@ -380,14 +380,16 @@ public final class MainActivity extends Activity {
             if (!supported || hasClip) {
                 return;
             }
-            colors = isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS;
+            colors = liquidGlassTheme
+                    ? (isEditingPresetActive() ? SHIMMER_LIQUID_COLORS : SHIMMER_LIQUID_EDIT_COLORS)
+                    : (isEditingPresetActive() ? SHIMMER_LIVE_COLORS : SHIMMER_EDIT_COLORS);
         } else if (view == modeSpinner) {
             if (!isModeVisualEnabled()) {
                 return;
             }
-            colors = SHIMMER_MODE_ON_COLORS;
+            colors = liquidGlassTheme ? SHIMMER_LIQUID_COLORS : SHIMMER_MODE_ON_COLORS;
         } else {
-            colors = SHIMMER_BRIGHT_COLORS;
+            colors = liquidGlassTheme ? SHIMMER_LIQUID_COLORS : SHIMMER_BRIGHT_COLORS;
         }
 
         float offset = phase * width;
@@ -480,6 +482,20 @@ public final class MainActivity extends Activity {
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
+    private static final int[] SHIMMER_LIQUID_COLORS = {
+            Color.rgb(22, 142, 198),
+            Color.rgb(50, 92, 218),
+            Color.rgb(255, 255, 255),
+            Color.rgb(120, 72, 218),
+            Color.rgb(22, 142, 198)
+    };
+    private static final int[] SHIMMER_LIQUID_EDIT_COLORS = {
+            Color.rgb(46, 126, 192),
+            Color.rgb(86, 92, 208),
+            Color.rgb(245, 252, 255),
+            Color.rgb(104, 84, 198),
+            Color.rgb(46, 126, 192)
+    };
 
     private final List<Preset> undoStack = new ArrayList<>();
     private final List<Preset> redoStack = new ArrayList<>();
