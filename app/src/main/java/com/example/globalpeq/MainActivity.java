@@ -10750,7 +10750,7 @@ public final class MainActivity extends Activity {
                 liquidGlassTheme
                         ? Color.rgb(245, 249, 255)
                         : (autoSwitch ? Color.rgb(150, 168, 198) : Color.rgb(162, 180, 208)),
-                Color.rgb(76, 210, 228)
+                liquidGlassTheme ? Color.rgb(255, 255, 255) : Color.rgb(76, 210, 228)
         ));
         // track 颜色：关闭时半透明白，开启时半透明青蓝（与标题流光同色系）
         switchView.setTrackDrawable(labeledSwitchTrackDrawable(
@@ -10759,7 +10759,9 @@ public final class MainActivity extends Activity {
                 liquidGlassTheme
                         ? Color.argb(205, 198, 210, 226)
                         : (autoSwitch ? Color.argb(52, 126, 152, 196) : Color.argb(60, 118, 144, 188)),
-                autoSwitch ? Color.argb(112, 52, 168, 196) : Color.argb(124, 48, 176, 208)
+                liquidGlassTheme
+                        ? Color.argb(230, 102, 212, 200)
+                        : (autoSwitch ? Color.argb(112, 52, 168, 196) : Color.argb(124, 48, 176, 208))
         ));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             switchView.setSplitTrack(false);
@@ -10831,8 +10833,22 @@ public final class MainActivity extends Activity {
                             paint);
                 }
 
-                paint.setColor(checked ? checkedColor : uncheckedColor);
-                canvas.drawRoundRect(rect, radius, radius, paint);
+                if (liquidGlassTheme && checked) {
+                    paint.setShader(new LinearGradient(
+                            rect.left, rect.top, rect.right, rect.bottom,
+                            new int[]{
+                                    Color.rgb(102, 212, 200),
+                                    Color.rgb(76, 176, 211),
+                                    Color.rgb(47, 91, 198)
+                            },
+                            new float[]{0f, 0.58f, 1f},
+                            Shader.TileMode.CLAMP));
+                    canvas.drawRoundRect(rect, radius, radius, paint);
+                    paint.setShader(null);
+                } else {
+                    paint.setColor(checked ? checkedColor : uncheckedColor);
+                    canvas.drawRoundRect(rect, radius, radius, paint);
+                }
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
@@ -10846,7 +10862,7 @@ public final class MainActivity extends Activity {
                 paint.setTextSize(dpf(8.5f));
                 paint.setTextAlign(Paint.Align.CENTER);
                 paint.setColor(checked
-                        ? Color.rgb(214, 235, 255)
+                        ? (liquidGlassTheme ? Color.rgb(8, 36, 82) : Color.rgb(214, 235, 255))
                         : (liquidGlassTheme ? Color.argb(190, 48, 63, 86) : Color.argb(136, 226, 236, 248)));
                 paint.clearShadowLayer();
                 Paint.FontMetrics metrics = paint.getFontMetrics();
@@ -10942,13 +10958,19 @@ public final class MainActivity extends Activity {
                 float radius = Math.min(right - left, bottom - top) * 0.5f;
                 paint.setShader(null);
                 paint.setStyle(Paint.Style.FILL);
+                if (liquidGlassTheme) {
+                    paint.setColor(Color.argb(40, 0, 44, 112));
+                    canvas.drawCircle(cx, cy + dpf(1.4f), radius + dpf(0.7f), paint);
+                }
                 paint.setColor(currentColor);
                 canvas.drawCircle(cx, cy, radius, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dpf(1f));
                 int strokeAlpha = (int) (78 + (126 - 78) * glowAlpha);
-                paint.setColor(Color.argb(strokeAlpha, 238, 246, 255));
+                paint.setColor(liquidGlassTheme
+                        ? Color.argb(150, 139, 215, 210)
+                        : Color.argb(strokeAlpha, 238, 246, 255));
                 canvas.drawCircle(cx, cy, radius - dpf(0.1f), paint);
             }
 
