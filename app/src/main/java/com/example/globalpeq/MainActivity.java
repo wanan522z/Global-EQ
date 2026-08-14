@@ -1400,8 +1400,8 @@ public final class MainActivity extends Activity {
         listCard.setOrientation(LinearLayout.VERTICAL);
         listCardHolder.setClipChildren(false);
         listCardHolder.setClipToPadding(false);
-        listCard.setClipChildren(true);
-        listCard.setClipToPadding(true);
+        listCard.setClipChildren(false);
+        listCard.setClipToPadding(false);
         listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
         listCard.setBackground(createGlassCard(30));
         applyGlassElevation(listCard, 8f);
@@ -12271,17 +12271,29 @@ public final class MainActivity extends Activity {
         }
         Button neg = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
         if (neg != null) {
-            neg.setTextColor(themeTextSecondary());
+            if (liquidGlassTheme) {
+                styleButton(neg, false, true);
+            } else {
+                neg.setTextColor(themeTextSecondary());
+            }
             neg.setAllCaps(false);
         }
         Button pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (pos != null) {
-            styleCyanGlowText(pos);
+            if (liquidGlassTheme) {
+                styleAccentButton(pos, true);
+            } else {
+                styleCyanGlowText(pos);
+            }
             pos.setAllCaps(false);
         }
         Button neu = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
         if (neu != null) {
-            neu.setTextColor(themeTextSecondary());
+            if (liquidGlassTheme) {
+                styleButton(neu, false, true);
+            } else {
+                neu.setTextColor(themeTextSecondary());
+            }
         }
     }
 
