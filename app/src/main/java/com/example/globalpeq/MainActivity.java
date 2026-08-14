@@ -10835,40 +10835,26 @@ public final class MainActivity extends Activity {
                     Shader.TileMode.CLAMP));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // Specular light moves slowly around the silhouette, defining the shape
-            // without turning the edge into a coloured border.
+            // Apple-style resting glass keeps its boundary visually quiet. Use only a
+            // sub-pixel-class neutral edge; lensing, not a decorative outline, defines it.
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dpf(1.05f));
-            double lightPhase = liquidBackdropView == null
-                    ? 0d
-                    : liquidBackdropView.flowSeconds() * 0.72d;
-            float lightDx = (float) Math.cos(lightPhase) * outerRect.width() * 0.54f;
-            float lightDy = (float) Math.sin(lightPhase) * outerRect.height() * 0.54f;
+            paint.setStrokeWidth(dpf(0.62f));
             paint.setShader(new LinearGradient(
-                    outerRect.centerX() - lightDx,
-                    outerRect.centerY() - lightDy,
-                    outerRect.centerX() + lightDx,
-                    outerRect.centerY() + lightDy,
-                    new int[]{
-                            Color.argb(pressed ? 255 : 238, 255, 255, 255),
-                            Color.argb(118, 242, 255, 255),
-                            Color.argb(72, 178, 221, 226),
-                            Color.argb(48, 45, 71, 102),
-                            Color.argb(196, 255, 255, 255)
-                    },
-                    new float[]{0f, 0.28f, 0.60f, 0.82f, 1f},
+                    outerRect.left, outerRect.top, outerRect.left, outerRect.bottom,
+                    Color.argb(pressed ? 190 : 158, 255, 255, 255),
+                    Color.argb(34, 35, 52, 72),
                     Shader.TileMode.CLAMP));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // A restrained inner highlight is what creates the perceived glass thickness.
+            // A nearly imperceptible inner separation preserves the rounded lens profile.
             innerRect.set(outerRect);
-            float innerInset = dpf(1.45f);
+            float innerInset = dpf(0.95f);
             innerRect.inset(innerInset, innerInset);
-            paint.setStrokeWidth(dpf(0.68f));
+            paint.setStrokeWidth(dpf(0.42f));
             paint.setShader(new LinearGradient(
                     innerRect.left, innerRect.top, innerRect.left, innerRect.bottom,
-                    Color.argb(164, 255, 255, 255),
-                    Color.argb(40, 39, 58, 82),
+                    Color.argb(96, 255, 255, 255),
+                    Color.argb(18, 39, 58, 82),
                     Shader.TileMode.CLAMP));
             float innerRadius = Math.max(0f, outerRadius - innerInset);
             canvas.drawRoundRect(innerRect, innerRadius, innerRadius, paint);
@@ -10906,17 +10892,6 @@ public final class MainActivity extends Activity {
             lensPaint.setAlpha(Math.round((pressed ? 238f : 218f) * drawableAlpha / 255f));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
 
-            // Refraction is strongest close to the silhouette. A second, more strongly
-            // magnified sample is restricted to a narrow edge band; this bends the
-            // underlying colour itself instead of faking the effect with a thick border.
-            configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, zoom + 0.038f);
-            lensPaint.setStyle(Paint.Style.STROKE);
-            lensPaint.setStrokeWidth(dpf(2.0f));
-            lensPaint.setAlpha(Math.round((pressed ? 246f : 228f) * drawableAlpha / 255f));
-            innerRect.set(outerRect);
-            innerRect.inset(dpf(1.05f), dpf(1.05f));
-            float edgeRadius = Math.max(0f, outerRadius - dpf(1.05f));
-            canvas.drawRoundRect(innerRect, edgeRadius, edgeRadius, lensPaint);
             lensPaint.setShader(null);
             lensPaint.setStyle(Paint.Style.FILL);
 
