@@ -11316,6 +11316,19 @@ public final class MainActivity extends Activity {
         );
     }
 
+    private void styleAppearanceSwitch(Switch switchView) {
+        styleTopSwitch(switchView, false);
+        switchView.setTrackDrawable(labeledSwitchTrackDrawable(
+                "",
+                "",
+                liquidGlassTheme
+                        ? Color.argb(205, 198, 210, 226)
+                        : Color.argb(60, 118, 144, 188),
+                liquidGlassTheme
+                        ? Color.argb(230, 102, 212, 200)
+                        : Color.argb(124, 48, 176, 208)));
+    }
+
     private void styleTopSwitch(Switch switchView, boolean autoSwitch) {
         switchView.setShowText(false);
         switchView.setText("");
@@ -11354,6 +11367,7 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable labeledSwitchTrackDrawable(String uncheckedLabel, String checkedLabel, int uncheckedColor, int checkedColor) {
+        final boolean hasLabels = !(uncheckedLabel.isEmpty() && checkedLabel.isEmpty());
         return new Drawable() {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final android.graphics.RectF rect = new android.graphics.RectF();
@@ -11442,22 +11456,24 @@ public final class MainActivity extends Activity {
                         : (liquidGlassTheme ? Color.argb(105, 92, 112, 142) : Color.argb(84, 194, 220, 255)));
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
-                paint.setStyle(Paint.Style.FILL);
-                paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                paint.setTextSize(dpf(8.5f));
-                paint.setTextAlign(Paint.Align.CENTER);
-                paint.setColor(checked
-                        ? (liquidGlassTheme ? Color.rgb(8, 36, 82) : Color.rgb(214, 235, 255))
-                        : (liquidGlassTheme ? Color.argb(190, 48, 63, 86) : Color.argb(136, 226, 236, 248)));
-                paint.clearShadowLayer();
-                Paint.FontMetrics metrics = paint.getFontMetrics();
-                float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
-                float leftTextX = rect.left + rect.width() * 0.32f;
-                float rightTextX = rect.left + rect.width() * 0.68f;
-                float textX = rightTextX + (leftTextX - rightTextX) * labelProgress;
-                canvas.drawText(checked ? checkedLabel : uncheckedLabel, textX, textY, paint);
-                paint.clearShadowLayer();
-                paint.setTypeface(android.graphics.Typeface.DEFAULT);
+                if (hasLabels) {
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                    paint.setTextSize(dpf(8.5f));
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    paint.setColor(checked
+                            ? (liquidGlassTheme ? Color.rgb(8, 36, 82) : Color.rgb(214, 235, 255))
+                            : (liquidGlassTheme ? Color.argb(190, 48, 63, 86) : Color.argb(136, 226, 236, 248)));
+                    paint.clearShadowLayer();
+                    Paint.FontMetrics metrics = paint.getFontMetrics();
+                    float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
+                    float leftTextX = rect.left + rect.width() * 0.32f;
+                    float rightTextX = rect.left + rect.width() * 0.68f;
+                    float textX = rightTextX + (leftTextX - rightTextX) * labelProgress;
+                    canvas.drawText(checked ? checkedLabel : uncheckedLabel, textX, textY, paint);
+                    paint.clearShadowLayer();
+                    paint.setTypeface(android.graphics.Typeface.DEFAULT);
+                }
             }
 
             @Override
@@ -11466,6 +11482,11 @@ public final class MainActivity extends Activity {
                 if (!labelProgressReady) {
                     labelProgress = target;
                     labelProgressReady = true;
+                    invalidateSelf();
+                    return true;
+                }
+                if (!hasLabels) {
+                    labelProgress = target;
                     invalidateSelf();
                     return true;
                 }
