@@ -1539,7 +1539,8 @@ public final class MainActivity extends Activity {
 
         TopStatusMistView(Context context) {
             super(context);
-            fadeMaskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+            fadeMaskPaint.setXfermode(
+                    new android.graphics.PorterDuffXfermode(PorterDuff.Mode.DST_IN));
             setClickable(false);
             setFocusable(false);
             setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
