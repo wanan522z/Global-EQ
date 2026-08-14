@@ -424,10 +424,14 @@ final class EqCurveView extends View {
         }
 
         if (enabledAmount > 0.001f) {
-            ensureGlowCache(getWidth(), getHeight(), left, right);
-            if (glowCacheBitmap != null && !glowCacheBitmap.isRecycled()) {
-                glowBitmapPaint.setAlpha(Math.round(255f * enabledAmount));
-                canvas.drawBitmap(glowCacheBitmap, 0f, 0f, glowBitmapPaint);
+            // The liquid theme uses a clean single stroke. Its former glow cache made
+            // the curve read like a wide outline; classic keeps the original glow stack.
+            if (!liquidGlassTheme) {
+                ensureGlowCache(getWidth(), getHeight(), left, right);
+                if (glowCacheBitmap != null && !glowCacheBitmap.isRecycled()) {
+                    glowBitmapPaint.setAlpha(Math.round(255f * enabledAmount));
+                    canvas.drawBitmap(glowCacheBitmap, 0f, 0f, glowBitmapPaint);
+                }
             }
             long now = System.currentTimeMillis();
             if (!animationSuppressed && lastTime > 0) {
@@ -491,7 +495,7 @@ final class EqCurveView extends View {
 
         if (liquidGlassTheme) {
             // Liquid Glass gets one clean cyan-blue stroke with no keyline/outline.
-            curvePaint.setStrokeWidth(3.6f);
+            curvePaint.setStrokeWidth(2.0f);
             curvePaint.setDither(true);
             curvePaint.setColor(lerpColor(
                     Color.argb(18, 130, 140, 150),
@@ -577,20 +581,13 @@ final class EqCurveView extends View {
         }
         glowCacheBitmap.eraseColor(Color.TRANSPARENT);
 
-        if (liquidGlassTheme) {
-            curvePaint.setStrokeWidth(3.6f);
-            curvePaint.setDither(true);
-            curvePaint.setColor(Color.rgb(0, 216, 255));
-            glowCacheCanvas.drawPath(curvePath, curvePaint);
-        } else {
-            curvePaint.setStrokeWidth(5f);
-            curvePaint.setDither(true);
-            curvePaint.setColor(Color.argb(35, 0, 255, 255));
-            glowCacheCanvas.drawPath(curvePath, curvePaint);
+        curvePaint.setStrokeWidth(5f);
+        curvePaint.setDither(true);
+        curvePaint.setColor(Color.argb(35, 0, 255, 255));
+        glowCacheCanvas.drawPath(curvePath, curvePaint);
 
-            edgePaint.setColor(Color.argb(105, 130, 245, 255));
-            glowCacheCanvas.drawPath(curvePath, edgePaint);
-        }
+        edgePaint.setColor(Color.argb(105, 130, 245, 255));
+        glowCacheCanvas.drawPath(curvePath, edgePaint);
 
         glowCacheCanvas.drawPath(curvePath, glowPaint0);
         glowCacheCanvas.drawPath(curvePath, glowPaint0b);

@@ -1396,7 +1396,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams curveParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
-                1.0f
+                1.1f
         );
         curveParams.topMargin = dp(12);
         eqPage.addView(curveFrame, curveParams);
@@ -1404,20 +1404,18 @@ public final class MainActivity extends Activity {
         FrameLayout listCardHolder = new FrameLayout(this);
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
-        // The card itself is the viewport: its children are clipped, while the holder
-        // still leaves room for the card's own glass rim and elevation shadow.
         listCardHolder.setClipChildren(false);
         listCardHolder.setClipToPadding(false);
         listCard.setClipChildren(true);
         listCard.setClipToPadding(true);
-        listCard.setPadding(dp(10), dp(6), dp(10), dp(6));
+        listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
         listCard.setBackground(createGlassCard(30));
         applyGlassElevation(listCard, 8f);
 
         LinearLayout.LayoutParams listCardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
-                2.18f
+                2f
         );
         listCardParams.topMargin = dp(10);
         eqPage.addView(listCardHolder, listCardParams);
@@ -1426,7 +1424,7 @@ public final class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         );
-        listCardInnerParams.bottomMargin = dp(4);
+        listCardInnerParams.bottomMargin = dp(8);
         listCardHolder.addView(listCard, listCardInnerParams);
 
         header = new LinearLayout(this);
@@ -1437,12 +1435,10 @@ public final class MainActivity extends Activity {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setClipChildren(true);
         scrollView.setClipToPadding(true);
-        scrollView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         scrollView.setVerticalFadingEdgeEnabled(true);
         scrollView.setFadingEdgeLength(dp(24));
-        // The default five bands plus Add fit without clipping. Larger presets fade
-        // softly into the viewport edges instead of ending on a hard cut line.
-        scrollView.setPadding(0, dp(6), 0, dp(8));
+        scrollView.setPadding(0, 0, 0, 0);
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         rows.setClipChildren(false);
@@ -1456,13 +1452,12 @@ public final class MainActivity extends Activity {
 
         LinearLayout.LayoutParams bottomNavParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(46)
+                dp(50)
         );
         bottomNavParams.leftMargin = dp(6);
         bottomNavParams.rightMargin = dp(6);
-        // Restore the graph/list split and gain the extra EQ room only below the list.
-        bottomNavParams.topMargin = dp(4);
-        bottomNavParams.bottomMargin = 0;
+        bottomNavParams.topMargin = dp(8);
+        bottomNavParams.bottomMargin = dp(12);
         bottomNavView = buildBottomNav();
         root.addView(bottomNavView, bottomNavParams);
 
@@ -1735,21 +1730,42 @@ public final class MainActivity extends Activity {
         );
     }
 
-    private void buildSettingsPage(LinearLayout page) {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setClipChildren(false);
-        scroll.setClipToPadding(false);
-        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        scroll.setVerticalFadingEdgeEnabled(true);
-        scroll.setFadingEdgeLength(dp(22));
-        // Leave enough room for the first/last card rim and elevation instead of letting
-        // the viewport cut them exactly at the scroll boundary.
-        scroll.setPadding(0, dp(28), 0, dp(30));
-        page.addView(scroll, new LinearLayout.LayoutParams(
+    private void attachSettingsScroll(LinearLayout page, ScrollView scroll,
+                                      int restingTopPaddingDp, int restingBottomPaddingDp) {
+        // Android's stretch/rebound can temporarily draw the first or last card outside
+        // the visible page. Give the ScrollView an off-screen bleed area so that motion
+        // is not clipped, while cancelling that area with padding at its resting position.
+        int reboundBleed = dp(56);
+        FrameLayout overflowViewport = new FrameLayout(this);
+        overflowViewport.setClipChildren(false);
+        overflowViewport.setClipToPadding(false);
+        page.addView(overflowViewport, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.MATCH_PARENT
         ));
+
+        scroll.setFillViewport(true);
+        scroll.setClipChildren(false);
+        scroll.setClipToPadding(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        scroll.setVerticalFadingEdgeEnabled(false);
+        scroll.setPadding(0,
+                reboundBleed + dp(restingTopPaddingDp),
+                0,
+                reboundBleed + dp(restingBottomPaddingDp));
+
+        FrameLayout.LayoutParams scrollParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        scrollParams.topMargin = -reboundBleed;
+        scrollParams.bottomMargin = -reboundBleed;
+        overflowViewport.addView(scroll, scrollParams);
+    }
+
+    private void buildSettingsPage(LinearLayout page) {
+        ScrollView scroll = new ScrollView(this);
+        attachSettingsScroll(page, scroll, 16, 18);
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -2061,14 +2077,7 @@ public final class MainActivity extends Activity {
 
     private void buildMonitorSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setClipChildren(false);
-        scroll.setClipToPadding(false);
-        scroll.setPadding(0, dp(8), 0, dp(18));
-        page.addView(scroll, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-        ));
+        attachSettingsScroll(page, scroll, 8, 18);
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -2137,13 +2146,7 @@ public final class MainActivity extends Activity {
 
     private void buildLimiterSettingsPage(LinearLayout page) {
         ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setClipChildren(false);
-        scroll.setClipToPadding(false);
-        scroll.setPadding(0, dp(8), 0, dp(18));
-        page.addView(scroll, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT));
+        attachSettingsScroll(page, scroll, 8, 18);
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
