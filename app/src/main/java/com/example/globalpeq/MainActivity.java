@@ -373,7 +373,6 @@ public final class MainActivity extends Activity {
         if (view == null || width <= 0) {
         }
 
-        boolean usesCustomGlow = view instanceof GlowTitleTextView;
         int[] colors;
         if (view == statusText) {
             boolean hasClip = PeqMath.presetMayClip(editingPreset, PeqMath.HEADROOM_LIMIT_MB);
@@ -405,16 +404,7 @@ public final class MainActivity extends Activity {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
 
-        if (view == statusText) {
-            view.getPaint().setShadowLayer(dpf(8f), 0, 0, Color.argb(195, 0, 245, 212));
-            if (usesCustomGlow) {
-                applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
-            }
-        } else if (usesCustomGlow) {
-            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
-        } else {
-            view.getPaint().setShadowLayer(dpf(5.5f), 0, 0, Color.argb(138, 120, 220, 255));
-        }
+        clearGlowFromTextView(view);
         view.invalidate();
     }
 
@@ -11675,7 +11665,7 @@ public final class MainActivity extends Activity {
 
     private class GlowTitleTextView extends TextView {
         private final TextPaint glowPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
-        private boolean glowEnabled = true;
+        private boolean glowEnabled;
         private boolean autoRegisterShimmer = true;
         private int glowColor = Color.argb(210, 120, 220, 255);
         private float glowRadiusPx = dpf(7.4f);
@@ -12241,11 +12231,11 @@ public final class MainActivity extends Activity {
 
     private void styleCyanGlowText(TextView view) {
         view.getPaint().setShader(null);
-        view.setTextColor(liquidGlassTheme ? Color.rgb(0, 116, 132) : Color.rgb(220, 255, 250));
+        view.setTextColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(92, 225, 215));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
-        view.setShadowLayer(dp(5), 0, 0, Color.argb(135, 0, 245, 212));
+        view.getPaint().clearShadowLayer();
     }
 
     private Drawable plainRoundRectDrawable(int fillColor, int strokeColor, int radiusPx) {
