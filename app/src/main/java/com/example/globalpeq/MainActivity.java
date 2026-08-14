@@ -2007,36 +2007,57 @@ public final class MainActivity extends Activity {
         LinearLayout appearancePanel = createSettingsSectionPanel(34, 16);
         settingsRootContent.addView(appearancePanel);
 
-        addSettingsSectionTitle(appearancePanel, () -> tr("Appearance", "外观"), 18);
+        LinearLayout appearanceRow = new LinearLayout(this);
+        appearanceRow.setOrientation(LinearLayout.HORIZONTAL);
+        appearanceRow.setGravity(Gravity.CENTER_VERTICAL);
+        appearancePanel.addView(appearanceRow, blockParams(0));
 
-        TextView appearanceDetail = new TextView(this);
-        bindText(appearanceDetail, () -> tr(
-                "Choose the flowing liquid-glass interface or the original black neon interface. Animated title shimmer remains enabled in both.",
-                "选择流动液态玻璃界面，或原有的黑色荧光界面。两种外观都会保留标题滚动流光。"));
-        appearanceDetail.setTextSize(12);
-        appearanceDetail.setTextColor(themeTextSecondary());
-        appearanceDetail.setLineSpacing(dp(2), 1f);
-        appearancePanel.addView(appearanceDetail, blockParams(2));
+        TextView appearanceTitle = gradientTitleView(tr("Appearance", "外观"));
+        appearanceTitle.setTextSize(18);
+        appearanceTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        bindStyledText(appearanceTitle, () -> tr("Appearance", "外观"));
+        reserveStartGlowWithoutMoving(appearanceTitle, 12);
+        LinearLayout.LayoutParams appearanceTitleParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        appearanceTitleParams.leftMargin = -dp(22);
+        appearanceRow.addView(appearanceTitle, appearanceTitleParams);
 
         liquidGlassSwitch = new Switch(this);
         liquidGlassSwitch.setText("");
         liquidGlassSwitch.setShowText(false);
         liquidGlassSwitch.setChecked(liquidGlassTheme);
-        styleTopSwitch(liquidGlassSwitch, false);
+        styleAppearanceSwitch(liquidGlassSwitch);
+
+        ImageView sunIcon = createAppearanceIcon(
+                liquidGlassTheme ? R.drawable.appearance_sun_on : R.drawable.appearance_sun_off,
+                tr("Liquid glass appearance", "液态玻璃外观"));
+        sunIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(true));
+        LinearLayout.LayoutParams sunParams = new LinearLayout.LayoutParams(dp(20), dp(20));
+        sunParams.leftMargin = dp(8);
+        sunParams.rightMargin = dp(5);
+        appearanceRow.addView(sunIcon, sunParams);
+
+        appearanceRow.addView(liquidGlassSwitch,
+                new LinearLayout.LayoutParams(dp(60), dp(30)));
+
+        ImageView moonIcon = createAppearanceIcon(
+                liquidGlassTheme ? R.drawable.appearance_moon_off : R.drawable.appearance_moon_on,
+                tr("Classic appearance", "经典外观"));
+        moonIcon.setOnClickListener(v -> liquidGlassSwitch.setChecked(false));
+        LinearLayout.LayoutParams moonParams = new LinearLayout.LayoutParams(dp(20), dp(20));
+        moonParams.leftMargin = dp(5);
+        appearanceRow.addView(moonIcon, moonParams);
+
         liquidGlassSwitch.setOnCheckedChangeListener((button, checked) -> {
             if (updatingUi || checked == liquidGlassTheme) {
                 return;
             }
+            int settingsScrollY = settingsScrollView == null ? 0 : settingsScrollView.getScrollY();
             UiTheme.setLiquidGlass(this, checked);
             liquidGlassTheme = checked;
             UiTheme.applyWindowAppearance(this, liquidGlassTheme);
-            recreate();
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+            rebuildContentForAppearance(activeMainPageIndex, settingsScrollY);
         });
-        appearancePanel.addView(labeledSettingsRow(
-                () -> tr("Liquid glass interface", "液态玻璃界面"),
-                liquidGlassSwitch,
-                null), blockParams(14));
 
         LinearLayout aboutPanel = createSettingsSectionPanel(30, 16);
         settingsRootContent.addView(aboutPanel);
@@ -2062,6 +2083,39 @@ public final class MainActivity extends Activity {
         footerParams.topMargin = dp(32);
         settingsRootContent.addView(footerTextView, footerParams);
 
+    }
+
+    private ImageView createAppearanceIcon(int drawableRes, CharSequence description) {
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(drawableRes);
+        icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        icon.setContentDescription(description);
+        icon.setClickable(true);
+        icon.setFocusable(true);
+        return icon;
+    }
+
+    private void rebuildContentForAppearance(int pageIndex, int settingsScrollY) {
+        removeKeyboardVisibilityListener();
+        uiHandler.removeCallbacks(shimmerAnimationRunnable);
+        shimmerTargetViews.clear();
+        shimmerViewPhases.clear();
+        textStyleVersion.clear();
+        titleVisualStates.clear();
+        liquidGlassDrawables.clear();
+        lastShimmerTime = 0L;
+
+        // Rebuild only the view hierarchy. Runtime/audio state and the Activity stay alive.
+        languageController = new LanguageController(repository);
+        setContentView(buildContent());
+        installKeyboardVisibilityListener();
+        bindRootLanguageRefresh();
+        renderAll();
+        switchToMainPage(pageIndex, false);
+
+        if (settingsScrollView != null) {
+            settingsScrollView.post(() -> settingsScrollView.scrollTo(0, settingsScrollY));
+        }
     }
 
     private LinearLayout createSettingsSectionPanel(int alphaPercent, int topMarginDp) {
