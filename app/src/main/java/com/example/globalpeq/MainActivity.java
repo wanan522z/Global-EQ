@@ -6743,24 +6743,19 @@ public final class MainActivity extends Activity {
             int bottom = Math.min(rootHeight, top + curveFrameView.getHeight());
             int color = Color.argb(160, 18, 18, 25);
 
-            addCurveGainDimView(root, 0, 0, rootWidth, top, color);
-            addCurveGainDimView(root, 0, bottom, rootWidth, rootHeight - bottom, color);
-            addCurveGainDimView(root, 0, top, left, bottom - top, color);
-            addCurveGainDimView(root, right, top, rootWidth - right, bottom - top, color);
+            View dim = addCurveCutoutDimView(root, left, top, right, bottom, color);
+            curveGainDimViews.add(dim);
         });
     }
 
-    private void addCurveGainDimView(FrameLayout root, int left, int top, int width, int height, int color) {
-        if (width <= 0 || height <= 0) {
-            return;
-        }
-        View dim = new View(this);
-        dim.setBackgroundColor(color);
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
-        params.leftMargin = left;
-        params.topMargin = top;
+    private View addCurveCutoutDimView(FrameLayout root, int left, int top,
+                                       int right, int bottom, int color) {
+        View dim = new RoundedCutoutDimView(this, left, top, right, bottom, dp(22), color);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
         root.addView(dim, params);
-        curveGainDimViews.add(dim);
+        return dim;
     }
 
     private void removeCurveGainDim() {
@@ -6800,31 +6795,42 @@ public final class MainActivity extends Activity {
             int bottom = Math.min(rootHeight, top + curveFrameView.getHeight());
             int color = Color.argb(190, 18, 18, 25);
 
-            addEqEditDimView(root, 0, 0, rootWidth, top, color);
-            addEqEditDimView(root, 0, bottom, rootWidth, rootHeight - bottom, color);
-            addEqEditDimView(root, 0, top, left, bottom - top, color);
-            addEqEditDimView(root, right, top, rootWidth - right, bottom - top, color);
+            View dim = addCurveCutoutDimView(root, left, top, right, bottom, color);
+            dim.setOnClickListener(v -> closeKeyboard(v));
+            dim.setAlpha(0f);
+            eqEditDimViews.add(dim);
+            dim.animate()
+                    .alpha(1f)
+                    .setDuration(EQ_EDIT_FADE_IN_MS)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                    .start();
         });
     }
 
-    private void addEqEditDimView(FrameLayout root, int left, int top, int width, int height, int color) {
-        if (width <= 0 || height <= 0) {
-            return;
+    private static final class RoundedCutoutDimView extends View {
+        private final Paint dimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path dimPath = new Path();
+        private final android.graphics.RectF cutoutBounds = new android.graphics.RectF();
+        private final float cutoutRadius;
+
+        RoundedCutoutDimView(Context context, float left, float top, float right, float bottom,
+                             float radius, int color) {
+            super(context);
+            cutoutBounds.set(left, top, right, bottom);
+            cutoutRadius = radius;
+            dimPaint.setColor(color);
+            setWillNotDraw(false);
         }
-        View dim = new View(this);
-        dim.setBackgroundColor(color);
-        dim.setOnClickListener(v -> closeKeyboard(v));
-        dim.setAlpha(0f);
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
-        params.leftMargin = left;
-        params.topMargin = top;
-        root.addView(dim, params);
-        eqEditDimViews.add(dim);
-        dim.animate()
-                .alpha(1f)
-                .setDuration(EQ_EDIT_FADE_IN_MS)
-                .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                .start();
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            dimPath.reset();
+            dimPath.setFillType(Path.FillType.EVEN_ODD);
+            dimPath.addRect(0f, 0f, getWidth(), getHeight(), Path.Direction.CW);
+            dimPath.addRoundRect(cutoutBounds, cutoutRadius, cutoutRadius, Path.Direction.CW);
+            canvas.drawPath(dimPath, dimPaint);
+        }
     }
 
     private void removeEqEditDim(boolean animated) {
