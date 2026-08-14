@@ -1417,7 +1417,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams listCardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
-                3.15f
+                2.18f
         );
         listCardParams.topMargin = dp(10);
         eqPage.addView(listCardHolder, listCardParams);
@@ -1456,12 +1456,13 @@ public final class MainActivity extends Activity {
 
         LinearLayout.LayoutParams bottomNavParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(50)
+                dp(46)
         );
         bottomNavParams.leftMargin = dp(6);
         bottomNavParams.rightMargin = dp(6);
-        bottomNavParams.topMargin = dp(8);
-        bottomNavParams.bottomMargin = dp(12);
+        // Restore the graph/list split and gain the extra EQ room only below the list.
+        bottomNavParams.topMargin = dp(4);
+        bottomNavParams.bottomMargin = 0;
         bottomNavView = buildBottomNav();
         root.addView(bottomNavView, bottomNavParams);
 
@@ -1739,7 +1740,12 @@ public final class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setClipChildren(false);
         scroll.setClipToPadding(false);
-        scroll.setPadding(0, dp(16), 0, dp(18));
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scroll.setVerticalFadingEdgeEnabled(true);
+        scroll.setFadingEdgeLength(dp(22));
+        // Leave enough room for the first/last card rim and elevation instead of letting
+        // the viewport cut them exactly at the scroll boundary.
+        scroll.setPadding(0, dp(28), 0, dp(30));
         page.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.MATCH_PARENT
@@ -8745,7 +8751,7 @@ public final class MainActivity extends Activity {
         navBg.setShape(GradientDrawable.RECTANGLE);
         navBg.setColor(liquidGlassTheme
                 ? Color.argb(218, 255, 255, 255)
-                : Color.argb(45, 20, 24, 38));
+                : Color.rgb(18, 22, 34));
         navBg.setStroke(dp(1), liquidGlassTheme
                 ? Color.argb(176, 190, 208, 232)
                 : Color.argb(35, 255, 255, 255));
