@@ -1657,10 +1657,6 @@ public final class MainActivity extends Activity {
             return frameBitmap;
         }
 
-        double flowSeconds() {
-            return flowSeconds;
-        }
-
         private void drawClassicBackdrop(Canvas canvas, int w, int h) {
             canvas.drawColor(Color.rgb(18, 18, 25));
             drawFlowBlob(canvas, w * 0.8f, h * 0.15f,
