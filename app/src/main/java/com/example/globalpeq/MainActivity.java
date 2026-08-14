@@ -10842,6 +10842,7 @@ public final class MainActivity extends Activity {
         private android.graphics.BitmapShader lensShader;
         private Shader glassFillShader;
         private Shader surfaceSheenShader;
+        private Shader edgeDispersionShader;
         private int shaderLeft = Integer.MIN_VALUE;
         private int shaderTop = Integer.MIN_VALUE;
         private int shaderRight = Integer.MIN_VALUE;
@@ -10886,13 +10887,13 @@ public final class MainActivity extends Activity {
 
             // Regular glass adapts its luminosity to the content underneath. Darker
             // regions receive a stronger milky lift so foreground text remains legible.
-            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 27f : 48f));
+            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 30f : 54f));
             int topAlpha = outerLayer
-                    ? clamp(38 + Math.round(density * 0.34f) + adaptiveLift, 48, 94)
-                    : clamp(68 + Math.round(density * 0.58f) + adaptiveLift, 88, 166);
+                    ? clamp(44 + Math.round(density * 0.38f) + adaptiveLift, 58, 108)
+                    : clamp(92 + Math.round(density * 0.62f) + adaptiveLift, 118, 194);
             int bottomAlpha = outerLayer
-                    ? clamp(topAlpha - 27, 22, 66)
-                    : clamp(topAlpha - 28, 62, 138);
+                    ? clamp(topAlpha - 10, 48, 98)
+                    : clamp(topAlpha - 14, 104, 180);
             if (pressed) {
                 topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
                 bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
@@ -10907,7 +10908,27 @@ public final class MainActivity extends Activity {
             // Full-surface luminosity transition, with no perimeter stroke or rim band.
             paint.setShader(surfaceSheenShader);
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
+
+            // A continuous neutral rim guarantees separation over both pale and dark
+            // backdrop regions. The chromatic pass above it wraps the entire silhouette,
+            // approximating the subtle edge dispersion/refraction of thick glass.
             paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dpf(1.15f));
+            int neutralRimAlpha = Math.round((backdropLuminance > 0.62f ? 92f : 142f)
+                    * drawableAlpha / 255f);
+            paint.setColor(backdropLuminance > 0.62f
+                    ? Color.argb(neutralRimAlpha, 28, 57, 88)
+                    : Color.argb(neutralRimAlpha, 255, 255, 255));
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
+
+            paint.setShader(edgeDispersionShader);
+            paint.setStrokeWidth(dpf(outerLayer ? 1.7f : 2.0f));
+            paint.setAlpha(Math.round((outerLayer ? 152f : 184f) * drawableAlpha / 255f));
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
+
+            paint.setShader(null);
+            paint.setAlpha(drawableAlpha);
             paint.setStyle(Paint.Style.FILL);
         }
 
@@ -10916,7 +10937,7 @@ public final class MainActivity extends Activity {
             int top = Math.round(outerRect.top);
             int right = Math.round(outerRect.right);
             int bottom = Math.round(outerRect.bottom);
-            if (glassFillShader != null && surfaceSheenShader != null
+            if (glassFillShader != null && surfaceSheenShader != null && edgeDispersionShader != null
                     && shaderLeft == left && shaderTop == top
                     && shaderRight == right && shaderBottom == bottom
                     && shaderTopAlpha == topAlpha && shaderBottomAlpha == bottomAlpha) {
@@ -10929,18 +10950,18 @@ public final class MainActivity extends Activity {
             shaderTopAlpha = topAlpha;
             shaderBottomAlpha = bottomAlpha;
             glassFillShader = new LinearGradient(
-                    outerRect.left, outerRect.top, outerRect.right, outerRect.bottom,
+                    outerRect.centerX(), outerRect.top, outerRect.centerX(), outerRect.bottom,
                     new int[]{
                             Color.argb(topAlpha, 255, 255, 255),
-                            Color.argb(Math.max(outerLayer ? 22 : 58, topAlpha - 24), 242, 250, 250),
+                            Color.argb(Math.max(outerLayer ? 48 : 104, topAlpha - 10), 242, 250, 252),
                             Color.argb(bottomAlpha, 224, 237, 245)
                     },
-                    new float[]{0f, 0.55f, 1f},
+                    new float[]{0f, 0.48f, 1f},
                     Shader.TileMode.CLAMP);
-            float sheenRadius = Math.max(outerRect.width(), outerRect.height()) * 0.92f;
+            float sheenRadius = Math.max(outerRect.width(), outerRect.height()) * 0.88f;
             surfaceSheenShader = new RadialGradient(
-                    outerRect.left + outerRect.width() * 0.18f,
-                    outerRect.top + outerRect.height() * 0.04f,
+                    outerRect.centerX(),
+                    outerRect.top + outerRect.height() * 0.06f,
                     Math.max(dpf(1f), sheenRadius),
                     new int[]{
                             Color.argb(outerLayer ? 22 : 32, 255, 255, 255),
@@ -10949,6 +10970,17 @@ public final class MainActivity extends Activity {
                     },
                     new float[]{0f, 0.46f, 1f},
                     Shader.TileMode.CLAMP);
+            edgeDispersionShader = new SweepGradient(
+                    outerRect.centerX(), outerRect.centerY(),
+                    new int[]{
+                            Color.argb(176, 124, 226, 255),
+                            Color.argb(154, 244, 253, 255),
+                            Color.argb(158, 255, 190, 224),
+                            Color.argb(172, 255, 244, 190),
+                            Color.argb(164, 164, 255, 226),
+                            Color.argb(176, 124, 226, 255)
+                    },
+                    new float[]{0f, 0.20f, 0.40f, 0.60f, 0.80f, 1f});
         }
 
         private float drawBackdropLens(Canvas canvas, float outerRadius) {
@@ -12534,6 +12566,7 @@ public final class MainActivity extends Activity {
                 neg.setTextColor(themeTextSecondary());
             }
             neg.setAllCaps(false);
+            compactDialogAction(neg);
         }
         Button pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (pos != null) {
@@ -12543,6 +12576,7 @@ public final class MainActivity extends Activity {
                 styleCyanGlowText(pos);
             }
             pos.setAllCaps(false);
+            compactDialogAction(pos);
         }
         Button neu = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
         if (neu != null) {
@@ -12551,6 +12585,21 @@ public final class MainActivity extends Activity {
             } else {
                 neu.setTextColor(themeTextSecondary());
             }
+            compactDialogAction(neu);
+        }
+    }
+
+    private void compactDialogAction(Button button) {
+        button.setTextSize(14);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setMinHeight(0);
+        button.setMinimumHeight(0);
+        button.setPadding(dp(14), 0, dp(14), 0);
+        ViewGroup.LayoutParams params = button.getLayoutParams();
+        if (params != null) {
+            params.height = dp(40);
+            button.setLayoutParams(params);
         }
     }
 
