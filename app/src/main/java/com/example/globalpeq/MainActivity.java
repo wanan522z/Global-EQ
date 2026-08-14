@@ -324,6 +324,7 @@ public final class MainActivity extends Activity {
     private final java.util.Map<TextView, Float> shimmerViewPhases = new java.util.HashMap<>();
     private final java.util.Map<TextView, Boolean> titleVisualStates = new java.util.HashMap<>();
     private final List<TextView> shimmerTargetViews = new ArrayList<>();
+    private final List<java.lang.ref.WeakReference<LiquidGlassDrawable>> liquidGlassDrawables = new ArrayList<>();
     // 流光速度：每秒平移 0.05 个视图宽度（约 20 秒一个周期）。
     // 极致缓慢滚动，营造静谧高雅的流光氛围。
     private static final float SHIMMER_FLOW_RATE = 0.05f;
@@ -795,6 +796,7 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         unregisterSystemBackCallback();
         shimmerTargetViews.clear();
+        liquidGlassDrawables.clear();
         uiHandler.removeCallbacks(shimmerAnimationRunnable);
         uiHandler.removeCallbacks(commitPeqToggleRunnable);
         uiHandler.removeCallbacks(commitExtraBassControlRunnable);
@@ -1498,9 +1500,24 @@ public final class MainActivity extends Activity {
                 flowSeconds += deltaSeconds;
                 advanceFlowField(deltaSeconds);
                 invalidate();
+                invalidateLiquidGlassDrawables();
                 postDelayed(this, 33L);
             }
         };
+
+        private void invalidateLiquidGlassDrawables() {
+            for (int i = liquidGlassDrawables.size() - 1; i >= 0; i--) {
+                LiquidGlassDrawable drawable = liquidGlassDrawables.get(i).get();
+                if (drawable == null) {
+                    liquidGlassDrawables.remove(i);
+                    continue;
+                }
+                Drawable.Callback callback = drawable.getCallback();
+                if (!(callback instanceof View) || ((View) callback).isShown()) {
+                    drawable.invalidateSelf();
+                }
+            }
+        }
 
         LiquidBackdropView(Context context, boolean liquid) {
             super(context);
@@ -10774,6 +10791,7 @@ public final class MainActivity extends Activity {
         LiquidGlassDrawable(float radius, int density) {
             this.radius = radius;
             this.density = clamp(density, 0, 100);
+            liquidGlassDrawables.add(new java.lang.ref.WeakReference<>(this));
         }
 
         @Override
