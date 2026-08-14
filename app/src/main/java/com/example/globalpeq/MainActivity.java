@@ -10790,6 +10790,7 @@ public final class MainActivity extends Activity {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private final Paint lensPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final android.graphics.RectF outerRect = new android.graphics.RectF();
+        private final android.graphics.RectF dispersionRect = new android.graphics.RectF();
         private final android.graphics.Matrix lensMatrix = new android.graphics.Matrix();
         private final float[] lensMatrixValues = new float[9];
         private final int[] glassLocation = new int[2];
@@ -10809,6 +10810,7 @@ public final class MainActivity extends Activity {
         private final int density;
         private final boolean outerLayer;
         private boolean pressed;
+        private float stableBackdropLuminance = Float.NaN;
         private int drawableAlpha = 255;
 
         LiquidGlassDrawable(float radius, int density) {
@@ -10839,17 +10841,27 @@ public final class MainActivity extends Activity {
 
             // Lensing is the defining layer of Liquid Glass: resample the live backdrop
             // at this view's screen position and magnify it gently around the centre.
-            float backdropLuminance = drawBackdropLens(canvas, outerRadius);
+            float sampledBackdropLuminance = drawBackdropLens(canvas, outerRadius);
+            if (Float.isNaN(stableBackdropLuminance)) {
+                stableBackdropLuminance = sampledBackdropLuminance;
+            } else {
+                // Moving glass used to rebuild its milky layer directly from one sampled
+                // pixel. Smooth the material response so vertical and horizontal scrolling
+                // remain continuous without freezing the animated backdrop.
+                float delta = sampledBackdropLuminance - stableBackdropLuminance;
+                stableBackdropLuminance += Math.max(-0.018f, Math.min(0.018f, delta * 0.12f));
+            }
+            float backdropLuminance = stableBackdropLuminance;
 
             // Regular glass adapts its luminosity to the content underneath. Darker
             // regions receive a stronger milky lift so foreground text remains legible.
-            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 27f : 38f));
+            int adaptiveLift = Math.round((1f - backdropLuminance) * (outerLayer ? 18f : 28f));
             int topAlpha = outerLayer
-                    ? clamp(40 + Math.round(density * 0.34f) + adaptiveLift, 48, 98)
-                    : clamp(66 + Math.round(density * 0.38f) + adaptiveLift, 78, 146);
+                    ? clamp(28 + Math.round(density * 0.22f) + adaptiveLift, 36, 72)
+                    : clamp(50 + Math.round(density * 0.28f) + adaptiveLift, 62, 112);
             int bottomAlpha = outerLayer
-                    ? clamp(topAlpha - 10, 40, 90)
-                    : clamp(topAlpha - 8, 70, 138);
+                    ? clamp(topAlpha - 5, 30, 68)
+                    : clamp(topAlpha - 5, 56, 106);
             if (pressed) {
                 topAlpha = Math.min(184, topAlpha + (outerLayer ? 10 : 16));
                 bottomAlpha = Math.min(154, bottomAlpha + (outerLayer ? 8 : 13));
@@ -10865,23 +10877,22 @@ public final class MainActivity extends Activity {
             paint.setShader(surfaceSheenShader);
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
-            // A continuous neutral rim guarantees separation over both pale and dark
-            // backdrop regions. The chromatic pass after it wraps the entire silhouette,
-            // approximating the subtle edge dispersion/refraction of thick glass.
+            // A hairline highlight defines the silhouette without turning it into a frame.
+            // A displaced, partially transparent chromatic pass adds edge dispersion.
             paint.setShader(null);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dpf(1.15f));
-            int neutralRimAlpha = Math.round((backdropLuminance > 0.62f ? 92f : 142f)
+            paint.setStrokeWidth(dpf(outerLayer ? 0.48f : 0.62f));
+            int neutralRimAlpha = Math.round((outerLayer ? 68f : 86f)
                     * drawableAlpha / 255f);
-            paint.setColor(backdropLuminance > 0.62f
-                    ? Color.argb(neutralRimAlpha, 28, 57, 88)
-                    : Color.argb(neutralRimAlpha, 255, 255, 255));
+            paint.setColor(Color.argb(neutralRimAlpha, 255, 255, 255));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
 
             paint.setShader(edgeDispersionShader);
-            paint.setStrokeWidth(dpf(outerLayer ? 1.7f : 2.0f));
-            paint.setAlpha(Math.round((outerLayer ? 152f : 184f) * drawableAlpha / 255f));
-            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, paint);
+            paint.setStrokeWidth(dpf(outerLayer ? 0.72f : 0.92f));
+            paint.setAlpha(Math.round((outerLayer ? 96f : 118f) * drawableAlpha / 255f));
+            dispersionRect.set(outerRect);
+            dispersionRect.offset(dpf(0.34f), dpf(-0.22f));
+            canvas.drawRoundRect(dispersionRect, outerRadius, outerRadius, paint);
 
             paint.setShader(null);
             paint.setAlpha(drawableAlpha);
@@ -10909,7 +10920,7 @@ public final class MainActivity extends Activity {
                     outerRect.centerX(), outerRect.top, outerRect.centerX(), outerRect.bottom,
                     new int[]{
                             Color.argb(topAlpha, 255, 255, 255),
-                            Color.argb(Math.max(outerLayer ? 40 : 70, topAlpha - 6), 242, 250, 252),
+                            Color.argb(Math.max(outerLayer ? 30 : 56, topAlpha - 4), 242, 250, 252),
                             Color.argb(bottomAlpha, 224, 237, 245)
                     },
                     new float[]{0f, 0.48f, 1f},
@@ -10920,8 +10931,8 @@ public final class MainActivity extends Activity {
                     outerRect.top + outerRect.height() * 0.06f,
                     Math.max(dpf(1f), sheenRadius),
                     new int[]{
-                            Color.argb(outerLayer ? 22 : 32, 255, 255, 255),
-                            Color.argb(outerLayer ? 8 : 13, 248, 253, 255),
+                            Color.argb(outerLayer ? 10 : 18, 255, 255, 255),
+                            Color.argb(outerLayer ? 4 : 7, 248, 253, 255),
                             Color.TRANSPARENT
                     },
                     new float[]{0f, 0.46f, 1f},
@@ -10929,14 +10940,15 @@ public final class MainActivity extends Activity {
             edgeDispersionShader = new SweepGradient(
                     outerRect.centerX(), outerRect.centerY(),
                     new int[]{
-                            Color.argb(176, 124, 226, 255),
-                            Color.argb(154, 244, 253, 255),
-                            Color.argb(158, 255, 190, 224),
-                            Color.argb(172, 255, 244, 190),
-                            Color.argb(164, 164, 255, 226),
-                            Color.argb(176, 124, 226, 255)
+                            Color.argb(106, 88, 222, 255),
+                            Color.TRANSPARENT,
+                            Color.argb(94, 255, 160, 218),
+                            Color.TRANSPARENT,
+                            Color.argb(88, 255, 237, 150),
+                            Color.TRANSPARENT,
+                            Color.argb(102, 92, 238, 255)
                     },
-                    new float[]{0f, 0.20f, 0.40f, 0.60f, 0.80f, 1f});
+                    new float[]{0f, 0.14f, 0.30f, 0.46f, 0.62f, 0.82f, 1f});
         }
 
         private float drawBackdropLens(Canvas canvas, float outerRadius) {
@@ -10969,6 +10981,14 @@ public final class MainActivity extends Activity {
             lensPaint.setShader(lensShader);
             lensPaint.setStyle(Paint.Style.FILL);
             lensPaint.setAlpha(Math.round((pressed ? 238f : 218f) * drawableAlpha / 255f));
+            canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
+
+            // Sample the same live backdrop with a stronger magnification only on the
+            // perimeter. This produces actual edge warping beneath the subtle color split.
+            configureLensShader(screenPerPixelX, screenPerPixelY, relativeX, relativeY, zoom + 0.046f);
+            lensPaint.setStyle(Paint.Style.STROKE);
+            lensPaint.setStrokeWidth(dpf(outerLayer ? 1.05f : 1.32f));
+            lensPaint.setAlpha(Math.round((outerLayer ? 116f : 142f) * drawableAlpha / 255f));
             canvas.drawRoundRect(outerRect, outerRadius, outerRadius, lensPaint);
 
             lensPaint.setShader(null);
