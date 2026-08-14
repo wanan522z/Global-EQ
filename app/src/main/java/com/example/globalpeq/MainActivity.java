@@ -413,7 +413,15 @@ public final class MainActivity extends Activity {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
 
-        clearGlowFromTextView(view);
+        if (liquidGlassTheme) {
+            clearGlowFromTextView(view);
+        } else if (view == statusText) {
+            view.getPaint().setShadowLayer(dpf(8f), 0, 0,
+                    Color.argb(195, 0, 245, 212));
+            applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
+        } else {
+            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+        }
         view.invalidate();
     }
 
@@ -1502,7 +1510,7 @@ public final class MainActivity extends Activity {
         sceneRoot.addView(mist, params);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             mist.setOnApplyWindowInsetsListener((view, insets) -> {
-                int desiredHeight = insets.getSystemWindowInsetTop() + dp(20);
+                int desiredHeight = insets.getSystemWindowInsetTop() + dp(38);
                 ViewGroup.LayoutParams currentParams = view.getLayoutParams();
                 if (currentParams.height != desiredHeight) {
                     currentParams.height = desiredHeight;
@@ -2190,6 +2198,7 @@ public final class MainActivity extends Activity {
                 R.drawable.appearance_sun_aligned,
                 liquidGlassTheme ? 0xFF00468D : 0xFF738593,
                 tr("Liquid glass appearance", "液态玻璃外观"));
+        sunIcon.setPadding(dp(2), dp(2), dp(2), dp(2));
         sunIcon.setOnClickListener(v -> {
             if (!appearanceTransitionRunning) {
                 liquidGlassSwitch.setChecked(false);
@@ -12866,8 +12875,20 @@ public final class MainActivity extends Activity {
     }
 
     private void applyGlowToTextView(TextView view, int glowColor, float glowRadiusDp) {
-        // Typography is intentionally glow-free. Animated gradient shaders provide all motion.
-        clearGlowFromTextView(view);
+        if (liquidGlassTheme) {
+            clearGlowFromTextView(view);
+            return;
+        }
+        if (view instanceof GlowTitleTextView) {
+            ((GlowTitleTextView) view).setGlowState(true, glowColor, dpf(glowRadiusDp));
+            view.getPaint().clearShadowLayer();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
+                && view.getLayerType() != View.LAYER_TYPE_SOFTWARE) {
+            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+        view.getPaint().setShadowLayer(dpf(glowRadiusDp), 0, 0, glowColor);
     }
 
     private void clearGlowFromTextView(TextView view) {
@@ -12909,8 +12930,12 @@ public final class MainActivity extends Activity {
         applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                 Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
         view.setTextColor(Color.WHITE);
-        // 缩小一圈，但保留完整衰减空间
-        clearGlowFromTextView(view);
+        // Liquid typography stays clean; classic typography keeps its original bloom.
+        if (liquidGlassTheme) {
+            clearGlowFromTextView(view);
+        } else {
+            applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+        }
         view.invalidate();
         if (view.getWidth() <= 0) {
             view.post(() -> {
@@ -12920,7 +12945,11 @@ public final class MainActivity extends Activity {
                 applyAnimatedTitleGradientShader(view, settingsTitleGradientWidth(view), currentShimmerPhaseForView(view),
                         Color.rgb(230, 245, 255), Color.rgb(160, 230, 255), Color.rgb(220, 180, 255));
                 view.setTextColor(Color.WHITE);
-                clearGlowFromTextView(view);
+                if (liquidGlassTheme) {
+                    clearGlowFromTextView(view);
+                } else {
+                    applyGlowToTextView(view, Color.argb(210, 120, 220, 255), 7.4f);
+                }
                 view.invalidate();
             });
         }
@@ -12933,7 +12962,13 @@ public final class MainActivity extends Activity {
                 && !(view instanceof GlowTitleTextView)) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
-        clearGlowFromTextView(view);
+        if (liquidGlassTheme) {
+            clearGlowFromTextView(view);
+        } else {
+            view.getPaint().setShadowLayer(dpf(8f), 0, 0,
+                    Color.argb(195, 0, 245, 212));
+            applyGlowToTextView(view, Color.argb(188, 0, 245, 212), 5.25f);
+        }
         view.invalidate();
     }
 
@@ -13195,10 +13230,18 @@ public final class MainActivity extends Activity {
     private void styleCyanGlowText(TextView view) {
         view.getPaint().setShader(null);
         view.setTextColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(92, 225, 215));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB && liquidGlassTheme) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
-        view.getPaint().clearShadowLayer();
+        if (liquidGlassTheme) {
+            view.getPaint().clearShadowLayer();
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            }
+            view.getPaint().setShadowLayer(dpf(5f), 0, 0,
+                    Color.argb(135, 0, 245, 212));
+        }
     }
 
     private Drawable plainRoundRectDrawable(int fillColor, int strokeColor, int radiusPx) {
