@@ -11635,7 +11635,7 @@ public final class MainActivity extends Activity {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
         view.getPaint().setShader(null);
-        view.setTextColor(Color.rgb(150, 165, 185));
+        view.setTextColor(themeTextMuted());
         clearGlowFromTextView(view);
         view.invalidate();
     }
@@ -11910,9 +11910,11 @@ public final class MainActivity extends Activity {
         if (window != null) {
             GradientDrawable bg = new GradientDrawable();
             bg.setShape(GradientDrawable.RECTANGLE);
-            bg.setColor(Color.rgb(18, 22, 34));
-            bg.setStroke(dp(1), Color.argb(50, 255, 255, 255));
-            bg.setCornerRadius(dp(20));
+            bg.setColor(liquidGlassTheme ? Color.rgb(250, 252, 255) : Color.rgb(18, 22, 34));
+            bg.setStroke(dp(1), liquidGlassTheme
+                    ? Color.argb(190, 170, 194, 224)
+                    : Color.argb(50, 255, 255, 255));
+            bg.setCornerRadius(dp(liquidGlassTheme ? 26 : 20));
             window.setBackgroundDrawable(bg);
             window.setGravity(android.view.Gravity.CENTER);
             android.view.WindowManager.LayoutParams params = new android.view.WindowManager.LayoutParams();
@@ -11930,12 +11932,12 @@ public final class MainActivity extends Activity {
         }
         TextView message = (TextView) dialog.findViewById(android.R.id.message);
         if (message != null) {
-            message.setTextColor(Color.rgb(200, 210, 230));
+            message.setTextColor(themeTextPrimary());
             message.setPadding(dp(20), dp(8), dp(20), dp(8));
         }
         Button neg = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
         if (neg != null) {
-            neg.setTextColor(Color.rgb(160, 170, 190));
+            neg.setTextColor(themeTextSecondary());
             neg.setAllCaps(false);
         }
         Button pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -11945,7 +11947,7 @@ public final class MainActivity extends Activity {
         }
         Button neu = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
         if (neu != null) {
-            neu.setTextColor(Color.rgb(160, 170, 190));
+            neu.setTextColor(themeTextSecondary());
         }
     }
 
@@ -11958,7 +11960,7 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
-        view.setTextColor(Color.WHITE);
+        view.setTextColor(themeTextPrimary());
         view.getPaint().clearShadowLayer();
         view.invalidate();
     }
@@ -11968,7 +11970,9 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
-        view.setTextColor(Color.argb(140, 255, 255, 255));
+        view.setTextColor(liquidGlassTheme
+                ? Color.argb(190, 60, 75, 98)
+                : Color.argb(140, 255, 255, 255));
         clearGlowFromTextView(view);
         view.getPaint().clearShadowLayer();
         view.invalidate();
@@ -11986,7 +11990,7 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
-        view.setTextColor(Color.rgb(180, 190, 205));
+        view.setTextColor(themeTextSecondary());
         view.getPaint().clearShadowLayer();
         view.invalidate();
     }
@@ -11996,7 +12000,7 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }
-        view.setTextColor(Color.rgb(158, 168, 184));
+        view.setTextColor(themeTextMuted());
         view.getPaint().clearShadowLayer();
         view.invalidate();
     }
@@ -12016,7 +12020,7 @@ public final class MainActivity extends Activity {
         statusText.setPadding(dp(10), dp(4), dp(10), dp(4));
         if (!supported) {
             unregisterShimmerView(statusText);
-            statusText.setTextColor(Color.rgb(150, 158, 172));
+            statusText.setTextColor(themeTextMuted());
             statusText.getPaint().clearShadowLayer();
         } else if (hasClip) {
             unregisterShimmerView(statusText);
@@ -12040,7 +12044,7 @@ public final class MainActivity extends Activity {
         if (!active) {
             unregisterShimmerView(modeSpinner);
             modeSpinner.getPaint().setShader(null);
-            modeSpinner.setTextColor(Color.rgb(122, 145, 160));
+            modeSpinner.setTextColor(themeTextMuted());
             clearGlowFromTextView(modeSpinner);
             modeSpinner.invalidate();
             return;
@@ -12051,7 +12055,7 @@ public final class MainActivity extends Activity {
 
     private void styleCyanGlowText(TextView view) {
         view.getPaint().setShader(null);
-        view.setTextColor(Color.rgb(220, 255, 250));
+        view.setTextColor(liquidGlassTheme ? Color.rgb(0, 116, 132) : Color.rgb(220, 255, 250));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
