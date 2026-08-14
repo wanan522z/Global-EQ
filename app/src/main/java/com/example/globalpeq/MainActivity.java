@@ -309,6 +309,7 @@ public final class MainActivity extends Activity {
     private Switch autoSwitchOutputSwitch;
     private Switch extraBassSwitch;
     private Switch globalDvcSwitch;
+    private Switch liquidGlassSwitch;
     private LinearLayout header;
     private Preset runningPreset;
     private Preset editingPreset;
@@ -508,6 +509,7 @@ public final class MainActivity extends Activity {
     private boolean supported;
     private boolean updatingUi;
     private boolean autoSwitchOutput;
+    private boolean liquidGlassTheme;
     private int curveGraphMaxDb = 18;
     private String selectedDeviceCurveName = "Default";
     private String selectedTargetCurveName = "Default";
@@ -646,6 +648,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        liquidGlassTheme = UiTheme.isLiquidGlass(this);
+        UiTheme.applyWindowAppearance(this, liquidGlassTheme);
         registerSystemBackCallback();
         repository = new PresetRepository(this);
         languageController = new LanguageController(repository);
@@ -1002,30 +1006,35 @@ public final class MainActivity extends Activity {
                 int w = getWidth();
                 int h = getHeight();
                 if (w > 0 && h > 0) {
-                    canvas.drawColor(Color.rgb(18, 18, 25));
-
-                    RadialGradient cyanGlow = new RadialGradient(
-                            w * 0.8f, h * 0.15f, Math.min(w, h) * 0.75f,
-                            Color.argb(85, 0, 255, 255), Color.TRANSPARENT,
-                            Shader.TileMode.CLAMP
-                    );
-                    blobPaint.setShader(cyanGlow);
-                    canvas.drawCircle(w * 0.8f, h * 0.15f, Math.min(w, h) * 0.75f, blobPaint);
-
-                    RadialGradient purpleGlow = new RadialGradient(
-                            w * 0.15f, h * 0.75f, Math.min(w, h) * 0.85f,
-                            Color.argb(70, 160, 100, 255), Color.TRANSPARENT,
-                            Shader.TileMode.CLAMP
-                    );
-                    blobPaint.setShader(purpleGlow);
-                    canvas.drawCircle(w * 0.15f, h * 0.75f, Math.min(w, h) * 0.85f, blobPaint);
-
-                    blobPaint.setShader(null);
-
-                    blobPaint.setColor(Color.argb(70, 18, 18, 25));
-                    canvas.drawRect(0, 0, w, h, blobPaint);
+                    if (liquidGlassTheme) {
+                        canvas.drawColor(Color.rgb(246, 249, 255));
+                        drawBackdropBlob(canvas, w * 0.82f, h * 0.10f,
+                                Math.min(w, h) * 0.92f, Color.argb(108, 105, 220, 255));
+                        drawBackdropBlob(canvas, w * 0.08f, h * 0.58f,
+                                Math.min(w, h) * 0.96f, Color.argb(74, 177, 134, 255));
+                        drawBackdropBlob(canvas, w * 0.84f, h * 0.88f,
+                                Math.min(w, h) * 0.86f, Color.argb(76, 188, 132, 255));
+                        blobPaint.setShader(null);
+                        blobPaint.setColor(Color.argb(58, 255, 255, 255));
+                        canvas.drawRect(0, 0, w, h, blobPaint);
+                    } else {
+                        canvas.drawColor(Color.rgb(18, 18, 25));
+                        drawBackdropBlob(canvas, w * 0.8f, h * 0.15f,
+                                Math.min(w, h) * 0.75f, Color.argb(85, 0, 255, 255));
+                        drawBackdropBlob(canvas, w * 0.15f, h * 0.75f,
+                                Math.min(w, h) * 0.85f, Color.argb(70, 160, 100, 255));
+                        blobPaint.setShader(null);
+                        blobPaint.setColor(Color.argb(70, 18, 18, 25));
+                        canvas.drawRect(0, 0, w, h, blobPaint);
+                    }
                 }
                 super.dispatchDraw(canvas);
+            }
+
+            private void drawBackdropBlob(Canvas canvas, float x, float y, float radius, int color) {
+                blobPaint.setShader(new RadialGradient(
+                        x, y, radius, color, Color.TRANSPARENT, Shader.TileMode.CLAMP));
+                canvas.drawCircle(x, y, radius, blobPaint);
             }
         };
         root.setOrientation(LinearLayout.VERTICAL);
@@ -1315,13 +1324,7 @@ public final class MainActivity extends Activity {
         FrameLayout curveFrame = new FrameLayout(this);
         curveFrameView = curveFrame;
         curveFrame.setPadding(dp(2), dp(2), dp(2), dp(2));
-        curveFrame.setBackground(strokeGlowRoundRectDrawable(
-                Color.argb((int)(20 * 2.55f), 18, 22, 34),
-                Color.argb(120, 0, 245, 212),
-                dp(14),
-                dp(3),
-                Color.argb(80, 0, 245, 212)
-        ));
+        curveFrame.setBackground(createCurveFrameBackground());
         
         curveView = new EqCurveView(this);
         curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
@@ -1344,7 +1347,7 @@ public final class MainActivity extends Activity {
         int rangeIndex = curveRangeIndex(curveGraphMaxDb);
         rangeAdapter.setSelectedPosition(rangeIndex);
         curveRangeSpinner.setSelection(rangeIndex);
-        curveRangeSpinner.setPopupBackgroundDrawable(solidColorDrawable(Color.rgb(22, 26, 38)));
+        curveRangeSpinner.setPopupBackgroundDrawable(solidColorDrawable(UiTheme.popupSurface(liquidGlassTheme)));
         curveRangeSpinner.setBackground(curveControlBackground());
         curveRangeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
