@@ -9450,7 +9450,7 @@ public final class MainActivity extends Activity {
                 Color.argb(232, 21, 34, 43),
                 Color.argb(232, 12, 18, 28),
                 Color.argb(150, 76, 220, 205),
-                dp(7),
+                dp(11),
                 dp(2),
                 Color.argb(70, 0, 245, 212)
         );
@@ -10871,7 +10871,7 @@ public final class MainActivity extends Activity {
         gd.setShape(GradientDrawable.RECTANGLE);
         gd.setColor(Color.argb((int)(alphaPercent * 2.55f), 18, 22, 34));
         gd.setStroke(dp(1), Color.argb(35, 255, 255, 255));
-        gd.setCornerRadius(dp(14));
+        gd.setCornerRadius(dp(22));
         return gd;
     }
 
@@ -11176,7 +11176,7 @@ public final class MainActivity extends Activity {
         bg.setShape(GradientDrawable.RECTANGLE);
         bg.setColor(Color.argb(fillAlpha, 255, 255, 255));
         bg.setStroke(dp(1), Color.argb(strokeAlpha, 255, 255, 255));
-        bg.setCornerRadius(dp(radiusDp));
+        bg.setCornerRadius(dp(radiusDp + 4));
         return bg;
     }
 
@@ -11188,7 +11188,7 @@ public final class MainActivity extends Activity {
         bg.setShape(GradientDrawable.RECTANGLE);
         bg.setColor(UiTheme.fieldFill(false));
         bg.setStroke(dp(1), UiTheme.fieldStroke(false));
-        bg.setCornerRadius(dp(10));
+        bg.setCornerRadius(dp(14));
         return bg;
     }
 
@@ -11199,7 +11199,7 @@ public final class MainActivity extends Activity {
         return strokeGlowRoundRectDrawable(
                 Color.argb((int)(20 * 2.55f), 18, 22, 34),
                 Color.argb(120, 0, 245, 212),
-                dp(14),
+                dp(22),
                 dp(3),
                 Color.argb(80, 0, 245, 212)
         );
@@ -11212,7 +11212,7 @@ public final class MainActivity extends Activity {
         return strokeGlowRoundRectDrawable(
                 Color.argb(235, 23, 37, 42),
                 Color.argb(170, 0, 245, 212),
-                dp(8),
+                dp(14),
                 dp(2),
                 Color.argb(70, 0, 245, 212)
         );
@@ -12603,7 +12603,7 @@ public final class MainActivity extends Activity {
                 classicBg.setShape(GradientDrawable.RECTANGLE);
                 classicBg.setColor(Color.rgb(18, 22, 34));
                 classicBg.setStroke(dp(1), Color.argb(50, 255, 255, 255));
-                classicBg.setCornerRadius(dp(20));
+                classicBg.setCornerRadius(dp(26));
                 bg = classicBg;
             }
             window.setBackgroundDrawable(bg);
@@ -12802,13 +12802,13 @@ public final class MainActivity extends Activity {
                 ? strokeGlowRoundRectDrawable(
                         Color.argb(24, 255, 255, 255),
                         Color.argb(170, 0, 245, 212),
-                        dp(radiusDp),
+                        dp(radiusDp + 4),
                         dp(3),
                         Color.argb(95, 0, 245, 212))
                 : plainRoundRectDrawable(
                         Color.argb(24, 255, 255, 255),
                         Color.argb(38, 255, 255, 255),
-                        dp(radiusDp));
+                        dp(radiusDp + 4));
     }
 
     /**
@@ -13005,7 +13005,7 @@ public final class MainActivity extends Activity {
         } else {
             GradientDrawable gd = new GradientDrawable();
             gd.setShape(GradientDrawable.RECTANGLE);
-            gd.setCornerRadius(dp(10));
+            gd.setCornerRadius(dp(14));
             if (isPrimary) {
                 if (isEnabled) {
                     gd.setColors(new int[]{Color.rgb(0, 160, 255), Color.rgb(0, 229, 255)});
@@ -13087,12 +13087,12 @@ public final class MainActivity extends Activity {
         } else {
             GradientDrawable gd = new GradientDrawable();
             gd.setShape(GradientDrawable.RECTANGLE);
-            gd.setCornerRadius(dp(10));
+            gd.setCornerRadius(dp(14));
             if (isEnabled) {
                 button.setBackground(strokeGlowRoundRectDrawable(
                         Color.argb(24, 255, 255, 255),
                         Color.argb(160, 0, 245, 212),
-                        dp(10),
+                        dp(14),
                         dp(3),
                         Color.argb(85, 0, 245, 212)
                 ));
@@ -13708,7 +13708,7 @@ public final class MainActivity extends Activity {
                 tab.setBackground(strokeGlowRoundRectDrawable(
                         Color.argb(24, 255, 255, 255),
                         Color.argb(160, 0, 245, 212),
-                        dp(12),
+                        dp(17),
                         dp(3),
                         Color.argb(85, 0, 245, 212)
                 ));
@@ -13725,7 +13725,7 @@ public final class MainActivity extends Activity {
             } else {
                 GradientDrawable gd = new GradientDrawable();
                 gd.setShape(GradientDrawable.RECTANGLE);
-                gd.setCornerRadius(dp(12));
+                gd.setCornerRadius(dp(17));
                 gd.setColor(Color.TRANSPARENT);
                 tab.setBackground(gd);
                 unregisterShimmerView(tab);
