@@ -5010,14 +5010,19 @@ public final class MainActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setPadding(0, 0, 0, 0);
-        GradientDrawable shellBg = new GradientDrawable();
-        shellBg.setShape(GradientDrawable.RECTANGLE);
-        shellBg.setColor(UiTheme.popupSurface(liquidGlassTheme));
-        shellBg.setStroke(dp(1), liquidGlassTheme
-                ? Color.argb(185, 175, 197, 225)
-                : Color.argb(54, 255, 255, 255));
-        shellBg.setCornerRadius(dp(liquidGlassTheme ? 22 : 16));
-        shell.setBackground(shellBg);
+        if (liquidGlassTheme) {
+            // Reuse the same live, half-resolution filtered backdrop lens as the cards.
+            // It gives popup menus real background softness plus the refractive glass rim.
+            shell.setBackground(new LiquidGlassDrawable(dp(22), 46, true));
+            applyGlassElevation(shell, 10f);
+        } else {
+            GradientDrawable shellBg = new GradientDrawable();
+            shellBg.setShape(GradientDrawable.RECTANGLE);
+            shellBg.setColor(UiTheme.popupSurface(false));
+            shellBg.setStroke(dp(1), Color.argb(54, 255, 255, 255));
+            shellBg.setCornerRadius(dp(16));
+            shell.setBackground(shellBg);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             shell.setClipToOutline(true);
         }
@@ -12615,11 +12620,35 @@ public final class MainActivity extends Activity {
         button.setMinHeight(0);
         button.setMinimumHeight(0);
         button.setPadding(dp(14), 0, dp(14), 0);
+        if (liquidGlassTheme) {
+            // Dialog actions stay full-size touch targets, but visually remain text-only.
+            button.setBackground(null);
+            button.setStateListAnimator(null);
+            button.getPaint().clearShadowLayer();
+            button.setTextColor(button == dialogPositiveButton(button)
+                    ? Color.rgb(0, 92, 190)
+                    : themeTextSecondary());
+        }
         ViewGroup.LayoutParams params = button.getLayoutParams();
         if (params != null) {
             params.height = dp(40);
             button.setLayoutParams(params);
         }
+    }
+
+    private Button dialogPositiveButton(Button button) {
+        ViewParent parent = button == null ? null : button.getParent();
+        if (!(parent instanceof ViewGroup)) {
+            return null;
+        }
+        ViewGroup group = (ViewGroup) parent;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof Button && child.getId() == android.R.id.button1) {
+                return (Button) child;
+            }
+        }
+        return null;
     }
 
     private ColorDrawable solidColorDrawable(int color) {
