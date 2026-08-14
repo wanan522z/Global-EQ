@@ -358,8 +358,10 @@ final class EqCurveView extends View {
         canvas.drawText("0 dB", left, mid - 6f, textPaint);
         canvas.drawText("-" + maxDb, left, bottom - 6f, textPaint);
 
-        // Keep running the animation loop smoothly if enabled
-        if ((visualLevel > 0.001f || isVisualTransitionRunning()) && !animationSuppressed) {
+        // Liquid Glass uses a stable blue curve; only the short enabled-state fade needs
+        // redraws. The classic theme keeps its continuous sweep animation.
+        boolean continuousSweep = !liquidGlassTheme && visualLevel > 0.001f;
+        if ((continuousSweep || isVisualTransitionRunning()) && !animationSuppressed) {
             if (now - lastInvalidateAt >= ANIMATION_FRAME_DELAY_MS) {
                 lastInvalidateAt = now;
                 postInvalidateOnAnimation();
