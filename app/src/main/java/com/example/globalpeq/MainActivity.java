@@ -1007,6 +1007,7 @@ public final class MainActivity extends Activity {
     private View buildContent() {
         FrameLayout sceneRoot = new FrameLayout(this);
         sceneRoot.setClipChildren(false);
+        sceneRoot.setClipToPadding(false);
         sceneRoot.addView(new LiquidBackdropView(this, liquidGlassTheme), new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
@@ -1014,11 +1015,14 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setBackgroundColor(Color.TRANSPARENT);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setClipChildren(false);
+        root.setClipToPadding(false);
         root.setPadding(dp(12), dp(12), dp(12), dp(6));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             root.setOnApplyWindowInsetsListener((view, insets) -> {
                 int top = insets.getSystemWindowInsetTop();
-                view.setPadding(dp(12), top + dp(10), dp(12), dp(6));
+                int bottom = liquidGlassTheme ? insets.getSystemWindowInsetBottom() : 0;
+                view.setPadding(dp(12), top + dp(10), dp(12), bottom + dp(6));
                 return insets;
             });
             root.post(root::requestApplyInsets);
@@ -1035,6 +1039,7 @@ public final class MainActivity extends Activity {
         eqPage.setOrientation(LinearLayout.VERTICAL);
         eqPage.setClipChildren(false);
         eqPage.setClipToPadding(false);
+        eqPage.setBackgroundColor(Color.TRANSPARENT);
         mainPageHost.addView(eqPage, pageHostParams());
 
         extraPage = new LinearLayout(this);
@@ -1393,8 +1398,8 @@ public final class MainActivity extends Activity {
         FrameLayout listCardHolder = new FrameLayout(this);
         LinearLayout listCard = new LinearLayout(this);
         listCard.setOrientation(LinearLayout.VERTICAL);
-        listCardHolder.setClipChildren(true);
-        listCardHolder.setClipToPadding(true);
+        listCardHolder.setClipChildren(false);
+        listCardHolder.setClipToPadding(false);
         listCard.setClipChildren(true);
         listCard.setClipToPadding(true);
         listCard.setPadding(dp(10), dp(9), dp(10), dp(10));
@@ -1437,10 +1442,12 @@ public final class MainActivity extends Activity {
 
         LinearLayout.LayoutParams bottomNavParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(48)
+                dp(50)
         );
-        bottomNavParams.topMargin = dp(4);
-        bottomNavParams.bottomMargin = dp(16);
+        bottomNavParams.leftMargin = dp(6);
+        bottomNavParams.rightMargin = dp(6);
+        bottomNavParams.topMargin = dp(8);
+        bottomNavParams.bottomMargin = dp(12);
         bottomNavView = buildBottomNav();
         root.addView(bottomNavView, bottomNavParams);
 
@@ -8631,6 +8638,9 @@ public final class MainActivity extends Activity {
     private View buildBottomNav() {
         SlidingTabBar nav = new SlidingTabBar(this);
         nav.setPadding(dp(6), dp(6), dp(6), dp(6));
+        nav.setClipChildren(false);
+        nav.setClipToPadding(false);
+        nav.setClipToOutline(false);
 
         GradientDrawable navBg = new GradientDrawable();
         navBg.setShape(GradientDrawable.RECTANGLE);
@@ -8644,7 +8654,7 @@ public final class MainActivity extends Activity {
         nav.setBackground(liquidGlassTheme
                 ? new LiquidGlassDrawable(dp(22), 30)
                 : navBg);
-        applyGlassElevation(nav, 10f);
+        applyGlassElevation(nav, 8f);
 
         bottomTabIndicator = new View(this);
         bottomTabIndicator.setBackground(liquidGlassTheme
@@ -12922,6 +12932,9 @@ public final class MainActivity extends Activity {
 
         MainPageHost(Context context) {
             super(context);
+            setBackgroundColor(Color.TRANSPARENT);
+            setClipChildren(false);
+            setClipToPadding(false);
         }
 
         @Override

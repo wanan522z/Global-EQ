@@ -34,18 +34,21 @@ final class UiTheme {
         Window window = activity.getWindow();
         int paleSurface = liquid ? Color.rgb(205, 238, 234) : Color.rgb(18, 18, 25);
         window.setStatusBarColor(paleSurface);
-        window.setNavigationBarColor(paleSurface);
+        window.setNavigationBarColor(liquid ? Color.TRANSPARENT : paleSurface);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.setStatusBarContrastEnforced(false);
             window.setNavigationBarContrastEnforced(false);
         }
         int flags = window.getDecorView().getSystemUiVisibility();
         if (liquid) {
+            flags |= View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+            flags |= View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
             flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             }
         } else {
+            flags &= ~View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
             flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
