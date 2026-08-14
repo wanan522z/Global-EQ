@@ -12040,13 +12040,7 @@ public final class MainActivity extends Activity {
         float offset = normalizedPhase * width;
         view.getPaint().setShader(new LinearGradient(
                 offset, 0, width + offset, 0,
-                new int[]{
-                        highGlowCyan,
-                        iceCyan,
-                        superHotCore,
-                        iceCyan,
-                        highGlowCyan
-                },
+                liquidGlassTheme ? SHIMMER_LIQUID_COLORS : SHIMMER_BRIGHT_COLORS,
                 new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
@@ -12064,13 +12058,7 @@ public final class MainActivity extends Activity {
         float offset = normalizedPhase * width;
         view.getPaint().setShader(new LinearGradient(
                 offset, 0, width + offset, 0,
-                new int[]{
-                        highGlowCyan,
-                        iceCyan,
-                        superHotCore,
-                        iceCyan,
-                        highGlowCyan
-                },
+                liquidGlassTheme ? SHIMMER_LIQUID_COLORS : SHIMMER_BRIGHT_COLORS,
                 new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
                 Shader.TileMode.REPEAT));
     }
