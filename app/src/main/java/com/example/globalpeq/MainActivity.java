@@ -1855,7 +1855,10 @@ public final class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setClipChildren(false);
         scroll.setClipToPadding(false);
-        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        // Android 12+'s native stretch overscroll temporarily snapshots the entire
+        // ScrollView. Live glass drawables then appear to vanish and reload when the
+        // snapshot is released. Settings pages use StableBounceScrollView instead.
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setVerticalFadingEdgeEnabled(false);
         scroll.setPadding(0,
                 reboundBleed + dp(restingTopPaddingDp),
@@ -1871,8 +1874,94 @@ public final class MainActivity extends Activity {
         overflowViewport.addView(scroll, scrollParams);
     }
 
+    private final class StableBounceScrollView extends ScrollView {
+        private final int touchSlop;
+        private final float maxBouncePx;
+        private float downRawX;
+        private float downRawY;
+        private float lastRawY;
+        private boolean verticalDrag;
+
+        StableBounceScrollView(Context context) {
+            super(context);
+            touchSlop = android.view.ViewConfiguration.get(context).getScaledTouchSlop();
+            maxBouncePx = dp(20);
+            setOverScrollMode(View.OVER_SCROLL_NEVER);
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+            switch (event.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    animate().cancel();
+                    downRawX = event.getRawX();
+                    downRawY = event.getRawY();
+                    lastRawY = downRawY;
+                    verticalDrag = false;
+                    break;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    float rawY = event.getRawY();
+                    float deltaY = rawY - lastRawY;
+                    lastRawY = rawY;
+                    float totalX = event.getRawX() - downRawX;
+                    float totalY = rawY - downRawY;
+                    if (!verticalDrag
+                            && Math.abs(totalY) > touchSlop
+                            && Math.abs(totalY) > Math.abs(totalX)) {
+                        verticalDrag = true;
+                    }
+                    if (verticalDrag) {
+                        updateStableBounce(deltaY);
+                    }
+                    break;
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    settleStableBounce();
+                    verticalDrag = false;
+                    break;
+                default:
+                    break;
+            }
+            return super.dispatchTouchEvent(event);
+        }
+
+        private void updateStableBounce(float deltaY) {
+            float current = getTranslationY();
+            boolean pullingPastTop = !canScrollVertically(-1) && deltaY > 0f;
+            boolean pullingPastBottom = !canScrollVertically(1) && deltaY < 0f;
+            boolean returningFromTop = current > 0f && deltaY < 0f;
+            boolean returningFromBottom = current < 0f && deltaY > 0f;
+            if (!pullingPastTop && !pullingPastBottom
+                    && !returningFromTop && !returningFromBottom) {
+                return;
+            }
+            float resistance = (pullingPastTop || pullingPastBottom)
+                    ? 0.30f * (1f - Math.min(0.82f, Math.abs(current) / maxBouncePx))
+                    : 0.62f;
+            float next = Math.max(-maxBouncePx,
+                    Math.min(maxBouncePx, current + deltaY * resistance));
+            setTranslationY(next);
+            if (liquidBackdropView != null) {
+                liquidBackdropView.boostGlassRefresh();
+            }
+        }
+
+        private void settleStableBounce() {
+            if (Math.abs(getTranslationY()) < 0.5f) {
+                setTranslationY(0f);
+                return;
+            }
+            animate().cancel();
+            animate()
+                    .translationY(0f)
+                    .setDuration(210L)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.7f))
+                    .start();
+        }
+    }
+
     private void buildSettingsPage(LinearLayout page) {
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new StableBounceScrollView(this);
         settingsScrollView = scroll;
         attachSettingsScroll(page, scroll, 16, 18);
 
@@ -2328,7 +2417,7 @@ public final class MainActivity extends Activity {
     }
 
     private void buildMonitorSettingsPage(LinearLayout page) {
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new StableBounceScrollView(this);
         attachSettingsScroll(page, scroll, 8, 18);
 
         LinearLayout body = new LinearLayout(this);
@@ -2397,7 +2486,7 @@ public final class MainActivity extends Activity {
     }
 
     private void buildLimiterSettingsPage(LinearLayout page) {
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new StableBounceScrollView(this);
         attachSettingsScroll(page, scroll, 8, 18);
 
         LinearLayout body = new LinearLayout(this);
