@@ -1,10 +1,13 @@
 package com.example.globalpeq;
 
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 
@@ -16,8 +19,11 @@ import android.view.Window;
  * continue to share the animated fluorescent title renderer.</p>
  */
 final class UiTheme {
+    private static final String TAG = "UiTheme";
     private static final String PREFS_NAME = "global_peq_ui";
     private static final String KEY_LIQUID_GLASS = "liquid_glass_enabled";
+    private static final String LIQUID_LAUNCHER_ALIAS = "com.example.globalpeq.LauncherLiquid";
+    private static final String CLASSIC_LAUNCHER_ALIAS = "com.example.globalpeq.LauncherClassic";
 
     private UiTheme() {
     }
@@ -28,6 +34,51 @@ final class UiTheme {
 
     static void setLiquidGlass(Context context, boolean enabled) {
         preferences(context).edit().putBoolean(KEY_LIQUID_GLASS, enabled).apply();
+        syncLauncherIcon(context, enabled);
+    }
+
+    static void syncLauncherIcon(Context context, boolean liquid) {
+        if (context == null) {
+            return;
+        }
+        PackageManager packageManager = context.getPackageManager();
+        ComponentName liquidAlias = new ComponentName(
+                context.getPackageName(), LIQUID_LAUNCHER_ALIAS);
+        ComponentName classicAlias = new ComponentName(
+                context.getPackageName(), CLASSIC_LAUNCHER_ALIAS);
+        try {
+            // Enable the destination first so older launchers never observe a moment with no
+            // launcher entry. DONT_KILL_APP keeps the current appearance transition intact.
+            setLauncherAliasEnabled(packageManager,
+                    liquid ? liquidAlias : classicAlias,
+                    true,
+                    liquid);
+            setLauncherAliasEnabled(packageManager,
+                    liquid ? classicAlias : liquidAlias,
+                    false,
+                    !liquid);
+        } catch (RuntimeException error) {
+            // Launcher implementations vary; an icon refresh failure must never block UI switching.
+            Log.w(TAG, "Unable to update launcher icon alias", error);
+        }
+    }
+
+    private static void setLauncherAliasEnabled(PackageManager packageManager,
+                                                ComponentName alias,
+                                                boolean enabled,
+                                                boolean enabledByManifest) {
+        int state = packageManager.getComponentEnabledSetting(alias);
+        boolean currentlyEnabled = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                || (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && enabledByManifest);
+        if (currentlyEnabled == enabled) {
+            return;
+        }
+        packageManager.setComponentEnabledSetting(
+                alias,
+                enabled
+                        ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                        : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP);
     }
 
     static void applyWindowAppearance(Activity activity, boolean liquid) {

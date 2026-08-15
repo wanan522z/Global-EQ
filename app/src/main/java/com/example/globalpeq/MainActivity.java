@@ -678,6 +678,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         liquidGlassTheme = UiTheme.isLiquidGlass(this);
+        UiTheme.syncLauncherIcon(this, liquidGlassTheme);
         UiTheme.applyWindowAppearance(this, liquidGlassTheme);
         registerSystemBackCallback();
         repository = new PresetRepository(this);
