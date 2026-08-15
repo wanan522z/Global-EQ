@@ -11,9 +11,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -38,9 +35,7 @@ public final class GlobalEqForegroundService extends Service {
     private static final long CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS = 2500L;
     private static final long CAPTURE_WAKE_RECOVERY_DELAY_MS =
             CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS + CAPTURE_UPDATE_DEBOUNCE_MS;
-    private static final long LAUNCHER_ALIAS_NOTIFICATION_REFRESH_DELAY_MS = 650L;
     private static volatile boolean instanceRunning;
-    private static volatile GlobalEqForegroundService runningInstance;
 
     private GlobalEqualizerEngine engine;
     private GlobalDvcController dvcController;
@@ -56,7 +51,6 @@ public final class GlobalEqForegroundService extends Service {
     private AdvancedModeConfig currentAdvancedModeConfig = AdvancedModeConfig.DEFAULT;
     private boolean awaitingInitialDeviceMonitorEvent;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final Runnable notificationAppearanceRefreshRunnable = this::updateNotification;
     private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
     private Preset pendingCapturePreset = Preset.flat(false);
     private AdvancedModeConfig pendingCaptureConfig = AdvancedModeConfig.DEFAULT;
@@ -117,7 +111,6 @@ public final class GlobalEqForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         instanceRunning = true;
-        runningInstance = this;
         repository = new PresetRepository(this);
         repository.saveServiceActive(true);
         engine = GlobalEqRuntime.engine();
@@ -277,10 +270,6 @@ public final class GlobalEqForegroundService extends Service {
     public void onDestroy() {
         stopping = true;
         instanceRunning = false;
-        if (runningInstance == this) {
-            runningInstance = null;
-        }
-        mainHandler.removeCallbacks(notificationAppearanceRefreshRunnable);
         deviceMonitor.stop();
         unregisterReceiver(screenStateReceiver);
         if (repository != null) {
@@ -406,13 +395,8 @@ public final class GlobalEqForegroundService extends Service {
         int notificationIcon = UiTheme.isLiquidGlass(this)
                 ? R.mipmap.ic_launcher_liquid
                 : R.mipmap.ic_launcher;
-        Bitmap notificationArtwork = BitmapFactory.decodeResource(
-                getResources(), notificationIcon);
-        Icon notificationSmallIcon = notificationArtwork == null
-                ? Icon.createWithResource(this, notificationIcon)
-                : Icon.createWithBitmap(notificationArtwork);
         builder
-                .setSmallIcon(notificationSmallIcon)
+                .setSmallIcon(notificationIcon)
                 .setContentTitle(state)
                 .setContentText(content)
                 .setContentIntent(pendingIntent)
@@ -635,9 +619,6 @@ public final class GlobalEqForegroundService extends Service {
         }
         stopping = true;
         instanceRunning = false;
-        if (runningInstance == this) {
-            runningInstance = null;
-        }
         resetSystemEqPlaybackState();
         mainHandler.removeCallbacksAndMessages(null);
         if (deviceMonitor != null) {
@@ -794,15 +775,4 @@ public final class GlobalEqForegroundService extends Service {
         return instanceRunning;
     }
 
-    static boolean refreshNotificationAfterLauncherAliasChange() {
-        GlobalEqForegroundService service = runningInstance;
-        if (service == null || service.stopping) {
-            return false;
-        }
-        service.mainHandler.removeCallbacks(service.notificationAppearanceRefreshRunnable);
-        service.mainHandler.postDelayed(
-                service.notificationAppearanceRefreshRunnable,
-                LAUNCHER_ALIAS_NOTIFICATION_REFRESH_DELAY_MS);
-        return true;
-    }
 }
