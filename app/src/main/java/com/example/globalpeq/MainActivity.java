@@ -3446,7 +3446,7 @@ public final class MainActivity extends Activity {
         }
         return tr(
                 "Shizuku mode captures the app's original audio and runs the in-house DSO algorithm, enabling reverb and virtual bass.",
-                "Shizuku 模式捕获 App 原声并运行自研 DSO 算法，可打开混响和虚拟低音。");
+                "Shizuku 模式捕获 App 原声并运行自研 DSP 算法，可打开混响和虚拟低音。");
     }
 
     private void showLanguageChoiceMenu(View anchor) {
