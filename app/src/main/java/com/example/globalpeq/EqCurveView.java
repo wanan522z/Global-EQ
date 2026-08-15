@@ -98,15 +98,15 @@ final class EqCurveView extends View {
         liquidGlassTheme = UiTheme.isLiquidGlass(context);
         setBackgroundColor(Color.TRANSPARENT);
         gridPaint.setColor(liquidGlassTheme
-                ? Color.argb(58, 30, 54, 82)
+                ? Color.argb(58, 37, 79, 115)
                 : Color.argb(20, 255, 255, 255));
         gridPaint.setStrokeWidth(1.5f);
         minorGridPaint.setColor(liquidGlassTheme
-                ? Color.argb(30, 30, 54, 82)
+                ? Color.argb(30, 37, 79, 115)
                 : Color.argb(11, 255, 255, 255));
         minorGridPaint.setStrokeWidth(1f);
         zeroPaint.setColor(liquidGlassTheme
-                ? Color.argb(122, 22, 48, 78)
+                ? Color.argb(122, 24, 71, 113)
                 : Color.argb(55, 255, 255, 255));
         zeroPaint.setStrokeWidth(2f);
         curvePaint.setStyle(Paint.Style.STROKE);
@@ -122,11 +122,11 @@ final class EqCurveView extends View {
         referencePaint.setDither(true);
         dashPathEffect = new DashPathEffect(new float[]{12f, 10f}, 0f);
         textPaint.setColor(liquidGlassTheme
-                ? Color.argb(238, 22, 48, 78)
+                ? Color.argb(238, 17, 70, 117)
                 : Color.argb(160, 255, 255, 255));
         textPaint.setTextSize(22f);
         frequencyTextPaint.setColor(liquidGlassTheme
-                ? Color.argb(205, 35, 61, 91)
+                ? Color.argb(215, 40, 92, 133)
                 : Color.argb(105, 220, 230, 245));
         frequencyTextPaint.setTextSize(17f);
         frequencyTextPaint.setTextAlign(Paint.Align.CENTER);
@@ -485,15 +485,19 @@ final class EqCurveView extends View {
         }
 
         if (liquidGlassTheme) {
-            // Use a lighter, more cyan blue so the curve blends with the liquid field
-            // without losing the stable body beneath the moving highlight.
+            // Use the same lightened Klein blue as the stable curve color and sweep endpoints.
             curvePaint.setStrokeWidth(5.0f);
             curvePaint.setDither(true);
             curvePaint.setColor(lerpColor(
                     Color.argb(18, 130, 140, 150),
-                    Color.rgb(48, 158, 232),
+                    UiTheme.liquidCurve(),
                     enabledAmount));
-            canvas.drawPath(curvePath, curvePaint);
+            // At full strength the opaque sweep shader below owns the complete stroke. Pausing
+            // animation must not reveal this darker fallback, otherwise returning to the EQ page
+            // briefly shows a static curve before the sweep resumes.
+            if (enabledAmount < 0.999f) {
+                canvas.drawPath(curvePath, curvePaint);
+            }
         }
 
         if (enabledAmount > 0.001f) {
@@ -515,26 +519,26 @@ final class EqCurveView extends View {
             lastTime = (animationSuppressed || enabledAmount <= 0.001f) ? 0L : now;
 
             float totalWidth = right - left;
-            // Start the next liquid band 12% earlier while retaining enough transparent
-            // separation that no more than two visible bands can occupy the graph.
-            float sweepPatternWidth = liquidGlassTheme ? totalWidth * 0.88f : totalWidth;
+            // Start the next liquid highlight 22% earlier while retaining broad blue
+            // separation, so no more than two bright bands occupy the graph.
+            float sweepPatternWidth = liquidGlassTheme ? totalWidth * 0.78f : totalWidth;
             if (sweepGradient == null || Math.abs(sweepGradientWidth - sweepPatternWidth) > 0.5f) {
                 sweepGradientWidth = sweepPatternWidth;
-                // Liquid uses a broad, slowly moving cyan band; classic retains its
+                // Liquid uses a blue-to-green highlight band; classic retains its
                 // original full-width multicolor sweep.
                 sweepGradient = liquidGlassTheme
                         ? new LinearGradient(
                                 0, 0, sweepPatternWidth, 0,
                                 new int[]{
-                                        Color.argb(0, 30, 180, 240),
-                                        Color.argb(0, 30, 180, 240),
-                                        Color.argb(92, 30, 180, 240),
-                                        Color.argb(215, 72, 202, 246),
-                                        Color.argb(255, 132, 224, 252),
-                                        Color.argb(215, 72, 202, 246),
-                                        Color.argb(92, 30, 180, 240),
-                                        Color.argb(0, 30, 180, 240),
-                                        Color.argb(0, 30, 180, 240)
+                                        UiTheme.liquidCurve(),
+                                        UiTheme.liquidCurve(),
+                                        UiTheme.liquidCurve(),
+                                        UiTheme.liquidCurveBright(),
+                                        UiTheme.liquidCurveHighlight(),
+                                        UiTheme.liquidCurveBright(),
+                                        UiTheme.liquidCurve(),
+                                        UiTheme.liquidCurve(),
+                                        UiTheme.liquidCurve()
                                 },
                                 new float[]{0f, 0.07f, 0.14f, 0.28f, 0.50f, 0.72f, 0.86f, 0.93f, 1f},
                                 Shader.TileMode.REPEAT)
@@ -556,13 +560,13 @@ final class EqCurveView extends View {
                 sweepPaint.setShader(sweepGradient);
             }
 
-            if (!animationSuppressed) {
-                sweepMatrix.reset();
-                sweepMatrix.postTranslate(sweepPhase * sweepPatternWidth, 0);
-                sweepGradient.setLocalMatrix(sweepMatrix);
-                sweepPaint.setAlpha(Math.round(255f * enabledAmount));
-                canvas.drawPath(curvePath, sweepPaint);
-            }
+            // Suppression pauses phase advancement and frame scheduling only. Keep drawing the
+            // current shader frame so page transitions never expose a no-sweep placeholder.
+            sweepMatrix.reset();
+            sweepMatrix.postTranslate(sweepPhase * sweepPatternWidth, 0);
+            sweepGradient.setLocalMatrix(sweepMatrix);
+            sweepPaint.setAlpha(Math.round(255f * enabledAmount));
+            canvas.drawPath(curvePath, sweepPaint);
         } else {
             lastTime = 0;
             lastInvalidateAt = 0L;

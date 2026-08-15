@@ -61,23 +61,23 @@ final class UiTheme {
     }
 
     static int textPrimary(boolean liquid) {
-        return liquid ? Color.rgb(8, 27, 54) : Color.rgb(238, 246, 255);
+        return liquid ? Color.rgb(11, 51, 88) : Color.rgb(238, 246, 255);
     }
 
     static int textSecondary(boolean liquid) {
-        return liquid ? Color.rgb(43, 67, 88) : Color.rgb(180, 190, 210);
+        return liquid ? Color.rgb(34, 79, 116) : Color.rgb(180, 190, 210);
     }
 
     static int textMuted(boolean liquid) {
-        return liquid ? Color.rgb(83, 108, 126) : Color.rgb(142, 154, 168);
+        return liquid ? Color.rgb(59, 103, 139) : Color.rgb(142, 154, 168);
     }
 
     static int textFaint(boolean liquid) {
-        return liquid ? Color.rgb(105, 127, 143) : Color.rgb(100, 110, 130);
+        return liquid ? Color.rgb(82, 119, 148) : Color.rgb(100, 110, 130);
     }
 
     static int hint(boolean liquid) {
-        return liquid ? Color.argb(180, 73, 98, 118) : Color.argb(120, 220, 230, 245);
+        return liquid ? Color.argb(190, 55, 107, 147) : Color.argb(120, 220, 230, 245);
     }
 
     static int fieldFill(boolean liquid) {
@@ -97,7 +97,27 @@ final class UiTheme {
     }
 
     static int quietLine(boolean liquid) {
-        return liquid ? Color.argb(72, 20, 55, 82) : Color.argb(35, 255, 255, 255);
+        return liquid ? Color.argb(76, 31, 79, 117) : Color.argb(35, 255, 255, 255);
+    }
+
+    static int liquidAccent() {
+        return Color.rgb(24, 105, 178);
+    }
+
+    static int liquidCurve() {
+        return Color.rgb(52, 118, 218);
+    }
+
+    static int liquidCurveBright() {
+        return Color.rgb(20, 157, 255);
+    }
+
+    static int liquidCurveHighlight() {
+        return extraControlGreen();
+    }
+
+    static int extraControlGreen() {
+        return Color.rgb(0, 245, 212);
     }
 
     private static SharedPreferences preferences(Context context) {

@@ -401,11 +401,12 @@ public final class MainActivity extends Activity {
             colors = liquidGlassTheme ? SHIMMER_LIQUID_COLORS : SHIMMER_BRIGHT_COLORS;
         }
 
-        float offset = phase * width;
+        float gradientSpan = liquidGlassTheme ? width * 1.8f : width;
+        float offset = phase * gradientSpan;
         view.getPaint().setShader(new LinearGradient(
-                offset, 0, width + offset, 0,
+                offset, 0, gradientSpan + offset, 0,
                 colors,
-                SHIMMER_POSITIONS,
+                liquidGlassTheme ? SHIMMER_LIQUID_POSITIONS : SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
         view.setTextColor(Color.WHITE);
 
@@ -469,6 +470,9 @@ public final class MainActivity extends Activity {
 
     // 璀璨亮色蓝绿流光色阶：极大精简渐变色标（由9个缩减为5个），使单色宽度更宽、过渡更丝滑，大幅节约每一帧的渐变插值计算开销！
     private static final float[] SHIMMER_POSITIONS = {0.0f, 0.28f, 0.5f, 0.72f, 1.0f};
+    private static final float[] SHIMMER_LIQUID_POSITIONS = {
+            0.0f, 0.25f, 0.5f, 0.75f, 1.0f
+    };
 
     // 亮色阶：超高亮炽白冰蓝流光——压掉绿色、加大浅亮蓝与超白核心占比，整体发光亮度直接拉满！
     private static final int[] SHIMMER_BRIGHT_COLORS = {
@@ -490,19 +494,21 @@ public final class MainActivity extends Activity {
     };
     // modeSpinner enabled：亮色阶（与 Live 同）
     private static final int[] SHIMMER_MODE_ON_COLORS = SHIMMER_BRIGHT_COLORS;
+    // Liquid titles use only the established blue pair. Keeping the two bright-blue
+    // bands in every repeat avoids low-contrast cyan/teal sections over the background.
     private static final int[] SHIMMER_LIQUID_COLORS = {
-            Color.rgb(0, 44, 176),
-            Color.rgb(18, 105, 191),
-            Color.rgb(35, 172, 170),
-            Color.rgb(53, 116, 200),
-            Color.rgb(0, 44, 176)
+            Color.rgb(30, 92, 190),
+            Color.rgb(52, 158, 238),
+            Color.rgb(30, 92, 190),
+            Color.rgb(52, 158, 238),
+            Color.rgb(30, 92, 190)
     };
     private static final int[] SHIMMER_LIQUID_EDIT_COLORS = {
-            Color.rgb(12, 67, 166),
-            Color.rgb(28, 126, 188),
-            Color.rgb(38, 165, 164),
-            Color.rgb(44, 100, 184),
-            Color.rgb(12, 67, 166)
+            Color.rgb(36, 82, 158),
+            Color.rgb(62, 142, 213),
+            Color.rgb(36, 82, 158),
+            Color.rgb(62, 142, 213),
+            Color.rgb(36, 82, 158)
     };
 
     private final List<Preset> undoStack = new ArrayList<>();
@@ -1466,6 +1472,7 @@ public final class MainActivity extends Activity {
         listCard.addView(header);
 
         ScrollView scrollView = new ScrollView(this);
+        scrollView.setVerticalScrollBarEnabled(false);
         scrollView.setClipChildren(true);
         scrollView.setClipToPadding(true);
         scrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
@@ -1705,11 +1712,11 @@ public final class MainActivity extends Activity {
             this.liquid = liquid;
             flowColor = liquid
                     ? new int[]{
-                            Color.argb(166, 0, 35, 142),
-                            Color.argb(148, 24, 76, 164),
-                            Color.argb(162, 70, 151, 199),
-                            Color.argb(174, 76, 184, 174),
-                            Color.argb(132, 145, 207, 205),
+                            Color.argb(68, 0, 35, 142),
+                            Color.argb(82, 24, 76, 164),
+                            Color.argb(116, 70, 151, 199),
+                            Color.argb(120, 76, 184, 174),
+                            Color.argb(104, 145, 207, 205),
                             Color.argb(54, 225, 239, 238)
                     }
                     : new int[]{
@@ -1914,6 +1921,7 @@ public final class MainActivity extends Activity {
         ));
 
         scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(false);
         scroll.setClipChildren(false);
         scroll.setClipToPadding(false);
         // Android 12+'s native stretch overscroll temporarily snapshots the entire
@@ -2249,7 +2257,7 @@ public final class MainActivity extends Activity {
 
         ImageView sunIcon = createAppearanceIcon(
                 R.drawable.appearance_sun_aligned,
-                liquidGlassTheme ? 0xFF00468D : 0xFF738593,
+                liquidGlassTheme ? UiTheme.liquidAccent() : 0xFF738593,
                 tr("Liquid glass appearance", "液态玻璃外观"));
         sunIcon.setPadding(dp(2), dp(2), dp(2), dp(2));
         sunIcon.setOnClickListener(v -> {
@@ -10351,12 +10359,12 @@ public final class MainActivity extends Activity {
                 if (j == 3) {
                     // 0 dB center guideline
                     paint.setStrokeWidth(dpf(1.5f));
-                    paint.setColor(liquidGlassTheme ? Color.argb(72, 45, 62, 88) : Color.argb(70, 255, 255, 255));
+                    paint.setColor(liquidGlassTheme ? Color.argb(72, 35, 82, 121) : Color.argb(70, 255, 255, 255));
                     canvas.drawLine(centerX - dpf(12f), tickY, centerX + dpf(12f), tickY, paint);
                 } else {
                     // Other dB reference tick lines
                     paint.setStrokeWidth(dpf(1f));
-                    paint.setColor(liquidGlassTheme ? Color.argb(28, 45, 62, 88) : Color.argb(20, 255, 255, 255));
+                    paint.setColor(liquidGlassTheme ? Color.argb(28, 35, 82, 121) : Color.argb(20, 255, 255, 255));
                     canvas.drawLine(centerX - dpf(6f), tickY, centerX + dpf(6f), tickY, paint);
                 }
             }
@@ -10438,11 +10446,11 @@ public final class MainActivity extends Activity {
             paint.setFakeBoldText(false);
             paint.setTextSize(dpf(11f));
             if (hasActiveGain) {
-                paint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
+                paint.setColor(liquidGlassTheme ? UiTheme.liquidAccent() : Color.rgb(0, 245, 212));
                 paint.setFakeBoldText(true);
                 paint.clearShadowLayer();
             } else {
-                paint.setColor(liquidGlassTheme ? Color.argb(170, 70, 84, 106) : Color.argb(130, 255, 255, 255));
+                paint.setColor(liquidGlassTheme ? Color.argb(180, 61, 111, 150) : Color.argb(130, 255, 255, 255));
             }
             canvas.drawText(formatDecimal(gainMb / 100f), centerX, height - dpf(6f), paint);
             paint.clearShadowLayer();
@@ -10758,10 +10766,10 @@ public final class MainActivity extends Activity {
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setTextSize(dpf(12f));
             if (active) {
-                paint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
+                paint.setColor(liquidGlassTheme ? UiTheme.liquidAccent() : Color.rgb(0, 245, 212));
                 paint.clearShadowLayer();
             } else {
-                paint.setColor(liquidGlassTheme ? Color.argb(190, 42, 58, 82) : Color.argb(150, 255, 255, 255));
+                paint.setColor(liquidGlassTheme ? Color.argb(200, 43, 93, 134) : Color.argb(150, 255, 255, 255));
             }
             canvas.drawText(displayValueText(), cx, dpf(14f), paint);
             paint.clearShadowLayer();
@@ -11077,10 +11085,10 @@ public final class MainActivity extends Activity {
             paint.setFakeBoldText(false);
             paint.setTextSize(dpf(13f));
             if (active) {
-                paint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
+                paint.setColor(liquidGlassTheme ? UiTheme.liquidAccent() : Color.rgb(0, 245, 212));
                 paint.clearShadowLayer();
             } else {
-                paint.setColor(liquidGlassTheme ? Color.argb(190, 42, 58, 82) : Color.argb(150, 255, 255, 255));
+                paint.setColor(liquidGlassTheme ? Color.argb(200, 43, 93, 134) : Color.argb(150, 255, 255, 255));
             }
             canvas.drawText(value + suffix, width - dpf(4f), height - dpf(8f), paint);
             paint.clearShadowLayer();
@@ -11798,7 +11806,7 @@ public final class MainActivity extends Activity {
                             new int[]{
                                     Color.rgb(102, 212, 200),
                                     Color.rgb(76, 176, 211),
-                                    Color.rgb(47, 91, 198)
+                                    Color.rgb(42, 122, 192)
                             },
                             new float[]{0f, 0.58f, 1f},
                             Shader.TileMode.CLAMP));
@@ -11813,7 +11821,7 @@ public final class MainActivity extends Activity {
                 paint.setStrokeWidth(dpf(1f));
                 paint.setColor(checked
                         ? Color.argb(124, 176, 244, 248)
-                        : (liquidGlassTheme ? Color.argb(105, 92, 112, 142) : Color.argb(84, 194, 220, 255)));
+                        : (liquidGlassTheme ? Color.argb(112, 69, 120, 164) : Color.argb(84, 194, 220, 255)));
                 canvas.drawRoundRect(rect, radius, radius, paint);
 
                 if (hasLabels) {
@@ -11822,8 +11830,8 @@ public final class MainActivity extends Activity {
                     paint.setTextSize(dpf(8.5f));
                     paint.setTextAlign(Paint.Align.CENTER);
                     paint.setColor(checked
-                            ? (liquidGlassTheme ? Color.rgb(8, 36, 82) : Color.rgb(214, 235, 255))
-                            : (liquidGlassTheme ? Color.argb(190, 48, 63, 86) : Color.argb(136, 226, 236, 248)));
+                            ? (liquidGlassTheme ? Color.rgb(22, 75, 122) : Color.rgb(214, 235, 255))
+                            : (liquidGlassTheme ? Color.argb(200, 53, 100, 136) : Color.argb(136, 226, 236, 248)));
                     paint.clearShadowLayer();
                     Paint.FontMetrics metrics = paint.getFontMetrics();
                     float textY = rect.centerY() - (metrics.ascent + metrics.descent) / 2f + dpf(4f);
@@ -13043,11 +13051,12 @@ public final class MainActivity extends Activity {
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         float normalizedPhase = phase - (float) Math.floor(phase);
-        float offset = normalizedPhase * width;
+        float gradientSpan = liquidGlassTheme ? width * 1.8f : width;
+        float offset = normalizedPhase * gradientSpan;
         view.getPaint().setShader(new LinearGradient(
-                offset, 0, width + offset, 0,
+                offset, 0, gradientSpan + offset, 0,
                 liquidGlassTheme ? SHIMMER_LIQUID_COLORS : SHIMMER_BRIGHT_COLORS,
-                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
+                liquidGlassTheme ? SHIMMER_LIQUID_POSITIONS : SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
     }
 
@@ -13061,11 +13070,12 @@ public final class MainActivity extends Activity {
         int superHotCore = Color.rgb(255, 255, 255);  // 超亮炽白核心
 
         float normalizedPhase = phase - (float) Math.floor(phase);
-        float offset = normalizedPhase * width;
+        float gradientSpan = liquidGlassTheme ? width * 1.8f : width;
+        float offset = normalizedPhase * gradientSpan;
         view.getPaint().setShader(new LinearGradient(
-                offset, 0, width + offset, 0,
+                offset, 0, gradientSpan + offset, 0,
                 liquidGlassTheme ? SHIMMER_LIQUID_COLORS : SHIMMER_BRIGHT_COLORS,
-                new float[]{0.0f, 0.28f, 0.5f, 0.72f, 1.0f},
+                liquidGlassTheme ? SHIMMER_LIQUID_POSITIONS : SHIMMER_POSITIONS,
                 Shader.TileMode.REPEAT));
     }
 
@@ -13169,7 +13179,7 @@ public final class MainActivity extends Activity {
             button.setStateListAnimator(null);
             button.getPaint().clearShadowLayer();
             button.setTextColor(button.getId() == android.R.id.button1
-                    ? Color.rgb(0, 92, 190)
+                    ? UiTheme.liquidAccent()
                     : themeTextSecondary());
         }
         ViewGroup.LayoutParams params = button.getLayoutParams();
@@ -13290,7 +13300,7 @@ public final class MainActivity extends Activity {
 
     private void styleCyanGlowText(TextView view) {
         view.getPaint().setShader(null);
-        view.setTextColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(92, 225, 215));
+        view.setTextColor(liquidGlassTheme ? UiTheme.liquidAccent() : Color.rgb(92, 225, 215));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB && liquidGlassTheme) {
             view.setLayerType(View.LAYER_TYPE_NONE, null);
         }

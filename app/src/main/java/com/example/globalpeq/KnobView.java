@@ -43,7 +43,7 @@ final class KnobView extends View {
         basePaint.setStyle(Paint.Style.STROKE);
         basePaint.setStrokeCap(Paint.Cap.ROUND);
         basePaint.setColor(liquidGlassTheme
-                ? Color.argb(60, 56, 76, 104)
+                ? Color.argb(60, 49, 98, 140)
                 : Color.argb(35, 255, 255, 255));
         fillPaint.setStyle(Paint.Style.STROKE);
         fillPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -125,7 +125,7 @@ final class KnobView extends View {
         // 2) 活动段发光（STROKE + shadowLayer，模仿滑杆活动段）
         if (active) {
             fillPaint.setStrokeWidth(dp(4));
-            fillPaint.setColor(Color.rgb(0, 245, 212));
+            fillPaint.setColor(UiTheme.extraControlGreen());
             fillPaint.setShadowLayer(dp(6), 0, 0, Color.argb(180, 0, 245, 212));
             canvas.drawArc(left, top, left + size, top + size, 135, sweep, false, fillPaint);
             fillPaint.clearShadowLayer();
@@ -136,16 +136,16 @@ final class KnobView extends View {
         textPaint.setTextSize(sp(12));
         textPaint.setFakeBoldText(true);
         if (active) {
-            textPaint.setColor(liquidGlassTheme ? Color.rgb(0, 70, 142) : Color.rgb(0, 245, 212));
+            textPaint.setColor(liquidGlassTheme ? UiTheme.liquidAccent() : Color.rgb(0, 245, 212));
             textPaint.clearShadowLayer();
         } else if (enabled) {
             textPaint.setColor(liquidGlassTheme
-                    ? Color.argb(220, 32, 46, 68)
+                    ? Color.argb(220, 25, 72, 109)
                     : Color.argb(185, 255, 255, 255));
             textPaint.clearShadowLayer();
         } else {
             textPaint.setColor(liquidGlassTheme
-                    ? Color.argb(125, 72, 88, 110)
+                    ? Color.argb(125, 68, 113, 148)
                     : Color.argb(120, 190, 198, 210));
             textPaint.clearShadowLayer();
         }
