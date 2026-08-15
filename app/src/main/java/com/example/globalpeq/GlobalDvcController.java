@@ -334,8 +334,7 @@ final class GlobalDvcController {
             Log.w(TAG, "DVC teardown aborted because guarded handoff was unavailable");
             return;
         }
-        engine.completeDvcOffHandoff(this::releaseDvcVolumeChain, () -> {
-        });
+        engine.completeDvcOffHandoff(this::releaseDvcVolumeChain, () -> { });
         Log.i(TAG, "DVC teardown: switchedOff=" + switchedOff
                 + ", engineDvcActive=" + engine.isDvcModeActive());
         engine.setDvcDownstreamHeadroomDb(0f);
