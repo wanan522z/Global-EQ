@@ -257,10 +257,8 @@ public final class MainActivity extends Activity {
     private Spinner savedPresetSpinner;
     private TextView modeSpinner;
     private TextView processingModeButton;
-    private TextView settingsPanelDetailView;
     private TextView settingsStatusLabelView;
     private TextView settingsImportPanelTitleView;
-    private TextView settingsImportPanelDetailView;
     private LinearLayout shizukuRuntimePanel;
     private TextView advancedModeDetailButton;
     private TextView limiterSettingsButton;
@@ -284,7 +282,7 @@ public final class MainActivity extends Activity {
     private TextView shizukuRuntimeReplayView;
     private TextView shizukuAccessButton;
     private TextView shizukuAccessStatusView;
-    private TextView advancedModeSummaryView;
+    private TextView processingModeSummaryView;
     private View globalDvcRow;
     private TextView globalDvcHintView;
     private TextView languageLabelView;
@@ -2066,12 +2064,6 @@ public final class MainActivity extends Activity {
         TextView title = addSettingsSectionTitle(panel, this::processingModeTitleText, 18);
         engineStatusTitleView = title;
 
-        settingsPanelDetailView = new TextView(this);
-        bindText(settingsPanelDetailView, this::settingsModeDetailText);
-        settingsPanelDetailView.setTextSize(12);
-        settingsPanelDetailView.setTextColor(themeTextSecondary());
-        panel.addView(settingsPanelDetailView, blockParams(2));
-
         LinearLayout statusRow = new LinearLayout(this);
         statusRow.setOrientation(LinearLayout.HORIZONTAL);
         statusRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -2093,17 +2085,18 @@ public final class MainActivity extends Activity {
         statusRow.addView(engineStatusValueView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         processingModeButton = engineStatusValueView;
 
+        processingModeSummaryView = new TextView(this);
+        bindText(processingModeSummaryView, this::processingModeSummaryText);
+        processingModeSummaryView.setTextSize(12);
+        processingModeSummaryView.setTextColor(themeTextSecondary());
+        processingModeSummaryView.setLineSpacing(dp(2), 1f);
+        panel.addView(processingModeSummaryView, blockParams(4));
+
         advancedModeDetailButton = createExtraChoiceButton();
         bindText(advancedModeDetailButton, this::monitorSettingsTitleText);
         styleMonitorActionButton(advancedModeDetailButton, 0);
         advancedModeDetailButton.setOnClickListener(v -> showAdvancedSettingsSubpage());
         panel.addView(advancedModeDetailButton, blockParams(12));
-
-        advancedModeSummaryView = new TextView(this);
-        bindText(advancedModeSummaryView, this::advancedModeSummaryText);
-        advancedModeSummaryView.setTextSize(12);
-        advancedModeSummaryView.setTextColor(themeTextSecondary());
-        panel.addView(advancedModeSummaryView, blockParams(4));
 
         globalDvcSwitch = new Switch(this);
         globalDvcSwitch.setText("");
@@ -2189,45 +2182,39 @@ public final class MainActivity extends Activity {
 
         settingsImportPanelTitleView = addSettingsSectionTitle(importExportPanel, this::settingsImportPanelTitleText, 18);
 
-        settingsImportPanelDetailView = new TextView(this);
-        bindText(settingsImportPanelDetailView, this::settingsImportPanelDetailText);
-        settingsImportPanelDetailView.setTextSize(12);
-        settingsImportPanelDetailView.setTextColor(themeTextSecondary());
-        importExportPanel.addView(settingsImportPanelDetailView, blockParams(2));
-
         languageButton = createExtraChoiceButton();
         bindText(languageButton, this::languageButtonText);
-        styleMonitorActionButton(languageButton, 132);
+        styleImportExportActionButton(languageButton);
         languageButton.setOnClickListener(this::showLanguageChoiceMenu);
-        importExportPanel.addView(labeledSettingsRow(this::settingsLanguageLabelText, languageButton, view -> languageLabelView = view), blockParams(12));
+        importExportPanel.addView(labeledSettingsRow(this::settingsLanguageLabelText, languageButton, view -> languageLabelView = view), blockParams(10));
 
         TextView importPresetButton = createExtraChoiceButton();
         bindText(importPresetButton, () -> tr("Import", "导入"));
         importPresetButton.setText(tr("Import", "导入"));
-        styleMonitorActionButton(importPresetButton, 132);
+        styleImportExportActionButton(importPresetButton);
         importPresetButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_PRESET_JSON));
-        importExportPanel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(12));
+        importExportPanel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(10));
 
         TextView exportPresetButton = createExtraChoiceButton();
         bindText(exportPresetButton, () -> tr("Export", "导出"));
         exportPresetButton.setText(tr("Export", "导出"));
-        styleMonitorActionButton(exportPresetButton, 132);
+        styleImportExportActionButton(exportPresetButton);
         exportPresetButton.setOnClickListener(v -> showExportPresetChoiceDialog());
-        importExportPanel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(8));
+        importExportPanel.addView(labeledSettingsRow(tr("Preset JSON export", "预设 JSON 导出"), exportPresetButton), blockParams(10));
 
         TextView importDeviceConfigButton = createExtraChoiceButton();
         bindText(importDeviceConfigButton, () -> tr("Import", "导入"));
         importDeviceConfigButton.setText(tr("Import", "导入"));
-        styleMonitorActionButton(importDeviceConfigButton, 132);
+        styleImportExportActionButton(importDeviceConfigButton);
         importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
-        importExportPanel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(12));
+        importExportPanel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(10));
 
         TextView exportDeviceConfigButton = createExtraChoiceButton();
         bindText(exportDeviceConfigButton, () -> tr("Export", "导出"));
         exportDeviceConfigButton.setText(tr("Export", "导出"));
-        styleMonitorActionButton(exportDeviceConfigButton, 132);
+        styleImportExportActionButton(exportDeviceConfigButton);
         exportDeviceConfigButton.setOnClickListener(v -> exportCurrentDeviceConfigJson());
-        importExportPanel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(8));
+        importExportPanel.addView(labeledSettingsRow(tr("Global config export", "全局配置 JSON 导出"), exportDeviceConfigButton), blockParams(10));
 
         LinearLayout appearancePanel = createSettingsSectionPanel(34, 16);
         settingsRootContent.addView(appearancePanel);
