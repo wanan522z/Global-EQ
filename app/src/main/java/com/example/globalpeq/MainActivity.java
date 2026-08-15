@@ -776,6 +776,10 @@ public final class MainActivity extends Activity {
         // swap until the activity has naturally entered the background, so changing appearance
         // never throws the user out of the app.
         UiTheme.syncLauncherIcon(getApplicationContext(), UiTheme.isLiquidGlass(this));
+        // The package-component change above invalidates MIUI's cached application icon
+        // asynchronously. Rebuild the foreground notification only after that invalidation has
+        // had time to reach SystemUI, otherwise the old cached icon is attached again.
+        GlobalEqForegroundService.refreshNotificationAfterLauncherAliasChange();
     }
 
     @Override
@@ -2285,7 +2289,6 @@ public final class MainActivity extends Activity {
             }
             int settingsScrollY = settingsScrollView == null ? 0 : settingsScrollView.getScrollY();
             UiTheme.setLiquidGlass(this, nextLiquidTheme);
-            refreshForegroundNotificationAppearance();
             animateAppearanceChange(nextLiquidTheme, activeMainPageIndex, settingsScrollY);
         });
 
@@ -8334,10 +8337,6 @@ public final class MainActivity extends Activity {
     private void notifyServiceAboutRunningPreset() {
         Intent service = buildRunningPresetServiceIntent(GlobalEqForegroundService.ACTION_APPLY);
         startCompatibleForegroundService(service);
-    }
-
-    private void refreshForegroundNotificationAppearance() {
-        GlobalEqForegroundService.refreshNotificationAppearanceIfRunning();
     }
 
     private Intent buildRunningPresetServiceIntent(String action) {

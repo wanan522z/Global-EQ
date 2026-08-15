@@ -38,6 +38,7 @@ public final class GlobalEqForegroundService extends Service {
     private static final long CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS = 2500L;
     private static final long CAPTURE_WAKE_RECOVERY_DELAY_MS =
             CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS + CAPTURE_UPDATE_DEBOUNCE_MS;
+    private static final long LAUNCHER_ALIAS_NOTIFICATION_REFRESH_DELAY_MS = 650L;
     private static volatile boolean instanceRunning;
     private static volatile GlobalEqForegroundService runningInstance;
 
@@ -55,6 +56,7 @@ public final class GlobalEqForegroundService extends Service {
     private AdvancedModeConfig currentAdvancedModeConfig = AdvancedModeConfig.DEFAULT;
     private boolean awaitingInitialDeviceMonitorEvent;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable notificationAppearanceRefreshRunnable = this::updateNotification;
     private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
     private Preset pendingCapturePreset = Preset.flat(false);
     private AdvancedModeConfig pendingCaptureConfig = AdvancedModeConfig.DEFAULT;
@@ -278,6 +280,7 @@ public final class GlobalEqForegroundService extends Service {
         if (runningInstance == this) {
             runningInstance = null;
         }
+        mainHandler.removeCallbacks(notificationAppearanceRefreshRunnable);
         deviceMonitor.stop();
         unregisterReceiver(screenStateReceiver);
         if (repository != null) {
@@ -791,12 +794,15 @@ public final class GlobalEqForegroundService extends Service {
         return instanceRunning;
     }
 
-    static boolean refreshNotificationAppearanceIfRunning() {
+    static boolean refreshNotificationAfterLauncherAliasChange() {
         GlobalEqForegroundService service = runningInstance;
         if (service == null || service.stopping) {
             return false;
         }
-        service.updateNotification();
+        service.mainHandler.removeCallbacks(service.notificationAppearanceRefreshRunnable);
+        service.mainHandler.postDelayed(
+                service.notificationAppearanceRefreshRunnable,
+                LAUNCHER_ALIAS_NOTIFICATION_REFRESH_DELAY_MS);
         return true;
     }
 }
