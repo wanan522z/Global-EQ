@@ -864,7 +864,11 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyAndVerifyPreEqGain(Preset preset) {
-        float targetGainDb = targetPreEqInputGainDb(preset);
+        // The temporary output-mix bank must be unity apart from its post-EQ handoff gain. Apply
+        // the user's real pregain only after the old DVC chain has retired.
+        float targetGainDb = dvcDisablePostEqGuardActive
+                ? 0f
+                : targetPreEqInputGainDb(preset);
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
             // On the DVC player-session chain, keep the unreliable framework input and MBC stages
             // neutral. A dedicated one-band pre-EQ provides broadband gain before the sampled
