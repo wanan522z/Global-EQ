@@ -9445,6 +9445,11 @@ public final class MainActivity extends Activity {
         button.setPadding(dp(18), dp(10), dp(18), dp(10));
     }
 
+    private void styleImportExportActionButton(TextView button) {
+        styleMonitorActionButton(button, 132);
+        button.setLayoutParams(new LinearLayout.LayoutParams(dp(132), dp(42)));
+    }
+
     private LinearLayout.LayoutParams extraPanelParams(int topMarginDp) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
