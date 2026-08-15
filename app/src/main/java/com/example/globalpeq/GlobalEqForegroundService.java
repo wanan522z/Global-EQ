@@ -54,6 +54,7 @@ public final class GlobalEqForegroundService extends Service {
     private Preset currentPreset = Preset.flat(false);
     private ProcessingMode currentProcessingMode = ProcessingMode.SYSTEM_EQ;
     private AdvancedModeConfig currentAdvancedModeConfig = AdvancedModeConfig.DEFAULT;
+    private int activeNotificationId;
     private boolean awaitingInitialDeviceMonitorEvent;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
@@ -654,6 +655,9 @@ public final class GlobalEqForegroundService extends Service {
         }
         stopping = true;
         instanceRunning = false;
+        if (runningInstance == this) {
+            runningInstance = null;
+        }
         resetSystemEqPlaybackState();
         mainHandler.removeCallbacksAndMessages(null);
         if (deviceMonitor != null) {
