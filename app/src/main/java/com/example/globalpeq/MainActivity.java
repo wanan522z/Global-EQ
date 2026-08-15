@@ -1502,9 +1502,7 @@ public final class MainActivity extends Activity {
         sceneRoot.addView(root, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
-        if (liquidGlassTheme) {
-            addTopStatusMist(sceneRoot);
-        }
+        addTopStatusMist(sceneRoot);
         return sceneRoot;
     }
 
@@ -2193,7 +2191,8 @@ public final class MainActivity extends Activity {
         importPresetButton.setText(tr("Import", "导入"));
         styleImportExportActionButton(importPresetButton);
         importPresetButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_PRESET_JSON));
-        importExportPanel.addView(labeledSettingsRow(tr("Preset JSON", "预设 JSON"), importPresetButton), blockParams(10));
+        importExportPanel.addView(labeledSettingsRow(
+                tr("Preset JSON import", "预设 JSON 导入"), importPresetButton), blockParams(10));
 
         TextView exportPresetButton = createExtraChoiceButton();
         bindText(exportPresetButton, () -> tr("Export", "导出"));
@@ -2207,7 +2206,8 @@ public final class MainActivity extends Activity {
         importDeviceConfigButton.setText(tr("Import", "导入"));
         styleImportExportActionButton(importDeviceConfigButton);
         importDeviceConfigButton.setOnClickListener(v -> openJsonImport(REQUEST_IMPORT_DEVICE_CONFIG_JSON));
-        importExportPanel.addView(labeledSettingsRow(tr("Global config JSON", "全局配置 JSON"), importDeviceConfigButton), blockParams(10));
+        importExportPanel.addView(labeledSettingsRow(
+                tr("Global config import", "全局配置 JSON 导入"), importDeviceConfigButton), blockParams(10));
 
         TextView exportDeviceConfigButton = createExtraChoiceButton();
         bindText(exportDeviceConfigButton, () -> tr("Export", "导出"));
@@ -2826,9 +2826,9 @@ public final class MainActivity extends Activity {
         if (text.equals(languageButtonText())) return this::languageButtonText;
         if (text.equals(tr("Import", "导入"))) return () -> tr("Import", "导入");
         if (text.equals(tr("Export", "导出"))) return () -> tr("Export", "导出");
-        if (text.equals(tr("Preset JSON", "预设 JSON"))) return () -> tr("Preset JSON", "预设 JSON");
+        if (text.equals(tr("Preset JSON import", "预设 JSON 导入"))) return () -> tr("Preset JSON import", "预设 JSON 导入");
         if (text.equals(tr("Preset JSON export", "预设 JSON 导出"))) return () -> tr("Preset JSON export", "预设 JSON 导出");
-        if (text.equals(tr("Global config JSON", "全局配置 JSON"))) return () -> tr("Global config JSON", "全局配置 JSON");
+        if (text.equals(tr("Global config import", "全局配置 JSON 导入"))) return () -> tr("Global config import", "全局配置 JSON 导入");
         if (text.equals(tr("Global config export", "全局配置 JSON 导出"))) return () -> tr("Global config export", "全局配置 JSON 导出");
         return null;
     }
