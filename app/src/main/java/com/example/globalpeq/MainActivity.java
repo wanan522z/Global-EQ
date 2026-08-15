@@ -678,7 +678,6 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         liquidGlassTheme = UiTheme.isLiquidGlass(this);
-        UiTheme.syncLauncherIcon(this, liquidGlassTheme);
         UiTheme.applyWindowAppearance(this, liquidGlassTheme);
         registerSystemBackCallback();
         repository = new PresetRepository(this);
@@ -773,6 +772,10 @@ public final class MainActivity extends Activity {
         activityStarted = false;
         unregisterShizukuListeners();
         super.onStop();
+        // MIUI may close a visible task when its launcher alias is disabled. Defer the alias
+        // swap until the activity has naturally entered the background, so changing appearance
+        // never throws the user out of the app.
+        UiTheme.syncLauncherIcon(getApplicationContext(), UiTheme.isLiquidGlass(this));
     }
 
     @Override

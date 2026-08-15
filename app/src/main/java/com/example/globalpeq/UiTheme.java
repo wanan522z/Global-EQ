@@ -34,9 +34,16 @@ final class UiTheme {
 
     static void setLiquidGlass(Context context, boolean enabled) {
         preferences(context).edit().putBoolean(KEY_LIQUID_GLASS, enabled).apply();
-        syncLauncherIcon(context, enabled);
     }
 
+    /**
+     * Applies the launcher alias for the persisted appearance.
+     *
+     * <p>Do not call this while the activity is visible. Some MIUI launchers remove the task
+     * immediately when the alias that launched it is disabled, even with DONT_KILL_APP. The
+     * activity calls this only after onStop, when going to the launcher can no longer interrupt
+     * the in-app appearance transition.</p>
+     */
     static void syncLauncherIcon(Context context, boolean liquid) {
         if (context == null) {
             return;
