@@ -33,8 +33,7 @@ public final class GlobalEqForegroundService extends Service {
     static final String EXTRA_PROCESSING_MODE = "processing_mode";
     static final String EXTRA_ADVANCED_MODE_CONFIG_JSON = "advanced_mode_config_json";
     private static final String CHANNEL_ID = "global_eq";
-    private static final int NOTIFICATION_ID_LIQUID = 10;
-    private static final int NOTIFICATION_ID_CLASSIC = 11;
+    private static final int NOTIFICATION_ID = 10;
     private static final long CAPTURE_UPDATE_DEBOUNCE_MS = 350L;
     private static final long CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS = 2500L;
     private static final long CAPTURE_WAKE_RECOVERY_DELAY_MS =
@@ -54,7 +53,6 @@ public final class GlobalEqForegroundService extends Service {
     private Preset currentPreset = Preset.flat(false);
     private ProcessingMode currentProcessingMode = ProcessingMode.SYSTEM_EQ;
     private AdvancedModeConfig currentAdvancedModeConfig = AdvancedModeConfig.DEFAULT;
-    private int activeNotificationId;
     private boolean awaitingInitialDeviceMonitorEvent;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ProcessingMode pendingCaptureMode = ProcessingMode.SYSTEM_EQ;
@@ -370,15 +368,9 @@ public final class GlobalEqForegroundService extends Service {
         if (stopping) {
             return;
         }
-        int notificationId = notificationIdForCurrentAppearance();
-        if (activeNotificationId != 0 && activeNotificationId != notificationId) {
-            startForegroundInternal(captureEngine != null && captureEngine.hasProjection());
-            return;
-        }
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
-            manager.notify(notificationId, buildNotification());
-            activeNotificationId = notificationId;
+            manager.notify(NOTIFICATION_ID, buildNotification());
         }
     }
 
@@ -547,30 +539,15 @@ public final class GlobalEqForegroundService extends Service {
 
     private void startForegroundInternal(boolean withProjection) {
         Notification notification = buildNotification();
-        int previousNotificationId = activeNotificationId;
-        int notificationId = notificationIdForCurrentAppearance();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             int type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
             if (withProjection) {
                 type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
             }
-            startForeground(notificationId, notification, type);
-        } else {
-            startForeground(notificationId, notification);
+            startForeground(NOTIFICATION_ID, notification, type);
+            return;
         }
-        activeNotificationId = notificationId;
-        if (previousNotificationId != 0 && previousNotificationId != notificationId) {
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.cancel(previousNotificationId);
-            }
-        }
-    }
-
-    private int notificationIdForCurrentAppearance() {
-        return UiTheme.isLiquidGlass(this)
-                ? NOTIFICATION_ID_LIQUID
-                : NOTIFICATION_ID_CLASSIC;
+        startForeground(NOTIFICATION_ID, notification);
     }
 
     private void createNotificationChannel() {
@@ -819,8 +796,7 @@ public final class GlobalEqForegroundService extends Service {
         if (service == null || service.stopping) {
             return false;
         }
-        service.startForegroundInternal(
-                service.captureEngine != null && service.captureEngine.hasProjection());
+        service.updateNotification();
         return true;
     }
 }
