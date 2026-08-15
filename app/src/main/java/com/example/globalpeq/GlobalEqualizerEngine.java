@@ -74,6 +74,7 @@ final class GlobalEqualizerEngine {
     private String powerampBackendFailure = "";
     private DynamicsBankState retiringDvcBank;
     private boolean dvcDisablePostEqGuardActive;
+    private boolean dvcDisableHandoffRunning;
     private float dvcDisablePostEqGuardGainDb;
     private int dvcDisableHandoffGeneration;
 
@@ -1800,10 +1801,14 @@ final class GlobalEqualizerEngine {
             releaseRetiringDvcBank();
             return;
         }
+        if (dvcDisableHandoffRunning) {
+            return;
+        }
         if (dynamicsProcessing == null || dvcActive) {
             return;
         }
 
+        dvcDisableHandoffRunning = true;
         int generation = ++dvcDisableHandoffGeneration;
         long stepDelayMs = Math.max(
                 DVC_DISABLE_MIN_FADE_STEP_MS,
@@ -1888,6 +1893,7 @@ final class GlobalEqualizerEngine {
                     }
 
                     dvcDisablePostEqGuardActive = false;
+                    dvcDisableHandoffRunning = false;
                     dvcDisablePostEqGuardGainDb = 0f;
                     applyDynamicsTargetLevels(targetPreset);
                     applySystemVirtualBass(targetPreset);
@@ -1895,6 +1901,7 @@ final class GlobalEqualizerEngine {
                 } catch (RuntimeException error) {
                     Log.w(TAG, "Could not complete the DVC-off post-EQ fade-up", error);
                     dvcDisablePostEqGuardActive = false;
+                    dvcDisableHandoffRunning = false;
                     dvcDisablePostEqGuardGainDb = 0f;
                     dvcDisableHandoffGeneration++;
                 }
@@ -1908,6 +1915,7 @@ final class GlobalEqualizerEngine {
         retiringDvcBank = null;
         releaseDynamicsProcessing();
         dvcDisablePostEqGuardActive = false;
+        dvcDisableHandoffRunning = false;
         dvcDisablePostEqGuardGainDb = 0f;
         dvcDisableHandoffGeneration++;
         if (previousBank != null && previousBank.hasEffect()) {
@@ -1992,6 +2000,7 @@ final class GlobalEqualizerEngine {
         dvcHandoffHandler.removeCallbacksAndMessages(null);
         dvcDisableHandoffGeneration++;
         dvcDisablePostEqGuardActive = false;
+        dvcDisableHandoffRunning = false;
         dvcDisablePostEqGuardGainDb = 0f;
         releaseRetiringDvcBank();
     }
