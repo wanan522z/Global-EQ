@@ -245,8 +245,7 @@ final class GlobalDvcController {
                     Log.w(TAG, "Could not prepare guarded DVC handoff for session change");
                     return;
                 }
-                releaseDvcVolumeChain();
-                engine.completeDvcOffHandoff();
+                engine.completeDvcOffHandoff(this::releaseDvcVolumeChain);
             }
             if (volumeChain == null
                     && (!sessionZeroFallback || !sessionZeroVolumeAttempted)) {
@@ -332,8 +331,7 @@ final class GlobalDvcController {
             Log.w(TAG, "DVC teardown aborted because guarded handoff was unavailable");
             return;
         }
-        releaseDvcVolumeChain();
-        engine.completeDvcOffHandoff();
+        engine.completeDvcOffHandoff(this::releaseDvcVolumeChain);
         Log.i(TAG, "DVC teardown: switchedOff=" + switchedOff
                 + ", engineDvcActive=" + engine.isDvcModeActive());
         engine.setDvcDownstreamHeadroomDb(0f);

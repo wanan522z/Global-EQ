@@ -604,6 +604,7 @@ final class GlobalEqualizerEngine {
             Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline", error);
             releaseDynamicsProcessing();
             dvcDisablePostEqGuardActive = false;
+            dvcDisablePostEqGuardGainDb = 0f;
             dynamicsProcessingUnavailable = false;
             pendingPreset = savedPendingPreset;
             lastAppliedPreset = savedLastAppliedPreset;
@@ -1991,6 +1992,7 @@ final class GlobalEqualizerEngine {
         dvcHandoffHandler.removeCallbacksAndMessages(null);
         dvcDisableHandoffGeneration++;
         dvcDisablePostEqGuardActive = false;
+        dvcDisablePostEqGuardGainDb = 0f;
         releaseRetiringDvcBank();
     }
 
