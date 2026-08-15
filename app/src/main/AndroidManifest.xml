@@ -15,9 +15,9 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher_liquid"
+        android:icon="@mipmap/ic_app_identity_liquid_v2"
         android:label="${appLabel}"
-        android:roundIcon="@mipmap/ic_launcher_liquid_round"
+        android:roundIcon="@mipmap/ic_app_identity_liquid_v2_round"
         android:taskAffinity="${applicationId}"
         android:theme="@style/AppTheme">
         <activity
