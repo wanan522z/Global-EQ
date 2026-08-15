@@ -74,6 +74,7 @@ final class GlobalEqualizerEngine {
     private String powerampBackendFailure = "";
     private DynamicsBankState retiringDvcBank;
     private boolean dvcDisablePostEqGuardActive;
+    private float dvcDisablePostEqGuardGainDb;
     private int dvcDisableHandoffGeneration;
 
     /**
@@ -93,6 +94,8 @@ final class GlobalEqualizerEngine {
         final float[] powerampAppliedGainsDb;
         final short minLevelMb;
         final short maxLevelMb;
+        final boolean dvcActive;
+        final int dynamicsAudioSessionId;
 
         DynamicsBankState(DynamicsProcessing dynamicsProcessing,
                           PowerampDynamicsProcessing powerampDynamicsProcessing,
@@ -104,7 +107,9 @@ final class GlobalEqualizerEngine {
                           boolean dynamicsLimiterConfigured,
                           float[] powerampAppliedGainsDb,
                           short minLevelMb,
-                          short maxLevelMb) {
+                          short maxLevelMb,
+                          boolean dvcActive,
+                          int dynamicsAudioSessionId) {
             this.dynamicsProcessing = dynamicsProcessing;
             this.powerampDynamicsProcessing = powerampDynamicsProcessing;
             this.dynamicsPreEq = dynamicsPreEq;
@@ -116,6 +121,8 @@ final class GlobalEqualizerEngine {
             this.powerampAppliedGainsDb = powerampAppliedGainsDb;
             this.minLevelMb = minLevelMb;
             this.maxLevelMb = maxLevelMb;
+            this.dvcActive = dvcActive;
+            this.dynamicsAudioSessionId = dynamicsAudioSessionId;
         }
 
         boolean hasEffect() {
@@ -560,6 +567,9 @@ final class GlobalEqualizerEngine {
             // 108 ms of unprotected audio, which is the audible DVC-off volume spike.
             previousBank = detachDynamicsBank();
             dvcDisablePostEqGuardActive = true;
+            // Start the replacement bank flat so attaching it cannot make the live old chain jump.
+            // completeDvcOffHandoff() fades this audible post-EQ bank down before any teardown.
+            dvcDisablePostEqGuardGainDb = 0f;
         } else {
             releaseDynamicsProcessing();
         }
@@ -1355,7 +1365,7 @@ final class GlobalEqualizerEngine {
         updateDvcPositiveGainLimit(preset, requestedPeakGainDb);
         for (int band = 0; band < requestedGainsDb.length; band++) {
             requestedGainsDb[band] = dvcDisablePostEqGuardActive
-                    ? DYNAMICS_MIN_LEVEL_MB / 100f
+                    ? dvcDisablePostEqGuardGainDb
                     : scaleDvcPositiveGain(requestedGainsDb[band]);
         }
         applyDynamicsPostEqGains(requestedGainsDb);
@@ -1854,7 +1864,9 @@ final class GlobalEqualizerEngine {
                 dynamicsLimiterConfigured,
                 powerampAppliedGainsDb,
                 minLevelMb,
-                maxLevelMb);
+                maxLevelMb,
+                dvcActive,
+                dynamicsAudioSessionId);
         clearDynamicsBankReferences();
         return bank;
     }
@@ -1871,6 +1883,8 @@ final class GlobalEqualizerEngine {
         powerampAppliedGainsDb = bank.powerampAppliedGainsDb;
         minLevelMb = bank.minLevelMb;
         maxLevelMb = bank.maxLevelMb;
+        dvcActive = bank.dvcActive;
+        dynamicsAudioSessionId = bank.dynamicsAudioSessionId;
     }
 
     private void clearDynamicsBankReferences() {
