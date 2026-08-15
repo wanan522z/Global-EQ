@@ -1858,9 +1858,37 @@ final class GlobalEqualizerEngine {
                         return;
                     }
 
+                    // A successful setter return only means the native bank accepted the write.
+                    // Wait one complete preferred frame so -24 dB is audibly active before either
+                    // native effect is destroyed.
+                    scheduleProtectedDvcChainRetirement(
+                            generation,
+                            stepDelayMs,
+                            detachVolumeChain,
+                            afterHandoff);
+                } catch (RuntimeException error) {
+                    restoreRetiringDvcBankAfterHandoffFailure(error);
+                }
+            }
+        }, stepDelayMs);
+    }
+
+    private void scheduleProtectedDvcChainRetirement(int generation,
+                                                      long stepDelayMs,
+                                                      Runnable detachVolumeChain,
+                                                      Runnable afterHandoff) {
+        dvcHandoffHandler.postDelayed(() -> {
+            synchronized (GlobalEqualizerEngine.this) {
+                if (generation != dvcDisableHandoffGeneration
+                        || !dvcDisablePostEqGuardActive
+                        || dvcActive
+                        || dynamicsProcessing == null) {
+                    return;
+                }
+                try {
                     detachVolumeChain.run();
                     releaseRetiringDvcBank();
-                    Log.i(TAG, "DVC-off chain retired under -24 dB post-EQ guard");
+                    Log.i(TAG, "DVC-off chain retired under settled -24 dB post-EQ guard");
                     scheduleDvcDisableFadeUpStep(
                             generation,
                             1,
