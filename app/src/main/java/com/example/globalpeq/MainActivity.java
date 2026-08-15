@@ -2285,6 +2285,7 @@ public final class MainActivity extends Activity {
             }
             int settingsScrollY = settingsScrollView == null ? 0 : settingsScrollView.getScrollY();
             UiTheme.setLiquidGlass(this, nextLiquidTheme);
+            refreshForegroundNotificationAppearance();
             animateAppearanceChange(nextLiquidTheme, activeMainPageIndex, settingsScrollY);
         });
 
@@ -8333,6 +8334,14 @@ public final class MainActivity extends Activity {
     private void notifyServiceAboutRunningPreset() {
         Intent service = buildRunningPresetServiceIntent(GlobalEqForegroundService.ACTION_APPLY);
         startCompatibleForegroundService(service);
+    }
+
+    private void refreshForegroundNotificationAppearance() {
+        if (!GlobalEqForegroundService.isRunningInProcess()) {
+            return;
+        }
+        startCompatibleForegroundService(
+                buildServiceIntent(GlobalEqForegroundService.ACTION_REFRESH_NOTIFICATION));
     }
 
     private Intent buildRunningPresetServiceIntent(String action) {

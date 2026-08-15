@@ -22,6 +22,7 @@ public final class GlobalEqForegroundService extends Service {
     static final String ACTION_APPLY = "com.example.globalpeq.APPLY";
     static final String ACTION_BOOTSTRAP_CAPTURE = "com.example.globalpeq.BOOTSTRAP_CAPTURE";
     static final String ACTION_PAUSE_SHIZUKU = "com.example.globalpeq.PAUSE_SHIZUKU";
+    static final String ACTION_REFRESH_NOTIFICATION = "com.example.globalpeq.REFRESH_NOTIFICATION";
     static final String EXTRA_CAPTURE_RESULT_CODE = "capture_result_code";
     static final String EXTRA_CAPTURE_DATA = "capture_result_data";
     static final String EXTRA_PRESET_JSON = "preset_json";
@@ -222,7 +223,10 @@ public final class GlobalEqForegroundService extends Service {
             return START_NOT_STICKY;
         }
         String action = intent == null ? null : intent.getAction();
-        if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
+        if (ACTION_REFRESH_NOTIFICATION.equals(action)) {
+            startForegroundInternal(captureEngine.hasProjection());
+            return START_STICKY;
+        } else if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
             startForegroundInternal(true);
             scheduleCaptureBootstrap(
                     intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
@@ -392,8 +396,11 @@ public final class GlobalEqForegroundService extends Service {
         } else {
             content = currentDevice.label;
         }
+        int notificationIcon = UiTheme.isLiquidGlass(this)
+                ? R.mipmap.ic_launcher_liquid
+                : R.mipmap.ic_launcher;
         builder
-                .setSmallIcon(R.drawable.ic_notification_eq)
+                .setSmallIcon(notificationIcon)
                 .setContentTitle(state)
                 .setContentText(content)
                 .setContentIntent(pendingIntent)
