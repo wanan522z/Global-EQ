@@ -8337,11 +8337,7 @@ public final class MainActivity extends Activity {
     }
 
     private void refreshForegroundNotificationAppearance() {
-        if (!GlobalEqForegroundService.isRunningInProcess()) {
-            return;
-        }
-        startCompatibleForegroundService(
-                buildServiceIntent(GlobalEqForegroundService.ACTION_REFRESH_NOTIFICATION));
+        GlobalEqForegroundService.refreshNotificationAppearanceIfRunning();
     }
 
     private Intent buildRunningPresetServiceIntent(String action) {

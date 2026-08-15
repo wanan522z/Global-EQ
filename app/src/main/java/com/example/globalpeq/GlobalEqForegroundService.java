@@ -25,7 +25,6 @@ public final class GlobalEqForegroundService extends Service {
     static final String ACTION_APPLY = "com.example.globalpeq.APPLY";
     static final String ACTION_BOOTSTRAP_CAPTURE = "com.example.globalpeq.BOOTSTRAP_CAPTURE";
     static final String ACTION_PAUSE_SHIZUKU = "com.example.globalpeq.PAUSE_SHIZUKU";
-    static final String ACTION_REFRESH_NOTIFICATION = "com.example.globalpeq.REFRESH_NOTIFICATION";
     static final String EXTRA_CAPTURE_RESULT_CODE = "capture_result_code";
     static final String EXTRA_CAPTURE_DATA = "capture_result_data";
     static final String EXTRA_PRESET_JSON = "preset_json";
@@ -34,12 +33,14 @@ public final class GlobalEqForegroundService extends Service {
     static final String EXTRA_PROCESSING_MODE = "processing_mode";
     static final String EXTRA_ADVANCED_MODE_CONFIG_JSON = "advanced_mode_config_json";
     private static final String CHANNEL_ID = "global_eq";
-    private static final int NOTIFICATION_ID = 10;
+    private static final int NOTIFICATION_ID_LIQUID = 10;
+    private static final int NOTIFICATION_ID_CLASSIC = 11;
     private static final long CAPTURE_UPDATE_DEBOUNCE_MS = 350L;
     private static final long CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS = 2500L;
     private static final long CAPTURE_WAKE_RECOVERY_DELAY_MS =
             CAPTURE_ROUTE_SUPPRESSION_AFTER_UNLOCK_MS + CAPTURE_UPDATE_DEBOUNCE_MS;
     private static volatile boolean instanceRunning;
+    private static volatile GlobalEqForegroundService runningInstance;
 
     private GlobalEqualizerEngine engine;
     private GlobalDvcController dvcController;
@@ -115,6 +116,7 @@ public final class GlobalEqForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         instanceRunning = true;
+        runningInstance = this;
         repository = new PresetRepository(this);
         repository.saveServiceActive(true);
         engine = GlobalEqRuntime.engine();
@@ -226,10 +228,7 @@ public final class GlobalEqForegroundService extends Service {
             return START_NOT_STICKY;
         }
         String action = intent == null ? null : intent.getAction();
-        if (ACTION_REFRESH_NOTIFICATION.equals(action)) {
-            startForegroundInternal(captureEngine.hasProjection());
-            return START_STICKY;
-        } else if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
+        if (ACTION_BOOTSTRAP_CAPTURE.equals(action)) {
             startForegroundInternal(true);
             scheduleCaptureBootstrap(
                     intent.getIntExtra(EXTRA_CAPTURE_RESULT_CODE, android.app.Activity.RESULT_CANCELED),
@@ -277,6 +276,9 @@ public final class GlobalEqForegroundService extends Service {
     public void onDestroy() {
         stopping = true;
         instanceRunning = false;
+        if (runningInstance == this) {
+            runningInstance = null;
+        }
         deviceMonitor.stop();
         unregisterReceiver(screenStateReceiver);
         if (repository != null) {
@@ -367,9 +369,15 @@ public final class GlobalEqForegroundService extends Service {
         if (stopping) {
             return;
         }
+        int notificationId = notificationIdForCurrentAppearance();
+        if (activeNotificationId != 0 && activeNotificationId != notificationId) {
+            startForegroundInternal(captureEngine != null && captureEngine.hasProjection());
+            return;
+        }
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
-            manager.notify(NOTIFICATION_ID, buildNotification());
+            manager.notify(notificationId, buildNotification());
+            activeNotificationId = notificationId;
         }
     }
 
@@ -538,15 +546,30 @@ public final class GlobalEqForegroundService extends Service {
 
     private void startForegroundInternal(boolean withProjection) {
         Notification notification = buildNotification();
+        int previousNotificationId = activeNotificationId;
+        int notificationId = notificationIdForCurrentAppearance();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             int type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
             if (withProjection) {
                 type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
             }
-            startForeground(NOTIFICATION_ID, notification, type);
-            return;
+            startForeground(notificationId, notification, type);
+        } else {
+            startForeground(notificationId, notification);
         }
-        startForeground(NOTIFICATION_ID, notification);
+        activeNotificationId = notificationId;
+        if (previousNotificationId != 0 && previousNotificationId != notificationId) {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.cancel(previousNotificationId);
+            }
+        }
+    }
+
+    private int notificationIdForCurrentAppearance() {
+        return UiTheme.isLiquidGlass(this)
+                ? NOTIFICATION_ID_LIQUID
+                : NOTIFICATION_ID_CLASSIC;
     }
 
     private void createNotificationChannel() {
@@ -785,5 +808,15 @@ public final class GlobalEqForegroundService extends Service {
 
     static boolean isRunningInProcess() {
         return instanceRunning;
+    }
+
+    static boolean refreshNotificationAppearanceIfRunning() {
+        GlobalEqForegroundService service = runningInstance;
+        if (service == null || service.stopping) {
+            return false;
+        }
+        service.startForegroundInternal(
+                service.captureEngine != null && service.captureEngine.hasProjection());
+        return true;
     }
 }
