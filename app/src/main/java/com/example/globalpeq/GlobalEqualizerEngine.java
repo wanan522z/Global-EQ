@@ -360,6 +360,20 @@ final class GlobalEqualizerEngine {
                                                       float postGainDb) {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float attackMs = configuredLimiterAttackMs(safeConfig);
+        if (dvcDisablePostEqGuardActive) {
+            // The replacement bank must attach at true unity before its post-EQ fade starts.
+            // Enabling the normal session-0 limiter here could create a level step while the old
+            // DVC response is still upstream; the post-EQ guard supplies transition protection.
+            return new DynamicsProcessing.Limiter(
+                    false,
+                    true,
+                    0,
+                    attackMs,
+                    safeConfig.limiterReleaseMs,
+                    DYNAMICS_LIMITER_RATIO,
+                    normalLimiterThresholdDb(safeConfig),
+                    postGainDb);
+        }
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
             // Put the limiter at the peak the current downstream volume attenuation can absorb.
             // Toward maximum volume, retain up to +2 dB for distortion testing while still
