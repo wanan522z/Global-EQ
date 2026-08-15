@@ -1795,10 +1795,12 @@ final class GlobalEqualizerEngine {
      * protected low point is VolumeFX detached and the old bank released; session 0 then fades up
      * to the real preset. No unsupported input/pre-EQ attenuation is used.
      */
-    synchronized void completeDvcOffHandoff(Runnable detachVolumeChain) {
+    synchronized void completeDvcOffHandoff(Runnable detachVolumeChain,
+                                             Runnable afterHandoff) {
         if (!dvcDisablePostEqGuardActive) {
             detachVolumeChain.run();
             releaseRetiringDvcBank();
+            afterHandoff.run();
             return;
         }
         if (dvcDisableHandoffRunning) {
@@ -1819,13 +1821,15 @@ final class GlobalEqualizerEngine {
                 generation,
                 1,
                 stepDelayMs,
-                detachVolumeChain);
+                detachVolumeChain,
+                afterHandoff);
     }
 
     private void scheduleDvcDisableFadeDownStep(int generation,
                                                 int step,
                                                 long stepDelayMs,
-                                                Runnable detachVolumeChain) {
+                                                Runnable detachVolumeChain,
+                                                Runnable afterHandoff) {
         dvcHandoffHandler.postDelayed(() -> {
             synchronized (GlobalEqualizerEngine.this) {
                 if (generation != dvcDisableHandoffGeneration
@@ -1849,14 +1853,19 @@ final class GlobalEqualizerEngine {
                                 generation,
                                 step + 1,
                                 stepDelayMs,
-                                detachVolumeChain);
+                                detachVolumeChain,
+                                afterHandoff);
                         return;
                     }
 
                     detachVolumeChain.run();
                     releaseRetiringDvcBank();
                     Log.i(TAG, "DVC-off chain retired under -24 dB post-EQ guard");
-                    scheduleDvcDisableFadeUpStep(generation, 1, stepDelayMs);
+                    scheduleDvcDisableFadeUpStep(
+                            generation,
+                            1,
+                            stepDelayMs,
+                            afterHandoff);
                 } catch (RuntimeException error) {
                     restoreRetiringDvcBankAfterHandoffFailure(error);
                 }
@@ -1864,7 +1873,10 @@ final class GlobalEqualizerEngine {
         }, stepDelayMs);
     }
 
-    private void scheduleDvcDisableFadeUpStep(int generation, int step, long stepDelayMs) {
+    private void scheduleDvcDisableFadeUpStep(int generation,
+                                              int step,
+                                              long stepDelayMs,
+                                              Runnable afterHandoff) {
         dvcHandoffHandler.postDelayed(() -> {
             synchronized (GlobalEqualizerEngine.this) {
                 if (generation != dvcDisableHandoffGeneration
@@ -1888,7 +1900,11 @@ final class GlobalEqualizerEngine {
                     applyDynamicsPostEqGains(targetGainsDb);
 
                     if (step < DVC_DISABLE_FADE_STEPS) {
-                        scheduleDvcDisableFadeUpStep(generation, step + 1, stepDelayMs);
+                        scheduleDvcDisableFadeUpStep(
+                                generation,
+                                step + 1,
+                                stepDelayMs,
+                                afterHandoff);
                         return;
                     }
 
@@ -1898,6 +1914,7 @@ final class GlobalEqualizerEngine {
                     applyDynamicsTargetLevels(targetPreset);
                     applySystemVirtualBass(targetPreset);
                     Log.i(TAG, "Completed audible DVC-off post-EQ fade-up");
+                    afterHandoff.run();
                 } catch (RuntimeException error) {
                     Log.w(TAG, "Could not complete the DVC-off post-EQ fade-up", error);
                     dvcDisablePostEqGuardActive = false;
