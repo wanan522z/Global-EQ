@@ -393,7 +393,7 @@ public final class GlobalEqForegroundService extends Service {
             content = currentDevice.label;
         }
         builder
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification_eq)
                 .setContentTitle(state)
                 .setContentText(content)
                 .setContentIntent(pendingIntent)
