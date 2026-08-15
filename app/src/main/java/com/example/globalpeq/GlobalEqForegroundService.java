@@ -11,6 +11,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -399,6 +401,8 @@ public final class GlobalEqForegroundService extends Service {
         int notificationIcon = UiTheme.isLiquidGlass(this)
                 ? R.mipmap.ic_launcher_liquid
                 : R.mipmap.ic_launcher;
+        Bitmap notificationArtwork = BitmapFactory.decodeResource(
+                getResources(), notificationIcon);
         builder
                 .setSmallIcon(notificationIcon)
                 .setContentTitle(state)
@@ -406,6 +410,11 @@ public final class GlobalEqForegroundService extends Service {
                 .setContentIntent(pendingIntent)
                 .setOnlyAlertOnce(true)
                 .setOngoing(currentPreset.enabled);
+        if (notificationArtwork != null) {
+            // Embed the actual bitmap instead of relying only on the resource-backed small icon.
+            // MIUI/HyperOS uses this artwork for the colored icon in the notification card.
+            builder.setLargeIcon(notificationArtwork);
+        }
         if (detail != null && !detail.trim().isEmpty()) {
             builder.setStyle(new Notification.BigTextStyle().bigText(detail));
         }
