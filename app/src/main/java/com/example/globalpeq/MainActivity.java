@@ -2797,10 +2797,9 @@ public final class MainActivity extends Activity {
             return null;
         }
         if (text.equals(processingModeTitleText())) return this::processingModeTitleText;
-        if (text.equals(settingsModeDetailText())) return this::settingsModeDetailText;
         if (text.equals(settingsStatusLabelText())) return this::settingsStatusLabelText;
         if (text.equals(monitorSettingsTitleText())) return this::monitorSettingsTitleText;
-        if (text.equals(advancedModeSummaryText())) return this::advancedModeSummaryText;
+        if (text.equals(processingModeSummaryText())) return this::processingModeSummaryText;
         if (text.equals(shizukuRuntimeTitleText())) return this::shizukuRuntimeTitleText;
         if (text.equals(shizukuRuntimeDetailText())) return this::shizukuRuntimeDetailText;
         if (text.equals(shizukuRuntimeModeText())) return this::shizukuRuntimeModeText;
@@ -2809,7 +2808,6 @@ public final class MainActivity extends Activity {
         if (text.equals(shizukuRuntimeMuteText())) return this::shizukuRuntimeMuteText;
         if (text.equals(shizukuRuntimeReplayText())) return this::shizukuRuntimeReplayText;
         if (text.equals(settingsImportPanelTitleText())) return this::settingsImportPanelTitleText;
-        if (text.equals(settingsImportPanelDetailText())) return this::settingsImportPanelDetailText;
         if (text.equals(settingsLanguageLabelText())) return this::settingsLanguageLabelText;
         if (text.equals(aboutTitleText())) return this::aboutTitleText;
         if (text.equals(aboutBodyText())) return this::aboutBodyText;
@@ -2847,17 +2845,6 @@ public final class MainActivity extends Activity {
         return tr("Choose app", "选择应用");
     }
 
-    private String settingsModeDetailText() {
-        return isChineseUi()
-                ? "\u4f7f\u7528\u4e0b\u65b9\u201c\u7cfb\u7edf\u5904\u7406\u201d\u53f3\u4fa7\u63a7\u4ef6\u5207\u6362\u5f15\u64ce\u6a21\u5f0f\u3002"
-                : "Use the System Processing control below to switch backend mode.";
-        /*
-        return tr(
-                "Use the System Processing control below to switch backend mode.",
-                "点击上方标题即可切换后端模式。");
-        */
-    }
-
     private String settingsStatusLabelText() {
         return tr("System Processing:", "系统处理：");
     }
@@ -2868,12 +2855,6 @@ public final class MainActivity extends Activity {
 
     private String settingsImportPanelTitleText() {
         return tr("Language & JSON", "语言和 JSON");
-    }
-
-    private String settingsImportPanelDetailText() {
-        return tr(
-                "Change the UI language here, then import or export preset and global config JSON files.",
-                "这里可以切换界面语言，并导入或导出预设与全局配置 JSON。");
     }
 
     private String languageButtonText() {
@@ -3452,27 +3433,20 @@ public final class MainActivity extends Activity {
         return normalized;
     }
 
-    private String advancedModeSummaryText() {
+    private String processingModeSummaryText() {
         if (processingMode == ProcessingMode.SYSTEM_EQ) {
             return tr(
-                    "Default mode keeps the existing system EQ, virtual bass, and extra bass paths unchanged.",
-                    "Default 模式会保持现有的系统 EQ、virtual bass 和 extra bass 路径不变。");
+                    "Default mode uses only Android's native EQ.",
+                    "Default 模式只调用 Android 原生 EQ。");
         }
         if (processingMode == ProcessingMode.GLOBAL_DSP) {
             return tr(
-                    "Global DSP maps PEQ / GEQ, pregain, extra bass, limiter, and system virtual bass to session-0 DynamicsProcessing. PCM capture, DSP virtual bass, and reverb are disabled.",
-                    "Global DSP 将 PEQ / GEQ、Pregain、Extra Bass、Limiter 和 System Virtual Bass 映射到 session 0 DynamicsProcessing；PCM 捕获、DSP Virtual Bass 与 Reverb 已禁用。");
+                    "Global DSP can control volume directly, providing greater dynamic headroom and preventing distortion.",
+                    "Global DSP 模式可直接控制音量，获得更大动态余量并防止失真。");
         }
-        String appLabel = advancedModeConfig.monitoredAppLabel.isEmpty()
-                ? tr("No app selected", "未选择应用")
-                : advancedModeConfig.monitoredAppLabel;
-        return String.format(Locale.US,
-                tr("App: %s  |  %d ms  |  %d frames  |  poll %d ms",
-                        "应用：%s  |  %d ms  |  %d frames  |  轮询 %d ms"),
-                appLabel,
-                advancedModeConfig.latencyMs,
-                advancedModeConfig.bufferSizeFrames,
-                advancedModeConfig.monitorIntervalMs);
+        return tr(
+                "Shizuku mode captures the app's original audio and runs the in-house DSO algorithm, enabling reverb and virtual bass.",
+                "Shizuku 模式捕获 App 原声并运行自研 DSO 算法，可打开混响和虚拟低音。");
     }
 
     private void showLanguageChoiceMenu(View anchor) {
@@ -4983,8 +4957,8 @@ public final class MainActivity extends Activity {
         if (advancedModeDetailButton != null) {
             advancedModeDetailButton.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
-        if (advancedModeSummaryView != null) {
-            setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
+        if (processingModeSummaryView != null) {
+            setTextIfChanged(processingModeSummaryView, processingModeSummaryText());
         }
         refreshLimiterSettingsUi();
         refreshGlobalDvcUi();
@@ -5072,8 +5046,8 @@ public final class MainActivity extends Activity {
         if (advancedModeDetailButton != null) {
             advancedModeDetailButton.setVisibility(processingMode.requiresShizukuMute() ? View.VISIBLE : View.GONE);
         }
-        if (advancedModeSummaryView != null) {
-            setTextIfChanged(advancedModeSummaryView, advancedModeSummaryText());
+        if (processingModeSummaryView != null) {
+            setTextIfChanged(processingModeSummaryView, processingModeSummaryText());
         }
         refreshLimiterSettingsUi();
         refreshGlobalDvcUi();
