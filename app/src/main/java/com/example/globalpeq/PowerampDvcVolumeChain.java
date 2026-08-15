@@ -114,19 +114,6 @@ final class PowerampDvcVolumeChain {
         }
     }
 
-    /**
-     * Releases VolumeFX and asks AudioFlinger to re-apply stream-volume attenuation.
-     * Creating VolumeFX is followed by a one-step volume pulse so Android moves attenuation into
-     * that effect path. A plain release can leave the old placement cached until the next user
-     * volume change, making a disabled DVC chain continue to sound active. Some Bluetooth stacks
-     * ignore a write of the unchanged index, so teardown uses the same real one-step pulse and
-     * restores the user's original volume afterward.
-     */
-    void releaseAndRefreshVolumePlacement() {
-        release();
-        pulseStreamVolume();
-    }
-
     private static AudioEffect createUsableEffect(Constructor<AudioEffect> constructor,
                                                   UUID implementationUuid,
                                                   int audioSessionId) {

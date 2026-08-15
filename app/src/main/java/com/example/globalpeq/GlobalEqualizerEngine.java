@@ -28,9 +28,10 @@ final class GlobalEqualizerEngine {
     private static final int DYNAMICS_MAX_LEVEL_MB = 3000;
     private static final int EXTRA_BASS_MAX_GAIN_MB = 1500;
     private static final float DVC_LIMITER_RATIO = 50f;
-    private static final float DVC_LIMITER_THRESHOLD_DB = 15f;
     private static final float DVC_MAX_VOLUME_POSITIVE_GAIN_DB = 2f;
     private static final float DVC_INPUT_MIN_DB = -96f;
+    private static final int DVC_DISABLE_FADE_STEPS = 6;
+    private static final long DVC_DISABLE_MIN_FADE_STEP_MS = 20L;
     private static final float DYNAMICS_LIMITER_RATIO = 20f;
     private static final long ARM_DELAY_MS = 120;
     private static final long CONTROL_REARM_DELAY_MS = 180;
@@ -39,6 +40,7 @@ final class GlobalEqualizerEngine {
     private static final long ROUTE_REAPPLY_GUARD_MS = 350;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Handler dvcHandoffHandler = new Handler(Looper.getMainLooper());
     private DynamicsProcessing dynamicsProcessing;
     private PowerampDynamicsProcessing powerampDynamicsProcessing;
     private DynamicsProcessing.Eq dynamicsPreEq;
@@ -70,6 +72,56 @@ final class GlobalEqualizerEngine {
     private int dynamicsAudioSessionId = GLOBAL_AUDIO_SESSION;
     private float[] powerampAppliedGainsDb = new float[0];
     private String powerampBackendFailure = "";
+    private DynamicsBankState retiringDvcBank;
+    private boolean dvcDisablePostEqGuardActive;
+    private int dvcDisableHandoffGeneration;
+
+    /**
+     * All Java-side state that belongs to one native DynamicsProcessing bank. Keeping this as one
+     * value lets DVC-off build the replacement output-mix bank before it destroys the live player
+     * bank, while still allowing the old bank to be restored intact if allocation fails.
+     */
+    private static final class DynamicsBankState {
+        final DynamicsProcessing dynamicsProcessing;
+        final PowerampDynamicsProcessing powerampDynamicsProcessing;
+        final DynamicsProcessing.Eq dynamicsPreEq;
+        final DynamicsProcessing.Eq dynamicsPostEq;
+        final int dynamicsPreEqBandCount;
+        final float[] dynamicsBandCenterHz;
+        final float dynamicsPreferredFrameDurationMs;
+        final boolean dynamicsLimiterConfigured;
+        final float[] powerampAppliedGainsDb;
+        final short minLevelMb;
+        final short maxLevelMb;
+
+        DynamicsBankState(DynamicsProcessing dynamicsProcessing,
+                          PowerampDynamicsProcessing powerampDynamicsProcessing,
+                          DynamicsProcessing.Eq dynamicsPreEq,
+                          DynamicsProcessing.Eq dynamicsPostEq,
+                          int dynamicsPreEqBandCount,
+                          float[] dynamicsBandCenterHz,
+                          float dynamicsPreferredFrameDurationMs,
+                          boolean dynamicsLimiterConfigured,
+                          float[] powerampAppliedGainsDb,
+                          short minLevelMb,
+                          short maxLevelMb) {
+            this.dynamicsProcessing = dynamicsProcessing;
+            this.powerampDynamicsProcessing = powerampDynamicsProcessing;
+            this.dynamicsPreEq = dynamicsPreEq;
+            this.dynamicsPostEq = dynamicsPostEq;
+            this.dynamicsPreEqBandCount = dynamicsPreEqBandCount;
+            this.dynamicsBandCenterHz = dynamicsBandCenterHz;
+            this.dynamicsPreferredFrameDurationMs = dynamicsPreferredFrameDurationMs;
+            this.dynamicsLimiterConfigured = dynamicsLimiterConfigured;
+            this.powerampAppliedGainsDb = powerampAppliedGainsDb;
+            this.minLevelMb = minLevelMb;
+            this.maxLevelMb = maxLevelMb;
+        }
+
+        boolean hasEffect() {
+            return dynamicsProcessing != null || powerampDynamicsProcessing != null;
+        }
+    }
 
     private enum ApplyStrategy {
         AUTO,
@@ -301,9 +353,9 @@ final class GlobalEqualizerEngine {
         AdvancedModeConfig safeConfig = config == null ? AdvancedModeConfig.DEFAULT : config;
         float attackMs = configuredLimiterAttackMs(safeConfig);
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
-            // Use real downstream attenuation when it exceeds the explicit maximum-volume test
-            // allowance. Toward maximum volume, retain up to +2 dB for distortion testing while
-            // still respecting the configured limiter-ceiling margin.
+            // Put the limiter at the peak the current downstream volume attenuation can absorb.
+            // Toward maximum volume, retain up to +2 dB for distortion testing while still
+            // respecting the configured limiter-ceiling margin.
             return new DynamicsProcessing.Limiter(
                     safeConfig.limiterEnabled,
                     true,
@@ -337,10 +389,12 @@ final class GlobalEqualizerEngine {
     }
 
     private float dvcLimiterThresholdDb(AdvancedModeConfig config) {
-        float availablePeakDb = Math.max(
+        // Do not cap this independently of the volume curve. DVC's purpose is to turn all real
+        // downstream stream-volume attenuation into pre-volume EQ headroom; an unrelated fixed
+        // ceiling would compress boosts even while the output volume still has ample headroom.
+        return Math.max(
                 DVC_MAX_VOLUME_POSITIVE_GAIN_DB,
                 dvcDownstreamHeadroomDb) + normalLimiterThresholdDb(config);
-        return Math.min(DVC_LIMITER_THRESHOLD_DB, availablePeakDb);
     }
 
     boolean supportsDvcSessionPlacement() {
@@ -494,10 +548,21 @@ final class GlobalEqualizerEngine {
         Preset savedPendingPreset = pendingPreset;
         Preset savedLastAppliedPreset = lastAppliedPreset;
         AdvancedModeConfig savedLastAppliedConfig = lastAppliedDynamicsConfig;
+        boolean makeBeforeBreakDvcOff = !active && previousActive;
+        DynamicsBankState previousBank = null;
 
         applyGeneration++;
         handler.removeCallbacksAndMessages(null);
-        releaseDynamicsProcessing();
+        cancelDvcDisableHandoff();
+        if (makeBeforeBreakDvcOff) {
+            // Keep the player-session bank processing until a guarded output-mix replacement is
+            // already enabled. The device log shows that destroying this bank first leaves about
+            // 108 ms of unprotected audio, which is the audible DVC-off volume spike.
+            previousBank = detachDynamicsBank();
+            dvcDisablePostEqGuardActive = true;
+        } else {
+            releaseDynamicsProcessing();
+        }
         dvcActive = active;
         dynamicsAudioSessionId = targetAudioSessionId;
         dynamicsProcessingUnavailable = false;
@@ -515,17 +580,34 @@ final class GlobalEqualizerEngine {
             lastAppliedDynamicsConfig = dynamicsConfig;
             armedWithZeroBands = true;
             targetApplyPending = false;
-            Log.i(TAG, "Rebuilt GlobalDSP DVC=" + active
-                    + " session=" + dynamicsAudioSessionId
-                    + " with " + describeActiveDynamicsBank());
+            if (makeBeforeBreakDvcOff) {
+                retiringDvcBank = previousBank;
+                Log.i(TAG, "Prepared guarded DVC-off handoff on session 0 with "
+                        + describeActiveDynamicsBank());
+            } else {
+                Log.i(TAG, "Rebuilt GlobalDSP DVC=" + active
+                        + " session=" + dynamicsAudioSessionId
+                        + " with " + describeActiveDynamicsBank());
+            }
             return true;
         } catch (RuntimeException error) {
             Log.w(TAG, "Failed to rebuild the GlobalDSP DVC pipeline", error);
             releaseDynamicsProcessing();
+            dvcDisablePostEqGuardActive = false;
             dynamicsProcessingUnavailable = false;
             pendingPreset = savedPendingPreset;
             lastAppliedPreset = savedLastAppliedPreset;
             lastAppliedDynamicsConfig = savedLastAppliedConfig;
+            if (makeBeforeBreakDvcOff && previousBank != null && previousBank.hasEffect()) {
+                // Allocation of the guarded replacement failed. Restore the still-live player
+                // bank and leave VolumeFX attached; tearing either one down here would recreate
+                // the exact unprotected transition this handoff is designed to prevent.
+                attachDynamicsBank(previousBank);
+                dvcActive = previousActive;
+                dynamicsAudioSessionId = previousAudioSessionId;
+                Log.e(TAG, "Could not prepare guarded DVC-off handoff; kept DVC active");
+                return false;
+            }
             if (!active) {
                 // Turning DVC off is fail-safe. Never restore a boosted player-session/session-0
                 // DVC bank after reporting the switch off. If framework DP cannot be recreated,
@@ -631,7 +713,9 @@ final class GlobalEqualizerEngine {
             try {
                 pendingPreset = preset;
                 applyDynamicsTargetLevels(preset);
-                applySystemVirtualBass(preset);
+                if (!dvcDisablePostEqGuardActive) {
+                    applySystemVirtualBass(preset);
+                }
                 return true;
             } catch (RuntimeException candidateError) {
                 Log.w(TAG, "DynamicsProcessing " + bandCount
@@ -1263,33 +1347,21 @@ final class GlobalEqualizerEngine {
     }
 
     private void applyDynamicsTargetLevels(Preset preset) {
-        PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
-        PeqMath.PreparedBandResponse extraBassResponse = prepareExtraBassResponse(preset);
-        float[] requestedGainsDb = new float[dynamicsBandCenterHz.length];
+        float[] requestedGainsDb = calculateDynamicsTargetGainsDb(preset);
         float requestedPeakGainDb = 0f;
-        for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-            float targetGainDb = targetDynamicsLevelMb(
-                    dynamicsBandCenterHz[band],
-                    preset,
-                    response,
-                    extraBassResponse) / 100f;
-            requestedGainsDb[band] = targetGainDb;
-            requestedPeakGainDb = Math.max(requestedPeakGainDb, targetGainDb);
+        for (float gainDb : requestedGainsDb) {
+            requestedPeakGainDb = Math.max(requestedPeakGainDb, gainDb);
         }
         updateDvcPositiveGainLimit(preset, requestedPeakGainDb);
-        for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
-            DynamicsProcessing.EqBand eqBand = configuredDynamicsBandAt(band);
-            eqBand.setEnabled(true);
-            eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
-            eqBand.setGain(scaleDvcPositiveGain(requestedGainsDb[band]));
+        for (int band = 0; band < requestedGainsDb.length; band++) {
+            requestedGainsDb[band] = dvcDisablePostEqGuardActive
+                    ? DYNAMICS_MIN_LEVEL_MB / 100f
+                    : scaleDvcPositiveGain(requestedGainsDb[band]);
         }
+        applyDynamicsPostEqGains(requestedGainsDb);
         if (dynamicsPreEq != null) {
             dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
         }
-        // DynamicsProcessing copies this configuration into the native effect. Reusing the same
-        // Java bank avoids allocating 300 EqBand objects per edit while retaining one atomic
-        // native submission (individual band setters can expose a partially updated response).
-        dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
         // Preserve the complete EQ shape, but use only the positive peak range that the current
         // downstream stream-volume attenuation can safely absorb.
         ensureFrameworkLimiterConfigured();
@@ -1297,6 +1369,38 @@ final class GlobalEqualizerEngine {
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
         }
+    }
+
+    private float[] calculateDynamicsTargetGainsDb(Preset preset) {
+        PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
+        PeqMath.PreparedBandResponse extraBassResponse = prepareExtraBassResponse(preset);
+        float[] requestedGainsDb = new float[dynamicsBandCenterHz.length];
+        for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
+            requestedGainsDb[band] = targetDynamicsLevelMb(
+                    dynamicsBandCenterHz[band],
+                    preset,
+                    response,
+                    extraBassResponse) / 100f;
+        }
+        return requestedGainsDb;
+    }
+
+    private void applyDynamicsPostEqGains(float[] gainsDb) {
+        if (dynamicsProcessing == null
+                || dynamicsPostEq == null
+                || gainsDb.length != dynamicsBandCenterHz.length) {
+            throw new IllegalStateException("DynamicsProcessing post-EQ bank is unavailable");
+        }
+        for (int band = 0; band < gainsDb.length; band++) {
+            DynamicsProcessing.EqBand eqBand = configuredDynamicsBandAt(band);
+            eqBand.setEnabled(true);
+            eqBand.setCutoffFrequency(dynamicsBandCenterHz[band]);
+            eqBand.setGain(gainsDb[band]);
+        }
+        // DynamicsProcessing copies this configuration into the native effect. Reusing the same
+        // Java bank avoids allocating 300 EqBand objects per edit while retaining one atomic
+        // native submission (individual band setters can expose a partially updated response).
+        dynamicsProcessing.setPostEqAllChannelsTo(dynamicsPostEq);
     }
 
     private void applyPowerampDvcTargetLevels(Preset preset) {
@@ -1669,24 +1773,109 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    private void releaseDynamicsProcessing() {
-        if (powerampDynamicsProcessing != null) {
-            try {
-                powerampDynamicsProcessing.release();
-            } catch (RuntimeException ignored) {
-            } finally {
-                powerampDynamicsProcessing = null;
-            }
+    /**
+     * Completes the second half of a prepared DVC-off handoff. The controller calls this only
+     * after VolumeFX has been detached, so the guarded session-0 post-EQ bank covers both native
+     * effect destructions. Its gain then returns to the real preset over complete DP frames.
+     */
+    synchronized void completeDvcOffHandoff() {
+        if (!dvcDisablePostEqGuardActive) {
+            releaseRetiringDvcBank();
+            return;
         }
-        if (dynamicsProcessing != null) {
-            try {
-                dynamicsProcessing.setEnabled(false);
-                dynamicsProcessing.release();
-            } catch (RuntimeException ignored) {
-            } finally {
-                dynamicsProcessing = null;
-            }
+
+        releaseRetiringDvcBank();
+        if (dynamicsProcessing == null || dvcActive) {
+            dvcDisablePostEqGuardActive = false;
+            return;
         }
+
+        int generation = ++dvcDisableHandoffGeneration;
+        long stepDelayMs = Math.max(
+                DVC_DISABLE_MIN_FADE_STEP_MS,
+                (long) Math.ceil(dynamicsPreferredFrameDurationMs));
+        Log.i(TAG, "Starting audible DVC-off post-EQ handoff: "
+                + DVC_DISABLE_FADE_STEPS + " steps x " + stepDelayMs + " ms");
+        scheduleDvcDisableFadeStep(generation, 1, stepDelayMs);
+    }
+
+    private void scheduleDvcDisableFadeStep(int generation, int step, long stepDelayMs) {
+        dvcHandoffHandler.postDelayed(() -> {
+            synchronized (GlobalEqualizerEngine.this) {
+                if (generation != dvcDisableHandoffGeneration
+                        || !dvcDisablePostEqGuardActive
+                        || dvcActive
+                        || dynamicsProcessing == null) {
+                    return;
+                }
+                try {
+                    Preset targetPreset = pendingPreset != null
+                            ? pendingPreset
+                            : lastAppliedPreset;
+                    if (targetPreset == null || !targetPreset.enabled) {
+                        throw new IllegalStateException("DVC-off target preset is unavailable");
+                    }
+                    float[] targetGainsDb = calculateDynamicsTargetGainsDb(targetPreset);
+                    float guardGainDb = DYNAMICS_MIN_LEVEL_MB / 100f;
+                    float progress = step / (float) DVC_DISABLE_FADE_STEPS;
+                    for (int band = 0; band < targetGainsDb.length; band++) {
+                        targetGainsDb[band] = guardGainDb
+                                + ((targetGainsDb[band] - guardGainDb) * progress);
+                    }
+                    applyDynamicsPostEqGains(targetGainsDb);
+
+                    if (step < DVC_DISABLE_FADE_STEPS) {
+                        scheduleDvcDisableFadeStep(generation, step + 1, stepDelayMs);
+                        return;
+                    }
+
+                    dvcDisablePostEqGuardActive = false;
+                    applyDynamicsTargetLevels(targetPreset);
+                    applySystemVirtualBass(targetPreset);
+                    Log.i(TAG, "Completed audible DVC-off post-EQ handoff");
+                } catch (RuntimeException error) {
+                    Log.w(TAG, "Could not complete the DVC-off post-EQ handoff", error);
+                    dvcDisablePostEqGuardActive = false;
+                    dvcDisableHandoffGeneration++;
+                }
+            }
+        }, stepDelayMs);
+    }
+
+    private DynamicsBankState detachDynamicsBank() {
+        DynamicsBankState bank = new DynamicsBankState(
+                dynamicsProcessing,
+                powerampDynamicsProcessing,
+                dynamicsPreEq,
+                dynamicsPostEq,
+                dynamicsPreEqBandCount,
+                dynamicsBandCenterHz,
+                dynamicsPreferredFrameDurationMs,
+                dynamicsLimiterConfigured,
+                powerampAppliedGainsDb,
+                minLevelMb,
+                maxLevelMb);
+        clearDynamicsBankReferences();
+        return bank;
+    }
+
+    private void attachDynamicsBank(DynamicsBankState bank) {
+        dynamicsProcessing = bank.dynamicsProcessing;
+        powerampDynamicsProcessing = bank.powerampDynamicsProcessing;
+        dynamicsPreEq = bank.dynamicsPreEq;
+        dynamicsPostEq = bank.dynamicsPostEq;
+        dynamicsPreEqBandCount = bank.dynamicsPreEqBandCount;
+        dynamicsBandCenterHz = bank.dynamicsBandCenterHz;
+        dynamicsPreferredFrameDurationMs = bank.dynamicsPreferredFrameDurationMs;
+        dynamicsLimiterConfigured = bank.dynamicsLimiterConfigured;
+        powerampAppliedGainsDb = bank.powerampAppliedGainsDb;
+        minLevelMb = bank.minLevelMb;
+        maxLevelMb = bank.maxLevelMb;
+    }
+
+    private void clearDynamicsBankReferences() {
+        dynamicsProcessing = null;
+        powerampDynamicsProcessing = null;
         dynamicsPreEq = null;
         dynamicsPostEq = null;
         dynamicsPreEqBandCount = 0;
@@ -1696,12 +1885,49 @@ final class GlobalEqualizerEngine {
         powerampAppliedGainsDb = new float[0];
     }
 
+    private void releaseDynamicsBank(DynamicsBankState bank) {
+        if (bank == null) {
+            return;
+        }
+        if (bank.powerampDynamicsProcessing != null) {
+            try {
+                bank.powerampDynamicsProcessing.release();
+            } catch (RuntimeException ignored) {
+            }
+        }
+        if (bank.dynamicsProcessing != null) {
+            try {
+                bank.dynamicsProcessing.setEnabled(false);
+                bank.dynamicsProcessing.release();
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
+    private void releaseRetiringDvcBank() {
+        DynamicsBankState bank = retiringDvcBank;
+        retiringDvcBank = null;
+        releaseDynamicsBank(bank);
+    }
+
+    private void cancelDvcDisableHandoff() {
+        dvcHandoffHandler.removeCallbacksAndMessages(null);
+        dvcDisableHandoffGeneration++;
+        dvcDisablePostEqGuardActive = false;
+        releaseRetiringDvcBank();
+    }
+
+    private void releaseDynamicsProcessing() {
+        releaseDynamicsBank(detachDynamicsBank());
+    }
+
     synchronized void release() {
         handler.removeCallbacksAndMessages(null);
         pendingPreset = null;
         lastAppliedPreset = null;
         lastAppliedDynamicsConfig = null;
         applyGeneration++;
+        cancelDvcDisableHandoff();
         releaseDynamicsProcessing();
         if (equalizer != null) {
             try {

@@ -236,11 +236,17 @@ final class GlobalDvcController {
             boolean sessionZeroFallback = candidateSessionId == 0;
             if (volumeChain != null
                     && volumeChain.getAudioSessionId() != candidateSessionId) {
-                // Poweramp tears down player-session DP before VolumeFX. Reversing that order
-                // briefly leaves boosted DP without its downstream attenuation and can jump loud.
+                // Remove boosted DP before VolumeFX, but never write the stream volume during
+                // teardown. The replacement session-0 bank is already enabled at -24 dB before
+                // VolumeFX is detached, then its audible post-EQ handoff restores the preset.
                 mappingActive = false;
-                engine.setDvcModeEnabled(false, 0);
+                boolean switchedOff = engine.setDvcModeEnabled(false, 0);
+                if (!switchedOff) {
+                    Log.w(TAG, "Could not prepare guarded DVC handoff for session change");
+                    return;
+                }
                 releaseDvcVolumeChain();
+                engine.completeDvcOffHandoff();
             }
             if (volumeChain == null
                     && (!sessionZeroFallback || !sessionZeroVolumeAttempted)) {
@@ -315,17 +321,22 @@ final class GlobalDvcController {
         mappingActive = false;
         activeAudioSessionId = 0;
         sessionZeroVolumeAttempted = false;
-        // Remove/re-home the boosted player-session DP before detaching VolumeFX. Teardown only
-        // re-applies the unchanged media-volume index so AudioFlinger cannot retain DVC placement.
+        // First prepare an enabled, -24 dB post-EQ bank on session 0. Only then detach VolumeFX
+        // and let the engine release the old player bank and fade the real session-0 response in.
         boolean switchedOff = engine.setDvcModeEnabled(false, 0);
         if (!switchedOff && engine.isDvcModeActive()) {
-            // Never publish OFF while a failed rebuild has left the old DVC bank alive.
-            engine.release();
+            // The engine deliberately keeps the old bank and VolumeFX intact if the guarded bank
+            // could not be created. Destroying either one here would expose unprotected audio.
+            mappingActive = true;
+            activeAudioSessionId = engine.getActiveDynamicsAudioSessionId();
+            Log.w(TAG, "DVC teardown aborted because guarded handoff was unavailable");
+            return;
         }
+        releaseDvcVolumeChain();
+        engine.completeDvcOffHandoff();
         Log.i(TAG, "DVC teardown: switchedOff=" + switchedOff
                 + ", engineDvcActive=" + engine.isDvcModeActive());
         engine.setDvcDownstreamHeadroomDb(0f);
-        releaseDvcVolumeChain();
     }
 
     private void releaseDvcVolumeChain() {
@@ -333,8 +344,9 @@ final class GlobalDvcController {
             return;
         }
         try {
-            volumeChain.releaseAndRefreshVolumePlacement();
-        } catch (RuntimeException ignored) {
+            volumeChain.release();
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Could not release the DVC VolumeFX chain", error);
         } finally {
             volumeChain = null;
         }
