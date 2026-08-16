@@ -300,15 +300,18 @@ final class FrequencyCurve {
             return smoothed;
         }
 
-        // The fraction (for example 1/3 octave) describes the complete smoothing window, not the
-        // Gaussian standard deviation. The old implementation used it as sigma and then kept
-        // samples out to 2.4 sigma, so 1/3-octave smoothing actually mixed almost 1.6 octaves.
+        // The fraction (for example 1/3 octave) is the effective octave bandwidth. For a Hann
+        // kernel that bandwidth equals its radius: the kernel support extends one requested
+        // fraction below and above the center, while its tapered edges contribute zero weight.
+        // Treating the fraction as the complete support width makes every option about 2x too
+        // weak; treating it as Gaussian sigma (the old implementation) makes it about 2.5x too
+        // strong by equivalent bandwidth and mixes samples out to 2.4 fractions on each side.
         // Sampling the source on a fixed log-frequency grid also avoids weighting rounded integer
         // Hz points unevenly in the bass range, where duplicate resample frequencies are removed.
-        double halfWindowOctaves = windowOctaves * 0.5;
+        double windowRadiusOctaves = windowOctaves;
         int halfSampleCount = Math.max(
                 1,
-                (int) Math.ceil(halfWindowOctaves * SMOOTH_POINTS_PER_OCTAVE));
+                (int) Math.ceil(windowRadiusOctaves * SMOOTH_POINTS_PER_OCTAVE));
         for (Point point : points) {
             double center = log2(point.frequencyHz);
             double weighted = 0;
@@ -319,7 +322,7 @@ final class FrequencyCurve {
                 // source values. Clamp the sampled log frequency so the kernel stays symmetric at
                 // 20 Hz and 20 kHz instead of leaning toward the only available side.
                 double weight = 0.5 * (1.0 + Math.cos(Math.PI * normalizedDistance));
-                double sampleLogHz = center + normalizedDistance * halfWindowOctaves;
+                double sampleLogHz = center + normalizedDistance * windowRadiusOctaves;
                 sampleLogHz = Math.max(LOG2_MIN_HZ, Math.min(LOG2_MAX_HZ, sampleLogHz));
                 double sampleFrequencyHz = Math.pow(2.0, sampleLogHz);
                 weighted += interpolatedGainAtFrequency(points, sampleFrequencyHz) * weight;
