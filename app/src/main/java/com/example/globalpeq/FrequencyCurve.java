@@ -260,7 +260,8 @@ final class FrequencyCurve {
         if (isDefault() || windowOctaves <= 0) {
             return this;
         }
-        return new FrequencyCurve(name, smoothPointPass(resamplePoints(points), windowOctaves));
+        List<Point> source = resamplePoints(points);
+        return new FrequencyCurve(name, smoothPointPass(source, windowOctaves));
     }
 
     private static List<Point> resamplePoints(List<Point> points) {
@@ -295,23 +296,69 @@ final class FrequencyCurve {
 
     private static List<Point> smoothPointPass(List<Point> points, double windowOctaves) {
         List<Point> smoothed = new ArrayList<>();
+        if (points == null || points.isEmpty()) {
+            return smoothed;
+        }
+
+        // The fraction (for example 1/3 octave) describes the complete smoothing window, not the
+        // Gaussian standard deviation. The old implementation used it as sigma and then kept
+        // samples out to 2.4 sigma, so 1/3-octave smoothing actually mixed almost 1.6 octaves.
+        // Sampling the source on a fixed log-frequency grid also avoids weighting rounded integer
+        // Hz points unevenly in the bass range, where duplicate resample frequencies are removed.
+        double halfWindowOctaves = windowOctaves * 0.5;
+        int halfSampleCount = Math.max(
+                1,
+                (int) Math.ceil(halfWindowOctaves * SMOOTH_POINTS_PER_OCTAVE));
         for (Point point : points) {
             double center = log2(point.frequencyHz);
             double weighted = 0;
             double weightSum = 0;
-            for (Point candidate : points) {
-                double distance = Math.abs(log2(candidate.frequencyHz) - center);
-                if (distance > windowOctaves * 2.4) {
-                    continue;
-                }
-                double weight = Math.exp(-0.5 * Math.pow(distance / windowOctaves, 2.0));
-                weighted += candidate.gainDb * weight;
+            for (int sample = -halfSampleCount; sample <= halfSampleCount; sample++) {
+                double normalizedDistance = sample / (double) halfSampleCount;
+                // A symmetric Hann window has zero weight at both edges and cannot overshoot the
+                // source values. Clamp the sampled log frequency so the kernel stays symmetric at
+                // 20 Hz and 20 kHz instead of leaning toward the only available side.
+                double weight = 0.5 * (1.0 + Math.cos(Math.PI * normalizedDistance));
+                double sampleLogHz = center + normalizedDistance * halfWindowOctaves;
+                sampleLogHz = Math.max(LOG2_MIN_HZ, Math.min(LOG2_MAX_HZ, sampleLogHz));
+                double sampleFrequencyHz = Math.pow(2.0, sampleLogHz);
+                weighted += interpolatedGainAtFrequency(points, sampleFrequencyHz) * weight;
                 weightSum += weight;
             }
             float gainDb = weightSum <= 0.0001 ? point.gainDb : (float) (weighted / weightSum);
             smoothed.add(new Point(point.frequencyHz, gainDb));
         }
         return smoothed;
+    }
+
+    private static float interpolatedGainAtFrequency(List<Point> points, double frequencyHz) {
+        if (frequencyHz <= points.get(0).frequencyHz) {
+            return points.get(0).gainDb;
+        }
+        int last = points.size() - 1;
+        if (frequencyHz >= points.get(last).frequencyHz) {
+            return points.get(last).gainDb;
+        }
+        double logHz = log2(frequencyHz);
+        int low = 0;
+        int high = last;
+        while (low + 1 < high) {
+            int middle = (low + high) >>> 1;
+            if (points.get(middle).frequencyHz <= frequencyHz) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        Point left = points.get(low);
+        Point right = points.get(high);
+        double leftLog = log2(left.frequencyHz);
+        double rightLog = log2(right.frequencyHz);
+        if (rightLog <= leftLog) {
+            return left.gainDb;
+        }
+        double t = (logHz - leftLog) / (rightLog - leftLog);
+        return (float) (left.gainDb + (right.gainDb - left.gainDb) * t);
     }
 
     private static float interpolatedGainAtHz(List<Point> points, int frequencyHz) {

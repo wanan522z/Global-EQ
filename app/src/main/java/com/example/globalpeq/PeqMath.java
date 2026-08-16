@@ -35,40 +35,6 @@ final class PeqMath {
         return preset.pregainMb + rawEqGainAtHzMb(frequencyHz, preset);
     }
 
-    /**
-     * Response sampling used by Poweramp's 300-band DynamicsProcessing model. Each source filter
-     * has a small response dead band before the filters are accumulated; this removes numerical
-     * tails while preserving a one-to-one mapping between the requested and applied EQ response.
-     */
-    static int powerampDvcGainAtFrequencyMb(double frequencyHz, Preset preset) {
-        if (frequencyHz <= 0 || preset == null) {
-            return 0;
-        }
-        if (preset.mode == EqMode.GEQ) {
-            int responseMb = rawGeqGainAtFrequencyMb(frequencyHz, preset);
-            int largestGainMb = 0;
-            for (int gainMb : preset.geqGainsMb) {
-                largestGainMb = Math.max(largestGainMb, Math.abs(gainMb));
-            }
-            return powerampDvcDeadBandMb(responseMb, largestGainMb);
-        }
-
-        int sumMb = 0;
-        for (ParametricBand band : preset.bands) {
-            if (!band.enabled) {
-                continue;
-            }
-            int responseMb = bandGainAtHzMb(frequencyHz, band);
-            sumMb += powerampDvcDeadBandMb(responseMb, band.gainMb);
-        }
-        return sumMb;
-    }
-
-    static int powerampDvcDeadBandMb(int responseMb, int configuredGainMb) {
-        int thresholdMb = Math.max(20, Math.abs(configuredGainMb) / 20);
-        return Math.abs(responseMb) <= thresholdMb ? 0 : responseMb;
-    }
-
     static int visualGainAtHzMb(int frequencyHz, Preset preset) {
         return visualGainAtFrequencyMb(frequencyHz, preset);
     }
@@ -128,33 +94,12 @@ final class PeqMath {
             return sumMb;
         }
 
-        int powerampDvcGainAtFrequencyMb(double frequencyHz) {
-            if (frequencyHz <= 0 || preset == null) {
-                return 0;
-            }
-            if (preset.mode == EqMode.GEQ) {
-                int responseMb = rawGeqGainAtFrequencyMb(frequencyHz, preset);
-                int largestGainMb = 0;
-                for (int gainMb : preset.geqGainsMb) {
-                    largestGainMb = Math.max(largestGainMb, Math.abs(gainMb));
-                }
-                return powerampDvcDeadBandMb(responseMb, largestGainMb);
-            }
-            int sumMb = 0;
-            for (PreparedBandResponse band : bands) {
-                int responseMb = band.gainAtFrequencyMb(frequencyHz);
-                sumMb += powerampDvcDeadBandMb(responseMb, band.configuredGainMb);
-            }
-            return sumMb;
-        }
     }
 
     static final class PreparedBandResponse {
-        private final int configuredGainMb;
         private final double[][] coefficients;
 
         PreparedBandResponse(ParametricBand band) {
-            configuredGainMb = band == null ? 0 : band.gainMb;
             ParametricBand[] effectiveBands = effectiveResponseBands(band);
             coefficients = new double[effectiveBands.length][];
             for (int i = 0; i < effectiveBands.length; i++) {
