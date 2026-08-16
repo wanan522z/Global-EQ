@@ -1381,9 +1381,12 @@ final class GlobalEqualizerEngine {
 
     private void applyDynamicsTargetLevels(Preset preset) {
         float[] requestedGainsDb = calculateDynamicsTargetGainsDb(preset);
-        float requestedPeakGainDb = 0f;
+        float requestedPeakGainDb = -Float.MAX_VALUE;
         for (float gainDb : requestedGainsDb) {
             requestedPeakGainDb = Math.max(requestedPeakGainDb, gainDb);
+        }
+        if (requestedPeakGainDb == -Float.MAX_VALUE) {
+            requestedPeakGainDb = 0f;
         }
         updateDvcPositiveGainLimit(preset, requestedPeakGainDb);
         for (int band = 0; band < requestedGainsDb.length; band++) {
@@ -1445,7 +1448,7 @@ final class GlobalEqualizerEngine {
         }
         PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
         PeqMath.PreparedBandResponse extraBassResponse = prepareExtraBassResponse(preset);
-        float requestedPeakGainDb = 0f;
+        float requestedPeakGainDb = -Float.MAX_VALUE;
         for (int band = 0; band < dynamicsBandCenterHz.length; band++) {
             float targetGainDb = targetDynamicsLevelMb(
                             dynamicsBandCenterHz[band],
@@ -1454,6 +1457,9 @@ final class GlobalEqualizerEngine {
                             extraBassResponse) / 100f;
             powerampAppliedGainsDb[band] = targetGainDb;
             requestedPeakGainDb = Math.max(requestedPeakGainDb, targetGainDb);
+        }
+        if (requestedPeakGainDb == -Float.MAX_VALUE) {
+            requestedPeakGainDb = 0f;
         }
         updateDvcPositiveGainLimit(preset, requestedPeakGainDb);
         for (int band = 0; band < powerampAppliedGainsDb.length; band++) {
@@ -1471,7 +1477,7 @@ final class GlobalEqualizerEngine {
             return;
         }
         dvcRequestedEqPeakGainDb = Float.isFinite(requestedEqPeakGainDb)
-                ? Math.max(0f, requestedEqPeakGainDb)
+                ? requestedEqPeakGainDb
                 : 0f;
         float pregainDb = presetPregainDb(preset);
         dvcRequestedFinalPeakGainDb = pregainDb + dvcRequestedEqPeakGainDb;
@@ -1592,8 +1598,6 @@ final class GlobalEqualizerEngine {
                                       PeqMath.PreparedBandResponse extraBassResponse) {
         int levelMb = response.eqGainAtFrequencyMb(frequencyHz);
         if (extraBassResponse != null) {
-            int extraBassGainMb = Math.round(
-                    preset.extraBassAmountPercent / 100f * EXTRA_BASS_MAX_GAIN_MB);
             int extraBassResponseMb = extraBassResponse.gainAtFrequencyMb(frequencyHz);
             levelMb += extraBassResponseMb;
         }
