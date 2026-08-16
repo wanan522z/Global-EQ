@@ -17,6 +17,9 @@ final class FrequencyCurve {
     private static final int MIN_HZ = 20;
     private static final int MAX_HZ = 20000;
     private static final int SMOOTH_POINTS_PER_OCTAVE = 96;
+    private static final int REW_GAUSSIAN_IIR_PASSES = 4;
+    private static final double REW_GAUSSIAN_WIDTH_FACTOR = 0.375;
+    private static final double MIN_SMOOTHED_POWER = 1.0e-12;
     private static final double LOG2_MIN_HZ = log2(MIN_HZ);
     private static final double LOG2_MAX_HZ = log2(MAX_HZ);
 
@@ -261,7 +264,7 @@ final class FrequencyCurve {
             return this;
         }
         List<Point> source = resamplePoints(points);
-        return new FrequencyCurve(name, smoothPointPass(source, windowOctaves));
+        return new FrequencyCurve(name, smoothRewGaussian(source, windowOctaves));
     }
 
     private static List<Point> resamplePoints(List<Point> points) {
@@ -294,44 +297,93 @@ final class FrequencyCurve {
         return resampled;
     }
 
-    private static List<Point> smoothPointPass(List<Point> points, double windowOctaves) {
+    private static List<Point> smoothRewGaussian(List<Point> points, double windowOctaves) {
         List<Point> smoothed = new ArrayList<>();
         if (points == null || points.isEmpty()) {
             return smoothed;
         }
 
-        // The fraction (for example 1/3 octave) is the effective octave bandwidth. For a Hann
-        // kernel that bandwidth equals its radius: the kernel support extends one requested
-        // fraction below and above the center, while its tapered edges contribute zero weight.
-        // Treating the fraction as the complete support width makes every option about 2x too
-        // weak; treating it as Gaussian sigma (the old implementation) makes it about 2.5x too
-        // strong by equivalent bandwidth and mixes samples out to 2.4 fractions on each side.
-        // Sampling the source on a fixed log-frequency grid also avoids weighting rounded integer
-        // Hz points unevenly in the bass range, where duplicate resample frequencies are removed.
-        double windowRadiusOctaves = windowOctaves;
-        int halfSampleCount = Math.max(
-                1,
-                (int) Math.ceil(windowRadiusOctaves * SMOOTH_POINTS_PER_OCTAVE));
-        for (Point point : points) {
-            double center = log2(point.frequencyHz);
-            double weighted = 0;
-            double weightSum = 0;
-            for (int sample = -halfSampleCount; sample <= halfSampleCount; sample++) {
-                double normalizedDistance = sample / (double) halfSampleCount;
-                // A symmetric Hann window has zero weight at both edges and cannot overshoot the
-                // source values. Clamp the sampled log frequency so the kernel stays symmetric at
-                // 20 Hz and 20 kHz instead of leaning toward the only available side.
-                double weight = 0.5 * (1.0 + Math.cos(Math.PI * normalizedDistance));
-                double sampleLogHz = center + normalizedDistance * windowRadiusOctaves;
-                sampleLogHz = Math.max(LOG2_MIN_HZ, Math.min(LOG2_MAX_HZ, sampleLogHz));
-                double sampleFrequencyHz = Math.pow(2.0, sampleLogHz);
-                weighted += interpolatedGainAtFrequency(points, sampleFrequencyHz) * weight;
-                weightSum += weight;
+        // Match REW's fixed fractional-octave smoothing for log-spaced data: convert dB to power,
+        // run four forward/backward first-order IIR passes (the Alvarez-Mazorra Gaussian
+        // approximation), then convert the smoothed power back to dB. Averaging dB values or using
+        // a finite Hann window produces visibly different peaks and nulls.
+        int minimumCount = (int) Math.ceil(
+                (LOG2_MAX_HZ - LOG2_MIN_HZ) * SMOOTH_POINTS_PER_OCTAVE) + 1;
+        int sampleCount = Math.max(minimumCount, points.size());
+        double pointsPerOctave = (sampleCount - 1.0) / (LOG2_MAX_HZ - LOG2_MIN_HZ);
+        double[] power = new double[sampleCount];
+        double maxGainDb = -Double.MAX_VALUE;
+        for (int sample = 0; sample < sampleCount; sample++) {
+            double t = sampleCount <= 1 ? 0.0 : sample / (double) (sampleCount - 1);
+            double sampleLogHz = LOG2_MIN_HZ + (LOG2_MAX_HZ - LOG2_MIN_HZ) * t;
+            double gainDb = interpolatedGainAtFrequency(points, Math.pow(2.0, sampleLogHz));
+            power[sample] = gainDb;
+            maxGainDb = Math.max(maxGainDb, gainDb);
+        }
+
+        for (int sample = 0; sample < sampleCount; sample++) {
+            power[sample] = Math.pow(10.0, (power[sample] - maxGainDb) / 10.0);
+        }
+
+        applyRewGaussianIir(power, pointsPerOctave, windowOctaves);
+
+        int lastHz = -1;
+        for (int sample = 0; sample < sampleCount; sample++) {
+            double t = sampleCount <= 1 ? 0.0 : sample / (double) (sampleCount - 1);
+            int frequencyHz = (int) Math.round(Math.pow(
+                    2.0,
+                    LOG2_MIN_HZ + (LOG2_MAX_HZ - LOG2_MIN_HZ) * t));
+            frequencyHz = Math.max(MIN_HZ, Math.min(MAX_HZ, frequencyHz));
+            if (frequencyHz == lastHz) {
+                continue;
             }
-            float gainDb = weightSum <= 0.0001 ? point.gainDb : (float) (weighted / weightSum);
-            smoothed.add(new Point(point.frequencyHz, gainDb));
+            float gainDb = (float) (maxGainDb
+                    + 10.0 * Math.log10(Math.max(MIN_SMOOTHED_POWER, power[sample])));
+            smoothed.add(new Point(frequencyHz, gainDb));
+            lastHz = frequencyHz;
         }
         return smoothed;
+    }
+
+    private static void applyRewGaussianIir(double[] values,
+                                            double pointsPerOctave,
+                                            double windowOctaves) {
+        if (values == null || values.length == 0 || pointsPerOctave <= 0 || windowOctaves <= 0) {
+            return;
+        }
+        double octaveFractionDenominator = 1.0 / windowOctaves;
+        double gaussianWidthSamples = REW_GAUSSIAN_WIDTH_FACTOR
+                * pointsPerOctave
+                / octaveFractionDenominator;
+        double variancePerPass = gaussianWidthSamples * gaussianWidthSamples
+                / (2.0 * REW_GAUSSIAN_IIR_PASSES);
+        if (variancePerPass <= 1.0e-12) {
+            return;
+        }
+        double feedback = (1.0 + 2.0 * variancePerPass
+                - Math.sqrt(1.0 + 4.0 * variancePerPass))
+                / (2.0 * variancePerPass);
+        feedback = Math.max(0.0, Math.min(Math.nextDown(1.0), feedback));
+        double edgeScale = 1.0 / (1.0 - feedback);
+
+        for (int pass = 0; pass < REW_GAUSSIAN_IIR_PASSES; pass++) {
+            values[0] *= edgeScale;
+            for (int sample = 1; sample < values.length; sample++) {
+                values[sample] += feedback * values[sample - 1];
+            }
+            int last = values.length - 1;
+            values[last] *= edgeScale;
+            for (int sample = last; sample > 0; sample--) {
+                values[sample - 1] += feedback * values[sample];
+            }
+        }
+
+        double outputScale = Math.pow(
+                feedback / variancePerPass,
+                REW_GAUSSIAN_IIR_PASSES);
+        for (int sample = 0; sample < values.length; sample++) {
+            values[sample] *= outputScale;
+        }
     }
 
     private static float interpolatedGainAtFrequency(List<Point> points, double frequencyHz) {
