@@ -1,242 +1,146 @@
 # Global PEQ
 
-`Global PEQ` 是一个面向 Android 的全局音频调音项目，目标是在不 Root 的前提下，为不同播放设备提供更细致的 EQ、低频增强、混响和预设管理能力。
+`Global PEQ` 是一款面向 Android 的全局音频调音应用。无需 Root，即可为手机外放、蓝牙耳机、USB 耳放等不同输出设备分别配置 EQ，并在设备切换时自动应用对应预设。
 
-当前项目有两条工作路径：
+## 核心体验
 
-- `Default`：走系统音效链，适合日常使用，兼容性更高。
-- `Shizuku Mode`：走 `MediaProjection + DSP + Shizuku` 链路，支持更完整的 DSP 处理能力。
+- 全局 `PEQ / GEQ`，支持设备补偿曲线、目标曲线和 Pre gain
+- 为每个输出设备单独匹配并保存 EQ 预设
+- 连接设备时自动识别并切换预设
+- 支持命名预设、草稿、导入与导出
+- 提供混响、虚拟低音和 Extra Bass 等扩展能力
+- 提供 Liquid Glass 与 Classic 两套界面，可在设置中丝滑切换
 
-## 适合谁用
+设置好后台保活和设备预设匹配后，日常使用不需要反复打开应用。手机外放、不同蓝牙设备和 USB 耳放之间切换时，Global PEQ 会自动加载匹配的 EQ，实现无感切换。
 
-- 想给蓝牙耳机、有线耳机、扬声器分别保存不同调音的人
-- 想在 Android 上做全局 PEQ / GEQ 调音的人
-- 想用目标曲线、设备补偿曲线来细调声音的人
-- 想尝试混响、虚拟低音、额外低频增强的人
+## 三种处理模式
 
-## 主要能力
+### Default
 
-- 全局 `PEQ / GEQ`
-- 设备级预设保存与自动切换
-- 命名预设、草稿预设、导入导出
-- 设备补偿曲线与目标曲线
-- `Shizuku Mode` 下的全局音频捕获与 DSP
-- `Reverb / Virtual Bass / Extra Bass`
-- 开机恢复、前台服务、输出设备跟踪
+Android 原生 EQ 模式，无额外音频处理。配置简单、兼容性好，适合只需要基础均衡的场景。
+
+### Global DSP（最推荐）
+
+在 Android 原生 EQ 基础上进行优化，提供更完整的均衡处理，并新增 DVC：
+
+- 可直接控制音量，利用当前媒体音量留下的余量，为 EQ 提供更大的正增益空间
+- 自动计算 EQ、Pre gain 与可用音量余量
+- 自动控制总增益，尽量避免削波和失真
+- 不需要 Shizuku，适合作为日常使用的首选模式
+
+DVC 的实际可用性与手机系统、输出设备和播放 App 的音频链路有关；关闭 DVC 后仍可继续使用普通 Global DSP EQ。
+
+### Shizuku Mode
+
+解锁自研 PCM 算法：捕获系统音频，静音原 App，再由 Global PEQ 进行 DSP 处理和二次回放。
+
+该模式可使用更完整的自研混响、DSP 虚拟低音和限制器等功能，但需要配置 Shizuku 与系统音频捕获权限。由于不同 App 的音频实现不同，部分 App，尤其是游戏，可能存在静音、捕获、延迟或回放兼容性问题。
 
 ## 快速上手
 
-### 1. 进入应用后先看顶部
+1. 在 `Settings` 中选择处理模式，日常使用推荐 `Global DSP`。
+2. 连接要使用的输出设备，为它选择或新建一个预设并保存。
+3. 对手机外放、蓝牙耳机、USB 耳放等设备分别完成一次预设匹配。
+4. 打开 `AUTO`，并在系统设置中允许应用后台运行、自启动或关闭电池优化限制。
+5. 打开顶部 `ON` 总开关。之后切换设备时，应用会自动加载对应预设。
 
-- 左上是 `PEQ / GEQ` 切换
-- 中间是当前捕获中的 App 指示
-- `AUTO` 是设备自动切换开关
-- `ON` 是总开关
+不同处理模式的设备配置相互独立。切换模式后，请确认当前设备已经匹配了该模式下需要使用的预设。
 
-### 2. 先选设备，再选预设
+## 界面与操作
 
-- 第一行是当前设备
-- 右侧是该设备当前绑定的预设
-- 左下的大按钮可以新建、切换或选择要编辑的预设
-- `Save` 会把当前修改保存到现有预设，或另存为新的命名预设
+应用提供两套完整界面：
 
-### 3. 根据你的使用场景选模式
+- `Liquid Glass`：默认界面，明亮通透
+- `Classic`：经典深色霓虹界面
 
-- 只需要基础全局 EQ：用 `Default`
-- 需要混响、DSP 虚拟低音、系统音频捕获：切到 `Shizuku Mode`
-
-### 4. 修改后建议自己试听确认
-
-- `Live` 状态下，当前编辑的参数会直接作用到正在使用的预设
-- 如果只是想先改草稿、不想马上替换当前效果，先切到别的预设或新建一个再编辑
-
-## 界面图文说明
+两套界面功能一致，可在 `Settings` 的外观设置中直接切换。
 
 ### EQ 页面
 
 ![EQ 页面讲解](docs/images/eq-page-guide.png)
 
-这张图对应主调音页，建议按下面顺序理解：
+这张图对应主调音页，建议按下面顺序使用：
 
 1. 顶部总控区
 
-- 左上角可切换 `PEQ / GEQ`
-- 顶部中间会显示当前捕获中的 App
-- `AUTO` 控制是否按输出设备自动切换配置
-- `ON` 是总开关
+- 左上角切换 `PEQ / GEQ`
+- 顶部中间显示当前运行状态或捕获中的 App
+- `AUTO` 控制是否根据输出设备自动切换预设
+- `ON` 是 EQ 总开关
 
 2. 设备与预设区
 
-- 左侧显示当前设备
-- 右侧显示当前设备绑定的预设
-- 下方可选择一个命名预设作为当前编辑对象
-- `Save` 用来把当前参数覆盖保存到已有预设，或保存为新的预设
+- 左侧显示当前输出设备
+- 右侧显示该设备当前绑定的预设
+- 下方可以选择、新建或切换命名预设
+- `Save` 用于覆盖保存当前预设，或另存为新预设
 
 3. 曲线区
 
-- 中间大图是当前 EQ 曲线
-- 右上角的数值按钮用于调整曲线显示范围
-- 下方可导入或切换设备补偿曲线、目标曲线
-- 最右侧是 `Pre gain` 调节，用来给整体留余量，避免削波
+- 实线显示当前 EQ 频响
+- 可导入或选择设备补偿曲线和目标曲线作为参考
+- 右上角数值按钮用于调整曲线显示范围
+- `Pre gain` 用于调整整体增益并预留动态余量
 
 4. PEQ 编辑区
 
 - 每一行对应一个滤波器
-- `Type`：滤波器类型，如 `PEAK / LPASS`
+- `Type`：滤波器类型，例如 `PEAK / LPASS`
 - `Freq`：中心频率或截止频率
 - `Gain`：增益
 - `Q`：带宽
-- 行首圆点控制该段是否启用
-- 右侧删除按钮可删除当前段
-- 点击数值区域可进入更精细的弹框输入
-- `+ Add EQ Band` 可以继续添加新的滤波段
+- 行首圆点控制该滤波器是否启用
+- 右侧按钮删除当前滤波器
+- 点击数值可进行精细输入，`+ Add EQ Band` 可添加滤波器
 
 5. 底部导航
 
-- `EQ`：均衡器主页面
-- `EXTRA`：混响、虚拟低音、额外低频增强
-- `Settings`：模式、语言、导入导出、Shizuku 设置
+- `EQ`：均衡器与曲线编辑
+- `EXTRA`：混响、虚拟低音和 Extra Bass
+- `Settings`：处理模式、界面、语言、导入导出及高级设置
 
 ### EXTRA 页面
 
 ![EXTRA 页面讲解](docs/images/extra-page-guide.png)
 
-这一页主要是 DSP 扩展能力，只有部分功能会受当前处理模式限制。
+这一页用于配置扩展音效，部分功能会受当前处理模式限制。
 
 #### Reverb
 
-- 右上角可选择混响类型
-- `Main` 是混响主增益，通常先从较小值开始调
-- `Decay` 控制衰减时间
-- `Predelay` 控制预延时
-- `Size` 控制空间感
-- `Mix` 在当前设计里更接近发送量，不是简单的干湿线性混合
-- 混响仅在 `Shizuku Mode` 下可完整生效
+- 选择混响类型后，可调整主增益、衰减、预延时、空间大小和混合量
+- 建议从较小的增益和混合量开始试听
+- 自研 PCM 混响仅在 `Shizuku Mode` 下完整生效
 
 #### Virtual Bass
 
-- 右上角可选择虚拟低音模式
-- `Default / System / DSP` 三种模式里，`DSP` 仅在 `Shizuku Mode` 下可用
-- 滑块控制低频增强强度
-- 低频截止频率可在输入框中精调
+- 可选择 `Default / System / DSP` 模式
+- 滑块控制低频增强强度，截止频率可精细调整
+- `DSP` 虚拟低音仅在 `Shizuku Mode` 下可用
 
 #### Extra Bass
 
-- 这是额外的低频增强通道
-- 右上角开关控制启用状态
-- `Cutoff` 控制作用频段上限
-- `Boost` 控制增强量
-- 更适合做额外的低频补偿，而不是替代主 EQ
+- 提供独立的低频增强通道
+- `Cutoff` 控制作用频段上限，`Boost` 控制增强量
+- 适合补充低频，不建议用它替代主 EQ
 
-## 两种模式怎么选
+## 预设与自动切换
 
-### Default
+- **设备预设**：每个输出设备都可以保存独立调音状态。
+- **命名预设**：可复用的调音模板，可在不同设备间加载或另存。
+- **草稿预设**：自动保留尚未正式保存的编辑状态。
+- **自动切换**：打开 `AUTO` 后，设备变化时自动加载匹配预设。
+- **导入导出**：`Preset JSON` 用于分享单个预设，`Global config JSON` 用于迁移整套配置。
 
-- 使用系统全局音频会话（session 0）的音效路径
-- 优先使用 `DynamicsProcessing`，不可用时自动回退到系统 `Equalizer`
-- 更适合基础均衡和日常稳定使用
-- 不依赖 Shizuku
-- 混响和部分 DSP 能力会受限
+自动切换依赖应用在后台持续识别输出设备。如果系统限制后台活动，请为 Global PEQ 开启后台运行或自启动权限，并将其从电池优化中排除。
 
-### Shizuku Mode
+## Shizuku Mode 首次配置
 
-- 通过 `MediaProjection` 捕获系统音频，再进入自定义 DSP
-- 支持更完整的 `Reverb / DSP Virtual Bass / Limiter` 等处理
-- 需要先准备好 Shizuku，并完成应用内授权
-- 更适合折腾高级玩法，但对系统环境要求也更高
+1. 在 `Settings` 中选择 `Shizuku Mode`。
+2. 打开 Shizuku Mode 设置并完成 Shizuku 授权。
+3. 授予系统音频捕获权限。
+4. 选择需要处理的目标 App。
+5. 回到主页面打开 `ON`，确认原 App 静音且 Global PEQ 正常回放后再开始调音。
 
-## GlobalEQ 算法映射
+## 开发信息
 
-`Default` 模式会把现有预设投影到系统 `DynamicsProcessing` 的全局
-session 0。不同设备提供的系统音效实现可能不同，因此保留旧
-`Equalizer` 作为运行时回退。
-
-- `PEQ / GEQ`：先计算现有算法的总频响，再采样到 10～32 个对数分布的
-  Post-EQ 频带，保留峰值、搁架和高低通等滤波器的组合结果。
-- `Pregain`：写入 `DynamicsProcessing` 的输入增益，不再与每个 EQ
-  频带重复叠加。
-- `Extra Bass`：按现有低架滤波器算法合并进 Post-EQ 频响。
-- `Limiter`：映射限制器上限和释放时间；系统限制器不支持现有 PCM
-  lookahead 缓冲，所以这里属于近似实现。
-- `System Virtual Bass`：继续使用系统 `BassBoost` 全局音效。
-- `DSP Virtual Bass / Reverb`：仍只在 PCM 捕获链路中生效。Android
-  公共 session 0 AudioEffect 接口不能直接插入这些自定义逐采样算法；
-  若要让它们也走真正的系统全局链路，需要额外实现并注册原生
-  AudioEffect 插件。
-
-## 预设和配置逻辑
-
-### 设备预设
-
-- 每个输出设备都可以保存自己的调音状态
-- 同一个设备在 `Default` 和 `Shizuku Mode` 下各自独立保存
-
-### 命名预设
-
-- 命名预设是可复用的调音模板
-- 可以被不同设备加载、保存、覆盖或另存
-
-### 草稿预设
-
-- 编辑中的状态会以草稿形式保留
-- 适合慢慢调，不用担心退出后丢失
-
-### 自动切换
-
-- 打开 `AUTO` 后，切换耳机、音箱、扬声器时会自动载入对应设备配置
-
-### 导入导出
-
-- `Preset JSON`：适合分享单个预设
-- `Global config JSON`：适合迁移整套设备、模式和预设配置
-
-## 首次使用 Shizuku Mode 的建议顺序
-
-1. 在 `Settings` 中把处理模式切到 `Shizuku Mode`
-2. 打开 `Shizuku Mode Settings`
-3. 先完成 `Shizuku Access`
-4. 再完成系统音频捕获授权
-5. 选择需要监听的目标 App
-6. 回到主页面打开总开关并试听
-
-## 权限说明
-
-项目会用到以下权限或能力：
-
-- `FOREGROUND_SERVICE / MEDIA_PLAYBACK / MEDIA_PROJECTION`
-- `MODIFY_AUDIO_SETTINGS`
-- `RECORD_AUDIO`
-- `BLUETOOTH_CONNECT`
-- `QUERY_ALL_PACKAGES`
-- `RECEIVE_BOOT_COMPLETED`
-- `Shizuku`
-
-它们主要用于前台服务、系统音频捕获、输出设备识别、开机恢复和高级模式控制。
-
-## 项目结构
-
-仓库当前主体是一个单模块 Android 工程：
-
-- `app/src/main/java/com/example/globalpeq`
-  - `MainActivity.java`：主界面与交互逻辑
-  - `PresetRepository.java`：预设、设备、曲线与全局配置持久化
-  - `GlobalEqualizerEngine.java`：系统 EQ 路径
-  - `PlaybackCaptureEngine.java`：系统音频捕获链路
-  - `PcmDspProcessor.java`：DSP 处理核心，包含混响、虚拟低音、限制器等
-  - `ShizukuCompat.java` / `ShizukuSessionMuteEngine.java`：Shizuku 权限与会话静音相关逻辑
-  - `AudioOutputDeviceMonitor.java`：输出设备监听与切换
-- `app/src/main/res`
-  - 图标、样式、内置目标曲线等资源
-- `docs/images`
-  - README 使用的讲解图
-
-## 构建信息
-
-- `Java 17`
-- `compileSdk 36`
-- `targetSdk 36`
-- `minSdk 28`
-- `Shizuku API 13.1.5`
-
-如果你是普通用户，看到这里基本只需要关注上面的使用说明即可。  
-如果你是开发者，建议优先从 `MainActivity.java`、`PresetRepository.java`、`PlaybackCaptureEngine.java` 和 `PcmDspProcessor.java` 开始读。
+项目是一个无 Root 的单模块 Android 应用，使用 Java 17，`minSdk 28`、`targetSdk 36`。主要包含系统 EQ / Global DSP、DVC、自研 PCM DSP、Shizuku 会话静音与二次回放、输出设备监测及预设管理等模块；开发者可从 `MainActivity.java`、`GlobalEqualizerEngine.java`、`PlaybackCaptureEngine.java`、`PcmDspProcessor.java` 和 `PresetRepository.java` 开始阅读。
