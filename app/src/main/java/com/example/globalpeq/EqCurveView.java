@@ -91,6 +91,7 @@ final class EqCurveView extends View {
     private Preset preset = Preset.flat(false);
     private FrequencyCurve deviceCurve = FrequencyCurve.DEFAULT;
     private FrequencyCurve targetCurve = FrequencyCurve.DEFAULT;
+    private double deviceCurveSmoothingOctaves;
     private int maxDb = 18;
 
     EqCurveView(Context context) {
@@ -248,14 +249,20 @@ final class EqCurveView extends View {
         postInvalidateOnAnimation();
     }
 
-    void setReferenceCurves(FrequencyCurve deviceCurve, FrequencyCurve targetCurve) {
+    void setReferenceCurves(FrequencyCurve deviceCurve,
+                            FrequencyCurve targetCurve,
+                            double deviceCurveSmoothingOctaves) {
         FrequencyCurve nextDeviceCurve = deviceCurve == null ? FrequencyCurve.DEFAULT : deviceCurve;
         FrequencyCurve nextTargetCurve = targetCurve == null ? FrequencyCurve.DEFAULT : targetCurve;
-        if (this.deviceCurve == nextDeviceCurve && this.targetCurve == nextTargetCurve) {
+        double nextDeviceSmoothing = Math.max(0.0, deviceCurveSmoothingOctaves);
+        if (this.deviceCurve == nextDeviceCurve
+                && this.targetCurve == nextTargetCurve
+                && Double.compare(this.deviceCurveSmoothingOctaves, nextDeviceSmoothing) == 0) {
             return;
         }
         this.deviceCurve = nextDeviceCurve;
         this.targetCurve = nextTargetCurve;
+        this.deviceCurveSmoothingOctaves = nextDeviceSmoothing;
         this.pathDirty = true;
         this.glowCacheDirty = true;
         postInvalidateOnAnimation();
@@ -467,6 +474,17 @@ final class EqCurveView extends View {
         path.reset();
         ensureSampleCache(left, right);
         PeqMath.PreparedResponse response = PeqMath.prepareResponse(preset);
+        if (deviceCurveSmoothingOctaves > 0.0) {
+            // The solid line represents the complete predicted response. Smooth that complete
+            // response, not just the device curve; adding the raw PEQ response afterwards would
+            // reintroduce narrow compensation peaks that fractional-octave smoothing should remove.
+            FrequencyCurve smoothedResponse = deviceCurve
+                    .withAdditionalGain(hz -> response.visualGainAtFrequencyMb(hz) / 100f)
+                    .withFractionalOctaveSmoothing(deviceCurveSmoothingOctaves);
+            appendCachedPath(path, curveSampleXs, curveSampleHzs,
+                    hz -> gainToY(smoothedResponse.gainAtFrequency(hz), top, bottom));
+            return;
+        }
         appendCachedPath(path, curveSampleXs, curveSampleHzs, hz -> {
             float db = deviceCurve.gainAtFrequency(hz) + response.visualGainAtFrequencyMb(hz) / 100f;
             return gainToY(db, top, bottom);

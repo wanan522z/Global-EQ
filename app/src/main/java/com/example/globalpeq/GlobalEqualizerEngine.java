@@ -193,6 +193,11 @@ final class GlobalEqualizerEngine {
                         AUDIO_EFFECT_PRIORITY,
                         dynamicsAudioSessionId,
                         config);
+                if (!candidate.hasControl()) {
+                    throw new IllegalStateException(
+                            "DynamicsProcessing created without control on session "
+                                    + dynamicsAudioSessionId);
+                }
                 float[] centerFrequencies = dvcActive
                         && processingMode == ProcessingMode.GLOBAL_DSP
                         && bandCount == 300
@@ -572,6 +577,9 @@ final class GlobalEqualizerEngine {
         Preset savedLastAppliedPreset = lastAppliedPreset;
         AdvancedModeConfig savedLastAppliedConfig = lastAppliedDynamicsConfig;
         boolean makeBeforeBreakDvcOff = !active && previousActive;
+        boolean makeBeforeBreakDvcOn = active
+                && !previousActive
+                && previousAudioSessionId == GLOBAL_AUDIO_SESSION;
         DynamicsBankState previousBank = null;
 
         applyGeneration++;
@@ -586,6 +594,12 @@ final class GlobalEqualizerEngine {
             // Start the replacement bank flat so attaching it cannot make the live old chain jump.
             // completeDvcOffHandoff() fades this audible post-EQ bank down before any teardown.
             dvcDisablePostEqGuardGainDb = 0f;
+        } else if (makeBeforeBreakDvcOn) {
+            // Keep the output-mix effect alive until the player-session bank is enabled. Releasing
+            // session 0 first lets video players immediately reopen their track as offload/direct,
+            // after which a successfully created player effect can still be outside the audible
+            // path. Detaching preserves the live native bank while the replacement is built.
+            previousBank = detachDynamicsBank();
         } else {
             releaseDynamicsProcessing();
         }
@@ -611,6 +625,13 @@ final class GlobalEqualizerEngine {
                 Log.i(TAG, "Prepared guarded DVC-off handoff on session 0 with "
                         + describeActiveDynamicsBank());
             } else {
+                if (makeBeforeBreakDvcOn) {
+                    releaseDynamicsBank(previousBank);
+                    previousBank = null;
+                    Log.i(TAG, "Completed make-before-break DVC-on handoff; session 0 stayed "
+                            + "alive until player session " + dynamicsAudioSessionId
+                            + " was enabled");
+                }
                 Log.i(TAG, "Rebuilt GlobalDSP DVC=" + active
                         + " session=" + dynamicsAudioSessionId
                         + " with " + describeActiveDynamicsBank());
@@ -633,6 +654,16 @@ final class GlobalEqualizerEngine {
                 dvcActive = previousActive;
                 dynamicsAudioSessionId = previousAudioSessionId;
                 Log.e(TAG, "Could not prepare guarded DVC-off handoff; kept DVC active");
+                return false;
+            }
+            if (makeBeforeBreakDvcOn && previousBank != null && previousBank.hasEffect()) {
+                // The new player bank was rejected, but the original session-0 bank never stopped
+                // processing. Restore its Java references instead of rebuilding it and creating a
+                // second gap in the video playback path.
+                attachDynamicsBank(previousBank);
+                dvcActive = previousActive;
+                dynamicsAudioSessionId = previousAudioSessionId;
+                Log.e(TAG, "DVC-on player bank failed; kept the original session-0 EQ active");
                 return false;
             }
             if (!active) {
@@ -1404,6 +1435,11 @@ final class GlobalEqualizerEngine {
         applyAndVerifyPreEqGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
             dynamicsProcessing.setEnabled(true);
+        }
+        if (!dynamicsProcessing.getEnabled()) {
+            throw new IllegalStateException(
+                    "DynamicsProcessing enable was not applied on session "
+                            + dynamicsAudioSessionId);
         }
     }
 

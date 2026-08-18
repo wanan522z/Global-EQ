@@ -1357,7 +1357,8 @@ public final class MainActivity extends Activity {
         applyGlassElevation(curveFrame, 6f);
         
         curveView = new EqCurveView(this);
-        curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
+        curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve,
+                curveSmoothingWindow(deviceCurveSmoothing));
         curveView.setMaxDb(curveGraphMaxDb);
         curveView.setOnClickListener(v -> {
             if (activeEqEditOverlay != null) {
@@ -2990,7 +2991,7 @@ public final class MainActivity extends Activity {
     }
 
     private String footerText() {
-        return tr("Version 2.1.0 - Powered by WanAn522z", "Version 2.1.0 - Powered by WanAn522z");
+        return tr("Version 2.1.2 - Powered by WanAn522z", "Version 2.1.2 - Powered by WanAn522z");
     }
 
     private String monitorSettingsTitleText() {
@@ -5168,7 +5169,8 @@ public final class MainActivity extends Activity {
         if (curveView == null) {
             return;
         }
-        curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
+        curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve,
+                curveSmoothingWindow(deviceCurveSmoothing));
         curveView.setMaxDb(curveGraphMaxDb);
         curveView.setPreset(curveDisplayPreset());
         updateCurveAnimationState(false);
@@ -6552,7 +6554,9 @@ public final class MainActivity extends Activity {
             selectedDeviceCurveSource = resolveCurveSource(selectedDeviceCurveName,
                     editingPreset == null ? FrequencyCurve.DEFAULT : editingPreset.deviceCurveData, false);
         }
-        selectedDeviceCurveBase = applyCurveSmoothing(selectedDeviceCurveSource, deviceCurveSmoothing);
+        // Device smoothing is applied to the complete solid response in EqCurveView, after the
+        // device curve and PEQ response have been combined.
+        selectedDeviceCurveBase = selectedDeviceCurveSource;
         selectedDeviceCurve = applyCurveGainOffset(selectedDeviceCurveBase, deviceCurveGainOffsetDb);
     }
 
@@ -6660,7 +6664,8 @@ public final class MainActivity extends Activity {
     private void refreshCurvePreviewOnly() {
         renderCurveButtons();
         if (curveView != null) {
-            curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve);
+            curveView.setReferenceCurves(selectedDeviceCurve, selectedTargetCurve,
+                    curveSmoothingWindow(deviceCurveSmoothing));
             curveView.setMaxDb(curveGraphMaxDb);
             refreshCurveView();
         }

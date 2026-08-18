@@ -105,8 +105,11 @@ final class PowerampDvcVolumeChain {
             return;
         }
         try {
-            // Poweramp's common Equalizer helper releases VolumeFX directly; it does not modify
-            // the stream-volume index or write a replacement level during teardown.
+            volumeEffect.setEnabled(false);
+        } catch (RuntimeException ignored) {
+        }
+        try {
+            // Teardown never modifies the stream-volume index or writes a replacement level.
             volumeEffect.release();
         } catch (RuntimeException ignored) {
         } finally {
@@ -128,6 +131,14 @@ final class PowerampDvcVolumeChain {
                         audioSessionId);
                 if (!candidate.hasControl()) {
                     throw new IllegalStateException("created but has no control");
+                }
+                int enableStatus = candidate.setEnabled(true);
+                if (enableStatus < AudioEffect.SUCCESS) {
+                    throw new IllegalStateException(
+                            "enable failed with status " + enableStatus);
+                }
+                if (!candidate.getEnabled()) {
+                    throw new IllegalStateException("enable was not applied");
                 }
                 return candidate;
             } catch (ReflectiveOperationException error) {

@@ -28,6 +28,9 @@ final class GlobalDvcController {
     private static final Pattern PLAYBACK_SESSION_REGEX = Pattern.compile(
             "\\bsession(?:Id)?\\b\\s*[:=]\\s*(\\d+)",
             Pattern.CASE_INSENSITIVE);
+    private static final long[] SESSION_ATTACH_RETRY_DELAYS_MS = {300L, 700L, 1500L, 3000L};
+    private static final long SESSION_WATCHDOG_INTERVAL_MS = 1500L;
+    private static final int PLAYER_STATE_STARTED = resolveStartedPlayerState();
 
     private final Context appContext;
     private final AudioManager audioManager;
@@ -35,6 +38,41 @@ final class GlobalDvcController {
     private final PresetRepository repository;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final LinkedHashSet<Integer> announcedPlaybackSessions = new LinkedHashSet<>();
+    private final LinkedHashSet<Integer> lastActiveConfigurationSessions = new LinkedHashSet<>();
+    private final Runnable sessionAttachRetry = new Runnable() {
+        @Override
+        public void run() {
+            sessionAttachRetryScheduled = false;
+            if (!canAttachDvc() || mappingActive) {
+                return;
+            }
+            handlePlaybackSessionsChanged(-1, false);
+        }
+    };
+    private final Runnable sessionWatchdog = new Runnable() {
+        @Override
+        public void run() {
+            if (!canAttachDvc() || !mappingActive) {
+                return;
+            }
+            Set<Integer> sessions = discoverPlaybackSessionIds(-1);
+            boolean privateSessionChanged = activeAudioSessionId > 0
+                    ? !sessions.contains(activeAudioSessionId)
+                    || (preferredAudioSessionId > 0
+                    && preferredAudioSessionId != activeAudioSessionId
+                    && sessions.contains(preferredAudioSessionId))
+                    : preferredAudioSessionId > 0
+                    && sessions.contains(preferredAudioSessionId);
+            if (privateSessionChanged) {
+                Log.i(TAG, "DVC watchdog detected player-session change: active="
+                        + activeAudioSessionId + ", preferred=" + preferredAudioSessionId
+                        + ", sessions=" + sessions);
+                handlePlaybackSessionsChanged(-1, false);
+                return;
+            }
+            scheduleSessionWatchdog();
+        }
+    };
     private final BroadcastReceiver volumeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -52,7 +90,7 @@ final class GlobalDvcController {
             new AudioManager.AudioPlaybackCallback() {
                 @Override
                 public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
-                    handlePlaybackSessionsChanged(-1);
+                    handlePlaybackSessionsChanged(-1, true);
                 }
             };
 
@@ -69,6 +107,8 @@ final class GlobalDvcController {
     private int preferredAudioSessionId;
     private int initialVolumeIndex;
     private boolean sessionZeroVolumeAttempted;
+    private int sessionAttachRetryAttempt;
+    private boolean sessionAttachRetryScheduled;
 
     GlobalDvcController(Context context,
                         GlobalEqualizerEngine engine,
@@ -85,7 +125,7 @@ final class GlobalDvcController {
                     preferredAudioSessionId = preferredSessionId > 0
                             ? preferredSessionId
                             : DvcAudioSessionRegistry.loadPreferredSessionId(appContext);
-                    handlePlaybackSessionsChanged(closedSessionId);
+                    handlePlaybackSessionsChanged(closedSessionId, true);
                 });
     }
 
@@ -116,6 +156,9 @@ final class GlobalDvcController {
         if (currentKey.equals(nextKey)) {
             return;
         }
+        cancelSessionAttachRetry();
+        cancelSessionWatchdog();
+        lastActiveConfigurationSessions.clear();
         deactivateEngineMapping();
         curve = null;
         route = safeRoute(nextRoute);
@@ -167,6 +210,7 @@ final class GlobalDvcController {
                     "Global DynamicsProcessing player-session path is unavailable");
             return;
         }
+        cancelSessionAttachRetry();
         applyMappedCurve(routeDecision.isUsb()
                 ? DvcRuntimeState.Kind.USB_HARDWARE
                 : DvcRuntimeState.Kind.ACTIVE);
@@ -186,6 +230,9 @@ final class GlobalDvcController {
             started = false;
         }
         announcedPlaybackSessions.clear();
+        cancelSessionAttachRetry();
+        cancelSessionWatchdog();
+        lastActiveConfigurationSessions.clear();
         preferredAudioSessionId = 0;
         mappingActive = false;
         activeAudioSessionId = 0;
@@ -247,7 +294,7 @@ final class GlobalDvcController {
                 }
                 engine.completeDvcOffHandoff(
                         this::releaseDvcVolumeChain,
-                        () -> resumeMappedCurveAfterHandoff(kind, playbackSessions));
+                        () -> resumeMappedCurveAfterHandoff(kind));
                 return;
             }
             if (volumeChain == null
@@ -282,7 +329,9 @@ final class GlobalDvcController {
             return;
         }
         mappingActive = true;
+        cancelSessionAttachRetry();
         activeAudioSessionId = targetAudioSessionId;
+        scheduleSessionWatchdog();
         boolean sessionZeroFallback = targetAudioSessionId == 0;
         boolean chineseUi = "zh".equalsIgnoreCase(repository.loadUiLanguage());
         String attachment = volumeChain == null
@@ -309,12 +358,16 @@ final class GlobalDvcController {
     }
 
     private void failMappedCurve(String detail) {
+        cancelSessionWatchdog();
         deactivateEngineMapping();
         publish(DvcRuntimeState.Kind.PROBE_FAILED, false, true,
                 detail == null ? "DVC player-session pipeline failed" : detail);
+        scheduleSessionAttachRetry();
     }
 
     private void deactivate(DvcRuntimeState.Kind kind, boolean switchAvailable, String detail) {
+        cancelSessionAttachRetry();
+        cancelSessionWatchdog();
         deactivateEngineMapping();
         publish(kind, false, switchAvailable, detail);
     }
@@ -353,8 +406,7 @@ final class GlobalDvcController {
         }
     }
 
-    private void resumeMappedCurveAfterHandoff(DvcRuntimeState.Kind kind,
-                                                Set<Integer> playbackSessions) {
+    private void resumeMappedCurveAfterHandoff(DvcRuntimeState.Kind kind) {
         if (!started
                 || mode != ProcessingMode.GLOBAL_DSP
                 || !presetEnabled
@@ -363,10 +415,17 @@ final class GlobalDvcController {
                 || mappingActive) {
             return;
         }
-        applyMappedCurve(kind, playbackSessions);
+        // Video players can replace their AudioTrack again while the guarded handoff is fading.
+        // Never attach the new bank to the stale snapshot captured before that handoff.
+        applyMappedCurve(kind, discoverPlaybackSessionIds(-1));
     }
 
-    private void handlePlaybackSessionsChanged(int excludedSessionId) {
+    private void handlePlaybackSessionsChanged(int excludedSessionId,
+                                               boolean newPlaybackSignal) {
+        if (newPlaybackSignal) {
+            cancelSessionAttachRetry();
+            cancelSessionWatchdog();
+        }
         if (!started || mode != ProcessingMode.GLOBAL_DSP || !presetEnabled
                 || !userIntentEnabled || !routeDecision.allowsDvc) {
             return;
@@ -401,11 +460,13 @@ final class GlobalDvcController {
 
     private Iterable<Integer> orderedPlaybackSessionIds(Set<Integer> playbackSessions) {
         LinkedHashSet<Integer> ordered = new LinkedHashSet<>();
-        if (activeAudioSessionId > 0 && playbackSessions.contains(activeAudioSessionId)) {
-            ordered.add(activeAudioSessionId);
-        }
+        // Prefer the newest active player. Keeping the currently attached session first made
+        // video apps lose EQ whenever they replaced an AudioTrack without closing the old one.
         if (preferredAudioSessionId > 0 && playbackSessions.contains(preferredAudioSessionId)) {
             ordered.add(preferredAudioSessionId);
+        }
+        if (activeAudioSessionId > 0 && playbackSessions.contains(activeAudioSessionId)) {
+            ordered.add(activeAudioSessionId);
         }
         ArrayList<Integer> newestFirst = new ArrayList<>(playbackSessions);
         Collections.reverse(newestFirst);
@@ -426,24 +487,140 @@ final class GlobalDvcController {
         try {
             List<AudioPlaybackConfiguration> configurations =
                     audioManager.getActivePlaybackConfigurations();
+            LinkedHashSet<Integer> activeConfigurationSessions = new LinkedHashSet<>();
             int lastConfigurationSessionId = 0;
             if (configurations != null) {
                 for (AudioPlaybackConfiguration configuration : configurations) {
+                    if (!isPlaybackConfigurationActive(configuration)) {
+                        continue;
+                    }
                     int sessionId = readPlaybackSessionId(configuration);
                     if (sessionId > 0 && sessionId != excludedSessionId) {
-                        result.add(sessionId);
+                        activeConfigurationSessions.add(sessionId);
                         lastConfigurationSessionId = sessionId;
                     }
                 }
             }
-            if ((preferredAudioSessionId <= 0 || !result.contains(preferredAudioSessionId))
-                    && lastConfigurationSessionId > 0) {
-                preferredAudioSessionId = lastConfigurationSessionId;
+            if (!activeConfigurationSessions.isEmpty()) {
+                // OPEN/CLOSE broadcasts are advisory and many video players omit CLOSE. When the
+                // framework can identify currently playing sessions, discard stale announcements.
+                result.clear();
+                result.addAll(activeConfigurationSessions);
+                LinkedHashSet<Integer> newlyActiveSessions =
+                        new LinkedHashSet<>(activeConfigurationSessions);
+                newlyActiveSessions.removeAll(lastActiveConfigurationSessions);
+                boolean firstSnapshot = lastActiveConfigurationSessions.isEmpty();
+                if (firstSnapshot
+                        && preferredAudioSessionId > 0
+                        && activeConfigurationSessions.contains(preferredAudioSessionId)) {
+                    // Preserve the explicit OPEN_AUDIO_EFFECT session on the first snapshot.
+                } else if (!newlyActiveSessions.isEmpty()) {
+                    preferredAudioSessionId = lastSessionId(newlyActiveSessions);
+                } else if (!activeConfigurationSessions.contains(preferredAudioSessionId)) {
+                    preferredAudioSessionId = activeConfigurationSessions.contains(activeAudioSessionId)
+                            ? activeAudioSessionId
+                            : lastConfigurationSessionId;
+                }
+                Log.d(TAG, "DVC active-session snapshot: previous="
+                        + lastActiveConfigurationSessions
+                        + ", current=" + activeConfigurationSessions
+                        + ", new=" + newlyActiveSessions
+                        + ", selected=" + preferredAudioSessionId);
+                lastActiveConfigurationSessions.clear();
+                lastActiveConfigurationSessions.addAll(activeConfigurationSessions);
+            } else {
+                lastActiveConfigurationSessions.clear();
             }
         } catch (RuntimeException error) {
             Log.d(TAG, "Could not enumerate active player audio sessions", error);
         }
         return result;
+    }
+
+    private boolean isPlaybackConfigurationActive(AudioPlaybackConfiguration configuration) {
+        if (configuration == null) {
+            return false;
+        }
+        try {
+            Method method = AudioPlaybackConfiguration.class.getMethod("isActive");
+            Object value = method.invoke(configuration);
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+        }
+        try {
+            Method method = AudioPlaybackConfiguration.class.getMethod("getPlayerState");
+            Object value = method.invoke(configuration);
+            if (value instanceof Integer) {
+                return (Integer) value == PLAYER_STATE_STARTED;
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+        }
+        // Some vendor frameworks hide both methods. The API already calls this the active
+        // playback list, so fail open and retain its session instead of losing compatibility.
+        return true;
+    }
+
+    private static int resolveStartedPlayerState() {
+        try {
+            return AudioPlaybackConfiguration.class
+                    .getField("PLAYER_STATE_STARTED")
+                    .getInt(null);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return 2;
+        }
+    }
+
+    private boolean canAttachDvc() {
+        return started
+                && mode == ProcessingMode.GLOBAL_DSP
+                && presetEnabled
+                && userIntentEnabled
+                && routeDecision.allowsDvc;
+    }
+
+    private void scheduleSessionAttachRetry() {
+        if (!canAttachDvc()
+                || mappingActive
+                || sessionAttachRetryScheduled
+                || sessionAttachRetryAttempt >= SESSION_ATTACH_RETRY_DELAYS_MS.length) {
+            return;
+        }
+        long delayMs = SESSION_ATTACH_RETRY_DELAYS_MS[sessionAttachRetryAttempt++];
+        sessionAttachRetryScheduled = true;
+        mainHandler.postDelayed(sessionAttachRetry, delayMs);
+        Log.d(TAG, "Scheduled DVC session attach retry " + sessionAttachRetryAttempt
+                + " in " + delayMs + " ms");
+    }
+
+    private void cancelSessionAttachRetry() {
+        mainHandler.removeCallbacks(sessionAttachRetry);
+        sessionAttachRetryScheduled = false;
+        sessionAttachRetryAttempt = 0;
+    }
+
+    private void scheduleSessionWatchdog() {
+        mainHandler.removeCallbacks(sessionWatchdog);
+        if (canAttachDvc() && mappingActive) {
+            mainHandler.postDelayed(sessionWatchdog, SESSION_WATCHDOG_INTERVAL_MS);
+        }
+    }
+
+    private void cancelSessionWatchdog() {
+        mainHandler.removeCallbacks(sessionWatchdog);
+    }
+
+    private static int lastSessionId(Set<Integer> sessions) {
+        int selected = 0;
+        if (sessions != null) {
+            for (Integer sessionId : sessions) {
+                if (sessionId != null && sessionId > 0) {
+                    selected = sessionId;
+                }
+            }
+        }
+        return selected;
     }
 
     private int readPlaybackSessionId(AudioPlaybackConfiguration configuration) {

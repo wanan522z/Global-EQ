@@ -75,6 +75,9 @@ final class PowerampDynamicsProcessing {
                     IMPLEMENTATION_UUID,
                     PRIORITY,
                     audioSessionId);
+            if (!effect.hasControl()) {
+                throw new IllegalStateException("Poweramp raw DP created without control");
+            }
             commandMethod = AudioEffect.class.getMethod(
                     "command",
                     int.class,
@@ -106,6 +109,10 @@ final class PowerampDynamicsProcessing {
 
     void setEnabled(boolean enabled) {
         checkStatus(effect.setEnabled(enabled), "setEnabled");
+        if (effect.getEnabled() != enabled) {
+            throw new IllegalStateException(
+                    "Poweramp raw DP enabled state did not change to " + enabled);
+        }
     }
 
     void setInputGain(float gainDb) {

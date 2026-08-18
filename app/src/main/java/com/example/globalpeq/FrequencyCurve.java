@@ -125,6 +125,31 @@ final class FrequencyCurve {
         return new FrequencyCurve(nextName, points);
     }
 
+    FrequencyCurve withAdditionalGain(GainSampler additionalGain) {
+        if (additionalGain == null) {
+            return this;
+        }
+        int sampleCount = (int) Math.ceil(
+                (LOG2_MAX_HZ - LOG2_MIN_HZ) * SMOOTH_POINTS_PER_OCTAVE) + 1;
+        List<Point> combined = new ArrayList<>(sampleCount);
+        int lastHz = -1;
+        for (int sample = 0; sample < sampleCount; sample++) {
+            double t = sampleCount <= 1 ? 0.0 : sample / (double) (sampleCount - 1);
+            double frequencyHz = Math.pow(
+                    2.0,
+                    LOG2_MIN_HZ + (LOG2_MAX_HZ - LOG2_MIN_HZ) * t);
+            int roundedHz = Math.max(MIN_HZ, Math.min(MAX_HZ, (int) Math.round(frequencyHz)));
+            if (roundedHz == lastHz) {
+                continue;
+            }
+            float gainDb = gainAtFrequency(frequencyHz)
+                    + additionalGain.gainAtFrequency(frequencyHz);
+            combined.add(new Point(roundedHz, gainDb));
+            lastHz = roundedHz;
+        }
+        return new FrequencyCurve(name, combined);
+    }
+
     String toJson() {
         JSONObject object = new JSONObject();
         JSONArray array = new JSONArray();
@@ -453,5 +478,9 @@ final class FrequencyCurve {
             this.frequencyHz = frequencyHz;
             this.gainDb = gainDb;
         }
+    }
+
+    interface GainSampler {
+        float gainAtFrequency(double frequencyHz);
     }
 }
