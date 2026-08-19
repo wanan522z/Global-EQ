@@ -32,8 +32,9 @@ final class DvcVolumeMapper {
             if (!meaningful || !Float.isFinite(currentDb)) {
                 return 0f;
             }
-            // A finite minimum-volume step still represents real attenuation after the EQ and is
-            // therefore usable DVC headroom. Only a muted/-infinity step has no measurable budget.
+            // A finite minimum-volume step still represents real attenuation at the output-mix
+            // input and is therefore usable EQ headroom. A muted/-infinity step has no bounded
+            // budget that can be compensated safely.
             return clamp(-currentDb, 0f, 96f);
         }
 

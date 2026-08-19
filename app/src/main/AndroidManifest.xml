@@ -64,17 +64,6 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name=".DvcAudioSessionReceiver"
-            android:exported="true"
-            android:label="Global PEQ audio session receiver">
-            <intent-filter android:priority="999">
-                <action android:name="android.media.action.OPEN_AUDIO_EFFECT_CONTROL_SESSION" />
-                <action android:name="android.media.action.CLOSE_AUDIO_EFFECT_CONTROL_SESSION" />
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"

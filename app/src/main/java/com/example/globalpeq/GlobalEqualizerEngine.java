@@ -66,7 +66,7 @@ final class GlobalEqualizerEngine {
     private AdvancedModeConfig dynamicsConfig = AdvancedModeConfig.DEFAULT;
     private ProcessingMode processingMode = ProcessingMode.SYSTEM_EQ;
     private boolean dvcActive;
-    private float dvcDownstreamHeadroomDb;
+    private float dvcVolumeHeadroomDb;
     private float dvcRequestedEqPeakGainDb;
     private float dvcRequestedFinalPeakGainDb;
     private float dvcPositiveGainScale = 1f;
@@ -165,7 +165,7 @@ final class GlobalEqualizerEngine {
             try {
                 // Keep every response band in post-EQ. A separate one-band pre-EQ is the DVC
                 // pregain stage. This device's input-gain and MBC stages both accept readback but
-                // do not provide reliable broadband gain once session VolumeFX is attached.
+                // do not provide reliable broadband gain in the DVC configuration.
                 boolean useDvcPregainStage = dvcActive
                         && processingMode == ProcessingMode.GLOBAL_DSP;
                 int frameworkPreEqBandCount = useDvcPregainStage ? 1 : 0;
@@ -381,9 +381,9 @@ final class GlobalEqualizerEngine {
                     postGainDb);
         }
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
-            // Put the limiter at the peak the current downstream volume attenuation can absorb.
-            // Toward maximum volume, retain up to +2 dB for distortion testing while still
-            // respecting the configured limiter-ceiling margin.
+            // The output-mix limiter stays at the real digital ceiling. Media-volume attenuation
+            // is already present at this bank's input and is accounted for when the positive EQ
+            // response is scaled.
             return new DynamicsProcessing.Limiter(
                     safeConfig.limiterEnabled,
                     true,
@@ -416,16 +416,24 @@ final class GlobalEqualizerEngine {
         return (float) (20.0 * Math.log10(ceiling));
     }
 
-    private float dvcLimiterThresholdDb(AdvancedModeConfig config) {
-        // Do not cap this independently of the volume curve. DVC's purpose is to turn all real
-        // downstream stream-volume attenuation into pre-volume EQ headroom; an unrelated fixed
-        // ceiling would compress boosts even while the output volume still has ample headroom.
+    private float dvcEqPeakBudgetDb(AdvancedModeConfig config) {
+        // The output-mix bank receives media after stream-volume attenuation, so the attenuation
+        // can safely be spent on the positive part of the EQ response.
         return Math.max(
                 DVC_MAX_VOLUME_POSITIVE_GAIN_DB,
-                dvcDownstreamHeadroomDb) + normalLimiterThresholdDb(config);
+                dvcVolumeHeadroomDb) + normalLimiterThresholdDb(config);
     }
 
-    boolean supportsDvcSessionPlacement() {
+    private float dvcLimiterThresholdDb(AdvancedModeConfig config) {
+        // On session 0 the media-volume attenuation is already present at the DP input. Keep the
+        // limiter at the real digital ceiling; raising it by the same headroom a second time would
+        // allow the output-mix signal itself to exceed full scale.
+        return dynamicsAudioSessionId == GLOBAL_AUDIO_SESSION
+                ? normalLimiterThresholdDb(config)
+                : dvcEqPeakBudgetDb(config);
+    }
+
+    boolean supportsDvcProcessing() {
         return processingMode == ProcessingMode.GLOBAL_DSP
                 && (dynamicsProcessing != null || powerampDynamicsProcessing != null);
     }
@@ -434,14 +442,14 @@ final class GlobalEqualizerEngine {
         return dvcActive;
     }
 
-    synchronized void setDvcDownstreamHeadroomDb(float headroomDb) {
+    synchronized void setDvcVolumeHeadroomDb(float headroomDb) {
         float nextHeadroomDb = Float.isFinite(headroomDb)
                 ? clamp(headroomDb, 0f, 96f)
                 : 0f;
-        if (Math.abs(nextHeadroomDb - dvcDownstreamHeadroomDb) < 0.05f) {
+        if (Math.abs(nextHeadroomDb - dvcVolumeHeadroomDb) < 0.05f) {
             return;
         }
-        dvcDownstreamHeadroomDb = nextHeadroomDb;
+        dvcVolumeHeadroomDb = nextHeadroomDb;
         if (!dvcActive) {
             return;
         }
@@ -450,7 +458,7 @@ final class GlobalEqualizerEngine {
             return;
         }
         try {
-            // Downstream headroom determines how much positive EQ boost can be retained. Rebuild
+            // Media-volume headroom determines how much positive EQ boost can be retained. Rebuild
             // the sampled response so only its positive portion is reduced; never lower the whole
             // signal to compensate for an EQ peak.
             dynamicsLimiterConfigured = false;
@@ -464,11 +472,7 @@ final class GlobalEqualizerEngine {
         }
     }
 
-    /**
-     * Moves the full GlobalDSP EQ between output-mix session 0 and a player session.
-     * In DVC mode the player-session EQ runs before Android's stream-volume attenuation, making
-     * that unchanged downstream attenuation real post-EQ headroom.
-     */
+    /** Enables the volume-headroom response on the requested DynamicsProcessing bank. */
     synchronized boolean setDvcModeEnabled(boolean active, int requestedAudioSessionId) {
         if (processingMode != ProcessingMode.GLOBAL_DSP
                 || (dynamicsProcessing == null && powerampDynamicsProcessing == null)) {
@@ -501,7 +505,7 @@ final class GlobalEqualizerEngine {
                 && previousAudioSessionId == GLOBAL_AUDIO_SESSION
                 && dynamicsProcessing != null) {
             try {
-                // A session-0 fallback already occupies the normal GlobalDSP attachment point.
+                // The DVC bank already occupies the normal GlobalDSP attachment point.
                 // Reuse it and atomically replace the DVC response/limiter instead of releasing
                 // and racing AudioFlinger to create another session-0 effect.
                 dvcActive = false;
@@ -532,7 +536,7 @@ final class GlobalEqualizerEngine {
             dvcActive = active;
             if (powerampDynamicsProcessing != null) {
                 refreshPowerampDvcControls(targetPreset);
-                Log.d(TAG, "Poweramp raw DVC on for player session "
+                Log.d(TAG, "Poweramp raw DVC on for audio session "
                         + dynamicsAudioSessionId);
                 return true;
             }
@@ -549,7 +553,7 @@ final class GlobalEqualizerEngine {
                 }
             }
             Log.d(TAG, active
-                    ? "Global DVC on for player session " + dynamicsAudioSessionId
+                    ? "Global DVC on for audio session " + dynamicsAudioSessionId
                     : "Global DVC off on session 0");
             return true;
         } catch (RuntimeException error) {
@@ -586,7 +590,7 @@ final class GlobalEqualizerEngine {
         handler.removeCallbacksAndMessages(null);
         cancelDvcDisableHandoff();
         if (makeBeforeBreakDvcOff) {
-            // Keep the player-session bank processing until a guarded output-mix replacement is
+            // Keep the active DVC bank processing until a guarded normal replacement is
             // already enabled. The device log shows that destroying this bank first leaves about
             // 108 ms of unprotected audio, which is the audible DVC-off volume spike.
             previousBank = detachDynamicsBank();
@@ -595,10 +599,8 @@ final class GlobalEqualizerEngine {
             // completeDvcOffHandoff() fades this audible post-EQ bank down before any teardown.
             dvcDisablePostEqGuardGainDb = 0f;
         } else if (makeBeforeBreakDvcOn) {
-            // Keep the output-mix effect alive until the player-session bank is enabled. Releasing
-            // session 0 first lets video players immediately reopen their track as offload/direct,
-            // after which a successfully created player effect can still be outside the audible
-            // path. Detaching preserves the live native bank while the replacement is built.
+            // Keep the normal output-mix effect alive while the DVC-configured replacement is
+            // built. Detaching preserves the live native bank during that transition.
             previousBank = detachDynamicsBank();
         } else {
             releaseDynamicsProcessing();
@@ -628,9 +630,8 @@ final class GlobalEqualizerEngine {
                 if (makeBeforeBreakDvcOn) {
                     releaseDynamicsBank(previousBank);
                     previousBank = null;
-                    Log.i(TAG, "Completed make-before-break DVC-on handoff; session 0 stayed "
-                            + "alive until player session " + dynamicsAudioSessionId
-                            + " was enabled");
+                    Log.i(TAG, "Completed make-before-break DVC-on handoff on session "
+                            + dynamicsAudioSessionId);
                 }
                 Log.i(TAG, "Rebuilt GlobalDSP DVC=" + active
                         + " session=" + dynamicsAudioSessionId
@@ -647,9 +648,8 @@ final class GlobalEqualizerEngine {
             lastAppliedPreset = savedLastAppliedPreset;
             lastAppliedDynamicsConfig = savedLastAppliedConfig;
             if (makeBeforeBreakDvcOff && previousBank != null && previousBank.hasEffect()) {
-                // Allocation of the guarded replacement failed. Restore the still-live player
-                // bank and leave VolumeFX attached; tearing either one down here would recreate
-                // the exact unprotected transition this handoff is designed to prevent.
+                // Allocation of the guarded replacement failed. Restore the still-live DVC bank
+                // instead of leaving an unprotected transition.
                 attachDynamicsBank(previousBank);
                 dvcActive = previousActive;
                 dynamicsAudioSessionId = previousAudioSessionId;
@@ -663,11 +663,11 @@ final class GlobalEqualizerEngine {
                 attachDynamicsBank(previousBank);
                 dvcActive = previousActive;
                 dynamicsAudioSessionId = previousAudioSessionId;
-                Log.e(TAG, "DVC-on player bank failed; kept the original session-0 EQ active");
+                Log.e(TAG, "DVC-on bank failed; kept the original session-0 EQ active");
                 return false;
             }
             if (!active) {
-                // Turning DVC off is fail-safe. Never restore a boosted player-session/session-0
+                // Turning DVC off is fail-safe. Never restore a boosted DVC
                 // DVC bank after reporting the switch off. If framework DP cannot be recreated,
                 // fall back to Android's ordinary output-mix Equalizer instead.
                 dvcActive = false;
@@ -833,14 +833,14 @@ final class GlobalEqualizerEngine {
             }
             return String.format(
                     Locale.US,
-                    "DVC raw command/reply accepted: session %d, channels %d, user pregain %.1f dB, pre-EQ input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, EQ peak %.1f dB, final peak %.1f dB, positive EQ scale %.3f, limiter %s @ %+.1f dB, attack %.3f ms, release %d ms",
+                    "DVC raw command/reply accepted: session %d, channels %d, user pregain %.1f dB, pre-EQ input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, media-volume headroom %.1f dB, EQ peak %.1f dB, final peak %.1f dB, positive EQ scale %.3f, limiter %s @ %+.1f dB, attack %.3f ms, release %d ms",
                     dynamicsAudioSessionId,
                     powerampDynamicsProcessing.getChannelCount(),
                     userPregainDb,
                     inputGainDb,
                     maxLowGainDb,
                     maxGainDb,
-                    dvcDownstreamHeadroomDb,
+                    dvcVolumeHeadroomDb,
                     dvcRequestedEqPeakGainDb,
                     dvcRequestedFinalPeakGainDb,
                     dvcPositiveGainScale,
@@ -892,14 +892,14 @@ final class GlobalEqualizerEngine {
             boolean limiterEnabled = appliedLimiter.isEnabled();
             return String.format(
                     Locale.US,
-                        "DVC readback: session %d, user pregain %.1f dB, pre-EQ gain band %.1f dB, DP input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, downstream headroom %.1f dB, EQ peak %.1f dB, final peak %.1f dB, positive EQ scale %.3f, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
+                        "DVC readback: session %d, user pregain %.1f dB, pre-EQ gain band %.1f dB, DP input %.1f dB, <=80 Hz max %.1f dB, all-band max %.1f dB, media-volume headroom %.1f dB, EQ peak %.1f dB, final peak %.1f dB, positive EQ scale %.3f, first %.2f Hz, limiter %s @ %+.1f dB, release %.0f ms",
                     dynamicsAudioSessionId,
                         userPregainDb,
                         pregainStageDb,
                         inputGainDb,
                         maxLowGainDb,
                         maxGainDb,
-                        dvcDownstreamHeadroomDb,
+                        dvcVolumeHeadroomDb,
                         dvcRequestedEqPeakGainDb,
                         dvcRequestedFinalPeakGainDb,
                         dvcPositiveGainScale,
@@ -920,7 +920,7 @@ final class GlobalEqualizerEngine {
                 ? 0f
                 : targetPreEqInputGainDb(preset);
         if (dvcActive && processingMode == ProcessingMode.GLOBAL_DSP) {
-            // On the DVC player-session chain, keep the unreliable framework input and MBC stages
+            // On the DVC chain, keep the unreliable framework input and MBC stages
             // neutral. A dedicated one-band pre-EQ provides broadband gain before the sampled
             // response in post-EQ, preserving the required pregain -> EQ ordering.
             dynamicsProcessing.setInputGainAllChannelsTo(0f);
@@ -1430,7 +1430,7 @@ final class GlobalEqualizerEngine {
             dynamicsProcessing.setPreEqAllChannelsTo(dynamicsPreEq);
         }
         // Preserve the complete EQ shape, but use only the positive peak range that the current
-        // downstream stream-volume attenuation can safely absorb.
+        // measured media-volume attenuation can safely absorb.
         ensureFrameworkLimiterConfigured();
         applyAndVerifyPreEqGain(preset);
         if (!dynamicsProcessing.getEnabled()) {
@@ -1517,7 +1517,7 @@ final class GlobalEqualizerEngine {
                 : 0f;
         float pregainDb = presetPregainDb(preset);
         dvcRequestedFinalPeakGainDb = pregainDb + dvcRequestedEqPeakGainDb;
-        float availableFinalPeakDb = dvcLimiterThresholdDb(dynamicsConfig);
+        float availableFinalPeakDb = dvcEqPeakBudgetDb(dynamicsConfig);
         if (dvcRequestedEqPeakGainDb <= 0f
                 || dvcRequestedFinalPeakGainDb <= availableFinalPeakDb) {
             dvcPositiveGainScale = 1f;
@@ -1840,9 +1840,9 @@ final class GlobalEqualizerEngine {
 
     /**
      * Runs the audible part of a prepared DVC-off handoff. The new session-0 post-EQ first fades
-     * from unity to -24 dB while the old player bank and VolumeFX are still intact. Only at the
-     * protected low point is VolumeFX detached and the old bank released; session 0 then fades up
-     * to the real preset. No unsupported input/pre-EQ attenuation is used.
+     * from unity to -24 dB while the old DVC bank is still intact. At the protected low point the
+     * old bank is released and session 0 fades up to the real preset. No unsupported input/pre-EQ
+     * attenuation is used.
      */
     synchronized void completeDvcOffHandoff(Runnable detachVolumeChain,
                                              Runnable afterHandoff) {
@@ -2014,7 +2014,7 @@ final class GlobalEqualizerEngine {
         dvcDisableHandoffGeneration++;
         if (previousBank != null && previousBank.hasEffect()) {
             attachDynamicsBank(previousBank);
-            Log.w(TAG, "Restored the original DVC bank and kept VolumeFX attached");
+            Log.w(TAG, "Restored the original DVC bank after handoff failure");
         }
     }
 
@@ -2127,7 +2127,7 @@ final class GlobalEqualizerEngine {
         lastControlRearmElapsedMs = 0;
         lastRouteReapplyElapsedMs = 0;
         dvcActive = false;
-        dvcDownstreamHeadroomDb = 0f;
+        dvcVolumeHeadroomDb = 0f;
         dvcRequestedEqPeakGainDb = 0f;
         dvcRequestedFinalPeakGainDb = 0f;
         dvcPositiveGainScale = 1f;

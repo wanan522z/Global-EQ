@@ -260,9 +260,11 @@ public final class GlobalEqForegroundService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        // Removing the UI task is not the same as switching the equalizer off. The service is a
-        // foreground component and must keep owning the audio effects after the recent-apps card
-        // is dismissed. Explicit shutdown still goes through requestStopAllAndStopService().
+        // Pressing Home still leaves the foreground service running for device auto-switching.
+        // Swiping the task away is an explicit close: synchronously release the session-0/player
+        // EQ and DVC VolumeFX before stopping the service. Keeping them alive here made a later
+        // Activity launch attach another chain on top of the abandoned one on some vendor ROMs.
+        requestStopAllAndStopService();
         super.onTaskRemoved(rootIntent);
     }
 
@@ -619,6 +621,9 @@ public final class GlobalEqForegroundService extends Service {
         }
         stopping = true;
         instanceRunning = false;
+        if (repository != null) {
+            repository.saveServiceActive(false);
+        }
         resetSystemEqPlaybackState();
         mainHandler.removeCallbacksAndMessages(null);
         if (deviceMonitor != null) {
